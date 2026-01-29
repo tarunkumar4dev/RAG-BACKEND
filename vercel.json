@@ -1,4 +1,4 @@
-﻿{
+{
   "builds": [
     {
       "src": "api_server.py",
