@@ -2,22 +2,22 @@
   "version": 2,
   "builds": [
     {
-      "src": "api/index.py",
+      "src": "scripts/test_generator/api_server.py",
       "use": "@vercel/python"
     }
   ],
   "routes": [
     {
       "src": "/(.*)",
-      "dest": "api/index.py"
+      "dest": "scripts/test_generator/api_server.py"
     }
   ],
   "env": {
     "PYTHON_VERSION": "3.11"
   },
   "functions": {
-    "api/index.py": {
-      "maxDuration": 30,
+    "scripts/test_generator/api_server.py": {
+      "maxDuration": 60,
       "memory": 3008
     }
   },
