@@ -1,358 +1,175 @@
-"""distutils.command.config
-
-Implements the Distutils 'config' command, a (mostly) empty command class
-that exists mainly to be sub-classed by specific module distributions and
-applications.  The idea is that while every "config" command is different,
-at least they're all named the same, and users always see "config" in the
-list of standard commands.  Also, this is a good place to put common
-configure-like tasks: "try to compile this C code", or "figure out where
-this header file lives".
+"""
+CONFIGURATION FOR NCERT RAG SYSTEM
+Production-ready configuration with environment variable support
 """
 
-from __future__ import annotations
-
 import os
-import pathlib
-import re
-from collections.abc import Sequence
-from distutils._log import log
+from pathlib import Path
+from typing import Dict, Any
 
-from ..ccompiler import CCompiler, CompileError, LinkError, new_compiler
-from ..core import Command
-from ..errors import DistutilsExecError
-from ..sysconfig import customize_compiler
+# ========== DATABASE CONFIGURATION ==========
+DATABASE_CONFIG = {
+    "host": "db.dcmnzvjftmdbywrjkust.supabase.co",
+    "port": 5432,
+    "database": "postgres",
+    "user": "postgres",
+    "password": "",  # Will be loaded from environment
+    "connection_timeout": 30,
+    "query_timeout": 10,
+    "sslmode": "require",
+    "pool_minconn": 2,
+    "pool_maxconn": 20
+}
 
-LANG_EXT = {"c": ".c", "c++": ".cxx"}
-
-
-class config(Command):
-    description = "prepare to build"
-
-    user_options = [
-        ('compiler=', None, "specify the compiler type"),
-        ('cc=', None, "specify the compiler executable"),
-        ('include-dirs=', 'I', "list of directories to search for header files"),
-        ('define=', 'D', "C preprocessor macros to define"),
-        ('undef=', 'U', "C preprocessor macros to undefine"),
-        ('libraries=', 'l', "external C libraries to link with"),
-        ('library-dirs=', 'L', "directories to search for external C libraries"),
-        ('noisy', None, "show every action (compile, link, run, ...) taken"),
-        (
-            'dump-source',
-            None,
-            "dump generated source files before attempting to compile them",
-        ),
+# ========== AI CONFIGURATION ==========
+AI_CONFIG = {
+    "gemini_api_key": "",  # Will be loaded from environment
+    "pinecone_api_key": "",  # Will be loaded from environment
+    "pinecone_environment": "gcp-starter",
+    
+    # Model settings
+    "gemini_temperature": 0.2,
+    "gemini_max_tokens": 800,
+    "gemini_timeout": 30,
+    
+    # Model priorities
+    "model_priority": [
+        "gemini-2.0-flash",
+        "gemini-1.5-flash", 
+        "gemini-1.5-pro",
+        "gemini-pro"
     ]
+}
 
-    # The three standard command methods: since the "config" command
-    # does nothing by default, these are empty.
+# ========== SYSTEM CONFIGURATION ==========
+SYSTEM_CONFIG = {
+    # Performance
+    "max_retries": 3,
+    "retry_delay": 1,
+    "max_chunks_per_query": 15,
+    "cache_size": 1000,
+    "cache_ttl": 300,  # 5 minutes
+    "chunk_limit": 10,
+    
+    # Query limits
+    "max_query_length": 1000,
+    "min_chunk_length": 50,
+    "max_chunk_length": 500,
+    
+    # Logging
+    "log_level": "INFO",
+    "log_to_file": True,
+    "log_directory": "logs"
+}
 
-    def initialize_options(self):
-        self.compiler = None
-        self.cc = None
-        self.include_dirs = None
-        self.libraries = None
-        self.library_dirs = None
-
-        # maximal output for now
-        self.noisy = 1
-        self.dump_source = 1
-
-        # list of temporary files generated along-the-way that we have
-        # to clean at some point
-        self.temp_files = []
-
-    def finalize_options(self):
-        if self.include_dirs is None:
-            self.include_dirs = self.distribution.include_dirs or []
-        elif isinstance(self.include_dirs, str):
-            self.include_dirs = self.include_dirs.split(os.pathsep)
-
-        if self.libraries is None:
-            self.libraries = []
-        elif isinstance(self.libraries, str):
-            self.libraries = [self.libraries]
-
-        if self.library_dirs is None:
-            self.library_dirs = []
-        elif isinstance(self.library_dirs, str):
-            self.library_dirs = self.library_dirs.split(os.pathsep)
-
-    def run(self):
-        pass
-
-    # Utility methods for actual "config" commands.  The interfaces are
-    # loosely based on Autoconf macros of similar names.  Sub-classes
-    # may use these freely.
-
-    def _check_compiler(self):
-        """Check that 'self.compiler' really is a CCompiler object;
-        if not, make it one.
-        """
-        if not isinstance(self.compiler, CCompiler):
-            self.compiler = new_compiler(
-                compiler=self.compiler, dry_run=self.dry_run, force=True
-            )
-            customize_compiler(self.compiler)
-            if self.include_dirs:
-                self.compiler.set_include_dirs(self.include_dirs)
-            if self.libraries:
-                self.compiler.set_libraries(self.libraries)
-            if self.library_dirs:
-                self.compiler.set_library_dirs(self.library_dirs)
-
-    def _gen_temp_sourcefile(self, body, headers, lang):
-        filename = "_configtest" + LANG_EXT[lang]
-        with open(filename, "w", encoding='utf-8') as file:
-            if headers:
-                for header in headers:
-                    file.write(f"#include <{header}>\n")
-                file.write("\n")
-            file.write(body)
-            if body[-1] != "\n":
-                file.write("\n")
-        return filename
-
-    def _preprocess(self, body, headers, include_dirs, lang):
-        src = self._gen_temp_sourcefile(body, headers, lang)
-        out = "_configtest.i"
-        self.temp_files.extend([src, out])
-        self.compiler.preprocess(src, out, include_dirs=include_dirs)
-        return (src, out)
-
-    def _compile(self, body, headers, include_dirs, lang):
-        src = self._gen_temp_sourcefile(body, headers, lang)
-        if self.dump_source:
-            dump_file(src, f"compiling '{src}':")
-        (obj,) = self.compiler.object_filenames([src])
-        self.temp_files.extend([src, obj])
-        self.compiler.compile([src], include_dirs=include_dirs)
-        return (src, obj)
-
-    def _link(self, body, headers, include_dirs, libraries, library_dirs, lang):
-        (src, obj) = self._compile(body, headers, include_dirs, lang)
-        prog = os.path.splitext(os.path.basename(src))[0]
-        self.compiler.link_executable(
-            [obj],
-            prog,
-            libraries=libraries,
-            library_dirs=library_dirs,
-            target_lang=lang,
-        )
-
-        if self.compiler.exe_extension is not None:
-            prog = prog + self.compiler.exe_extension
-        self.temp_files.append(prog)
-
-        return (src, obj, prog)
-
-    def _clean(self, *filenames):
-        if not filenames:
-            filenames = self.temp_files
-            self.temp_files = []
-        log.info("removing: %s", ' '.join(filenames))
-        for filename in filenames:
-            try:
-                os.remove(filename)
-            except OSError:
-                pass
-
-    # XXX these ignore the dry-run flag: what to do, what to do? even if
-    # you want a dry-run build, you still need some sort of configuration
-    # info.  My inclination is to make it up to the real config command to
-    # consult 'dry_run', and assume a default (minimal) configuration if
-    # true.  The problem with trying to do it here is that you'd have to
-    # return either true or false from all the 'try' methods, neither of
-    # which is correct.
-
-    # XXX need access to the header search path and maybe default macros.
-
-    def try_cpp(self, body=None, headers=None, include_dirs=None, lang="c"):
-        """Construct a source file from 'body' (a string containing lines
-        of C/C++ code) and 'headers' (a list of header files to include)
-        and run it through the preprocessor.  Return true if the
-        preprocessor succeeded, false if there were any errors.
-        ('body' probably isn't of much use, but what the heck.)
-        """
-        self._check_compiler()
-        ok = True
-        try:
-            self._preprocess(body, headers, include_dirs, lang)
-        except CompileError:
-            ok = False
-
-        self._clean()
-        return ok
-
-    def search_cpp(self, pattern, body=None, headers=None, include_dirs=None, lang="c"):
-        """Construct a source file (just like 'try_cpp()'), run it through
-        the preprocessor, and return true if any line of the output matches
-        'pattern'.  'pattern' should either be a compiled regex object or a
-        string containing a regex.  If both 'body' and 'headers' are None,
-        preprocesses an empty file -- which can be useful to determine the
-        symbols the preprocessor and compiler set by default.
-        """
-        self._check_compiler()
-        src, out = self._preprocess(body, headers, include_dirs, lang)
-
-        if isinstance(pattern, str):
-            pattern = re.compile(pattern)
-
-        with open(out, encoding='utf-8') as file:
-            match = any(pattern.search(line) for line in file)
-
-        self._clean()
-        return match
-
-    def try_compile(self, body, headers=None, include_dirs=None, lang="c"):
-        """Try to compile a source file built from 'body' and 'headers'.
-        Return true on success, false otherwise.
-        """
-        self._check_compiler()
-        try:
-            self._compile(body, headers, include_dirs, lang)
-            ok = True
-        except CompileError:
-            ok = False
-
-        log.info(ok and "success!" or "failure.")
-        self._clean()
-        return ok
-
-    def try_link(
-        self,
-        body,
-        headers=None,
-        include_dirs=None,
-        libraries=None,
-        library_dirs=None,
-        lang="c",
-    ):
-        """Try to compile and link a source file, built from 'body' and
-        'headers', to executable form.  Return true on success, false
-        otherwise.
-        """
-        self._check_compiler()
-        try:
-            self._link(body, headers, include_dirs, libraries, library_dirs, lang)
-            ok = True
-        except (CompileError, LinkError):
-            ok = False
-
-        log.info(ok and "success!" or "failure.")
-        self._clean()
-        return ok
-
-    def try_run(
-        self,
-        body,
-        headers=None,
-        include_dirs=None,
-        libraries=None,
-        library_dirs=None,
-        lang="c",
-    ):
-        """Try to compile, link to an executable, and run a program
-        built from 'body' and 'headers'.  Return true on success, false
-        otherwise.
-        """
-        self._check_compiler()
-        try:
-            src, obj, exe = self._link(
-                body, headers, include_dirs, libraries, library_dirs, lang
-            )
-            self.spawn([exe])
-            ok = True
-        except (CompileError, LinkError, DistutilsExecError):
-            ok = False
-
-        log.info(ok and "success!" or "failure.")
-        self._clean()
-        return ok
-
-    # -- High-level methods --------------------------------------------
-    # (these are the ones that are actually likely to be useful
-    # when implementing a real-world config command!)
-
-    def check_func(
-        self,
-        func,
-        headers=None,
-        include_dirs=None,
-        libraries=None,
-        library_dirs=None,
-        decl=False,
-        call=False,
-    ):
-        """Determine if function 'func' is available by constructing a
-        source file that refers to 'func', and compiles and links it.
-        If everything succeeds, returns true; otherwise returns false.
-
-        The constructed source file starts out by including the header
-        files listed in 'headers'.  If 'decl' is true, it then declares
-        'func' (as "int func()"); you probably shouldn't supply 'headers'
-        and set 'decl' true in the same call, or you might get errors about
-        a conflicting declarations for 'func'.  Finally, the constructed
-        'main()' function either references 'func' or (if 'call' is true)
-        calls it.  'libraries' and 'library_dirs' are used when
-        linking.
-        """
-        self._check_compiler()
-        body = []
-        if decl:
-            body.append(f"int {func} ();")
-        body.append("int main () {")
-        if call:
-            body.append(f"  {func}();")
-        else:
-            body.append(f"  {func};")
-        body.append("}")
-        body = "\n".join(body) + "\n"
-
-        return self.try_link(body, headers, include_dirs, libraries, library_dirs)
-
-    def check_lib(
-        self,
-        library,
-        library_dirs=None,
-        headers=None,
-        include_dirs=None,
-        other_libraries: Sequence[str] = [],
-    ):
-        """Determine if 'library' is available to be linked against,
-        without actually checking that any particular symbols are provided
-        by it.  'headers' will be used in constructing the source file to
-        be compiled, but the only effect of this is to check if all the
-        header files listed are available.  Any libraries listed in
-        'other_libraries' will be included in the link, in case 'library'
-        has symbols that depend on other libraries.
-        """
-        self._check_compiler()
-        return self.try_link(
-            "int main (void) { }",
-            headers,
-            include_dirs,
-            [library] + list(other_libraries),
-            library_dirs,
-        )
-
-    def check_header(self, header, include_dirs=None, library_dirs=None, lang="c"):
-        """Determine if the system header file named by 'header_file'
-        exists and can be found by the preprocessor; return true if so,
-        false otherwise.
-        """
-        return self.try_cpp(
-            body="/* No body */", headers=[header], include_dirs=include_dirs
-        )
-
-
-def dump_file(filename, head=None):
-    """Dumps a file content into log.info.
-
-    If head is not None, will be dumped before the file content.
+# ========== LOAD ENVIRONMENT VARIABLES ==========
+def load_environment_variables() -> bool:
     """
-    if head is None:
-        log.info('%s', filename)
-    else:
-        log.info(head)
-    log.info(pathlib.Path(filename).read_text(encoding='utf-8'))
+    Load environment variables from .env file or system environment.
+    Returns: True if all required variables are loaded
+    """
+    # Try to load from .env file
+    env_path = Path(__file__).parent / '.env'
+    if env_path.exists():
+        try:
+            with open(env_path, 'r', encoding='utf-8') as f:
+                for line in f:
+                    line = line.strip()
+                    if line and '=' in line and not line.startswith('#'):
+                        key, value = line.split('=', 1)
+                        key = key.strip()
+                        value = value.strip().strip('"').strip("'")
+                        os.environ[key] = value
+        except Exception as e:
+            print(f"⚠️ Warning: Could not load .env file: {e}")
+    
+    # Load database password
+    db_password = os.getenv("DATABASE_PASSWORD", "")
+    if db_password:
+        DATABASE_CONFIG["password"] = db_password
+    
+    # Load AI keys
+    gemini_key = os.getenv("GEMINI_API_KEY", "")
+    if gemini_key:
+        AI_CONFIG["gemini_api_key"] = gemini_key
+    
+    pinecone_key = os.getenv("PINECONE_API_KEY", "")
+    if pinecone_key:
+        AI_CONFIG["pinecone_api_key"] = pinecone_key
+    
+    pinecone_env = os.getenv("PINECONE_ENVIRONMENT", "")
+    if pinecone_env:
+        AI_CONFIG["pinecone_environment"] = pinecone_env
+    
+    # Check required variables
+    required_vars = []
+    if not DATABASE_CONFIG["password"]:
+        required_vars.append("DATABASE_PASSWORD")
+    if not AI_CONFIG["gemini_api_key"]:
+        required_vars.append("GEMINI_API_KEY")
+    if not AI_CONFIG["pinecone_api_key"]:
+        required_vars.append("PINECONE_API_KEY")
+    
+    if required_vars:
+        print(f"⚠️ Missing environment variables: {', '.join(required_vars)}")
+        print("💡 Set these in Vercel Environment Variables or .env file")
+        return False
+    
+    return True
+
+# ========== EXPORT CONFIGURATION ==========
+# Combine all configs
+CONFIG = {
+    "database": DATABASE_CONFIG,
+    "ai": AI_CONFIG,
+    "system": SYSTEM_CONFIG
+}
+
+# Load environment on import
+ENV_LOADED = load_environment_variables()
+
+# ========== HELPER FUNCTIONS ==========
+def get_config() -> Dict[str, Any]:
+    """Get complete configuration."""
+    return CONFIG
+
+def get_database_config() -> Dict[str, Any]:
+    """Get database configuration."""
+    return DATABASE_CONFIG
+
+def get_ai_config() -> Dict[str, Any]:
+    """Get AI configuration."""
+    return AI_CONFIG
+
+def get_system_config() -> Dict[str, Any]:
+    """Get system configuration."""
+    return SYSTEM_CONFIG
+
+def is_configured() -> bool:
+    """Check if system is properly configured."""
+    return ENV_LOADED
+
+# ========== TEST FUNCTION ==========
+def test_configuration():
+    """Test configuration loading."""
+    print("\n" + "="*60)
+    print("🔧 CONFIGURATION TEST")
+    print("="*60)
+    
+    print(f"✅ Environment loaded: {ENV_LOADED}")
+    print(f"✅ Database configured: {bool(DATABASE_CONFIG['password'])}")
+    print(f"✅ Gemini configured: {bool(AI_CONFIG['gemini_api_key'])}")
+    print(f"✅ Pinecone configured: {bool(AI_CONFIG['pinecone_api_key'])}")
+    
+    if not ENV_LOADED:
+        print("\n⚠️ IMPORTANT: Set these environment variables:")
+        print("   - DATABASE_PASSWORD")
+        print("   - GEMINI_API_KEY")
+        print("   - PINECONE_API_KEY")
+        print("   - PINECONE_ENVIRONMENT (optional)")
+    
+    print("="*60)
+
+# Run test if executed directly
+if __name__ == "__main__":
+    test_configuration()
