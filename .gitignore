@@ -1,0 +1,6 @@
+﻿__pycache__/
+*.log
+logs/
+backup_extra_files/
+.env
+*.pyc
