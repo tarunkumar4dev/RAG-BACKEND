@@ -1,6 +1,6 @@
 """
 CONFIGURATION FOR NCERT RAG SYSTEM
-Production-ready configuration with environment variable support
+Production-ready configuration with FAISS vector database
 """
 
 import os
@@ -24,20 +24,22 @@ DATABASE_CONFIG = {
 # ========== AI CONFIGURATION ==========
 AI_CONFIG = {
     "gemini_api_key": "",  # Will be loaded from environment
-    "pinecone_api_key": "",  # Will be loaded from environment
-    "pinecone_environment": "gcp-starter",
     
     # Model settings
     "gemini_temperature": 0.2,
     "gemini_max_tokens": 800,
     "gemini_timeout": 30,
     
+    # FAISS Vector Database (NO Pinecone needed)
+    "vector_db": "faiss",
+    "faiss_index_path": "./faiss_index",
+    "embedding_dimension": 768,
+    
     # Model priorities
     "model_priority": [
         "gemini-2.0-flash",
         "gemini-1.5-flash", 
-        "gemini-1.5-pro",
-        "gemini-pro"
+        "gemini-1.5-pro"
     ]
 }
 
@@ -46,20 +48,16 @@ SYSTEM_CONFIG = {
     # Performance
     "max_retries": 3,
     "retry_delay": 1,
-    "max_chunks_per_query": 15,
-    "cache_size": 1000,
-    "cache_ttl": 300,  # 5 minutes
-    "chunk_limit": 10,
+    "max_chunks_per_query": 10,
     
     # Query limits
-    "max_query_length": 1000,
+    "max_query_length": 500,
     "min_chunk_length": 50,
-    "max_chunk_length": 500,
+    "max_chunk_length": 300,
     
     # Logging
     "log_level": "INFO",
-    "log_to_file": True,
-    "log_directory": "logs"
+    "log_to_file": False  # Simple logging for Vercel
 }
 
 # ========== LOAD ENVIRONMENT VARIABLES ==========
@@ -93,22 +91,12 @@ def load_environment_variables() -> bool:
     if gemini_key:
         AI_CONFIG["gemini_api_key"] = gemini_key
     
-    pinecone_key = os.getenv("PINECONE_API_KEY", "")
-    if pinecone_key:
-        AI_CONFIG["pinecone_api_key"] = pinecone_key
-    
-    pinecone_env = os.getenv("PINECONE_ENVIRONMENT", "")
-    if pinecone_env:
-        AI_CONFIG["pinecone_environment"] = pinecone_env
-    
     # Check required variables
     required_vars = []
     if not DATABASE_CONFIG["password"]:
         required_vars.append("DATABASE_PASSWORD")
     if not AI_CONFIG["gemini_api_key"]:
         required_vars.append("GEMINI_API_KEY")
-    if not AI_CONFIG["pinecone_api_key"]:
-        required_vars.append("PINECONE_API_KEY")
     
     if required_vars:
         print(f"⚠️ Missing environment variables: {', '.join(required_vars)}")
@@ -159,14 +147,12 @@ def test_configuration():
     print(f"✅ Environment loaded: {ENV_LOADED}")
     print(f"✅ Database configured: {bool(DATABASE_CONFIG['password'])}")
     print(f"✅ Gemini configured: {bool(AI_CONFIG['gemini_api_key'])}")
-    print(f"✅ Pinecone configured: {bool(AI_CONFIG['pinecone_api_key'])}")
+    print(f"✅ Vector DB: FAISS (No API key needed)")
     
     if not ENV_LOADED:
         print("\n⚠️ IMPORTANT: Set these environment variables:")
         print("   - DATABASE_PASSWORD")
         print("   - GEMINI_API_KEY")
-        print("   - PINECONE_API_KEY")
-        print("   - PINECONE_ENVIRONMENT (optional)")
     
     print("="*60)
 

@@ -1,7 +1,6 @@
 """
 NCERT SMART RAG SYSTEM - PRODUCTION READY v3.0
-Interactive Mode with Gemini AI Integration
-Senior Software Engineer Level Production Code
+FAISS VERSION - No Pinecone/ChromaDB
 """
 
 import os
@@ -16,11 +15,12 @@ from pathlib import Path
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Tuple, Optional
 from functools import lru_cache
-from concurrent.futures import ThreadPoolExecutor
+import numpy as np
 import psycopg2
 from psycopg2.extras import RealDictCursor, DictCursor
 from psycopg2.pool import SimpleConnectionPool
 import google.generativeai as genai
+import faiss  # ✅ FAISS instead of Pinecone/ChromaDB
 
 # ========== WINDOWS UNICODE FIX ==========
 if sys.platform == "win32":
@@ -54,6 +54,12 @@ CONFIG = {
     "gemini_temperature": 0.2,
     "gemini_max_tokens": 800,
     "gemini_timeout": 30,
+    
+    # FAISS Vector Database (NEW)
+    "faiss_index_path": "./faiss_index",
+    "embedding_dimension": 768,
+    "faiss_nprobe": 10,  # Search parameters
+    "faiss_nlist": 100,
     
     # Logging
     "log_rotation": "daily",
@@ -135,6 +141,164 @@ def setup_logging():
     return logger
 
 logger = setup_logging()
+
+# ========== FAISS VECTOR STORE MANAGER ==========
+class FAISSVectorStore:
+    """Local FAISS vector store for NCERT chunks."""
+    
+    def __init__(self, index_path: str, dimension: int = 768):
+        self.index_path = Path(index_path)
+        self.dimension = dimension
+        self.index = None
+        self.id_to_chunk = {}  # Map FAISS IDs to chunk data
+        self.next_id = 0
+        self.lock = threading.Lock()
+        self.load_or_create()
+    
+    def load_or_create(self):
+        """Load existing index or create new one."""
+        try:
+            if (self.index_path / "index.faiss").exists():
+                self.index = faiss.read_index(str(self.index_path / "index.faiss"))
+                
+                # Load metadata
+                metadata_file = self.index_path / "metadata.json"
+                if metadata_file.exists():
+                    with open(metadata_file, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                        self.id_to_chunk = data.get("id_to_chunk", {})
+                        self.next_id = data.get("next_id", 0)
+                
+                logger.info(f"✅ FAISS index loaded: {self.index.ntotal} vectors")
+            else:
+                # Create new index
+                self.index = faiss.IndexFlatIP(self.dimension)  # Inner product similarity
+                self.index_path.mkdir(exist_ok=True, parents=True)
+                logger.info(f"✅ Created new FAISS index (dimension: {self.dimension})")
+                
+        except Exception as e:
+            logger.error(f"❌ FAISS load failed: {e}")
+            # Create fresh index
+            self.index = faiss.IndexFlatIP(self.dimension)
+            self.index_path.mkdir(exist_ok=True, parents=True)
+    
+    def add_chunks(self, chunks: List[Dict]):
+        """Add chunks to FAISS index."""
+        if not chunks:
+            return
+        
+        with self.lock:
+            # Create embeddings (simplified - using keyword frequency)
+            embeddings = []
+            new_chunk_data = {}
+            
+            for chunk in chunks:
+                # Simple embedding: keyword frequency vector
+                embedding = self._create_simple_embedding(chunk.get('content', ''))
+                embeddings.append(embedding)
+                
+                # Store chunk data
+                self.id_to_chunk[self.next_id] = {
+                    'id': chunk.get('id'),
+                    'content': chunk.get('content', '')[:500],
+                    'class_grade': chunk.get('class_grade'),
+                    'subject': chunk.get('subject'),
+                    'chapter': chunk.get('chapter')
+                }
+                self.next_id += 1
+            
+            # Add to index
+            if embeddings:
+                embeddings_np = np.array(embeddings).astype('float32')
+                self.index.add(embeddings_np)
+                
+                # Save index
+                self.save()
+                
+                logger.info(f"✅ Added {len(chunks)} chunks to FAISS index")
+    
+    def _create_simple_embedding(self, text: str) -> List[float]:
+        """Create simple embedding using keyword frequencies."""
+        # Common educational keywords
+        edu_keywords = [
+            'science', 'physics', 'chemistry', 'biology', 'math', 'mathematics',
+            'history', 'geography', 'english', 'hindi', 'sanskrit', 'social',
+            'experiment', 'theory', 'formula', 'equation', 'process', 'system',
+            'energy', 'force', 'matter', 'cell', 'organism', 'plant', 'animal',
+            'chemical', 'reaction', 'acid', 'base', 'metal', 'nonmetal',
+            'electric', 'current', 'circuit', 'magnet', 'light', 'sound'
+        ]
+        
+        # Initialize vector
+        embedding = [0.0] * self.dimension
+        
+        # Use first N dimensions for keyword frequencies
+        text_lower = text.lower()
+        for i, keyword in enumerate(edu_keywords[:min(self.dimension, len(edu_keywords))]):
+            embedding[i] = text_lower.count(keyword) / max(1, len(text_lower.split()))
+        
+        # Normalize
+        norm = np.linalg.norm(embedding)
+        if norm > 0:
+            embedding = [x / norm for x in embedding]
+        
+        return embedding
+    
+    def search(self, query: str, k: int = 10) -> List[Dict]:
+        """Search for similar chunks."""
+        try:
+            # Create query embedding
+            query_embedding = self._create_simple_embedding(query)
+            query_vector = np.array([query_embedding]).astype('float32')
+            
+            # Search
+            distances, indices = self.index.search(query_vector, min(k, self.index.ntotal))
+            
+            # Retrieve chunks
+            results = []
+            for i, idx in enumerate(indices[0]):
+                if idx != -1 and idx in self.id_to_chunk:
+                    chunk_data = self.id_to_chunk[idx]
+                    results.append({
+                        **chunk_data,
+                        'similarity': float(distances[0][i]) if distances[0][i] > 0 else 0.5,
+                        'faiss_id': int(idx)
+                    })
+            
+            return results
+            
+        except Exception as e:
+            logger.error(f"❌ FAISS search failed: {e}")
+            return []
+    
+    def save(self):
+        """Save index and metadata."""
+        try:
+            faiss.write_index(self.index, str(self.index_path / "index.faiss"))
+            
+            metadata = {
+                "id_to_chunk": self.id_to_chunk,
+                "next_id": self.next_id,
+                "saved_at": datetime.now().isoformat(),
+                "total_vectors": self.index.ntotal
+            }
+            
+            with open(self.index_path / "metadata.json", 'w', encoding='utf-8') as f:
+                json.dump(metadata, f, indent=2)
+                
+            logger.debug(f"✅ FAISS index saved: {self.index.ntotal} vectors")
+            
+        except Exception as e:
+            logger.error(f"❌ FAISS save failed: {e}")
+    
+    def get_stats(self) -> Dict:
+        """Get FAISS statistics."""
+        return {
+            "total_vectors": self.index.ntotal if self.index else 0,
+            "dimension": self.dimension,
+            "chunks_stored": len(self.id_to_chunk),
+            "index_path": str(self.index_path)
+        }
 
 # ========== CONNECTION POOL MANAGER ==========
 class DatabasePool:
@@ -457,162 +621,149 @@ You are an expert NCERT tutor. Answer the student's question using ONLY the prov
         """Check if Gemini is available."""
         return not self.fallback_mode and self.current_model is not None
 
-# ========== INTELLIGENT CHUNK RETRIEVER ==========
-class ChunkRetriever:
-    """Intelligent chunk retrieval with semantic search."""
+# ========== HYBRID CHUNK RETRIEVER ==========
+class HybridRetriever:
+    """Hybrid retrieval using both database and FAISS."""
     
-    def __init__(self, db_pool: DatabasePool):
+    def __init__(self, db_pool: DatabasePool, faiss_store: FAISSVectorStore):
         self.db_pool = db_pool
-    
-    @lru_cache(maxsize=1000)
-    def _extract_keywords(self, query: str) -> List[str]:
-        """Extract meaningful keywords from query."""
-        # Common stop words in educational context
-        stop_words = {
-            'what', 'is', 'are', 'the', 'and', 'or', 'but', 'in', 'on', 'at',
-            'to', 'for', 'of', 'with', 'by', 'about', 'like', 'through',
-            'after', 'before', 'between', 'under', 'over', 'above', 'below',
-            'from', 'up', 'down', 'out', 'off', 'over', 'under', 'again',
-            'further', 'then', 'once', 'here', 'there', 'when', 'where',
-            'why', 'how', 'all', 'any', 'both', 'each', 'few', 'more',
-            'most', 'other', 'some', 'such', 'no', 'nor', 'not', 'only',
-            'own', 'same', 'so', 'than', 'too', 'very', 'can', 'will',
-            'just', 'don', 'should', 'now', 'did', 'got', 'does', 'do',
-            'please', 'explain', 'describe', 'tell', 'me', 'about'
-        }
-        
-        # Extract words
-        words = query.lower().split()
-        keywords = []
-        
-        for word in words:
-            # Clean word
-            word = ''.join(c for c in word if c.isalnum())
-            
-            # Filter criteria
-            if (len(word) > 2 and 
-                word not in stop_words and
-                not word.isnumeric()):
-                keywords.append(word)
-        
-        return keywords[:10]  # Limit to 10 keywords
+        self.faiss_store = faiss_store
     
     def retrieve(self, query: str, limit: int = 10) -> List[Dict]:
-        """Retrieve relevant chunks for query."""
+        """Retrieve chunks using hybrid approach."""
+        all_chunks = []
+        seen_ids = set()
+        
+        # ===== STRATEGY 1: FAISS Semantic Search =====
+        faiss_results = self.faiss_store.search(query, k=limit * 2)
+        for result in faiss_results:
+            chunk_id = result.get('id')
+            if chunk_id and chunk_id not in seen_ids:
+                seen_ids.add(chunk_id)
+                all_chunks.append(result)
+                if len(all_chunks) >= limit:
+                    break
+        
+        logger.debug(f"FAISS found {len(faiss_results)} results, using {len(all_chunks)}")
+        
+        # ===== STRATEGY 2: Database Keyword Fallback =====
+        if len(all_chunks) < limit:
+            remaining = limit - len(all_chunks)
+            db_chunks = self._database_keyword_search(query, remaining)
+            
+            for chunk in db_chunks:
+                chunk_id = chunk.get('id')
+                if chunk_id and chunk_id not in seen_ids:
+                    seen_ids.add(chunk_id)
+                    all_chunks.append(chunk)
+                    
+                    # Also add to FAISS for future searches
+                    self.faiss_store.add_chunks([chunk])
+        
+        # Sort by similarity
+        all_chunks.sort(key=lambda x: x.get('similarity', 0), reverse=True)
+        
+        return all_chunks[:limit]
+    
+    def _database_keyword_search(self, query: str, limit: int = 10) -> List[Dict]:
+        """Fallback to database keyword search."""
         conn = None
         try:
             conn = self.db_pool.get_connection()
-            chunks = []
-            seen_ids = set()
             
-            # Extract keywords
-            keywords = self._extract_keywords(query)
+            # Extract simple keywords
+            words = [w.lower() for w in query.split() if len(w) > 3]
+            if not words:
+                return []
             
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-                # ===== STRATEGY 1: Keyword Search =====
-                if keywords:
-                    keyword_conditions = []
-                    params = []
-                    
-                    for i, keyword in enumerate(keywords):
-                        weight = 1.0 - (i * 0.1)  # First keyword gets highest weight
-                        keyword_conditions.append(f"""
-                            (CASE 
-                                WHEN content ILIKE %s THEN {weight}
-                                WHEN chapter ILIKE %s THEN {weight * 0.8}
-                                WHEN subject ILIKE %s THEN {weight * 0.6}
-                                ELSE 0
-                            END)
-                        """)
-                        params.extend([f"%{keyword}%", f"%{keyword}%", f"%{keyword}%"])
-                    
-                    # Build query
-                    query_sql = f"""
-                        SELECT 
-                            id, class_grade, subject, chapter, content,
-                            ({' + '.join(keyword_conditions)}) as relevance_score
-                        FROM ncert_chunks 
-                        WHERE ({' OR '.join(['content ILIKE %s' for _ in keywords])})
-                        ORDER BY relevance_score DESC, id
-                        LIMIT %s
-                    """
-                    
-                    # Add all parameters
-                    all_params = []
-                    for keyword in keywords:
-                        all_params.append(f"%{keyword}%")
-                    all_params.extend(params)
-                    all_params.append(limit * 2)  # Get extra for deduplication
-                    
-                    cursor.execute(query_sql, all_params)
-                    rows = cursor.fetchall()
-                    
-                    # Deduplicate
-                    for row in rows:
-                        if row['id'] not in seen_ids:
-                            seen_ids.add(row['id'])
-                            chunks.append(dict(row))
-                            if len(chunks) >= limit:
-                                break
+                # Build keyword conditions
+                keyword_conditions = []
+                params = []
                 
-                # ===== STRATEGY 2: Subject-Based Fallback =====
-                if len(chunks) < limit:
-                    remaining = limit - len(chunks)
-                    
-                    # Determine likely subject from query
-                    science_keywords = {'science', 'physics', 'chemistry', 'biology', 'maths', 'mathematics'}
-                    query_lower = query.lower()
-                    
-                    subject_filter = []
-                    for keyword in science_keywords:
-                        if keyword in query_lower:
-                            subject_filter.append(f"%{keyword}%")
-                    
-                    if subject_filter:
-                        placeholders = ','.join(['%s'] * len(subject_filter))
-                        cursor.execute(f"""
-                            SELECT 
-                                id, class_grade, subject, chapter, content,
-                                0.5 as relevance_score
-                            FROM ncert_chunks 
-                            WHERE subject ILIKE ANY(ARRAY[{placeholders}])
-                            ORDER BY RANDOM()
-                            LIMIT %s
-                        """, subject_filter + [remaining])
-                    else:
-                        # General fallback
-                        cursor.execute("""
-                            SELECT 
-                                id, class_grade, subject, chapter, content,
-                                0.4 as relevance_score
-                            FROM ncert_chunks 
-                            ORDER BY RANDOM()
-                            LIMIT %s
-                        """, [remaining])
+                for word in words[:5]:  # Use first 5 words
+                    keyword_conditions.append("content ILIKE %s")
+                    params.append(f"%{word}%")
+                
+                where_clause = " OR ".join(keyword_conditions)
+                
+                cursor.execute(f"""
+                    SELECT id, class_grade, subject, chapter, content
+                    FROM ncert_chunks 
+                    WHERE {where_clause}
+                    ORDER BY LENGTH(content) DESC
+                    LIMIT %s
+                """, params + [limit * 2])
+                
+                rows = cursor.fetchall()
+                
+                # Convert to dicts and add similarity score
+                chunks = []
+                for row in rows:
+                    chunk = dict(row)
+                    # Calculate simple similarity based on keyword matches
+                    content_lower = chunk['content'].lower()
+                    matches = sum(1 for word in words if word in content_lower)
+                    chunk['similarity'] = min(matches / len(words), 1.0)
+                    chunks.append(chunk)
+                
+                return chunks
+                
+        except Exception as e:
+            logger.error(f"❌ Database keyword search failed: {e}")
+            return []
+        finally:
+            if conn:
+                self.db_pool.return_connection(conn)
+    
+    def preload_faiss(self, batch_size: int = 1000):
+        """Preload database chunks into FAISS."""
+        logger.info("🔄 Preloading chunks into FAISS...")
+        
+        conn = None
+        try:
+            conn = self.db_pool.get_connection()
+            
+            with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+                cursor.execute("SELECT COUNT(*) as total FROM ncert_chunks")
+                total = cursor.fetchone()['total']
+                logger.info(f"📊 Total chunks in database: {total}")
+                
+                offset = 0
+                loaded = 0
+                
+                while True:
+                    cursor.execute("""
+                        SELECT id, class_grade, subject, chapter, content
+                        FROM ncert_chunks 
+                        ORDER BY id
+                        LIMIT %s OFFSET %s
+                    """, [batch_size, offset])
                     
                     rows = cursor.fetchall()
-                    for row in rows:
-                        if row['id'] not in seen_ids:
-                            seen_ids.add(row['id'])
-                            chunks.append(dict(row))
-            
-            # Calculate final similarity scores
-            for chunk in chunks:
-                chunk['similarity'] = min(chunk.get('relevance_score', 0.5) * 2, 1.0)
-            
-            logger.debug(f"Retrieved {len(chunks)} chunks for query: '{query[:50]}...'")
-            return chunks
-            
+                    if not rows:
+                        break
+                    
+                    chunks = [dict(row) for row in rows]
+                    self.faiss_store.add_chunks(chunks)
+                    
+                    loaded += len(chunks)
+                    offset += batch_size
+                    
+                    if loaded % 5000 == 0:
+                        logger.info(f"✅ Loaded {loaded}/{total} chunks into FAISS")
+                
+                logger.info(f"🎉 FAISS preload complete: {loaded} chunks")
+                
         except Exception as e:
-            logger.error(f"❌ Chunk retrieval failed: {e}")
-            return []
+            logger.error(f"❌ FAISS preload failed: {e}")
         finally:
             if conn:
                 self.db_pool.return_connection(conn)
 
 # ========== MAIN RAG SYSTEM ==========
 class NCERTRAGSystem:
-    """Production-ready NCERT RAG System."""
+    """Production-ready NCERT RAG System with FAISS."""
     
     _instance = None
     _lock = threading.Lock()
@@ -629,6 +780,7 @@ class NCERTRAGSystem:
         if not hasattr(self, 'initialized'):
             self.initialized = False
             self.db_pool = None
+            self.faiss_store = None
             self.cache = None
             self.gemini = None
             self.retriever = None
@@ -637,6 +789,7 @@ class NCERTRAGSystem:
                 "gemini_queries": 0,
                 "fallback_queries": 0,
                 "cache_hits": 0,
+                "faiss_searches": 0,
                 "total_response_time": 0,
                 "start_time": datetime.now()
             }
@@ -645,25 +798,32 @@ class NCERTRAGSystem:
     def _initialize(self):
         """Initialize all components."""
         try:
-            logger.info("🚀 Initializing NCERT Smart RAG System v3.0...")
+            logger.info("🚀 Initializing NCERT Smart RAG System v3.0 (FAISS)...")
             
             # Load environment
             self._load_environment()
             
             # Initialize components
             self.db_pool = DatabasePool.get_instance()
+            self.faiss_store = FAISSVectorStore(
+                index_path=CONFIG["faiss_index_path"],
+                dimension=CONFIG["embedding_dimension"]
+            )
             self.cache = SmartCache(
                 max_size=CONFIG["cache_size"],
                 ttl=CONFIG["cache_ttl"]
             )
             self.gemini = GeminiManager()
-            self.retriever = ChunkRetriever(self.db_pool)
+            self.retriever = HybridRetriever(self.db_pool, self.faiss_store)
+            
+            # Preload FAISS in background
+            threading.Thread(target=self.retriever.preload_faiss, daemon=True).start()
             
             # Verify system
             self._verify_system()
             
             self.initialized = True
-            logger.info("✅ NCERT RAG System initialized successfully!")
+            logger.info("✅ NCERT RAG System (FAISS) initialized successfully!")
             
         except Exception as e:
             logger.error(f"❌ Initialization failed: {e}", exc_info=True)
@@ -707,6 +867,10 @@ class NCERTRAGSystem:
         finally:
             if conn:
                 self.db_pool.return_connection(conn)
+        
+        # Test FAISS
+        faiss_stats = self.faiss_store.get_stats()
+        logger.info(f"✓ FAISS: {faiss_stats['total_vectors']} vectors")
         
         # Test Gemini
         if self.gemini.is_available():
@@ -902,6 +1066,9 @@ class NCERTRAGSystem:
             if conn:
                 self.db_pool.return_connection(conn)
         
+        # FAISS stats
+        faiss_stats = self.faiss_store.get_stats()
+        
         # Calculate averages
         avg_response_time = 0
         if self.stats["total_queries"] > 0:
@@ -917,6 +1084,7 @@ class NCERTRAGSystem:
                 "initialized": self.initialized
             },
             "database": db_stats,
+            "faiss": faiss_stats,
             "ai": {
                 "gemini_available": self.gemini.is_available(),
                 "current_model": self.gemini.current_model,
@@ -944,6 +1112,9 @@ class NCERTRAGSystem:
     
     def close(self):
         """Clean shutdown."""
+        # Save FAISS index
+        self.faiss_store.save()
+        
         if self.db_pool:
             self.db_pool.close()
         logger.info("✅ System shut down cleanly")
@@ -959,15 +1130,16 @@ class InteractiveMode:
     def display_banner(self):
         """Display system banner."""
         print("\n" + "="*60)
-        print("🚀 NCERT SMART RAG SYSTEM - INTERACTIVE MODE v3.0")
+        print("🚀 NCERT SMART RAG SYSTEM - FAISS EDITION v3.0")
         print("="*60)
         
         stats = self.rag.get_system_stats()
         db_stats = stats["database"]
+        faiss_stats = stats["faiss"]
         
         print("\n📈 SYSTEM STATS:")
         print(f"   • Database: {db_stats.get('total_chunks', 0)} NCERT chunks")
-        print(f"   • Chapters: {db_stats.get('unique_chapters', 0)} in Class 10 Science")
+        print(f"   • FAISS: {faiss_stats.get('total_vectors', 0)} vectors")
         print(f"   • Gemini: {'✅ Available' if stats['ai']['gemini_available'] else '❌ Disabled'}")
         print(f"   • Cache: {stats['performance']['cache_size']} entries ({CONFIG['cache_ttl']}s TTL)")
         
@@ -991,7 +1163,7 @@ class InteractiveMode:
             print(f"   • Cache Hit Rate: {stats['performance']['cache_hit_rate']}")
             print(f"   • Avg Response Time: {stats['performance']['avg_response_time']}")
             print(f"   • Gemini Model: {stats['ai']['current_model'] or 'Not available'}")
-            print(f"   • Pool Size: {stats['configuration']['pool_size']}")
+            print(f"   • FAISS Vectors: {stats['faiss']['total_vectors']}")
             return True
         
         elif command == 'cache':
@@ -1050,7 +1222,7 @@ class InteractiveMode:
         elif model_name == 'cache':
             print(f"   • Served from: Cache")
         else:
-            print(f"   • Source: NCERT Database")
+            print(f"   • Source: NCERT Database + FAISS")
     
     def run(self):
         """Run interactive mode."""
@@ -1091,7 +1263,7 @@ def main():
     """Main entry point."""
     # Display startup banner
     print("\n" + "="*60)
-    print("🚀 NCERT SMART RAG SYSTEM v3.0 - PRODUCTION READY")
+    print("🚀 NCERT SMART RAG SYSTEM v3.0 - FAISS EDITION")
     print("="*60)
     print("Initializing...\n")
     
