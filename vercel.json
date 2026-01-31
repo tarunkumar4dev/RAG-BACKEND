@@ -2,21 +2,33 @@
   "version": 2,
   "builds": [
     {
+<<<<<<< HEAD
       "src": "api/index.py",
+=======
+      "src": "scripts/test_generator/api_server.py",
+>>>>>>> edc80d75f6040caef7216c3ca7c7e659dee9ba15
       "use": "@vercel/python"
     }
   ],
   "routes": [
     {
       "src": "/(.*)",
+<<<<<<< HEAD
       "dest": "api/index.py"
+=======
+      "dest": "scripts/test_generator/api_server.py"
+>>>>>>> edc80d75f6040caef7216c3ca7c7e659dee9ba15
     }
   ],
   "env": {
     "PYTHON_VERSION": "3.11"
   },
   "functions": {
+<<<<<<< HEAD
     "api/index.py": {
+=======
+    "scripts/test_generator/api_server.py": {
+>>>>>>> edc80d75f6040caef7216c3ca7c7e659dee9ba15
       "maxDuration": 60,
       "memory": 3008
     }
