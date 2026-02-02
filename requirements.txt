@@ -1,18 +1,8 @@
-# ========== CORE ==========
 Flask==3.0.3
 flask-cors==4.0.1
 python-dotenv==1.0.1
-
-# ========== DATABASE ==========
 psycopg2-binary==2.9.10
-
-# ========== AI ==========
 google-generativeai==0.8.3
-
-# ========== SEMANTIC SEARCH ==========
 sentence-transformers==2.7.0
-faiss-cpu==1.7.4  # ⚠️ Downgraded for Vercel compatibility
-numpy==1.24.4  # ⚠️ Version lock for faiss compatibility
-
-# ========== STREAMLIT (Frontend only - Optional) ==========
-streamlit==1.36.0
+faiss-cpu==1.8.0
+numpy==1.26.4
