@@ -4,3 +4,5 @@ logs/
 backup_extra_files/
 .env
 *.pyc
+
+.vercel
