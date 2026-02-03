@@ -1,160 +1,326 @@
 """
 CONFIGURATION FOR NCERT RAG SYSTEM
-Production-ready configuration with FAISS vector database
+Production-ready configuration optimized for Vercel
 """
 
 import os
+import sys
+import logging
+from typing import Dict, Any, Optional
 from pathlib import Path
-from typing import Dict, Any
+
+# ========== LOGGING SETUP ==========
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+logger = logging.getLogger(__name__)
+
+# ========== ENVIRONMENT DETECTION ==========
+def get_environment() -> str:
+    """Detect current environment."""
+    env = os.getenv("VERCEL_ENV", os.getenv("ENVIRONMENT", "production"))
+    
+    # Map Vercel environments
+    if os.getenv("VERCEL_ENV") == "production":
+        return "production"
+    elif os.getenv("VERCEL_ENV") == "preview":
+        return "staging"
+    elif os.getenv("VERCEL_ENV") == "development":
+        return "development"
+    else:
+        return env
+
+ENVIRONMENT = get_environment()
+IS_PRODUCTION = ENVIRONMENT == "production"
+IS_VERCEL = bool(os.getenv("VERCEL"))
 
 # ========== DATABASE CONFIGURATION ==========
 DATABASE_CONFIG = {
-    "host": "db.dcmnzvjftmdbywrjkust.supabase.co",
-    "port": 5432,
-    "database": "postgres",
-    "user": "postgres",
-    "password": "",  # Will be loaded from environment
-    "connection_timeout": 30,
-    "query_timeout": 10,
+    "host": os.getenv("DB_HOST", "db.dcmnzvjftmdbywrjkust.supabase.co"),
+    "port": int(os.getenv("DB_PORT", "5432")),
+    "database": os.getenv("DB_NAME", "postgres"),
+    "user": os.getenv("DB_USER", "postgres"),
+    "password": os.getenv("DB_PASSWORD", ""),
+    
+    # Connection settings optimized for serverless
+    "connection_timeout": 10,
+    "query_timeout": 5,
     "sslmode": "require",
-    "pool_minconn": 2,
-    "pool_maxconn": 20
+    
+    # Pooling settings for Vercel
+    "pool_minconn": 1 if IS_VERCEL else 2,
+    "pool_maxconn": 5 if IS_VERCEL else 20,
+    
+    # Keepalive settings for persistent connections
+    "keepalives": 1,
+    "keepalives_idle": 30,
+    "keepalives_interval": 10,
+    "keepalives_count": 3,
+    
+    # Application name for monitoring
+    "application_name": f"ncert-rag-{ENVIRONMENT}"
 }
 
-# ========== AI CONFIGURATION ==========
+# ========== AI & GEMINI CONFIGURATION ==========
 AI_CONFIG = {
-    "gemini_api_key": "",  # Will be loaded from environment
+    # Gemini API
+    "gemini_api_key": os.getenv("GEMINI_API_KEY", ""),
     
-    # Model settings
-    "gemini_temperature": 0.2,
-    "gemini_max_tokens": 800,
-    "gemini_timeout": 30,
+    # Model selection - using most reliable for production
+    "gemini_model": os.getenv("GEMINI_MODEL", "gemini-1.5-flash"),
+    "fallback_models": ["gemini-1.5-flash", "gemini-1.5-pro"],
     
-    # FAISS Vector Database (NO Pinecone needed)
-    "vector_db": "faiss",
-    "faiss_index_path": "./faiss_index",
-    "embedding_dimension": 768,
+    # Model parameters
+    "temperature": float(os.getenv("GEMINI_TEMPERATURE", "0.2")),
+    "max_output_tokens": int(os.getenv("GEMINI_MAX_TOKENS", "1024")),
+    "timeout": int(os.getenv("GEMINI_TIMEOUT", "30")),
+    "top_p": 0.95,
+    "top_k": 40,
     
-    # Model priorities
-    "model_priority": [
-        "gemini-2.0-flash",
-        "gemini-1.5-flash", 
-        "gemini-1.5-pro"
-    ]
+    # Embedding model (for future semantic search)
+    "embedding_model": os.getenv("EMBEDDING_MODEL", "all-MiniLM-L6-v2"),
+    "embedding_dimension": 384,  # For MiniLM-L6-v2
+    
+    # Cache settings
+    "response_cache_ttl": int(os.getenv("CACHE_TTL", "300")),  # 5 minutes
+    "max_cache_size": int(os.getenv("MAX_CACHE_SIZE", "100"))
 }
 
 # ========== SYSTEM CONFIGURATION ==========
 SYSTEM_CONFIG = {
-    # Performance
-    "max_retries": 3,
-    "retry_delay": 1,
-    "max_chunks_per_query": 10,
+    # Environment
+    "environment": ENVIRONMENT,
+    "is_production": IS_PRODUCTION,
+    "is_vercel": IS_VERCEL,
     
-    # Query limits
-    "max_query_length": 500,
-    "min_chunk_length": 50,
-    "max_chunk_length": 300,
+    # Application
+    "app_name": "NCERT-RAG-API",
+    "version": "2.0.0",
+    "api_version": "v1",
+    
+    # Performance settings
+    "max_concurrent_requests": int(os.getenv("MAX_CONCURRENT_REQUESTS", "10")),
+    "request_timeout": int(os.getenv("REQUEST_TIMEOUT", "30")),
+    "max_retries": int(os.getenv("MAX_RETRIES", "3")),
+    "retry_delay": float(os.getenv("RETRY_DELAY", "1.0")),
+    
+    # Query processing
+    "max_query_length": int(os.getenv("MAX_QUERY_LENGTH", "500")),
+    "min_query_length": 3,
+    "max_chunks_per_query": int(os.getenv("MAX_CHUNKS_PER_QUERY", "5")),
+    "similarity_threshold": float(os.getenv("SIMILARITY_THRESHOLD", "0.6")),
+    
+    # CORS settings
+    "cors_origins": os.getenv("CORS_ORIGINS", "*").split(","),
+    "cors_methods": ["GET", "POST", "OPTIONS"],
+    "cors_headers": ["Content-Type", "Authorization"],
+    
+    # Security
+    "rate_limit_enabled": bool(os.getenv("RATE_LIMIT_ENABLED", "true")),
+    "rate_limit_requests": int(os.getenv("RATE_LIMIT_REQUESTS", "100")),
+    "rate_limit_period": int(os.getenv("RATE_LIMIT_PERIOD", "900")),  # 15 minutes
     
     # Logging
-    "log_level": "INFO",
-    "log_to_file": False  # Simple logging for Vercel
+    "log_level": os.getenv("LOG_LEVEL", "INFO" if IS_PRODUCTION else "DEBUG"),
+    "log_format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    "enable_request_logging": bool(os.getenv("ENABLE_REQUEST_LOGGING", "true")),
+    
+    # Health checks
+    "health_check_interval": int(os.getenv("HEALTH_CHECK_INTERVAL", "300")),  # 5 minutes
+    "max_response_size": int(os.getenv("MAX_RESPONSE_SIZE", "1048576")),  # 1MB
+    
+    # Cache paths for Vercel
+    "cache_dir": "/tmp" if IS_VERCEL else "./cache",
+    "faiss_cache_dir": "/tmp/faiss_cache" if IS_VERCEL else "./faiss_cache"
 }
 
-# ========== LOAD ENVIRONMENT VARIABLES ==========
-def load_environment_variables() -> bool:
+# ========== VALIDATION ==========
+def validate_configuration() -> Dict[str, Any]:
     """
-    Load environment variables from .env file or system environment.
-    Returns: True if all required variables are loaded
+    Validate configuration and return validation results.
+    Returns: Dictionary with validation status and issues
     """
-    # Try to load from .env file
-    env_path = Path(__file__).parent / '.env'
-    if env_path.exists():
+    issues = []
+    warnings = []
+    
+    # Required variables
+    required_vars = {
+        "DB_PASSWORD": DATABASE_CONFIG["password"],
+        "GEMINI_API_KEY": AI_CONFIG["gemini_api_key"]
+    }
+    
+    for var_name, value in required_vars.items():
+        if not value:
+            issues.append(f"Missing required environment variable: {var_name}")
+    
+    # Database connection validation
+    if not DATABASE_CONFIG["host"] or "supabase" not in DATABASE_CONFIG["host"]:
+        warnings.append("Database host might not be correctly configured")
+    
+    # Port validation
+    if not 1 <= DATABASE_CONFIG["port"] <= 65535:
+        issues.append(f"Invalid database port: {DATABASE_CONFIG['port']}")
+    
+    # Gemini model validation
+    valid_models = {"gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash"}
+    if AI_CONFIG["gemini_model"] not in valid_models:
+        warnings.append(f"Gemini model '{AI_CONFIG['gemini_model']}' might not be optimal")
+        # Auto-correct to a valid model
+        AI_CONFIG["gemini_model"] = "gemini-1.5-flash"
+    
+    # Performance validation
+    if SYSTEM_CONFIG["max_chunks_per_query"] > 10:
+        warnings.append("High max_chunks_per_query may impact performance")
+    
+    if SYSTEM_CONFIG["max_concurrent_requests"] > 20 and IS_VERCEL:
+        warnings.append("High concurrent requests may exceed Vercel limits")
+    
+    # Security warnings for development
+    if not IS_PRODUCTION and SYSTEM_CONFIG["cors_origins"] == ["*"]:
+        warnings.append("CORS is set to allow all origins (not recommended for production)")
+    
+    validation_result = {
+        "is_valid": len(issues) == 0,
+        "environment": ENVIRONMENT,
+        "issues": issues,
+        "warnings": warnings,
+        "required_vars_missing": len([i for i in issues if "Missing required" in i])
+    }
+    
+    return validation_result
+
+# ========== CONFIGURATION LOADER ==========
+def load_configuration() -> Dict[str, Any]:
+    """
+    Load and validate configuration.
+    Returns: Complete configuration dictionary
+    """
+    # Create cache directories
+    for dir_path in [SYSTEM_CONFIG["cache_dir"], SYSTEM_CONFIG["faiss_cache_dir"]]:
         try:
-            with open(env_path, 'r', encoding='utf-8') as f:
-                for line in f:
-                    line = line.strip()
-                    if line and '=' in line and not line.startswith('#'):
-                        key, value = line.split('=', 1)
-                        key = key.strip()
-                        value = value.strip().strip('"').strip("'")
-                        os.environ[key] = value
+            Path(dir_path).mkdir(parents=True, exist_ok=True)
         except Exception as e:
-            print(f"⚠️ Warning: Could not load .env file: {e}")
+            logger.warning(f"Could not create cache directory {dir_path}: {e}")
     
-    # Load database password
-    db_password = os.getenv("DATABASE_PASSWORD", "")
-    if db_password:
-        DATABASE_CONFIG["password"] = db_password
+    # Validate configuration
+    validation = validate_configuration()
     
-    # Load AI keys
-    gemini_key = os.getenv("GEMINI_API_KEY", "")
-    if gemini_key:
-        AI_CONFIG["gemini_api_key"] = gemini_key
+    if not validation["is_valid"]:
+        logger.error(f"Configuration validation failed: {validation['issues']}")
+        if IS_PRODUCTION:
+            # In production, we need to be strict
+            raise ValueError(f"Configuration validation failed: {validation['issues']}")
     
-    # Check required variables
-    required_vars = []
-    if not DATABASE_CONFIG["password"]:
-        required_vars.append("DATABASE_PASSWORD")
-    if not AI_CONFIG["gemini_api_key"]:
-        required_vars.append("GEMINI_API_KEY")
+    if validation["warnings"]:
+        for warning in validation["warnings"]:
+            logger.warning(warning)
     
-    if required_vars:
-        print(f"⚠️ Missing environment variables: {', '.join(required_vars)}")
-        print("💡 Set these in Vercel Environment Variables or .env file")
-        return False
+    # Log configuration status
+    logger.info(f"Configuration loaded for {ENVIRONMENT} environment")
+    logger.info(f"Database: {'✅' if DATABASE_CONFIG['password'] else '❌'}")
+    logger.info(f"Gemini AI: {'✅' if AI_CONFIG['gemini_api_key'] else '❌'}")
+    logger.info(f"Vercel: {'✅' if IS_VERCEL else '❌'}")
     
-    return True
+    return {
+        "database": DATABASE_CONFIG,
+        "ai": AI_CONFIG,
+        "system": SYSTEM_CONFIG,
+        "validation": validation
+    }
 
 # ========== EXPORT CONFIGURATION ==========
-# Combine all configs
-CONFIG = {
-    "database": DATABASE_CONFIG,
-    "ai": AI_CONFIG,
-    "system": SYSTEM_CONFIG
-}
+# Load configuration immediately
+CONFIG = load_configuration()
 
-# Load environment on import
-ENV_LOADED = load_environment_variables()
-
-# ========== HELPER FUNCTIONS ==========
+# Helper functions for easy access
 def get_config() -> Dict[str, Any]:
     """Get complete configuration."""
     return CONFIG
 
 def get_database_config() -> Dict[str, Any]:
     """Get database configuration."""
-    return DATABASE_CONFIG
+    return CONFIG["database"]
 
 def get_ai_config() -> Dict[str, Any]:
     """Get AI configuration."""
-    return AI_CONFIG
+    return CONFIG["ai"]
 
 def get_system_config() -> Dict[str, Any]:
     """Get system configuration."""
-    return SYSTEM_CONFIG
+    return CONFIG["system"]
 
-def is_configured() -> bool:
-    """Check if system is properly configured."""
-    return ENV_LOADED
+def get_validation() -> Dict[str, Any]:
+    """Get validation results."""
+    return CONFIG.get("validation", {})
+
+def is_production() -> bool:
+    """Check if running in production."""
+    return IS_PRODUCTION
+
+def is_vercel() -> bool:
+    """Check if running on Vercel."""
+    return IS_VERCEL
+
+# ========== ENVIRONMENT-SPECIFIC OVERRIDES ==========
+def get_database_connection_string() -> Optional[str]:
+    """Get database connection string based on environment."""
+    db_config = get_database_config()
+    
+    if IS_VERCEL:
+        # Use connection pooling for Vercel
+        return None  # Let psycopg2 handle it
+    
+    # Standard connection string for other environments
+    return f"postgresql://{db_config['user']}:{db_config['password']}@{db_config['host']}:{db_config['port']}/{db_config['database']}?sslmode=require"
+
+def get_gemini_model() -> str:
+    """Get appropriate Gemini model based on environment."""
+    ai_config = get_ai_config()
+    
+    if IS_PRODUCTION:
+        return ai_config["gemini_model"]
+    else:
+        # Use cheaper/faster model for non-production
+        return "gemini-1.5-flash"
 
 # ========== TEST FUNCTION ==========
-def test_configuration():
-    """Test configuration loading."""
+def test_configuration() -> Dict[str, Any]:
+    """Test configuration and return results."""
     print("\n" + "="*60)
     print("🔧 CONFIGURATION TEST")
     print("="*60)
     
-    print(f"✅ Environment loaded: {ENV_LOADED}")
-    print(f"✅ Database configured: {bool(DATABASE_CONFIG['password'])}")
-    print(f"✅ Gemini configured: {bool(AI_CONFIG['gemini_api_key'])}")
-    print(f"✅ Vector DB: FAISS (No API key needed)")
+    validation = get_validation()
     
-    if not ENV_LOADED:
-        print("\n⚠️ IMPORTANT: Set these environment variables:")
-        print("   - DATABASE_PASSWORD")
-        print("   - GEMINI_API_KEY")
+    print(f"✅ Environment: {ENVIRONMENT}")
+    print(f"✅ Vercel: {'Yes' if IS_VERCEL else 'No'}")
+    print(f"✅ Production: {'Yes' if IS_PRODUCTION else 'No'}")
+    print(f"✅ Valid: {'Yes' if validation['is_valid'] else 'No'}")
+    
+    if not validation["is_valid"]:
+        print("\n❌ ISSUES:")
+        for issue in validation["issues"]:
+            print(f"   - {issue}")
+    
+    if validation["warnings"]:
+        print("\n⚠️ WARNINGS:")
+        for warning in validation["warnings"]:
+            print(f"   - {warning}")
+    
+    print("\n📊 CONFIGURATION SUMMARY:")
+    print(f"   Database: {'Configured' if DATABASE_CONFIG['password'] else 'Missing'}")
+    print(f"   Gemini AI: {'Configured' if AI_CONFIG['gemini_api_key'] else 'Missing'}")
+    print(f"   Model: {AI_CONFIG['gemini_model']}")
+    print(f"   Max Chunks/Query: {SYSTEM_CONFIG['max_chunks_per_query']}")
+    print(f"   Cache Directory: {SYSTEM_CONFIG['cache_dir']}")
     
     print("="*60)
+    
+    return validation
 
 # Run test if executed directly
 if __name__ == "__main__":

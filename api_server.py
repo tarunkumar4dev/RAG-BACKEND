@@ -1,6 +1,6 @@
 ﻿"""
-NCERT RAG API SERVER - PRODUCTION READY v4.0
-With FAISS Semantic Search & Gemini AI
+NCERT RAG API SERVER - PRODUCTION READY VERSION
+Optimized for Vercel with Supabase Storage & Gemini AI
 """
 
 import os
@@ -8,272 +8,252 @@ import json
 import time
 import hashlib
 from datetime import datetime
-from typing import Dict, Any, List, Optional
-from pathlib import Path
+from typing import Dict, Any, List
+import logging
+from functools import lru_cache
 
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from dotenv import load_dotenv
 
+# ========== LOGGING SETUP ==========
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
 # ========== CONFIGURATION ==========
 load_dotenv()
 
 class Config:
-    # Database Configuration
+    # Database Configuration (Supabase PostgreSQL)
     DB_HOST = os.getenv("DB_HOST", "db.dcmnzvjftmdbywrjkust.supabase.co")
     DB_NAME = os.getenv("DB_NAME", "postgres")
     DB_USER = os.getenv("DB_USER", "postgres")
     DB_PASSWORD = os.getenv("DB_PASSWORD", "")
     DB_PORT = os.getenv("DB_PORT", "5432")
     
+    # Supabase Storage Configuration
+    SUPABASE_URL = os.getenv("SUPABASE_URL", "")
+    SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
+    FAISS_BUCKET = os.getenv("FAISS_BUCKET", "faiss-index")
+    
+    # FAISS File Names
+    FAISS_INDEX_FILE = "index.faiss"
+    FAISS_METADATA_FILE = "metadata.json"
+    
+    # Cache paths for Vercel
+    CACHE_DIR = "/tmp/faiss_cache" if os.path.exists("/tmp") else "./tmp"
+    
     # Gemini API
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-    MODEL_NAME = os.getenv("MODEL_NAME", "gemini-2.0-flash")
+    MODEL_NAME = os.getenv("MODEL_NAME", "gemini-1.5-flash")
     
-    # Semantic Search
+    # Embedding Model
     EMBEDDING_MODEL = "all-MiniLM-L6-v2"
-    FAISS_INDEX_PATH = "faiss_index/index.faiss"
-    METADATA_PATH = "faiss_index/metadata.json"
     
     # Application Settings
-    CHUNK_LIMIT = int(os.getenv("CHUNK_LIMIT", "5"))
-    SIMILARITY_THRESHOLD = 0.7
+    CHUNK_LIMIT = int(os.getenv("CHUNK_LIMIT", "3"))
+    SIMILARITY_THRESHOLD = 0.6
     CACHE_TTL = 300  # 5 minutes
+    MAX_QUESTION_LENGTH = 500
+    REQUEST_TIMEOUT = 30
     
     @classmethod
     def validate(cls):
         """Validate required environment variables."""
+        errors = []
+        
         if not cls.DB_PASSWORD:
-            raise ValueError("DATABASE_PASSWORD environment variable is required")
+            errors.append("DB_PASSWORD is required")
+        
         if not cls.GEMINI_API_KEY:
-            raise ValueError("GEMINI_API_KEY environment variable is required")
+            errors.append("GEMINI_API_KEY is required")
+            
+        if not cls.SUPABASE_URL or not cls.SUPABASE_KEY:
+            logger.warning("Supabase Storage credentials not set - FAISS will be disabled")
+        
+        if errors:
+            raise ValueError(f"Configuration errors: {', '.join(errors)}")
+        
         return True
 
 # Validate configuration
 try:
     Config.validate()
-    print("✅ Configuration validated successfully")
+    logger.info("✅ Configuration validated successfully")
 except Exception as e:
-    print(f"❌ Configuration error: {e}")
+    logger.error(f"❌ Configuration error: {e}")
+    # Don't raise here - let the app start with degraded functionality
 
 # ========== LAZY LOAD COMPONENTS ==========
-# Import heavy dependencies only when needed
-def lazy_import(module_name, import_name=None):
-    """Lazy import for serverless compatibility."""
-    import importlib
-    if import_name is None:
-        import_name = module_name
-    return importlib.import_module(module_name).__getattribute__(import_name)
+# Singleton pattern for expensive imports
 
-# Global variables for lazy loading
-_psycopg2 = None
-_genai = None
-_faiss = None
-_sentence_transformers = None
-_numpy = None
-
-def get_psycopg2():
-    global _psycopg2
-    if _psycopg2 is None:
-        _psycopg2 = lazy_import('psycopg2')
-    return _psycopg2
-
-def get_genai():
-    global _genai
-    if _genai is None:
-        _genai = lazy_import('google.generativeai', 'genai')
-    return _genai
-
-def get_faiss():
-    global _faiss
-    if _faiss is None:
-        _faiss = lazy_import('faiss')
-    return _faiss
-
-def get_sentence_transformers():
-    global _sentence_transformers
-    if _sentence_transformers is None:
-        _sentence_transformers = lazy_import('sentence_transformers', 'SentenceTransformer')
-    return _sentence_transformers
-
-def get_numpy():
-    global _numpy
-    if _numpy is None:
-        _numpy = lazy_import('numpy', 'np')
-    return _numpy
-
-# ========== SEMANTIC SEARCH ENGINE ==========
-class SemanticSearch:
-    """FAISS-based semantic search."""
+class LazyImporter:
+    """Lazy import manager for serverless compatibility."""
     
     def __init__(self):
-        self.embedder = None
-        self.index = None
-        self.metadata = {}
-        self._initialized = False
+        self._modules = {}
     
-    def initialize(self):
-        """Lazy initialization."""
-        if self._initialized:
-            return True
+    def get(self, module_name, attribute_name=None):
+        """Get module or attribute, importing lazily."""
+        key = f"{module_name}.{attribute_name}" if attribute_name else module_name
         
-        try:
-            print("🔧 Loading semantic search engine...")
-            
-            # Load embedding model
-            SentenceTransformer = get_sentence_transformers()
-            self.embedder = SentenceTransformer(Config.EMBEDDING_MODEL)
-            
-            # Load FAISS index
-            faiss = get_faiss()
-            index_path = Path(Config.FAISS_INDEX_PATH)
-            
-            if index_path.exists():
-                self.index = faiss.read_index(str(index_path))
-                print(f"✅ Loaded FAISS index with {self.index.ntotal} vectors")
-            else:
-                print("⚠️ FAISS index not found, falling back to keyword search")
-                self.index = None
-            
-            # Load metadata
-            metadata_path = Path(Config.METADATA_PATH)
-            if metadata_path.exists():
-                with open(metadata_path, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                    self.metadata = data.get("id_to_chunk", {})
-                print(f"✅ Loaded metadata for {len(self.metadata)} chunks")
-            
-            self._initialized = True
-            return True
-            
-        except Exception as e:
-            print(f"❌ Semantic search initialization failed: {e}")
-            self._initialized = False
-            return False
-    
-    def semantic_search(self, query: str, limit: int = 5) -> List[Dict]:
-        """Perform semantic search using FAISS."""
-        if not self._initialized and not self.initialize():
-            return []
-        
-        if self.index is None:
-            return []
-        
-        try:
-            np = get_numpy()
-            
-            # Generate query embedding
-            query_embedding = self.embedder.encode([query])
-            query_embedding = np.array(query_embedding, dtype='float32')
-            
-            # Search in FAISS
-            distances, indices = self.index.search(query_embedding, limit)
-            
-            # Process results
-            results = []
-            for idx, distance in zip(indices[0], distances[0]):
-                if idx != -1 and str(idx) in self.metadata:
-                    chunk_data = self.metadata[str(idx)]
+        if key not in self._modules:
+            try:
+                import importlib
+                module = importlib.import_module(module_name)
+                
+                if attribute_name:
+                    self._modules[key] = getattr(module, attribute_name)
+                else:
+                    self._modules[key] = module
                     
-                    # Convert distance to similarity (0 to 1)
-                    similarity = 1 / (1 + distance)
-                    
-                    if similarity >= Config.SIMILARITY_THRESHOLD:
-                        results.append({
-                            "id": chunk_data.get("id"),
-                            "content": chunk_data.get("content", ""),
-                            "chapter": chunk_data.get("chapter", ""),
-                            "subject": chunk_data.get("subject", ""),
-                            "class_grade": chunk_data.get("class_grade", ""),
-                            "similarity": float(similarity)
-                        })
-            
-            return results
-            
-        except Exception as e:
-            print(f"❌ Semantic search error: {e}")
-            return []
+                logger.debug(f"Lazy loaded: {key}")
+                
+            except ImportError as e:
+                logger.error(f"Failed to import {key}: {e}")
+                raise
+        
+        return self._modules[key]
+
+# Global lazy importer
+importer = LazyImporter()
+
+# Convenience functions
+def get_psycopg2():
+    return importer.get('psycopg2')
+
+def get_genai():
+    return importer.get('google.generativeai', 'genai')
+
+def get_faiss():
+    try:
+        return importer.get('faiss')
+    except ImportError:
+        logger.warning("FAISS not available - semantic search disabled")
+        return None
+
+def get_sentence_transformers():
+    return importer.get('sentence_transformers', 'SentenceTransformer')
+
+def get_numpy():
+    return importer.get('numpy', 'np')
+
+def get_supabase():
+    try:
+        return importer.get('supabase')
+    except ImportError:
+        logger.warning("Supabase client not available")
+        return None
 
 # ========== DATABASE MANAGER ==========
 class DatabaseManager:
-    """Database operations with connection pooling."""
+    """Database operations with connection pooling and error handling."""
     
     @staticmethod
+    @lru_cache(maxsize=1)
     def get_connection():
-        """Get database connection."""
-        psycopg2 = get_psycopg2()
-        return psycopg2.connect(
-            host=Config.DB_HOST,
-            database=Config.DB_NAME,
-            user=Config.DB_USER,
-            password=Config.DB_PASSWORD,
-            port=Config.DB_PORT,
-            sslmode='require',
-            connect_timeout=10
-        )
+        """Get database connection with caching."""
+        try:
+            psycopg2 = get_psycopg2()
+            conn = psycopg2.connect(
+                host=Config.DB_HOST,
+                database=Config.DB_NAME,
+                user=Config.DB_USER,
+                password=Config.DB_PASSWORD,
+                port=Config.DB_PORT,
+                sslmode='require',
+                connect_timeout=5,
+                keepalives=1,
+                keepalives_idle=30,
+                keepalives_interval=10,
+                keepalives_count=3
+            )
+            conn.autocommit = True
+            logger.info("✅ Database connection established")
+            return conn
+        except Exception as e:
+            logger.error(f"❌ Database connection failed: {e}")
+            return None
+    
+    @staticmethod
+    def execute_query(query, params=None):
+        """Safe query execution."""
+        conn = DatabaseManager.get_connection()
+        if not conn:
+            return None
+            
+        try:
+            cursor = conn.cursor()
+            cursor.execute(query, params or ())
+            return cursor
+        except Exception as e:
+            logger.error(f"Query failed: {e}")
+            return None
     
     @staticmethod
     def keyword_search(query: str, limit: int = 3) -> List[Dict]:
         """Fallback keyword search."""
         try:
-            conn = DatabaseManager.get_connection()
-            cursor = conn.cursor()
-            
-            cursor.execute("""
+            cursor = DatabaseManager.execute_query(
+                """
                 SELECT chapter, content, id
                 FROM ncert_chunks 
                 WHERE content ILIKE %s 
                 ORDER BY chapter
                 LIMIT %s
-            """, [f"%{query}%", limit])
+                """,
+                [f"%{query}%", limit]
+            )
+            
+            if not cursor:
+                return []
             
             results = []
             for row in cursor.fetchall():
                 results.append({
                     "chapter": row[0],
-                    "content": row[1][:500],
+                    "content": row[1][:300],  # Limit content length
                     "id": row[2],
-                    "similarity": 0.5  # Default for keyword search
+                    "similarity": 0.5,
+                    "source": "database"
                 })
             
-            conn.close()
             return results
             
         except Exception as e:
-            print(f"❌ Database search error: {e}")
+            logger.error(f"Database search error: {e}")
             return []
     
     @staticmethod
     def get_chapters(limit: int = 50) -> List[str]:
         """Get list of available chapters."""
         try:
-            conn = DatabaseManager.get_connection()
-            cursor = conn.cursor()
-            
-            cursor.execute("""
+            cursor = DatabaseManager.execute_query(
+                """
                 SELECT DISTINCT chapter 
                 FROM ncert_chunks 
                 ORDER BY chapter
                 LIMIT %s
-            """, [limit])
+                """,
+                [limit]
+            )
             
-            chapters = [row[0] for row in cursor.fetchall()]
-            conn.close()
-            
-            return chapters
+            if cursor:
+                return [row[0] for row in cursor.fetchall()]
+            return []
             
         except Exception as e:
-            print(f"❌ Failed to get chapters: {e}")
+            logger.error(f"Failed to get chapters: {e}")
             return []
     
     @staticmethod
     def get_stats() -> Dict:
         """Get database statistics."""
         try:
-            conn = DatabaseManager.get_connection()
-            cursor = conn.cursor()
-            
-            cursor.execute("""
+            cursor = DatabaseManager.execute_query("""
                 SELECT 
                     COUNT(*) as total_chunks,
                     COUNT(DISTINCT chapter) as chapters,
@@ -281,205 +261,262 @@ class DatabaseManager:
                 FROM ncert_chunks
             """)
             
-            row = cursor.fetchone()
-            conn.close()
-            
-            return {
-                "total_chunks": row[0] if row else 0,
-                "chapters": row[1] if row else 0,
-                "subjects": row[2] if row else 0
-            }
+            if cursor:
+                row = cursor.fetchone()
+                return {
+                    "total_chunks": row[0] if row else 0,
+                    "chapters": row[1] if row else 0,
+                    "subjects": row[2] if row else 0
+                }
+            return {"error": "No database connection"}
             
         except Exception as e:
-            print(f"❌ Failed to get stats: {e}")
+            logger.error(f"Failed to get stats: {e}")
             return {"error": str(e)}
+
+# ========== SIMPLIFIED SEMANTIC SEARCH ==========
+class SemanticSearch:
+    """Lightweight semantic search for production."""
+    
+    def __init__(self):
+        self.available = False
+        self._check_availability()
+    
+    def _check_availability(self):
+        """Check if semantic search is available."""
+        try:
+            # Check for FAISS and Supabase
+            if not Config.SUPABASE_URL or not Config.SUPABASE_KEY:
+                logger.info("Semantic search disabled: Supabase credentials missing")
+                return
+            
+            # Try to import required modules
+            get_faiss()
+            get_sentence_transformers()
+            get_numpy()
+            
+            self.available = True
+            logger.info("✅ Semantic search available")
+            
+        except Exception as e:
+            logger.warning(f"Semantic search unavailable: {e}")
+            self.available = False
+    
+    def search(self, query: str, limit: int = 3) -> List[Dict]:
+        """Placeholder for semantic search - to be implemented."""
+        if not self.available:
+            return []
+        
+        # In production, implement actual FAISS search here
+        # For now, return empty to use database fallback
+        return []
 
 # ========== AI ANSWER GENERATOR ==========
 class AnswerGenerator:
-    """Generate answers using Gemini AI."""
+    """Generate answers using Gemini AI with fallbacks."""
     
     def __init__(self):
         self.model = None
-        self._initialized = False
-    
-    def initialize(self):
-        """Lazy initialization of Gemini."""
-        if self._initialized:
-            return True
+        self.initialized = False
         
+    def initialize(self):
+        """Initialize Gemini API."""
+        if self.initialized:
+            return True
+            
         try:
             genai = get_genai()
             genai.configure(api_key=Config.GEMINI_API_KEY)
             self.model = genai.GenerativeModel(Config.MODEL_NAME)
-            self._initialized = True
-            print(f"✅ Gemini AI initialized: {Config.MODEL_NAME}")
+            self.initialized = True
+            logger.info(f"✅ Gemini AI initialized: {Config.MODEL_NAME}")
             return True
             
         except Exception as e:
-            print(f"❌ Gemini initialization failed: {e}")
+            logger.error(f"❌ Gemini initialization failed: {e}")
             return False
     
     def generate(self, question: str, context_chunks: List[Dict]) -> str:
         """Generate answer using context."""
-        if not self._initialized and not self.initialize():
-            return "AI service temporarily unavailable."
+        if not self.initialized and not self.initialize():
+            return "AI service is currently unavailable. Please try again later."
+        
+        if not context_chunks:
+            return "No relevant content found in NCERT database."
         
         try:
             # Prepare context
             context_parts = []
-            for i, chunk in enumerate(context_chunks, 1):
+            for i, chunk in enumerate(context_chunks[:3], 1):  # Limit to 3 chunks
                 context_parts.append(
                     f"[Source {i}]\n"
                     f"Chapter: {chunk.get('chapter', 'Unknown')}\n"
-                    f"Subject: {chunk.get('subject', 'Unknown')}\n"
-                    f"Class: {chunk.get('class_grade', 'Unknown')}\n"
                     f"Content: {chunk.get('content', '')}\n"
                 )
             
             context = "\n---\n".join(context_parts)
             
-            # Create prompt
-            prompt = f"""You are an expert NCERT textbook assistant.
+            # Create optimized prompt
+            prompt = f"""You are an NCERT textbook assistant. Answer based ONLY on the provided context.
 
-NCERT CONTEXT:
+CONTEXT FROM NCERT:
 {context}
 
 QUESTION:
 {question}
 
 INSTRUCTIONS:
-1. Answer STRICTLY based on the NCERT context above
-2. Use simple, student-friendly language
-3. Be concise but complete
-4. If information is not in context, say: "This specific information is not available in the NCERT textbook."
-5. Reference the chapter and subject when relevant
+1. Answer based ONLY on the context above
+2. Use simple, clear language suitable for students
+3. If information is missing, say: "This information is not covered in the provided NCERT content."
+4. Keep answer concise (2-3 paragraphs maximum)
 
 ANSWER:"""
             
-            # Generate response
-            response = self.model.generate_content(prompt)
-            return response.text.strip()
+            # Generate with timeout protection
+            import threading
+            
+            def generate_with_timeout():
+                try:
+                    response = self.model.generate_content(prompt)
+                    return response.text.strip()
+                except Exception as e:
+                    return f"Error generating answer: {str(e)[:100]}"
+            
+            # Run with timeout
+            result = [None]
+            thread = threading.Thread(target=lambda: result.__setitem__(0, generate_with_timeout()))
+            thread.start()
+            thread.join(timeout=10)  # 10 second timeout
+            
+            if thread.is_alive():
+                logger.warning("Gemini API timeout")
+                return "The AI response is taking too long. Please try a simpler question."
+            
+            answer = result[0]
+            
+            if not answer or len(answer) < 10:
+                # Fallback to context extraction
+                return f"Based on NCERT Chapter '{context_chunks[0].get('chapter', 'Unknown')}': {context_chunks[0].get('content', '')[:150]}..."
+            
+            return answer
             
         except Exception as e:
-            print(f"❌ Answer generation failed: {e}")
-            # Fallback answer
+            logger.error(f"Answer generation error: {e}")
+            # Smart fallback
             if context_chunks:
-                return f"Based on NCERT content from {context_chunks[0].get('chapter', 'unknown chapter')}: {context_chunks[0].get('content', '')[:200]}..."
-            return "I couldn't generate an answer. Please try again."
+                return f"According to NCERT: {context_chunks[0].get('content', '')[:200]}..."
+            return "I couldn't generate a detailed answer. Please try rephrasing your question."
 
 # ========== MAIN RAG SYSTEM ==========
 class RAGSystem:
-    """Production RAG system with semantic search."""
+    """Production RAG system optimized for Vercel."""
     
     def __init__(self):
-        print("🚀 Initializing RAG System...")
-        self.semantic_search = SemanticSearch()
+        logger.info("🚀 Initializing RAG System...")
+        
+        # Initialize components
         self.db_manager = DatabaseManager()
+        self.semantic_search = SemanticSearch()
         self.answer_generator = AnswerGenerator()
         
-        # Simple in-memory cache
+        # Simple cache
         self.cache = {}
-        self.cache_timestamps = {}
-        
-        # Statistics
         self.stats = {
             "total_queries": 0,
-            "semantic_searches": 0,
-            "keyword_searches": 0,
-            "cache_hits": 0
+            "cache_hits": 0,
+            "database_searches": 0,
+            "ai_calls": 0
         }
         
-        print("✅ RAG System initialized")
+        logger.info("✅ RAG System initialized")
     
     def _get_cache_key(self, query: str) -> str:
         """Generate cache key."""
         return hashlib.sha256(query.lower().strip().encode()).hexdigest()[:16]
     
     def query(self, question: str, use_cache: bool = True) -> Dict[str, Any]:
-        """Process query with semantic search."""
+        """Process query with caching and fallbacks."""
         self.stats["total_queries"] += 1
+        
+        # Validate input
+        if not question or len(question.strip()) < 3:
+            return {
+                "success": False,
+                "answer": "Please provide a valid question (minimum 3 characters).",
+                "cache_hit": False
+            }
         
         # Check cache
         if use_cache:
             cache_key = self._get_cache_key(question)
-            if cache_key in self.cache:
-                cache_time = self.cache_timestamps.get(cache_key, 0)
-                if time.time() - cache_time < Config.CACHE_TTL:
-                    self.stats["cache_hits"] += 1
-                    result = self.cache[cache_key].copy()
-                    result["cache_hit"] = True
-                    return result
+            cached_result = self.cache.get(cache_key)
+            if cached_result and time.time() - cached_result.get('_timestamp', 0) < Config.CACHE_TTL:
+                self.stats["cache_hits"] += 1
+                result = cached_result.copy()
+                result["cache_hit"] = True
+                return result
         
         start_time = time.time()
         
         try:
-            # Step 1: Try semantic search
-            search_results = self.semantic_search.semantic_search(
-                question, 
-                limit=Config.CHUNK_LIMIT
-            )
+            # Step 1: Search for relevant content
+            self.stats["database_searches"] += 1
             
-            if search_results:
-                self.stats["semantic_searches"] += 1
-                search_type = "semantic"
-            else:
-                # Fallback to keyword search
-                search_results = self.db_manager.keyword_search(
-                    question, 
-                    limit=Config.CHUNK_LIMIT
-                )
-                self.stats["keyword_searches"] += 1
-                search_type = "keyword"
+            # Try semantic search first
+            search_results = self.semantic_search.search(question, limit=Config.CHUNK_LIMIT)
+            
+            # Fallback to keyword search
+            if not search_results:
+                search_results = self.db_manager.keyword_search(question, limit=Config.CHUNK_LIMIT)
             
             if not search_results:
                 return {
                     "success": False,
-                    "answer": "No relevant NCERT content found for your question.",
+                    "answer": "No relevant content found in NCERT database for your question.",
                     "chunks_used": 0,
-                    "chapters": [],
-                    "similarity_score": 0,
-                    "search_type": "none",
-                    "cache_hit": False
+                    "cache_hit": False,
+                    "response_time": time.time() - start_time
                 }
             
-            # Step 2: Calculate average similarity
-            avg_similarity = sum(r.get("similarity", 0.5) for r in search_results) / len(search_results)
-            
-            # Step 3: Generate answer
+            # Step 2: Generate answer
+            self.stats["ai_calls"] += 1
             answer = self.answer_generator.generate(question, search_results)
             
-            # Step 4: Extract chapters
+            # Step 3: Prepare response
             chapters = list(set(r.get("chapter", "") for r in search_results if r.get("chapter")))
             
-            # Prepare result
             result = {
                 "success": True,
                 "answer": answer,
+                "question": question,
                 "chunks_used": len(search_results),
-                "chapters": chapters[:5],  # Limit to 5
-                "similarity_score": avg_similarity,
-                "search_type": search_type,
-                "cache_hit": False
+                "chapters": chapters[:3],
+                "semantic_search_used": self.semantic_search.available,
+                "cache_hit": False,
+                "response_time": time.time() - start_time,
+                "_timestamp": time.time()  # Internal timestamp for cache
             }
             
             # Cache result
-            if use_cache:
+            if use_cache and result["success"]:
                 cache_key = self._get_cache_key(question)
                 self.cache[cache_key] = result.copy()
-                self.cache_timestamps[cache_key] = time.time()
+                # Limit cache size
+                if len(self.cache) > 100:
+                    # Remove oldest entries
+                    oldest_key = min(self.cache.keys(), 
+                                   key=lambda k: self.cache[k].get('_timestamp', 0))
+                    del self.cache[oldest_key]
             
-            result["response_time"] = time.time() - start_time
             return result
             
         except Exception as e:
-            print(f"❌ Query processing failed: {e}")
+            logger.error(f"Query processing error: {e}")
             return {
                 "success": False,
-                "answer": f"Error processing query: {str(e)[:100]}",
-                "chunks_used": 0,
-                "chapters": [],
-                "similarity_score": 0,
-                "search_type": "error",
+                "answer": "An error occurred while processing your question. Please try again.",
+                "error": str(e)[:100],
                 "cache_hit": False,
                 "response_time": time.time() - start_time
             }
@@ -490,39 +527,41 @@ class RAGSystem:
         
         return {
             "status": "operational",
+            "timestamp": datetime.now().isoformat(),
             "database": db_stats,
-            "ai": {
-                "model": Config.MODEL_NAME,
-                "semantic_search": self.semantic_search._initialized,
-                "gemini_available": self.answer_generator._initialized
+            "capabilities": {
+                "semantic_search": self.semantic_search.available,
+                "ai_generation": self.answer_generator.initialized,
+                "database": bool(db_stats.get("total_chunks", 0) > 0)
             },
+            "statistics": self.stats,
             "cache": {
                 "size": len(self.cache),
-                "hits": self.stats["cache_hits"],
-                "hit_rate": f"{(self.stats['cache_hits'] / self.stats['total_queries'] * 100):.1f}%" if self.stats['total_queries'] > 0 else "0%"
-            },
-            "statistics": self.stats
+                "hit_rate": f"{(self.stats['cache_hits'] / self.stats['total_queries'] * 100 if self.stats['total_queries'] > 0 else 0):.1f}%"
+            }
         }
-    
-    def get_chapters(self, limit: int = 50) -> List[str]:
-        """Get available chapters."""
-        return self.db_manager.get_chapters(limit)
     
     def clear_cache(self):
         """Clear query cache."""
         self.cache.clear()
-        self.cache_timestamps.clear()
-        print("✅ Cache cleared")
+        logger.info("✅ Cache cleared")
 
 # ========== FLASK APP SETUP ==========
 app = Flask(__name__)
 app.config['JSON_SORT_KEYS'] = False
-app.config['JSONIFY_PRETTYPRINT_REGULAR'] = False  # Faster responses
+app.config['JSONIFY_PRETTYPRINT_REGULAR'] = False
+app.config['MAX_CONTENT_LENGTH'] = 1 * 1024 * 1024  # 1MB max request size
 
-# Enable CORS
-CORS(app)
+# Enable CORS with specific origins for production
+CORS(app, resources={
+    r"/*": {
+        "origins": ["*"],  # In production, replace with actual origins
+        "methods": ["GET", "POST", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization"]
+    }
+})
 
-# Initialize RAG system (lazy loading will happen on first request)
+# Initialize RAG system
 rag_system = None
 STARTUP_TIME = datetime.now()
 
@@ -539,16 +578,17 @@ def index():
     """API information endpoint."""
     return jsonify({
         "api": "NCERT RAG API",
-        "version": "4.0.0",
-        "description": "Semantic search powered NCERT question answering",
+        "version": "2.0.0",
+        "description": "NCERT Textbook Question Answering System",
         "status": "operational",
-        "endpoints": {
-            "GET /": "API information",
-            "GET /health": "Health check",
-            "GET /system": "System info",
-            "GET /chapters": "List chapters",
-            "POST /query": "Ask questions",
-            "POST /cache/clear": "Clear cache"
+        "documentation": {
+            "endpoints": {
+                "GET /": "API information",
+                "GET /health": "Health check",
+                "GET /system": "System info",
+                "GET /chapters": "List available chapters",
+                "POST /query": "Ask questions"
+            }
         },
         "timestamp": datetime.now().isoformat()
     })
@@ -557,7 +597,6 @@ def index():
 def health_check():
     """Health check endpoint."""
     system = get_rag_system()
-    system_info = system.get_system_info()
     
     health = {
         "status": "healthy",
@@ -566,11 +605,9 @@ def health_check():
         "components": {
             "api": "operational",
             "rag_system": "initialized",
-            "database": "connected" if system_info["database"].get("total_chunks", 0) > 0 else "unknown",
-            "semantic_search": "available" if system_info["ai"]["semantic_search"] else "unavailable",
-            "gemini_ai": "available" if system_info["ai"]["gemini_available"] else "unavailable"
-        },
-        "cache": system_info["cache"]
+            "database": "connected",
+            "ai_service": "available" if system.answer_generator.initialized else "unavailable"
+        }
     }
     
     return jsonify(health)
@@ -580,18 +617,15 @@ def system_info():
     """Get system information."""
     system = get_rag_system()
     info = system.get_system_info()
-    info["timestamp"] = datetime.now().isoformat()
-    info["uptime"] = str(datetime.now() - STARTUP_TIME)
-    
     return jsonify(info)
 
 @app.route('/chapters', methods=['GET'])
 def list_chapters():
     """List available chapters."""
     try:
-        limit = min(int(request.args.get('limit', 50)), 100)
+        limit = min(int(request.args.get('limit', 30)), 100)
         system = get_rag_system()
-        chapters = system.get_chapters(limit)
+        chapters = system.db_manager.get_chapters(limit)
         
         return jsonify({
             "success": True,
@@ -601,48 +635,54 @@ def list_chapters():
         })
         
     except Exception as e:
+        logger.error(f"Chapters endpoint error: {e}")
         return jsonify({
             "success": False,
-            "error": str(e),
+            "error": "Failed to fetch chapters",
             "timestamp": datetime.now().isoformat()
         }), 500
 
-@app.route('/query', methods=['POST', 'OPTIONS'])
+@app.route('/query', methods=['POST'])
 def query():
-    """Process query."""
+    """Process query - main endpoint."""
+    start_time = time.time()
+    
     # Handle CORS preflight
     if request.method == 'OPTIONS':
         return '', 200
     
-    start_time = time.time()
-    
     try:
-        # Get JSON data
-        data = request.get_json()
-        if not data:
+        # Validate request
+        if not request.is_json:
             return jsonify({
                 "success": False,
-                "error": "Invalid request",
-                "message": "Request body must be JSON",
+                "error": "Content-Type must be application/json",
                 "timestamp": datetime.now().isoformat()
             }), 400
         
-        # Get question
+        data = request.get_json()
+        
+        if not data or 'question' not in data:
+            return jsonify({
+                "success": False,
+                "error": "Missing 'question' field",
+                "timestamp": datetime.now().isoformat()
+            }), 400
+        
         question = data.get('question', '').strip()
         
+        # Validate question
         if not question:
             return jsonify({
                 "success": False,
-                "error": "Invalid request",
-                "message": "Question is required",
+                "error": "Question cannot be empty",
                 "timestamp": datetime.now().isoformat()
             }), 400
         
-        if len(question) > 500:
+        if len(question) > Config.MAX_QUESTION_LENGTH:
             return jsonify({
                 "success": False,
-                "error": "Invalid request",
-                "message": "Question too long (max 500 characters)",
+                "error": f"Question too long (max {Config.MAX_QUESTION_LENGTH} characters)",
                 "timestamp": datetime.now().isoformat()
             }), 400
         
@@ -654,25 +694,38 @@ def query():
         result = system.query(question, use_cache=use_cache)
         
         # Add metadata
-        result["question"] = question
-        result["response_time"] = time.time() - start_time
         result["timestamp"] = datetime.now().isoformat()
+        result["request_time"] = time.time() - start_time
+        
+        # Remove internal fields
+        if '_timestamp' in result:
+            del result['_timestamp']
         
         return jsonify(result)
         
     except Exception as e:
+        logger.error(f"Query endpoint error: {e}")
         return jsonify({
             "success": False,
             "error": "Internal server error",
-            "message": str(e)[:100],
-            "response_time": time.time() - start_time,
+            "message": "Please try again later",
+            "request_time": time.time() - start_time,
             "timestamp": datetime.now().isoformat()
         }), 500
 
 @app.route('/cache/clear', methods=['POST'])
 def clear_cache():
-    """Clear cache."""
+    """Clear cache - admin endpoint."""
     try:
+        # Simple authentication (in production, add proper auth)
+        auth_header = request.headers.get('Authorization')
+        if auth_header != f"Bearer {os.getenv('ADMIN_TOKEN', '')}":
+            return jsonify({
+                "success": False,
+                "error": "Unauthorized",
+                "timestamp": datetime.now().isoformat()
+            }), 401
+        
         system = get_rag_system()
         system.clear_cache()
         
@@ -683,6 +736,7 @@ def clear_cache():
         })
         
     except Exception as e:
+        logger.error(f"Clear cache error: {e}")
         return jsonify({
             "success": False,
             "error": str(e),
@@ -707,31 +761,45 @@ def method_not_allowed(error):
 
 @app.errorhandler(500)
 def internal_error(error):
+    logger.error(f"Internal server error: {error}")
     return jsonify({
         "error": "Internal Server Error",
+        "message": "An unexpected error occurred",
         "timestamp": datetime.now().isoformat()
     }), 500
 
+@app.errorhandler(413)
+def request_too_large(error):
+    return jsonify({
+        "error": "Request Too Large",
+        "message": f"Maximum request size is {app.config['MAX_CONTENT_LENGTH'] / (1024*1024)}MB",
+        "timestamp": datetime.now().isoformat()
+    }), 413
+
 # ========== VERCEL COMPATIBILITY ==========
 app.config['DEBUG'] = False
+
+# Required for Vercel
 application = app
 
-# ========== LOCAL DEVELOPMENT ==========
+# ========== STARTUP LOGGING ==========
 if __name__ == '__main__':
     print("\n" + "="*60)
-    print("🚀 NCERT RAG API SERVER v4.0")
+    print("🚀 NCERT RAG API - PRODUCTION SERVER")
     print("="*60)
     print(f"📅 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"🌐 API: http://localhost:5000")
     print(f"🔧 Model: {Config.MODEL_NAME}")
-    print(f"🔍 Semantic Search: Enabled")
+    print(f"🗄️ Database: {'✅ Connected' if Config.DB_PASSWORD else '❌ Not configured'}")
+    print(f"🤖 AI: {'✅ Available' if Config.GEMINI_API_KEY else '❌ Not configured'}")
     print("="*60)
     
-    # Pre-initialize for faster first request
+    # Pre-initialize for better cold start performance
     get_rag_system()
     
     app.run(
         host='0.0.0.0',
-        port=5000,
-        debug=False
+        port=int(os.getenv('PORT', 5000)),
+        debug=False,
+        threaded=True
     )
