@@ -3,3 +3,33 @@ flask-cors==4.0.1
 python-dotenv==1.0.1
 psycopg2-binary==2.9.10
 google-generativeai==0.8.3
+# NCERT RAG System - Enhanced Version
+# Install with: pip install -r requirements.txt
+
+# Core dependencies
+psycopg2-binary==2.9.9
+python-dotenv==1.0.0
+
+# AI/ML
+google-generativeai==0.3.2
+
+# Optional but recommended
+# For better performance monitoring
+psutil==5.9.8
+
+# For async operations (future enhancement)
+# aiohttp==3.9.1
+# asyncio==3.4.3
+
+
+# NCERT Ultimate RAG v3.0 - Dependencies
+
+google-generativeai>=0.3.0
+
+# Optional but recommended
+typing-extensions>=4.8.0  # For Python < 3.10
+
+# Development dependencies (optional)
+pytest>=7.4.0
+black>=23.0.0
+mypy>=1.5.0

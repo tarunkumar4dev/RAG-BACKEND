@@ -22,29 +22,35 @@ logger = logging.getLogger(__name__)
 # ========== ENVIRONMENT DETECTION ==========
 def get_environment() -> str:
     """Detect current environment."""
-    env = os.getenv("VERCEL_ENV", os.getenv("ENVIRONMENT", "production"))
-    
-    # Map Vercel environments
-    if os.getenv("VERCEL_ENV") == "production":
-        return "production"
-    elif os.getenv("VERCEL_ENV") == "preview":
-        return "staging"
-    elif os.getenv("VERCEL_ENV") == "development":
-        return "development"
+    if os.getenv("VERCEL_ENV"):
+        env = os.getenv("VERCEL_ENV")
+    elif os.getenv("ENVIRONMENT"):
+        env = os.getenv("ENVIRONMENT")
+    elif os.getenv("FLASK_ENV"):
+        env = os.getenv("FLASK_ENV")
     else:
-        return env
+        env = "production"
+    
+    # Map to standard environments
+    if env in ["production", "prod"]:
+        return "production"
+    elif env in ["preview", "staging", "test"]:
+        return "staging"
+    else:
+        return "development"
 
 ENVIRONMENT = get_environment()
 IS_PRODUCTION = ENVIRONMENT == "production"
 IS_VERCEL = bool(os.getenv("VERCEL"))
 
 # ========== DATABASE CONFIGURATION ==========
+# Get values with proper defaults
 DATABASE_CONFIG = {
-    "host": os.getenv("DB_HOST", "db.dcmnzvjftmdbywrjkust.supabase.co"),
-    "port": int(os.getenv("DB_PORT", "5432")),
-    "database": os.getenv("DB_NAME", "postgres"),
-    "user": os.getenv("DB_USER", "postgres"),
-    "password": os.getenv("DB_PASSWORD", ""),
+    "host": os.getenv("DB_HOST") or "db.dcmnzvjftmdbywrjkust.supabase.co",
+    "port": int(os.getenv("DB_PORT") or "5432"),
+    "database": os.getenv("DB_NAME") or "postgres",
+    "user": os.getenv("DB_USER") or "postgres",
+    "password": os.getenv("DB_PASSWORD") or "",
     
     # Connection settings optimized for serverless
     "connection_timeout": 10,
@@ -66,28 +72,31 @@ DATABASE_CONFIG = {
 }
 
 # ========== AI & GEMINI CONFIGURATION ==========
+# Get Gemini API key from either GEMINI_API_KEY or GEMINI_API
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("GEMINI_API") or ""
+
 AI_CONFIG = {
     # Gemini API
-    "gemini_api_key": os.getenv("GEMINI_API_KEY", ""),
+    "gemini_api_key": GEMINI_API_KEY,
     
     # Model selection - using most reliable for production
-    "gemini_model": os.getenv("GEMINI_MODEL", "gemini-1.5-flash"),
+    "gemini_model": os.getenv("GEMINI_MODEL") or "gemini-1.5-flash",
     "fallback_models": ["gemini-1.5-flash", "gemini-1.5-pro"],
     
     # Model parameters
-    "temperature": float(os.getenv("GEMINI_TEMPERATURE", "0.2")),
-    "max_output_tokens": int(os.getenv("GEMINI_MAX_TOKENS", "1024")),
-    "timeout": int(os.getenv("GEMINI_TIMEOUT", "30")),
+    "temperature": float(os.getenv("GEMINI_TEMPERATURE") or "0.2"),
+    "max_output_tokens": int(os.getenv("GEMINI_MAX_TOKENS") or "1024"),
+    "timeout": int(os.getenv("GEMINI_TIMEOUT") or "30"),
     "top_p": 0.95,
     "top_k": 40,
     
     # Embedding model (for future semantic search)
-    "embedding_model": os.getenv("EMBEDDING_MODEL", "all-MiniLM-L6-v2"),
+    "embedding_model": os.getenv("EMBEDDING_MODEL") or "all-MiniLM-L6-v2",
     "embedding_dimension": 384,  # For MiniLM-L6-v2
     
     # Cache settings
-    "response_cache_ttl": int(os.getenv("CACHE_TTL", "300")),  # 5 minutes
-    "max_cache_size": int(os.getenv("MAX_CACHE_SIZE", "100"))
+    "response_cache_ttl": int(os.getenv("CACHE_TTL") or "300"),  # 5 minutes
+    "max_cache_size": int(os.getenv("MAX_CACHE_SIZE") or "100")
 }
 
 # ========== SYSTEM CONFIGURATION ==========
@@ -103,35 +112,35 @@ SYSTEM_CONFIG = {
     "api_version": "v1",
     
     # Performance settings
-    "max_concurrent_requests": int(os.getenv("MAX_CONCURRENT_REQUESTS", "10")),
-    "request_timeout": int(os.getenv("REQUEST_TIMEOUT", "30")),
-    "max_retries": int(os.getenv("MAX_RETRIES", "3")),
-    "retry_delay": float(os.getenv("RETRY_DELAY", "1.0")),
+    "max_concurrent_requests": int(os.getenv("MAX_CONCURRENT_REQUESTS") or "10"),
+    "request_timeout": int(os.getenv("REQUEST_TIMEOUT") or "30"),
+    "max_retries": int(os.getenv("MAX_RETRIES") or "3"),
+    "retry_delay": float(os.getenv("RETRY_DELAY") or "1.0"),
     
     # Query processing
-    "max_query_length": int(os.getenv("MAX_QUERY_LENGTH", "500")),
+    "max_query_length": int(os.getenv("MAX_QUERY_LENGTH") or "500"),
     "min_query_length": 3,
-    "max_chunks_per_query": int(os.getenv("MAX_CHUNKS_PER_QUERY", "5")),
-    "similarity_threshold": float(os.getenv("SIMILARITY_THRESHOLD", "0.6")),
+    "max_chunks_per_query": int(os.getenv("MAX_CHUNKS_PER_QUERY") or "5"),
+    "similarity_threshold": float(os.getenv("SIMILARITY_THRESHOLD") or "0.6"),
     
     # CORS settings
-    "cors_origins": os.getenv("CORS_ORIGINS", "*").split(","),
+    "cors_origins": (os.getenv("CORS_ORIGINS") or "*").split(","),
     "cors_methods": ["GET", "POST", "OPTIONS"],
     "cors_headers": ["Content-Type", "Authorization"],
     
     # Security
-    "rate_limit_enabled": bool(os.getenv("RATE_LIMIT_ENABLED", "true")),
-    "rate_limit_requests": int(os.getenv("RATE_LIMIT_REQUESTS", "100")),
-    "rate_limit_period": int(os.getenv("RATE_LIMIT_PERIOD", "900")),  # 15 minutes
+    "rate_limit_enabled": os.getenv("RATE_LIMIT_ENABLED", "true").lower() == "true",
+    "rate_limit_requests": int(os.getenv("RATE_LIMIT_REQUESTS") or "100"),
+    "rate_limit_period": int(os.getenv("RATE_LIMIT_PERIOD") or "900"),  # 15 minutes
     
     # Logging
-    "log_level": os.getenv("LOG_LEVEL", "INFO" if IS_PRODUCTION else "DEBUG"),
+    "log_level": os.getenv("LOG_LEVEL") or ("INFO" if IS_PRODUCTION else "DEBUG"),
     "log_format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    "enable_request_logging": bool(os.getenv("ENABLE_REQUEST_LOGGING", "true")),
+    "enable_request_logging": os.getenv("ENABLE_REQUEST_LOGGING", "true").lower() == "true",
     
     # Health checks
-    "health_check_interval": int(os.getenv("HEALTH_CHECK_INTERVAL", "300")),  # 5 minutes
-    "max_response_size": int(os.getenv("MAX_RESPONSE_SIZE", "1048576")),  # 1MB
+    "health_check_interval": int(os.getenv("HEALTH_CHECK_INTERVAL") or "300"),  # 5 minutes
+    "max_response_size": int(os.getenv("MAX_RESPONSE_SIZE") or "1048576"),  # 1MB
     
     # Cache paths for Vercel
     "cache_dir": "/tmp" if IS_VERCEL else "./cache",
@@ -147,19 +156,16 @@ def validate_configuration() -> Dict[str, Any]:
     issues = []
     warnings = []
     
-    # Required variables
-    required_vars = {
-        "DB_PASSWORD": DATABASE_CONFIG["password"],
-        "GEMINI_API_KEY": AI_CONFIG["gemini_api_key"]
-    }
+    # Required variables - check with actual values
+    if not DATABASE_CONFIG["password"]:
+        issues.append("Missing required environment variable: DB_PASSWORD")
     
-    for var_name, value in required_vars.items():
-        if not value:
-            issues.append(f"Missing required environment variable: {var_name}")
+    if not AI_CONFIG["gemini_api_key"]:
+        issues.append("Missing required environment variable: GEMINI_API_KEY")
     
     # Database connection validation
-    if not DATABASE_CONFIG["host"] or "supabase" not in DATABASE_CONFIG["host"]:
-        warnings.append("Database host might not be correctly configured")
+    if not DATABASE_CONFIG["host"]:
+        issues.append("Missing database host")
     
     # Port validation
     if not 1 <= DATABASE_CONFIG["port"] <= 65535:
@@ -209,12 +215,9 @@ def load_configuration() -> Dict[str, Any]:
     # Validate configuration
     validation = validate_configuration()
     
-    if not validation["is_valid"]:
-        logger.error(f"Configuration validation failed: {validation['issues']}")
-        if IS_PRODUCTION:
-            # In production, we need to be strict
-            raise ValueError(f"Configuration validation failed: {validation['issues']}")
-    
+    if validation["issues"]:
+        logger.error(f"Configuration issues found: {validation['issues']}")
+        
     if validation["warnings"]:
         for warning in validation["warnings"]:
             logger.warning(warning)
@@ -265,6 +268,14 @@ def is_vercel() -> bool:
     """Check if running on Vercel."""
     return IS_VERCEL
 
+def get_gemini_api_key() -> str:
+    """Get Gemini API key."""
+    return AI_CONFIG["gemini_api_key"]
+
+def get_db_password() -> str:
+    """Get database password."""
+    return DATABASE_CONFIG["password"]
+
 # ========== ENVIRONMENT-SPECIFIC OVERRIDES ==========
 def get_database_connection_string() -> Optional[str]:
     """Get database connection string based on environment."""
@@ -299,7 +310,17 @@ def test_configuration() -> Dict[str, Any]:
     print(f"✅ Environment: {ENVIRONMENT}")
     print(f"✅ Vercel: {'Yes' if IS_VERCEL else 'No'}")
     print(f"✅ Production: {'Yes' if IS_PRODUCTION else 'No'}")
-    print(f"✅ Valid: {'Yes' if validation['is_valid'] else 'No'}")
+    
+    print(f"\n📊 CONFIGURATION VALUES:")
+    print(f"   DB_HOST: {DATABASE_CONFIG['host'][:30]}...")
+    print(f"   DB_USER: {DATABASE_CONFIG['user']}")
+    print(f"   DB_PASSWORD: {'Set' if DATABASE_CONFIG['password'] else 'NOT SET'}")
+    print(f"   GEMINI_API_KEY: {'Set' if AI_CONFIG['gemini_api_key'] else 'NOT SET'}")
+    print(f"   GEMINI_MODEL: {AI_CONFIG['gemini_model']}")
+    print(f"   MAX_CHUNKS_PER_QUERY: {SYSTEM_CONFIG['max_chunks_per_query']}")
+    print(f"   CACHE_DIR: {SYSTEM_CONFIG['cache_dir']}")
+    
+    print(f"\n✅ Valid: {'Yes' if validation['is_valid'] else 'No'}")
     
     if not validation["is_valid"]:
         print("\n❌ ISSUES:")
@@ -310,13 +331,6 @@ def test_configuration() -> Dict[str, Any]:
         print("\n⚠️ WARNINGS:")
         for warning in validation["warnings"]:
             print(f"   - {warning}")
-    
-    print("\n📊 CONFIGURATION SUMMARY:")
-    print(f"   Database: {'Configured' if DATABASE_CONFIG['password'] else 'Missing'}")
-    print(f"   Gemini AI: {'Configured' if AI_CONFIG['gemini_api_key'] else 'Missing'}")
-    print(f"   Model: {AI_CONFIG['gemini_model']}")
-    print(f"   Max Chunks/Query: {SYSTEM_CONFIG['max_chunks_per_query']}")
-    print(f"   Cache Directory: {SYSTEM_CONFIG['cache_dir']}")
     
     print("="*60)
     
