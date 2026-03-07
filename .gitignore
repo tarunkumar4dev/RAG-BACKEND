@@ -6,3 +6,4 @@ backup_extra_files/
 *.pyc
 
 .vercel
+.env*.local
