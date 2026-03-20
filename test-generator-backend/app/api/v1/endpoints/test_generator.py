@@ -1,16 +1,16 @@
 """
-Test Generator API Endpoints — COMPLETE FILE
+Test Generator API Endpoints — SYNC (Production)
 
-ALL endpoints:
-  POST /generate-frontend → React form data → pipeline → questions (camelCase)
-  POST /generate          → Direct backend-format request
-  POST /feedback          → Teacher feedback + regenerate
-  POST /save              → Save final test
-  POST /quiz/create       → Create student quiz
-  POST /export            → Download PDF or DOCX
-  GET  /test/{test_id}    → Get saved test
-  GET  /chapters          → NCERT chapters for dropdowns
-  GET  /health-detail     → Detailed health check
+Endpoints:
+  POST /generate-frontend  → React form → pipeline → questions
+  POST /generate           → Direct backend format
+  POST /feedback           → Teacher feedback + regenerate
+  POST /save               → Save final test
+  POST /quiz/create        → Create student quiz
+  POST /export             → Download PDF or DOCX
+  GET  /test/{test_id}     → Get saved test
+  GET  /chapters           → NCERT chapters for dropdowns
+  GET  /health-detail      → Health check
 """
 
 from fastapi import APIRouter, HTTPException
@@ -41,15 +41,31 @@ router = APIRouter(prefix="/test-generator", tags=["Test Generator"])
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# FRONTEND BRIDGE — Models & Helpers
+# SUBJECT ALIAS — Frontend name → DB name
+# ═══════════════════════════════════════════════════════════════════════
+
+SUBJECT_ALIASES = {
+    "Maths": "Mathematics",
+    "Math": "Mathematics",
+    "Pol Science": "Political Science",
+}
+
+
+def _resolve_subject(subject: str) -> str:
+    return SUBJECT_ALIASES.get(subject, subject)
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# FRONTEND MODELS
 # ═══════════════════════════════════════════════════════════════════════
 
 class FrontendChapterRow(BaseModel):
     topic: str
     subtopic: Optional[str] = None
     quantity: int = Field(default=5, ge=1, le=50)
+    marks: int = Field(default=1, ge=1, le=10)
     difficulty: str = "Medium"
-    format: str = "PDF"
+    format: str = "MCQ"
 
 
 class FrontendGenerateRequest(BaseModel):
@@ -117,6 +133,25 @@ DIFFICULTY_MAP = {
     "Very Hard": "very_hard", "very_hard": "very_hard",
 }
 
+FORMAT_MAP = {
+    "MCQ": QuestionFormat.MCQ,
+    "Short Answer": QuestionFormat.SHORT_ANSWER,
+    "Short": QuestionFormat.SHORT_ANSWER,
+    "Long Answer": QuestionFormat.LONG_ANSWER,
+    "Long": QuestionFormat.LONG_ANSWER,
+    "Assertion-Reason": QuestionFormat.ASSERTION_REASON,
+    "A&R": QuestionFormat.ASSERTION_REASON,
+    "PDF": QuestionFormat.MCQ,
+    "DOC": QuestionFormat.MCQ,
+}
+
+MARKS_MAP = {
+    QuestionFormat.MCQ: 1,
+    QuestionFormat.SHORT_ANSWER: 2,
+    QuestionFormat.LONG_ANSWER: 5,
+    QuestionFormat.ASSERTION_REASON: 1,
+}
+
 
 def _extract_class_number(class_grade: str) -> str:
     match = re.search(r'\d+', class_grade)
@@ -125,19 +160,28 @@ def _extract_class_number(class_grade: str) -> str:
 
 def _transform_frontend_to_backend(req: FrontendGenerateRequest) -> TestGenerationRequest:
     class_num = _extract_class_number(req.classGrade)
+    resolved_subject = _resolve_subject(req.subject)
     chapters = []
+
     for row in req.simpleData:
         if not row.topic:
             continue
         difficulty_str = DIFFICULTY_MAP.get(row.difficulty, "medium")
+        question_format = FORMAT_MAP.get(row.format, QuestionFormat.MCQ)
+
+        # Use teacher-selected marks, or auto-assign by format
+        marks = row.marks if row.marks and row.marks > 0 else MARKS_MAP.get(question_format, 1)
+
+        logger.info(f"Row: topic={row.topic}, format='{row.format}' -> {question_format.value}, marks={marks}")
+
         chapter = ChapterSection(
             chapter=row.topic,
             topic=row.subtopic if row.subtopic else None,
             subtopics=[row.subtopic] if row.subtopic else [],
             quantity=row.quantity,
             difficulty=DifficultyLevel(difficulty_str),
-            format=QuestionFormat.MCQ,
-            marks_per_question=1,
+            format=question_format,
+            marks_per_question=marks,
         )
         chapters.append(chapter)
 
@@ -146,13 +190,13 @@ def _transform_frontend_to_backend(req: FrontendGenerateRequest) -> TestGenerati
 
     total_q = sum(c.quantity for c in chapters)
     if total_q > settings.MAX_QUESTIONS_PER_REQUEST:
-        raise ValueError(f"Too many questions ({total_q}). Maximum {settings.MAX_QUESTIONS_PER_REQUEST} per test.")
+        raise ValueError(f"Too many questions ({total_q}). Max {settings.MAX_QUESTIONS_PER_REQUEST}.")
 
     return TestGenerationRequest(
         exam_title=req.examTitle,
         board=req.board,
         class_grade=class_num,
-        subject=req.subject,
+        subject=resolved_subject,
         chapters=chapters,
         pattern="simple",
         bloom_enabled=True,
@@ -161,7 +205,7 @@ def _transform_frontend_to_backend(req: FrontendGenerateRequest) -> TestGenerati
     )
 
 
-def _transform_backend_to_frontend(resp: TestGenerationResponse) -> FrontendGenerateResponse:
+def _transform_backend_to_frontend(resp: TestGenerationResponse, req: FrontendGenerateRequest) -> FrontendGenerateResponse:
     questions = []
     for q in resp.questions:
         questions.append(FrontendQuestionResponse(
@@ -188,7 +232,14 @@ def _transform_backend_to_frontend(resp: TestGenerationResponse) -> FrontendGene
         totalQuestions=resp.total_questions,
         generationTime=resp.generation_time_seconds,
         status=resp.status,
-        meta={"ncertBased": True, "ragUsed": True, "iteration": resp.iteration},
+        meta={
+            "ncertBased": True,
+            "ragUsed": True,
+            "iteration": resp.iteration,
+            "board": req.board,
+            "classGrade": req.classGrade,
+            "subject": req.subject,
+        },
     )
 
 
@@ -207,7 +258,7 @@ async def generate_from_frontend(req: FrontendGenerateRequest):
         logger.info(f"Transformed: {len(backend_request.chapters)} chapters, {total_q} questions")
 
         backend_response = generate_test(backend_request)
-        frontend_response = _transform_backend_to_frontend(backend_response)
+        frontend_response = _transform_backend_to_frontend(backend_response, req)
 
         elapsed = round(time.time() - start, 2)
         frontend_response.generationTime = elapsed
@@ -227,11 +278,10 @@ async def generate_from_frontend(req: FrontendGenerateRequest):
 
 @router.post("/export")
 async def export_test(req: ExportRequest):
-    """Download PDF or DOCX — student copy, answer key, or teacher copy."""
     try:
         class_num = _extract_class_number(req.classGrade)
 
-        if req.format == "docx":
+        if req.format.lower() == "docx":
             from app.services.export_service import generate_docx
             file_bytes = generate_docx(
                 questions=req.questions,
@@ -279,13 +329,14 @@ async def export_test(req: ExportRequest):
 
 @router.get("/chapters")
 async def get_chapters(subject: str = "Science", class_grade: str = "10"):
+    subject = _resolve_subject(subject)
     try:
         import psycopg2
         from psycopg2.extras import RealDictCursor
         conn = psycopg2.connect(settings.DATABASE_URL, cursor_factory=RealDictCursor)
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT DISTINCT chapter FROM ncert_chunks WHERE subject = %s AND class_grade = %s ORDER BY chapter",
+                "SELECT DISTINCT chapter FROM ncert_chunks WHERE LOWER(subject) = LOWER(%s) AND class_grade = %s ORDER BY chapter",
                 (subject, class_grade),
             )
             rows = cur.fetchall()
@@ -343,7 +394,7 @@ async def health_detail():
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# EXISTING ENDPOINTS — UNTOUCHED
+# OTHER ENDPOINTS
 # ═══════════════════════════════════════════════════════════════════════
 
 @router.post("/generate", response_model=TestGenerationResponse)
@@ -354,7 +405,7 @@ async def generate(request: TestGenerationRequest):
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Generate error: {e}")
-        raise HTTPException(status_code=500, detail="Generation failed. Please try again.")
+        raise HTTPException(status_code=500, detail="Generation failed.")
 
 
 @router.post("/feedback", response_model=TestGenerationResponse)
@@ -397,7 +448,7 @@ async def create_quiz(settings_req: QuizSettings):
             "tab_switch_limit": settings_req.tab_switch_limit,
             "status": "active",
         }).execute()
-        return {"success": True, "quiz_id": quiz_id, "quiz_link": f"/quiz/{quiz_id}", "message": "Quiz created."}
+        return {"success": True, "quiz_id": quiz_id, "quiz_link": f"/quiz/{quiz_id}"}
     except Exception as e:
         logger.error(f"Quiz create error: {e}")
         raise HTTPException(status_code=500, detail="Quiz creation failed.")

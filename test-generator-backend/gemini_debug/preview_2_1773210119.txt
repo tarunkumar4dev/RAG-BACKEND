@@ -1,0 +1,26 @@
+```json
+{
+  "questions": [
+    {
+      "text": "If `f(x) = (√(x+2) - √3) / (x-1)`, what is the value of `lim (x->1) f(x)`?",
+      "format": "mcq",
+      "options": [
+        "A) 1/(2√3)",
+        "B) 1/√3",
+        "C) √3/2",
+        "D) 1/3"
+      ],
+      "correct_answer": "A) 1/(2√3)",
+      "explanation": "The limit is in `0/0` form. Multiply the numerator and denominator by the conjugate `(√(x+2) + √3)`. This simplifies the expression to `1 / (√(x+2) + √3)`. Substituting `x=1` yields `1 / (√3 + √3) = 1 / (2√3)`.",
+      "marks": 1,
+      "difficulty": "DifficultyLevel.HARD",
+      "bloom_level": "apply",
+      "chapter": "LIMITS AND DERIVATIVES",
+      "topic": "Limits of Algebraic Functions"
+    },
+    {
+      "text": "The mean of 100 observations is 50 and their standard deviation is 5. If 5 is added to each observation, and then each new observation is multiplied by 2, what will be the new variance?",
+      "format": "mcq",
+      "options": [
+        "A) 25",
+        "B) 50",

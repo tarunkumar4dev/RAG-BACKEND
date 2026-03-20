@@ -44,18 +44,36 @@ class TestPattern(str, Enum):
 
 # ── Chapter section (one row in the teacher's form) ──────────────────────────
 
+# Map frontend format → backend enum
+FORMAT_MAP = {
+    "MCQ": QuestionFormat.MCQ,
+    "Short Answer": QuestionFormat.SHORT_ANSWER,
+    "Long Answer": QuestionFormat.LONG_ANSWER,
+    "Assertion-Reason": QuestionFormat.ASSERTION_REASON,
+    "PDF": QuestionFormat.MCQ,
+    "DOC": QuestionFormat.MCQ,
+}
+
+# Marks based on format
+MARKS_MAP = {
+    QuestionFormat.MCQ: 1,
+    QuestionFormat.SHORT_ANSWER: 2,
+    QuestionFormat.LONG_ANSWER: 5,
+    QuestionFormat.ASSERTION_REASON: 1,
+}
+
+
+# ── Main request ──────────────────────────────────────────────────────────────
+
 class ChapterSection(BaseModel):
     chapter: str
     topic: Optional[str] = None
     subtopics: List[str] = []
-    quantity: int = Field(default=5, ge=1, le=100)
-    difficulty: DifficultyLevel = DifficultyLevel.MEDIUM
-    format: QuestionFormat = QuestionFormat.MCQ
-    bloom_levels: List[BloomLevel] = []
-    marks_per_question: int = Field(default=1, ge=1)
+    quantity: int
+    difficulty: DifficultyLevel
+    format: QuestionFormat
+    marks_per_question: int
 
-
-# ── Main request ──────────────────────────────────────────────────────────────
 
 class TestGenerationRequest(BaseModel):
     exam_title: str

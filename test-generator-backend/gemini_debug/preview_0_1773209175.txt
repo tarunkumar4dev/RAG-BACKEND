@@ -1,0 +1,25 @@
+```json
+{
+  "questions": [
+    {
+      "text": "Evaluate `lim (x→0) [(√(1+x) - √(1-x)) / x]`.",
+      "format": "mcq",
+      "options": [
+        "A) 0",
+        "B) 1",
+        "C) 2",
+        "D) 1/2"
+      ],
+      "correct_answer": "B) 1",
+      "explanation": "To evaluate the limit, multiply the numerator and denominator by the conjugate of the numerator: `(√(1+x) + √(1-x))`. This yields `lim (x→0) [((1+x) - (1-x)) / (x(√(1+x) + √(1-x)))] = lim (x→0) [2x / (x(√(1+x) + √(1-x)))]`. Cancel `x` (since `x≠0` as `x→0`) to get `lim (x→0) [2 / (√(1+x) + √(1-x))]`. Substituting `x=0`, we get `2 / (√(1) + √(1)) = 2 / (1+1) = 2/2 = 1`.",
+      "marks": 1,
+      "difficulty": "DifficultyLevel.HARD",
+      "bloom_level": "apply",
+      "chapter": "LIMITS AND DERIVATIVES",
+      "topic": "Limits of indeterminate forms (rationalization)"
+    },
+    {
+      "text": "Find the derivative of `f(x) = x * sin(x)` from the first principle.",
+      "format": "mcq",
+      "options": [
+        "A) sin(x) 

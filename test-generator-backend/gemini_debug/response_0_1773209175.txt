@@ -1,0 +1,108 @@
+```json
+{
+  "questions": [
+    {
+      "text": "Evaluate `lim (x→0) [(√(1+x) - √(1-x)) / x]`.",
+      "format": "mcq",
+      "options": [
+        "A) 0",
+        "B) 1",
+        "C) 2",
+        "D) 1/2"
+      ],
+      "correct_answer": "B) 1",
+      "explanation": "To evaluate the limit, multiply the numerator and denominator by the conjugate of the numerator: `(√(1+x) + √(1-x))`. This yields `lim (x→0) [((1+x) - (1-x)) / (x(√(1+x) + √(1-x)))] = lim (x→0) [2x / (x(√(1+x) + √(1-x)))]`. Cancel `x` (since `x≠0` as `x→0`) to get `lim (x→0) [2 / (√(1+x) + √(1-x))]`. Substituting `x=0`, we get `2 / (√(1) + √(1)) = 2 / (1+1) = 2/2 = 1`.",
+      "marks": 1,
+      "difficulty": "DifficultyLevel.HARD",
+      "bloom_level": "apply",
+      "chapter": "LIMITS AND DERIVATIVES",
+      "topic": "Limits of indeterminate forms (rationalization)"
+    },
+    {
+      "text": "Find the derivative of `f(x) = x * sin(x)` from the first principle.",
+      "format": "mcq",
+      "options": [
+        "A) sin(x) + x cos(x)",
+        "B) cos(x) - x sin(x)",
+        "C) x cos(x)",
+        "D) sin(x)"
+      ],
+      "correct_answer": "A) sin(x) + x cos(x)",
+      "explanation": "Using the first principle, `f'(x) = lim (h→0) [(f(x+h) - f(x)) / h]`. Substitute `f(x) = x sin(x)`: `f'(x) = lim (h→0) [((x+h)sin(x+h) - x sin(x)) / h]`. Expand `sin(x+h)` as `sin(x)cos(h) + cos(x)sin(h)`. Then, `f'(x) = lim (h→0) [(x sin(x)cos(h) + x cos(x)sin(h) + h sin(x)cos(h) + h cos(x)sin(h) - x sin(x)) / h]`. Rearrange and group terms: `f'(x) = lim (h→0) [x sin(x)(cos(h)-1)/h + x cos(x)sin(h)/h + sin(x)cos(h) + cos(x)sin(h)]`. Using standard limits `lim (h→0) (cos(h)-1)/h = 0` and `lim (h→0) sin(h)/h = 1`, and substituting `h=0` for other terms: `f'(x) = x sin(x)(0) + x cos(x)(1) + sin(x)cos(0) + cos(x)sin(0) = 0 + x cos(x) + sin(x)(1) + cos(x)(0) = x cos(x) + sin(x)`.",
+      "marks": 1,
+      "difficulty": "DifficultyLevel.HARD",
+      "bloom_level": "apply",
+      "chapter": "LIMITS AND DERIVATIVES",
+      "topic": "Derivative from first principle (product function)"
+    },
+    {
+      "text": "Determine the value of `lim (x→0) [(1 - cos(2x)) / (x * sin(x))]`.",
+      "format": "mcq",
+      "options": [
+        "A) 0",
+        "B) 1",
+        "C) 2",
+        "D) 4"
+      ],
+      "correct_answer": "C) 2",
+      "explanation": "Use the trigonometric identity `1 - cos(2x) = 2sin^2(x)`. The limit becomes `lim (x→0) [2sin^2(x) / (x sin(x))]`. Cancel one `sin(x)` from numerator and denominator (since `x≠0` as `x→0`): `lim (x→0) [2sin(x) / x]`. This can be written as `2 * lim (x→0) [sin(x) / x]`. Using the standard limit `lim (x→0) sin(x)/x = 1`, the value is `2 * 1 = 2`.",
+      "marks": 1,
+      "difficulty": "DifficultyLevel.HARD",
+      "bloom_level": "apply",
+      "chapter": "LIMITS AND DERIVATIVES",
+      "topic": "Limits of trigonometric functions"
+    },
+    {
+      "text": "Compute `lim (x→2) [(x^3 - 8) / (x^2 - 4)]`.",
+      "format": "mcq",
+      "options": [
+        "A) 0",
+        "B) 2",
+        "C) 3",
+        "D) 4"
+      ],
+      "correct_answer": "C) 3",
+      "explanation": "This is an indeterminate form (0/0) when `x=2`. Factorize the numerator using `a^3 - b^3 = (a-b)(a^2 + ab + b^2)` and the denominator using `a^2 - b^2 = (a-b)(a+b)`. So, `x^3 - 8 = (x-2)(x^2 + 2x + 4)` and `x^2 - 4 = (x-2)(x+2)`. The limit becomes `lim (x→2) [(x-2)(x^2 + 2x + 4) / ((x-2)(x+2))]`. Cancel `(x-2)` (since `x≠2` as `x→2`): `lim (x→2) [(x^2 + 2x + 4) / (x+2)]`. Now substitute `x=2`: `(2^2 + 2(2) + 4) / (2+2) = (4 + 4 + 4) / 4 = 12 / 4 = 3`.",
+      "marks": 1,
+      "difficulty": "DifficultyLevel.HARD",
+      "bloom_level": "apply",
+      "chapter": "LIMITS AND DERIVATIVES",
+      "topic": "Limits of indeterminate forms (factorization)"
+    },
+    {
+      "text": "Using the first principle, find the derivative of `f(x) = 1/x`.",
+      "format": "mcq",
+      "options": [
+        "A) 1/x",
+        "B) -1/x",
+        "C) -1/x^2",
+        "D) 1/x^2"
+      ],
+      "correct_answer": "C) -1/x^2",
+      "explanation": "Using the first principle, `f'(x) = lim (h→0) [(f(x+h) - f(x)) / h]`. Substitute `f(x) = 1/x`: `f'(x) = lim (h→0) [((1/(x+h)) - (1/x)) / h]`. Find a common denominator for the numerator: `f'(x) = lim (h→0) [((x - (x+h)) / (x(x+h))) / h] = lim (h→0) [(-h / (x(x+h))) / h]`. Simplify by multiplying by `1/h`: `f'(x) = lim (h→0) [-h / (h * x(x+h))]`. Cancel `h` (since `h≠0` as `h→0`): `f'(x) = lim (h→0) [-1 / (x(x+h))]`. Now substitute `h=0`: `f'(x) = -1 / (x(x+0)) = -1 / x^2`.",
+      "marks": 1,
+      "difficulty": "DifficultyLevel.HARD",
+      "bloom_level": "apply",
+      "chapter": "LIMITS AND DERIVATIVES",
+      "topic": "Derivative from first principle (reciprocal function)"
+    },
+    {
+      "text": "For `f(x) = { x^2 - 1, if x < 1; 2x - 2, if x >= 1 }`, evaluate `lim (x→1) f(x)`.",
+      "format": "mcq",
+      "options": [
+        "A) 0",
+        "B) 1",
+        "C) -1",
+        "D) Does not exist"
+      ],
+      "correct_answer": "A) 0",
+      "explanation": "To evaluate the limit at `x=1` for a piecewise function, we need to check the left-hand limit (LHL) and the right-hand limit (RHL).\nLHL: `lim (x→1-) f(x) = lim (x→1-) (x^2 - 1)`. Substitute `x=1`: `1^2 - 1 = 0`.\nRHL: `lim (x→1+) f(x) = lim (x→1+) (2x - 2)`. Substitute `x=1`: `2(1) - 2 = 0`.\nSince LHL = RHL = 0, the limit `lim (x→1) f(x)` exists and is equal to 0.",
+      "marks": 1,
+      "difficulty": "DifficultyLevel.HARD",
+      "bloom_level": "apply",
+      "chapter": "LIMITS AND DERIVATIVES",
+      "topic": "Limits of piecewise functions"
+    }
+  ]
+}
+```
