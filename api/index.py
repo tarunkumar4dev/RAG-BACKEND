@@ -1,16 +1,7 @@
-# api/index.py
 import sys
 import os
 
-# Add current directory to path
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+# Add test-generator-backend to Python path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'test-generator-backend'))
 
-# Import your Flask app from api_server.py
-from api_server import app
-
-# Vercel requires this variable name
-application = app
-
-# Optional: Simple handler
-def handler(event, context):
-    return application
+from app.main import app
