@@ -2,17 +2,14 @@
   "version": 2,
   "builds": [
     {
-      "src": "test-generator-backend/app/main.py",
-      "use": "@vercel/python",
-      "config": {
-        "maxLambdaSize": "50mb"
-      }
+      "src": "api/index.py",
+      "use": "@vercel/python"
     }
   ],
   "routes": [
     {
       "src": "/(.*)",
-      "dest": "test-generator-backend/app/main.py"
+      "dest": "api/index.py"
     }
   ]
 }
