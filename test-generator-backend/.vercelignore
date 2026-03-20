@@ -1,0 +1,8 @@
+faiss_cache/
+cache/
+logs/
+gemini_debug/
+__pycache__/
+*.pyc
+.env
+ncert-ingestion/

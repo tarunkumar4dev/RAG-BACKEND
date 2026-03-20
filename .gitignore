@@ -1,6 +1,7 @@
 ﻿__pycache__/
 *.log
 logs/
+ncert-ingestion/pdfs/
 backup_extra_files/
 .env
 *.pyc

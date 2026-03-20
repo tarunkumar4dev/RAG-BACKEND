@@ -1,45 +1,28 @@
 """
-RAG Service — Hybrid Search (pgvector cosine + ILIKE keyword)
-Uses existing ncert_chunks table: id, class_grade, subject, chapter, content, embedding
+RAG Service — Keyword Search (Vercel-compatible, no torch/sentence-transformers)
 
-Embeddings: all-MiniLM-L6-v2 (384-dim, local) — matches ingestion model.
-No Gemini API needed for search.
+Uses existing ncert_chunks table: id, class_grade, subject, chapter, content, embedding
+Vector search disabled for Vercel deployment (size limit).
+Keyword search is accurate enough for NCERT structured content.
 """
 
 import logging
 import re
 from typing import List, Dict, Optional
 
-from sentence_transformers import SentenceTransformer
-
 from app.core.config import settings
 from app.core.database import get_supabase
 
 logger = logging.getLogger(__name__)
-
-# Local embedding model (same as ingestion!)
-_embed_model: Optional[SentenceTransformer] = None
-
-
-def _get_embed_model() -> SentenceTransformer:
-    """Load embedding model (cached after first call)."""
-    global _embed_model
-    if _embed_model is None:
-        logger.info("Loading embedding model: all-MiniLM-L6-v2...")
-        _embed_model = SentenceTransformer("all-MiniLM-L6-v2")
-        logger.info("Embedding model loaded (384-dim)")
-    return _embed_model
 
 
 # ---------------------------------------------------------------------------
 # Chapter Name Normalization
 # ---------------------------------------------------------------------------
 def _normalize_chapter_name(name: str) -> str:
-    """Normalize chapter names: '&' <-> 'and', whitespace, casing."""
     text = name.strip()
     text = re.sub(r"\s+", " ", text)
-    text = text.replace(" & ", " and ")
-    text = text.replace("&", " and ")
+    text = text.replace(" & ", " and ").replace("&", " and ")
     text = re.sub(r"\s+", " ", text).strip()
     return text
 
@@ -49,7 +32,6 @@ def _resolve_chapters(
     subject: str,
     class_grade: str,
 ) -> List[str]:
-    """Match requested chapter names against actual DB-stored names."""
     supabase = get_supabase()
     db_chapters: List[str] = []
 
@@ -71,7 +53,6 @@ def _resolve_chapters(
     except Exception as e:
         logger.error(f"Chapter resolution query failed: {e}")
 
-    # Fallback: per-chapter ILIKE search
     if len(db_chapters) < 3:
         logger.warning("Few chapters from bulk query, trying per-chapter ILIKE...")
         for req_ch in requested_chapters:
@@ -79,7 +60,6 @@ def _resolve_chapters(
                 search_name = _normalize_chapter_name(req_ch)
                 search_words = [w for w in search_name.split() if len(w) > 2][:3]
                 ilike_pattern = f"%{'%'.join(search_words)}%"
-
                 resp = (
                     supabase.table("ncert_chunks")
                     .select("chapter")
@@ -99,7 +79,6 @@ def _resolve_chapters(
         logger.warning(f"No chapters found in DB for {subject} class {class_grade}")
         return requested_chapters
 
-    # Build normalized lookup
     db_lookup: Dict[str, str] = {}
     for ch in db_chapters:
         db_lookup[_normalize_chapter_name(ch).lower()] = ch
@@ -110,12 +89,10 @@ def _resolve_chapters(
     for req_ch in requested_chapters:
         req_norm = _normalize_chapter_name(req_ch).lower()
 
-        # 1. Exact normalized match
         if req_norm in db_lookup:
             matched.append(db_lookup[req_norm])
             continue
 
-        # 2. Substring match
         found = False
         for db_norm, db_actual in db_lookup.items():
             if req_norm in db_norm or db_norm in req_norm:
@@ -123,7 +100,6 @@ def _resolve_chapters(
                 found = True
                 break
 
-        # 3. Word overlap (>=2 significant words)
         if not found:
             req_words = set(req_norm.split()) - {"and", "of", "the", "in", "a"}
             for db_norm, db_actual in db_lookup.items():
@@ -145,21 +121,15 @@ def _resolve_chapters(
 
 
 # ---------------------------------------------------------------------------
-# Embeddings — Local model (matches ingestion!)
+# Embedding stub (vector search disabled for Vercel)
 # ---------------------------------------------------------------------------
 def get_embedding(text: str) -> List[float]:
-    """Get 384-dim embedding using local all-MiniLM-L6-v2 model."""
-    try:
-        model = _get_embed_model()
-        embedding = model.encode(text, show_progress_bar=False)
-        return embedding.tolist()
-    except Exception as e:
-        logger.error(f"Embedding failed: {e}")
-        return []
+    """Disabled — returns empty. Vector search skipped on Vercel."""
+    return []
 
 
 # ---------------------------------------------------------------------------
-# Vector Search
+# Vector Search (disabled)
 # ---------------------------------------------------------------------------
 def vector_search(
     query_embedding: List[float],
@@ -169,84 +139,27 @@ def vector_search(
     limit: int = 8,
     threshold: float = 0.65,
 ) -> List[Dict]:
-    """pgvector cosine similarity search via match_ncert_chunks RPC."""
-    if not query_embedding:
-        return []
-
-    supabase = get_supabase()
-    chapter_filter = chapters if chapters else []
-
-    try:
-        response = supabase.rpc(
-            "match_ncert_chunks",
-            {
-                "query_embedding": query_embedding,
-                "subject_filter": subject,
-                "class_filter": str(class_grade),
-                "chapter_filter": chapter_filter,
-                "match_threshold": threshold,
-                "match_count": limit,
-            },
-        ).execute()
-
-        results = response.data or []
-
-        # Retry with lowercase subject
-        if not results:
-            response = supabase.rpc(
-                "match_ncert_chunks",
-                {
-                    "query_embedding": query_embedding,
-                    "subject_filter": subject.lower(),
-                    "class_filter": str(class_grade),
-                    "chapter_filter": chapter_filter,
-                    "match_threshold": threshold,
-                    "match_count": limit,
-                },
-            ).execute()
-            results = response.data or []
-
-        # Retry with relaxed threshold
-        if not results and threshold > 0.3:
-            logger.info("Retrying vector search with relaxed threshold (0.3)...")
-            response = supabase.rpc(
-                "match_ncert_chunks",
-                {
-                    "query_embedding": query_embedding,
-                    "subject_filter": subject,
-                    "class_filter": str(class_grade),
-                    "chapter_filter": chapter_filter,
-                    "match_threshold": 0.3,
-                    "match_count": limit,
-                },
-            ).execute()
-            results = response.data or []
-
-        return results
-
-    except Exception as e:
-        logger.error(f"Vector search error: {e}")
-        return []
+    """Disabled for Vercel deployment. Returns empty."""
+    return []
 
 
 # ---------------------------------------------------------------------------
-# Keyword Search
+# Keyword Search (primary search method)
 # ---------------------------------------------------------------------------
 def keyword_search(
     keywords: List[str],
     subject: str,
     class_grade: str,
     chapters: List[str],
-    limit: int = 6,
+    limit: int = 10,
 ) -> List[Dict]:
-    """Fallback keyword search using ILIKE."""
     supabase = get_supabase()
 
     try:
         results: List[Dict] = []
         seen_ids: set = set()
 
-        for keyword in keywords[:6]:
+        for keyword in keywords[:8]:
             if not keyword or len(keyword.strip()) < 2:
                 continue
 
@@ -263,7 +176,6 @@ def keyword_search(
             response = query.limit(limit).execute()
             rows = response.data or []
 
-            # Retry WITHOUT chapter filter
             if not rows and chapters:
                 query_broad = (
                     supabase.table("ncert_chunks")
@@ -289,32 +201,6 @@ def keyword_search(
 
 
 # ---------------------------------------------------------------------------
-# Reciprocal Rank Fusion
-# ---------------------------------------------------------------------------
-def rrf_fusion(
-    vector_results: List[Dict],
-    keyword_results: List[Dict],
-    k: int = 60,
-) -> List[Dict]:
-    """Merge vector + keyword results by rank."""
-    scores: Dict[int, float] = {}
-    all_items: Dict[int, Dict] = {}
-
-    for rank, item in enumerate(vector_results):
-        item_id = item["id"]
-        scores[item_id] = scores.get(item_id, 0) + 1 / (k + rank + 1)
-        all_items[item_id] = item
-
-    for rank, item in enumerate(keyword_results):
-        item_id = item["id"]
-        scores[item_id] = scores.get(item_id, 0) + 1 / (k + rank + 1)
-        all_items[item_id] = item
-
-    sorted_ids = sorted(scores, key=lambda x: scores[x], reverse=True)
-    return [all_items[i] for i in sorted_ids]
-
-
-# ---------------------------------------------------------------------------
 # Main Entry Point
 # ---------------------------------------------------------------------------
 def retrieve_context(
@@ -325,60 +211,38 @@ def retrieve_context(
     max_chunks: int = 10,
 ) -> List[Dict]:
     """
-    Main retrieval pipeline:
+    Retrieval pipeline (keyword-only for Vercel):
       1. Resolve chapter names against DB
-      2. Vector search with local embeddings (matches ingestion model!)
-      3. Keyword search with chapter-filter fallback
-      4. RRF fusion -> top chunks
+      2. Keyword search with chapter-filter fallback
+      3. Return top chunks
     """
     resolved_chapters = _resolve_chapters(chapters, subject, class_grade)
     if resolved_chapters != chapters:
         logger.info(f"Chapter resolution: {chapters} -> {resolved_chapters}")
 
-    query_parts = [subject, str(class_grade)] + resolved_chapters + topics
-    query_text = " ".join(filter(None, query_parts))
-    logger.info(f"RAG query: '{query_text[:80]}...'")
-
-    # Vector search
-    vector_results: List[Dict] = []
-    try:
-        embedding = get_embedding(query_text)
-        if embedding:
-            vector_results = vector_search(
-                query_embedding=embedding,
-                subject=subject,
-                class_grade=str(class_grade),
-                chapters=resolved_chapters,
-                limit=max_chunks,
-                threshold=settings.SIMILARITY_THRESHOLD,
-            )
-        logger.info(f"Vector search: {len(vector_results)} results")
-    except Exception as e:
-        logger.error(f"Vector search failed: {e}")
-
-    # Keyword search — split comma-separated topics into individual keywords
+    # Build keywords from topics + chapters
     split_keywords: List[str] = []
     for t in topics:
         for part in t.split(","):
             word = part.strip()
             if len(word) >= 3:
                 split_keywords.append(word)
-    # Add chapter names as keywords too
     split_keywords.extend(resolved_chapters)
 
+    query_text = " ".join(filter(None, [subject, str(class_grade)] + resolved_chapters + topics))
+    logger.info(f"RAG query: '{query_text[:80]}...'")
+
+    # Keyword search only (vector search disabled for Vercel size limit)
     keyword_results = keyword_search(
         keywords=split_keywords,
         subject=subject,
         class_grade=str(class_grade),
         chapters=resolved_chapters,
-        limit=6,
+        limit=max_chunks,
     )
     logger.info(f"Keyword search: {len(keyword_results)} results")
 
-    # Fuse and return
-    fused = rrf_fusion(vector_results, keyword_results)
-    final = fused[:max_chunks]
-
+    final = keyword_results[:max_chunks]
     chapter_set = set(r.get("chapter", "?") for r in final)
     logger.info(f"Final: {len(final)} chunks from {len(chapter_set)} chapters")
 
