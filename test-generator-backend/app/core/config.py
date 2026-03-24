@@ -22,10 +22,10 @@ class Settings:
     BATCH_SIZE: int = int(os.getenv("BATCH_SIZE", "6"))
     BATCH_DELAY: int = int(os.getenv("BATCH_DELAY", "2"))
     OVERSHOOT_PER_CHAPTER: int = int(os.getenv("OVERSHOOT_PER_CHAPTER", "2"))
-    GENERATION_TEMPERATURE: float = 0.5
-    MAX_OUTPUT_TOKENS: int = int(os.getenv("MAX_OUTPUT_TOKENS", "8192"))
-    CONTEXT_CHARS_PER_CHUNK: int = int(os.getenv("CONTEXT_CHARS_PER_CHUNK", "400"))
-    MAX_CONTEXT_CHUNKS: int = int(os.getenv("MAX_CONTEXT_CHUNKS", "6"))
+    GENERATION_TEMPERATURE: float = 0.55  # Slightly higher for variety
+    MAX_OUTPUT_TOKENS: int = int(os.getenv("MAX_OUTPUT_TOKENS", "12288"))  # Increased for section-based papers
+    CONTEXT_CHARS_PER_CHUNK: int = int(os.getenv("CONTEXT_CHARS_PER_CHUNK", "500"))  # More context per chunk
+    MAX_CONTEXT_CHUNKS: int = int(os.getenv("MAX_CONTEXT_CHUNKS", "8"))  # More chunks
 
     # ── RAG ─────────────────────────────────────────────────────────
     MAX_CHUNKS: int = int(os.getenv("MAX_CHUNKS", "15"))
@@ -37,6 +37,9 @@ class Settings:
     MAX_ITERATIONS: int = 3
     MAX_QUESTIONS_PER_REQUEST: int = 100
     DEDUP_THRESHOLD: float = 0.82
+
+    # ── CBSE Pattern ────────────────────────────────────────────────
+    CBSE_PATTERN_DEFAULT: bool = os.getenv("CBSE_PATTERN_DEFAULT", "true").lower() == "true"
 
     # ── Rate Limiting ───────────────────────────────────────────────
     RATE_LIMIT_PER_MINUTE: int = int(os.getenv("RATE_LIMIT_PER_MINUTE", "10"))
@@ -50,7 +53,7 @@ class Settings:
 
     # ── App ─────────────────────────────────────────────────────────
     APP_NAME: str = "A4AI Test Generator"
-    APP_VERSION: str = "2.0.0"
+    APP_VERSION: str = "2.1.0"
     ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
     DEBUG: bool = ENVIRONMENT == "development"
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")

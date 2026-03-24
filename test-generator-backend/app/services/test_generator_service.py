@@ -3,6 +3,8 @@ Test Generator Service — SYNC Pipeline (Production)
 
 Pipeline: RAG → Generate → Dedup → Validate → Save Draft → Return
 All sync — no async wrappers, no event loop issues.
+
+v2.1: Added cbse_pattern support (4 lines changed, everything else identical)
 """
 
 import uuid
@@ -27,7 +29,8 @@ from app.services.validation_service import validate_questions, save_training_da
 logger = logging.getLogger(__name__)
 
 
-def generate_test(request: TestGenerationRequest) -> TestGenerationResponse:
+# ── CHANGE 1/4: Added cbse_pattern param (default True) ────────────
+def generate_test(request: TestGenerationRequest, cbse_pattern: bool = True) -> TestGenerationResponse:
     """Main pipeline — fully synchronous."""
     start = time.time()
 
@@ -61,10 +64,12 @@ def generate_test(request: TestGenerationRequest) -> TestGenerationResponse:
     logger.info(f"RAG returned {len(context_chunks)} chunks")
 
     # ── 3. Generate questions ───────────────────────────────────────
+    # ── CHANGE 2/4: Pass cbse_pattern to generate_questions ─────────
     questions = generate_questions(
         request=request,
         context_chunks=context_chunks,
         feedback=request.teacher_feedback,
+        cbse_pattern=cbse_pattern,
     )
 
     if not questions:
@@ -82,10 +87,12 @@ def generate_test(request: TestGenerationRequest) -> TestGenerationResponse:
         logger.info(f"Dedup removed {removed_count} duplicates -> {len(questions)} remaining")
 
     # ── 5. Trim to requested count ─────────────────────────────────
-    total_requested = sum(s.quantity for s in request.chapters)
-    if len(questions) > total_requested:
-        questions = _select_best_questions(questions, total_requested)
-        logger.info(f"Trimmed to {total_requested} best questions")
+    # Skip trimming for CBSE pattern — sections define the count
+    if not cbse_pattern:
+        total_requested = sum(s.quantity for s in request.chapters)
+        if len(questions) > total_requested:
+            questions = _select_best_questions(questions, total_requested)
+            logger.info(f"Trimmed to {total_requested} best questions")
 
     # ── 6. Validation ───────────────────────────────────────────────
     try:
@@ -173,6 +180,7 @@ def _save_draft(test_id: str, request: TestGenerationRequest, questions: list):
         "created_at": datetime.utcnow().isoformat(),
     }).execute()
 
+    # ── CHANGE 3/4: Include section tag in saved questions ──────────
     question_rows = [
         {
             "id": q.id,
@@ -188,6 +196,7 @@ def _save_draft(test_id: str, request: TestGenerationRequest, questions: list):
             "topic": q.topic,
             "format": q.format.value if hasattr(q.format, "value") else q.format,
             "validation_status": q.validation_status,
+            "section": getattr(q, '_section', None),
             "position": i,
         }
         for i, q in enumerate(questions)
@@ -247,4 +256,6 @@ def handle_feedback(feedback_request: TestFeedbackRequest) -> TestGenerationResp
             proportion = s.quantity / total
             s.quantity = max(1, int(s.quantity + rejected_count * proportion))
 
-    return generate_test(original_request)
+    # ── CHANGE 4/4: Forward cbse_pattern to generate_test ───────────
+    cbse_pattern = getattr(feedback_request, 'cbse_pattern', True)
+    return generate_test(original_request, cbse_pattern=cbse_pattern)

@@ -1,16 +1,10 @@
 """
 Test Generator API Endpoints — SYNC (Production)
 
-Endpoints:
-  POST /generate-frontend  → React form → pipeline → questions
-  POST /generate           → Direct backend format
-  POST /feedback           → Teacher feedback + regenerate
-  POST /save               → Save final test
-  POST /quiz/create        → Create student quiz
-  POST /export             → Download PDF or DOCX
-  GET  /test/{test_id}     → Get saved test
-  GET  /chapters           → NCERT chapters for dropdowns
-  GET  /health-detail      → Health check
+v2.2 changes:
+  - Usage limit check before generation (subscription system)
+  - cbsePattern toggle in frontend request (default True)
+  - Section tags in question response for PDF grouping
 """
 
 from fastapi import APIRouter, HTTPException
@@ -41,7 +35,59 @@ router = APIRouter(prefix="/test-generator", tags=["Test Generator"])
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# SUBJECT ALIAS — Frontend name → DB name
+# USAGE CHECK HELPER
+# ═══════════════════════════════════════════════════════════════════════
+
+def check_and_record_usage(user_id: str) -> dict:
+    """
+    Check if user has remaining test quota, and increment usage.
+    Returns: { allowed: bool, used: int, limit: int, remaining: int }
+    Raises HTTPException 403 if limit reached.
+    """
+    if not user_id or user_id == "00000000-0000-0000-0000-000000000000":
+        # Anonymous / no auth — skip check (or enforce, your call)
+        logger.warning("Usage check skipped: no valid user_id")
+        return {"allowed": True, "used": 0, "limit": -1, "remaining": -1}
+
+    try:
+        supabase = get_supabase()
+        result = supabase.rpc("increment_usage", {
+            "p_user_id": user_id,
+            "p_action": "test_generated",
+        }).execute()
+
+        if not result.data:
+            logger.warning(f"Usage check returned no data for user {user_id}")
+            return {"allowed": True, "used": 0, "limit": -1, "remaining": -1}
+
+        usage = result.data
+
+        if not usage.get("allowed"):
+            logger.info(f"Usage limit reached: user={user_id}, used={usage.get('used')}, limit={usage.get('limit')}")
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "error": "limit_reached",
+                    "message": f"Monthly limit reached ({usage['used']}/{usage['limit']} tests). Upgrade your plan.",
+                    "used": usage.get("used"),
+                    "limit": usage.get("limit"),
+                    "upgrade_url": "/payment",
+                },
+            )
+
+        logger.info(f"Usage OK: user={user_id}, used={usage.get('used')}, remaining={usage.get('remaining')}")
+        return usage
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        # Don't block generation if usage check fails — log and continue
+        logger.error(f"Usage check error (non-blocking): {e}")
+        return {"allowed": True, "used": 0, "limit": -1, "remaining": -1}
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# SUBJECT ALIAS
 # ═══════════════════════════════════════════════════════════════════════
 
 SUBJECT_ALIASES = {
@@ -82,6 +128,7 @@ class FrontendGenerateRequest(BaseModel):
     ncertSubject: Optional[str] = None
     ncertChapters: List[str] = []
     userId: Optional[str] = None
+    cbsePattern: bool = True
 
 
 class FrontendQuestionResponse(BaseModel):
@@ -97,6 +144,7 @@ class FrontendQuestionResponse(BaseModel):
     topic: Optional[str] = None
     format: str
     validationStatus: str
+    section: Optional[str] = None
 
 
 class FrontendGenerateResponse(BaseModel):
@@ -168,8 +216,6 @@ def _transform_frontend_to_backend(req: FrontendGenerateRequest) -> TestGenerati
             continue
         difficulty_str = DIFFICULTY_MAP.get(row.difficulty, "medium")
         question_format = FORMAT_MAP.get(row.format, QuestionFormat.MCQ)
-
-        # Use teacher-selected marks, or auto-assign by format
         marks = row.marks if row.marks and row.marks > 0 else MARKS_MAP.get(question_format, 1)
 
         logger.info(f"Row: topic={row.topic}, format='{row.format}' -> {question_format.value}, marks={marks}")
@@ -208,6 +254,8 @@ def _transform_frontend_to_backend(req: FrontendGenerateRequest) -> TestGenerati
 def _transform_backend_to_frontend(resp: TestGenerationResponse, req: FrontendGenerateRequest) -> FrontendGenerateResponse:
     questions = []
     for q in resp.questions:
+        section = getattr(q, '_section', None)
+
         questions.append(FrontendQuestionResponse(
             id=q.id,
             text=q.text,
@@ -221,6 +269,7 @@ def _transform_backend_to_frontend(resp: TestGenerationResponse, req: FrontendGe
             topic=q.topic,
             format=q.format.value if hasattr(q.format, "value") else q.format,
             validationStatus=q.validation_status,
+            section=section,
         ))
 
     return FrontendGenerateResponse(
@@ -239,6 +288,7 @@ def _transform_backend_to_frontend(resp: TestGenerationResponse, req: FrontendGe
             "board": req.board,
             "classGrade": req.classGrade,
             "subject": req.subject,
+            "cbsePattern": req.cbsePattern,
         },
     )
 
@@ -250,21 +300,37 @@ def _transform_backend_to_frontend(resp: TestGenerationResponse, req: FrontendGe
 @router.post("/generate-frontend", response_model=FrontendGenerateResponse)
 async def generate_from_frontend(req: FrontendGenerateRequest):
     start = time.time()
-    logger.info(f"Frontend generate: {req.subject} {req.classGrade}, {len(req.simpleData)} chapters")
+    logger.info(f"Frontend generate: {req.subject} {req.classGrade}, "
+                f"{len(req.simpleData)} chapters, cbsePattern={req.cbsePattern}")
 
     try:
+        # ── USAGE CHECK (before burning Gemini tokens) ──────────
+        usage = check_and_record_usage(req.userId)
+        # If limit_reached, HTTPException 403 is raised above
+        # ────────────────────────────────────────────────────────
+
         backend_request = _transform_frontend_to_backend(req)
         total_q = sum(c.quantity for c in backend_request.chapters)
         logger.info(f"Transformed: {len(backend_request.chapters)} chapters, {total_q} questions")
 
-        backend_response = generate_test(backend_request)
+        backend_response = generate_test(backend_request, cbse_pattern=req.cbsePattern)
         frontend_response = _transform_backend_to_frontend(backend_response, req)
 
         elapsed = round(time.time() - start, 2)
         frontend_response.generationTime = elapsed
+
+        # Add usage info to meta
+        frontend_response.meta["usage"] = {
+            "used": usage.get("used", 0),
+            "limit": usage.get("limit", -1),
+            "remaining": usage.get("remaining", -1),
+        }
+
         logger.info(f"Done: {frontend_response.totalQuestions} questions in {elapsed}s")
         return frontend_response
 
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
@@ -280,6 +346,10 @@ async def generate_from_frontend(req: FrontendGenerateRequest):
 async def export_test(req: ExportRequest):
     try:
         class_num = _extract_class_number(req.classGrade)
+
+        for q in req.questions:
+            if isinstance(q, dict) and 'section' not in q:
+                q['section'] = None
 
         if req.format.lower() == "docx":
             from app.services.export_service import generate_docx
@@ -394,7 +464,7 @@ async def health_detail():
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# OTHER ENDPOINTS
+# OTHER ENDPOINTS (unchanged)
 # ═══════════════════════════════════════════════════════════════════════
 
 @router.post("/generate", response_model=TestGenerationResponse)
