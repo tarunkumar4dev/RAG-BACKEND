@@ -94,6 +94,9 @@ SUBJECT_ALIASES = {
     "Maths": "Mathematics",
     "Math": "Mathematics",
     "Pol Science": "Political Science",
+    "Accounts": "Accountancy",  # ← add this
+    "BST": "Business Studies",  # ← add this
+    "Eco": "Economics",         # ← add this
 }
 
 
