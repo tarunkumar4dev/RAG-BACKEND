@@ -2,6 +2,11 @@
 Test Generator Models — Pydantic schemas for the full pipeline.
 
 Covers: request, generation, response, feedback, save, quiz.
+
+v2 Changes:
+  - Added AnswerTable model for Accountancy tabular answers (Journal Entry, Ledger, Trial Balance)
+  - Added answer_table field to GeneratedQuestion
+  - Added JOURNAL_ENTRY, LEDGER, TRIAL_BALANCE to QuestionFormat
 """
 
 from pydantic import BaseModel, Field
@@ -15,7 +20,7 @@ class DifficultyLevel(str, Enum):
     EASY = "easy"
     MEDIUM = "medium"
     HARD = "hard"
-    VERY_HARD = "very_hard"          # ← fixed: underscore, not space
+    VERY_HARD = "very_hard"
 
 
 class BloomLevel(str, Enum):
@@ -33,6 +38,10 @@ class QuestionFormat(str, Enum):
     LONG_ANSWER = "long_answer"
     ASSERTION_REASON = "assertion_reason"
     CASE_BASED = "case_based"
+    # ── NEW: Commerce / Accountancy formats ──
+    JOURNAL_ENTRY = "journal_entry"
+    LEDGER = "ledger"
+    TRIAL_BALANCE = "trial_balance"
 
 
 class TestPattern(str, Enum):
@@ -44,23 +53,37 @@ class TestPattern(str, Enum):
 
 # ── Chapter section (one row in the teacher's form) ──────────────────────────
 
-# Map frontend format → backend enum
 FORMAT_MAP = {
     "MCQ": QuestionFormat.MCQ,
     "Short Answer": QuestionFormat.SHORT_ANSWER,
     "Long Answer": QuestionFormat.LONG_ANSWER,
     "Assertion-Reason": QuestionFormat.ASSERTION_REASON,
+    "Journal Entry": QuestionFormat.JOURNAL_ENTRY,
+    "Ledger": QuestionFormat.LEDGER,
+    "Trial Balance": QuestionFormat.TRIAL_BALANCE,
     "PDF": QuestionFormat.MCQ,
     "DOC": QuestionFormat.MCQ,
 }
 
-# Marks based on format
 MARKS_MAP = {
     QuestionFormat.MCQ: 1,
     QuestionFormat.SHORT_ANSWER: 2,
     QuestionFormat.LONG_ANSWER: 5,
     QuestionFormat.ASSERTION_REASON: 1,
+    QuestionFormat.JOURNAL_ENTRY: 4,
+    QuestionFormat.LEDGER: 4,
+    QuestionFormat.TRIAL_BALANCE: 5,
 }
+
+
+# ── NEW: Tabular answer structure ─────────────────────────────────────────────
+
+class AnswerTable(BaseModel):
+    """Structured table answer for Accountancy questions."""
+    type: str  # "journal_entry", "ledger", "trial_balance"
+    headers: List[str]
+    rows: List[List[str]]
+    total_row: Optional[List[str]] = None  # For Trial Balance totals
 
 
 # ── Main request ──────────────────────────────────────────────────────────────
@@ -111,6 +134,8 @@ class GeneratedQuestion(BaseModel):
     format: QuestionFormat
     validation_status: Literal["verified", "needs_review"] = "verified"
     validation_notes: Optional[str] = None
+    # ── NEW: Tabular answer for Accountancy ──
+    answer_table: Optional[AnswerTable] = None
 
 
 # ── Response ──────────────────────────────────────────────────────────────────

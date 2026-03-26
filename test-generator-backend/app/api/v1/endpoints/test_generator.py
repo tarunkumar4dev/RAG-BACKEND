@@ -1,10 +1,10 @@
 """
 Test Generator API Endpoints — SYNC (Production)
 
-v2.2 changes:
-  - Usage limit check before generation (subscription system)
-  - cbsePattern toggle in frontend request (default True)
-  - Section tags in question response for PDF grouping
+v2.3 changes:
+  - Fixed: context_chunks now fetched via retrieve_context before generation
+  - Added: answer_table / answerTable in frontend question response
+  - All v2.2 features retained (usage limits, cbsePattern, sections)
 """
 
 from fastapi import APIRouter, HTTPException
@@ -24,6 +24,7 @@ from app.models.test_generator import (
     QuestionFormat,
 )
 from app.services.test_generator_service import generate_test, handle_feedback
+from app.services.rag_service import retrieve_context
 from app.core.database import get_supabase
 from app.core.config import settings
 import logging
@@ -45,7 +46,6 @@ def check_and_record_usage(user_id: str) -> dict:
     Raises HTTPException 403 if limit reached.
     """
     if not user_id or user_id == "00000000-0000-0000-0000-000000000000":
-        # Anonymous / no auth — skip check (or enforce, your call)
         logger.warning("Usage check skipped: no valid user_id")
         return {"allowed": True, "used": 0, "limit": -1, "remaining": -1}
 
@@ -81,7 +81,6 @@ def check_and_record_usage(user_id: str) -> dict:
     except HTTPException:
         raise
     except Exception as e:
-        # Don't block generation if usage check fails — log and continue
         logger.error(f"Usage check error (non-blocking): {e}")
         return {"allowed": True, "used": 0, "limit": -1, "remaining": -1}
 
@@ -94,9 +93,9 @@ SUBJECT_ALIASES = {
     "Maths": "Mathematics",
     "Math": "Mathematics",
     "Pol Science": "Political Science",
-    "Accounts": "Accountancy",  # ← add this
-    "BST": "Business Studies",  # ← add this
-    "Eco": "Economics",         # ← add this
+    "Accounts": "Accountancy",
+    "BST": "Business Studies",
+    "Eco": "Economics",
 }
 
 
@@ -148,6 +147,8 @@ class FrontendQuestionResponse(BaseModel):
     format: str
     validationStatus: str
     section: Optional[str] = None
+    # v2.3: Accountancy table answer support
+    answerTable: Optional[dict] = None
 
 
 class FrontendGenerateResponse(BaseModel):
@@ -185,13 +186,15 @@ DIFFICULTY_MAP = {
 }
 
 FORMAT_MAP = {
-    "MCQ": QuestionFormat.MCQ,
-    "Short Answer": QuestionFormat.SHORT_ANSWER,
-    "Short": QuestionFormat.SHORT_ANSWER,
-    "Long Answer": QuestionFormat.LONG_ANSWER,
-    "Long": QuestionFormat.LONG_ANSWER,
-    "Assertion-Reason": QuestionFormat.ASSERTION_REASON,
-    "A&R": QuestionFormat.ASSERTION_REASON,
+    # ... existing entries same raho ...
+    "Journal Entry": QuestionFormat.JOURNAL_ENTRY,
+    "journal_entry": QuestionFormat.JOURNAL_ENTRY,   # ← ADD
+    "Ledger": QuestionFormat.LEDGER,
+    "ledger": QuestionFormat.LEDGER,                  # ← ADD
+    "Trial Balance": QuestionFormat.TRIAL_BALANCE,
+    "trial_balance": QuestionFormat.TRIAL_BALANCE,    # ← ADD
+    "JournalEntry": QuestionFormat.JOURNAL_ENTRY,     # ← ADD (frontend camelCase)
+    "TrialBalance": QuestionFormat.TRIAL_BALANCE,     # ← ADD (frontend camelCase)
     "PDF": QuestionFormat.MCQ,
     "DOC": QuestionFormat.MCQ,
 }
@@ -201,6 +204,9 @@ MARKS_MAP = {
     QuestionFormat.SHORT_ANSWER: 2,
     QuestionFormat.LONG_ANSWER: 5,
     QuestionFormat.ASSERTION_REASON: 1,
+    QuestionFormat.JOURNAL_ENTRY: 4,
+    QuestionFormat.LEDGER: 4,
+    QuestionFormat.TRIAL_BALANCE: 5,
 }
 
 
@@ -254,10 +260,45 @@ def _transform_frontend_to_backend(req: FrontendGenerateRequest) -> TestGenerati
     )
 
 
-def _transform_backend_to_frontend(resp: TestGenerationResponse, req: FrontendGenerateRequest) -> FrontendGenerateResponse:
+def _transform_backend_to_frontend(resp, req: FrontendGenerateRequest) -> FrontendGenerateResponse:
+    """Transform backend response (list of GeneratedQuestion or TestGenerationResponse) to frontend format."""
+
+    # Handle both: list of questions directly, or TestGenerationResponse object
+    if isinstance(resp, list):
+        questions_list = resp
+        test_id = str(uuid.uuid4())
+        exam_title = req.examTitle
+        total_marks = sum(q.marks for q in questions_list)
+        total_questions = len(questions_list)
+        iteration = 0
+        generation_time = 0.0
+        status = "preview"
+    else:
+        questions_list = resp.questions
+        test_id = resp.test_id
+        exam_title = resp.exam_title
+        total_marks = resp.total_marks
+        total_questions = resp.total_questions
+        iteration = resp.iteration
+        generation_time = resp.generation_time_seconds
+        status = resp.status
+
     questions = []
-    for q in resp.questions:
+    for q in questions_list:
         section = getattr(q, '_section', None)
+
+        # v2.3: Extract answer_table for Accountancy questions
+        answer_table_data = None
+        if hasattr(q, 'answer_table') and q.answer_table is not None:
+            try:
+                if hasattr(q.answer_table, 'model_dump'):
+                    answer_table_data = q.answer_table.model_dump()
+                elif hasattr(q.answer_table, 'dict'):
+                    answer_table_data = q.answer_table.dict()
+                elif isinstance(q.answer_table, dict):
+                    answer_table_data = q.answer_table
+            except Exception:
+                answer_table_data = None
 
         questions.append(FrontendQuestionResponse(
             id=q.id,
@@ -273,21 +314,22 @@ def _transform_backend_to_frontend(resp: TestGenerationResponse, req: FrontendGe
             format=q.format.value if hasattr(q.format, "value") else q.format,
             validationStatus=q.validation_status,
             section=section,
+            answerTable=answer_table_data,
         ))
 
     return FrontendGenerateResponse(
         ok=True,
-        testId=resp.test_id,
-        examTitle=resp.exam_title,
+        testId=test_id,
+        examTitle=exam_title,
         questions=questions,
-        totalMarks=resp.total_marks,
-        totalQuestions=resp.total_questions,
-        generationTime=resp.generation_time_seconds,
-        status=resp.status,
+        totalMarks=total_marks,
+        totalQuestions=total_questions,
+        generationTime=generation_time,
+        status=status,
         meta={
             "ncertBased": True,
             "ragUsed": True,
-            "iteration": resp.iteration,
+            "iteration": iteration,
             "board": req.board,
             "classGrade": req.classGrade,
             "subject": req.subject,
@@ -309,14 +351,22 @@ async def generate_from_frontend(req: FrontendGenerateRequest):
     try:
         # ── USAGE CHECK (before burning Gemini tokens) ──────────
         usage = check_and_record_usage(req.userId)
-        # If limit_reached, HTTPException 403 is raised above
         # ────────────────────────────────────────────────────────
 
         backend_request = _transform_frontend_to_backend(req)
         total_q = sum(c.quantity for c in backend_request.chapters)
         logger.info(f"Transformed: {len(backend_request.chapters)} chapters, {total_q} questions")
 
-        backend_response = generate_test(backend_request, cbse_pattern=req.cbsePattern)
+        # ── FETCH NCERT CONTEXT CHUNKS ──────────────────────────
+        chapters = [ch.chapter for ch in backend_request.chapters]
+        topics = [ch.topic for ch in backend_request.chapters if ch.topic]
+        if not topics:
+            topics = chapters
+        context_chunks = retrieve_context(chapters, topics, backend_request.subject, backend_request.class_grade)
+        logger.info(f"Retrieved {len(context_chunks)} context chunks")
+        # ────────────────────────────────────────────────────────
+
+        backend_response = generate_test(backend_request, context_chunks, cbse_pattern=req.cbsePattern)
         frontend_response = _transform_backend_to_frontend(backend_response, req)
 
         elapsed = round(time.time() - start, 2)
@@ -473,7 +523,12 @@ async def health_detail():
 @router.post("/generate", response_model=TestGenerationResponse)
 async def generate(request: TestGenerationRequest):
     try:
-        return generate_test(request)
+        chapters = [ch.chapter for ch in request.chapters]
+        topics = [ch.topic for ch in request.chapters if ch.topic]
+        if not topics:
+            topics = chapters
+        context_chunks = retrieve_context(chapters, topics, request.subject, request.class_grade)
+        return generate_test(request, context_chunks)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -540,4 +595,4 @@ async def get_test(test_id: str, teacher_id: str):
         raise
     except Exception as e:
         logger.error(f"Get test error: {e}")
-        raise HTTPException(status_code=500, detail="Failed to fetch test.")    
+        raise HTTPException(status_code=500, detail="Failed to fetch test.")
