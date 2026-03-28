@@ -1,12 +1,13 @@
 """
 Payment & Subscription endpoints for Razorpay integration.
-Place at: app/api/v1/endpoints/payment.py
+v2: Added billing_cycle support (monthly/yearly with 20% yearly discount)
 """
 
 import os
 import hmac
 import hashlib
 import logging
+from datetime import datetime, timedelta
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
@@ -18,6 +19,10 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/payment", tags=["payment"])
 
+# ─── Constants ────────────────────────────────────────────
+YEARLY_DISCOUNT = 0.20   # 20% off for yearly
+YEARLY_MONTHS = 12
+
 # ─── Razorpay Client ──────────────────────────────────────
 RAZORPAY_KEY_ID = os.getenv("RAZORPAY_KEY_ID", "")
 RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET", "")
@@ -27,35 +32,52 @@ try:
     import razorpay
     if RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET:
         razorpay_client = razorpay.Client(auth=(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET))
-        logger.info("✅ Razorpay client initialized")
+        logger.info("Razorpay client initialized")
     else:
-        logger.warning("⚠️ RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET not set")
+        logger.warning("RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET not set")
 except ImportError:
-    logger.warning("⚠️ razorpay package not installed — pip install razorpay")
+    logger.warning("razorpay package not installed — pip install razorpay")
 except Exception as e:
     logger.error(f"Razorpay init failed: {e}")
 
 
 # ─── Request Models ───────────────────────────────────────
 class CreateOrderRequest(BaseModel):
-    amount: int                     # paise (14900 = ₹149)
+    amount: int                          # paise
     payment_method: str = "upi"
-    plan_slug: str                  # 'starter' | 'pro'
+    plan_slug: str                       # 'starter' | 'pro'
+    billing_cycle: str = "monthly"       # 'monthly' | 'yearly'  ← NEW
     user_id: str
-    vpa: Optional[str] = None       # test UPI in sandbox mode
+    vpa: Optional[str] = None
 
 class VerifyPaymentRequest(BaseModel):
     razorpay_order_id: str
     razorpay_payment_id: str
     razorpay_signature: str
     plan_slug: str
+    billing_cycle: str = "monthly"       # ← NEW
     user_id: str
+
+
+# ─── Helpers ──────────────────────────────────────────────
+
+def _calculate_expected_amount(monthly_paise: int, billing_cycle: str) -> int:
+    """Calculate expected amount in paise for given billing cycle."""
+    if billing_cycle == "yearly":
+        return round(monthly_paise * YEARLY_MONTHS * (1 - YEARLY_DISCOUNT))
+    return monthly_paise
+
+
+def _get_subscription_duration_days(billing_cycle: str) -> int:
+    """Return subscription duration in days."""
+    if billing_cycle == "yearly":
+        return 365
+    return 30
 
 
 # ─── GET /plans ───────────────────────────────────────────
 @router.get("/plans")
 async def get_plans():
-    """Return all active subscription plans."""
     try:
         supabase = get_supabase()
         result = supabase.table("plans").select("*").eq("is_active", True).order("sort_order").execute()
@@ -68,7 +90,6 @@ async def get_plans():
 # ─── GET /plan-status/{user_id} ──────────────────────────
 @router.get("/plan-status/{user_id}")
 async def get_plan_status(user_id: str):
-    """Return user's current plan, usage, and subscription info."""
     try:
         supabase = get_supabase()
         result = supabase.rpc("get_user_plan_status", {"p_user_id": user_id}).execute()
@@ -98,15 +119,27 @@ async def create_order(req: CreateOrderRequest):
 
         plan = plan_result.data[0]
 
-        if plan["price_paise"] != req.amount:
-            raise HTTPException(400, detail=f"Amount mismatch: expected {plan['price_paise']}, got {req.amount}")
+        # Validate amount based on billing cycle
+        expected_amount = _calculate_expected_amount(plan["price_paise"], req.billing_cycle)
+
+        if req.amount != expected_amount:
+            logger.warning(
+                f"Amount mismatch: got {req.amount}, expected {expected_amount} "
+                f"(plan={req.plan_slug}, cycle={req.billing_cycle}, monthly={plan['price_paise']})"
+            )
+            raise HTTPException(
+                400,
+                detail=f"Amount mismatch: expected {expected_amount} paise for {req.billing_cycle} billing, got {req.amount}"
+            )
 
         # Create Razorpay order
+        cycle_label = "Yearly" if req.billing_cycle == "yearly" else "Monthly"
         order = razorpay_client.order.create({
             "amount": req.amount,
             "currency": "INR",
             "notes": {
                 "plan_slug": req.plan_slug,
+                "billing_cycle": req.billing_cycle,
                 "user_id": req.user_id,
             },
         })
@@ -118,10 +151,13 @@ async def create_order(req: CreateOrderRequest):
             "amount_paise": req.amount,
             "status": "created",
             "razorpay_order_id": order["id"],
-            "metadata": {"payment_method": req.payment_method},
+            "metadata": {
+                "payment_method": req.payment_method,
+                "billing_cycle": req.billing_cycle,
+            },
         }).execute()
 
-        logger.info(f"Order created: {order['id']} | user={req.user_id} | plan={req.plan_slug}")
+        logger.info(f"Order created: {order['id']} | user={req.user_id} | plan={req.plan_slug} | cycle={req.billing_cycle} | amount={req.amount}")
         return order
 
     except HTTPException:
@@ -152,26 +188,85 @@ async def verify_payment(req: VerifyPaymentRequest):
             logger.warning(f"Signature mismatch: order={req.razorpay_order_id}")
             raise HTTPException(400, detail="Invalid payment signature")
 
-        # Step 2: Activate subscription (atomic DB function)
-        result = supabase.rpc("activate_subscription", {
-            "p_user_id": req.user_id,
-            "p_plan_slug": req.plan_slug,
-            "p_razorpay_order_id": req.razorpay_order_id,
-            "p_razorpay_payment_id": req.razorpay_payment_id,
-            "p_razorpay_signature": req.razorpay_signature,
-        }).execute()
+        # Step 2: Try activate_subscription RPC (if it supports billing_cycle)
+        try:
+            result = supabase.rpc("activate_subscription", {
+                "p_user_id": req.user_id,
+                "p_plan_slug": req.plan_slug,
+                "p_razorpay_order_id": req.razorpay_order_id,
+                "p_razorpay_payment_id": req.razorpay_payment_id,
+                "p_razorpay_signature": req.razorpay_signature,
+            }).execute()
 
-        if not result.data or not result.data.get("success"):
-            raise HTTPException(500, detail="Subscription activation failed")
+            if result.data and result.data.get("success"):
+                # RPC worked — now update expiry for yearly if needed
+                if req.billing_cycle == "yearly" and result.data.get("subscription_id"):
+                    sub_id = result.data["subscription_id"]
+                    yearly_expiry = (datetime.utcnow() + timedelta(days=365)).isoformat()
+                    supabase.table("subscriptions").update({
+                        "expires_at": yearly_expiry,
+                        "metadata": {"billing_cycle": "yearly"},
+                    }).eq("id", sub_id).execute()
+                    result.data["expires_at"] = yearly_expiry
+                    logger.info(f"Updated subscription {sub_id} to yearly expiry: {yearly_expiry}")
 
-        logger.info(f"✅ Payment verified: user={req.user_id} | plan={req.plan_slug}")
+                logger.info(f"Payment verified: user={req.user_id} | plan={req.plan_slug} | cycle={req.billing_cycle}")
+                return {
+                    "success": True,
+                    "plan": req.plan_slug,
+                    "billing_cycle": req.billing_cycle,
+                    "subscription_id": result.data.get("subscription_id"),
+                    "expires_at": result.data.get("expires_at"),
+                }
+            else:
+                raise Exception("RPC returned no success")
 
-        return {
-            "success": True,
-            "plan": req.plan_slug,
-            "subscription_id": result.data.get("subscription_id"),
-            "expires_at": result.data.get("expires_at"),
-        }
+        except Exception as rpc_err:
+            # Fallback: manual subscription activation if RPC doesn't exist or fails
+            logger.warning(f"activate_subscription RPC failed ({rpc_err}), using manual activation")
+
+            duration_days = _get_subscription_duration_days(req.billing_cycle)
+            expires_at = (datetime.utcnow() + timedelta(days=duration_days)).isoformat()
+
+            # Get plan
+            plan_result = supabase.table("plans").select("id").eq("slug", req.plan_slug).execute()
+            if not plan_result.data:
+                raise HTTPException(500, detail="Plan not found during activation")
+            plan_id = plan_result.data[0]["id"]
+
+            # Update payment status
+            supabase.table("payments").update({
+                "status": "captured",
+                "razorpay_payment_id": req.razorpay_payment_id,
+            }).eq("razorpay_order_id", req.razorpay_order_id).execute()
+
+            # Upsert subscription
+            sub_data = {
+                "user_id": req.user_id,
+                "plan_id": plan_id,
+                "status": "active",
+                "started_at": datetime.utcnow().isoformat(),
+                "expires_at": expires_at,
+                "metadata": {"billing_cycle": req.billing_cycle},
+            }
+
+            # Try update existing, else insert
+            existing = supabase.table("subscriptions").select("id").eq("user_id", req.user_id).execute()
+            if existing.data:
+                supabase.table("subscriptions").update(sub_data).eq("user_id", req.user_id).execute()
+                sub_id = existing.data[0]["id"]
+            else:
+                insert_result = supabase.table("subscriptions").insert(sub_data).execute()
+                sub_id = insert_result.data[0]["id"] if insert_result.data else None
+
+            logger.info(f"Manual activation: user={req.user_id} | plan={req.plan_slug} | cycle={req.billing_cycle} | expires={expires_at}")
+            return {
+                "success": True,
+                "plan": req.plan_slug,
+                "billing_cycle": req.billing_cycle,
+                "subscription_id": sub_id,
+                "expires_at": expires_at,
+            }
 
     except HTTPException:
         raise
@@ -183,7 +278,6 @@ async def verify_payment(req: VerifyPaymentRequest):
 # ─── POST /check-usage/{user_id} ─────────────────────────
 @router.post("/check-usage/{user_id}")
 async def check_usage(user_id: str):
-    """Check + increment usage. Returns { allowed, used, limit, remaining }"""
     try:
         supabase = get_supabase()
         result = supabase.rpc("increment_usage", {
