@@ -470,17 +470,15 @@ async def export_test(req: ExportRequest):
 async def get_chapters(subject: str = "Science", class_grade: str = "10"):
     subject = _resolve_subject(subject)
     try:
-        import psycopg2
-        from psycopg2.extras import RealDictCursor
-        conn = psycopg2.connect(settings.DATABASE_URL, cursor_factory=RealDictCursor)
-        with conn.cursor() as cur:
-            cur.execute(
-                "SELECT DISTINCT chapter FROM ncert_chunks WHERE LOWER(subject) = LOWER(%s) AND class_grade = %s ORDER BY chapter",
-                (subject, class_grade),
-            )
-            rows = cur.fetchall()
-        conn.close()
-        chapters = [row["chapter"] for row in rows]
+        supabase = get_supabase()
+        result = supabase.table("ncert_chunks") \
+            .select("chapter") \
+            .ilike("subject", subject) \
+            .eq("class_grade", class_grade) \
+            .execute()
+
+        # Extract unique chapters and sort
+        chapters = sorted(set(row["chapter"] for row in (result.data or [])))
         return {"ok": True, "subject": subject, "classGrade": class_grade, "chapters": chapters, "count": len(chapters)}
     except Exception as e:
         logger.error(f"Chapters error: {e}")
