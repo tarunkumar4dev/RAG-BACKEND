@@ -542,7 +542,7 @@ def _clean_gemini_text(text: str) -> str:
     mathbb_map = {'R': 'ℝ', 'Z': 'ℤ', 'N': 'ℕ', 'Q': 'ℚ', 'C': 'ℂ'}
     for letter, symbol in mathbb_map.items():
         result = result.replace(f'\\mathbb{{{letter}}}', symbol)
-        result = result.replace(f'mathbb{{{letter}}}', symbol)
+        result = result.replace(f'mathbb{{{letter}}}', symbol)  
         result = re.sub(rf'(?<![a-zA-Z])mathbb\s*{letter}(?![a-zA-Z])', symbol, result)
 
     result = re.sub(r'\\(?:text|mathrm|mathbf|textbf)\{([^}]*)\}', r'\1', result)

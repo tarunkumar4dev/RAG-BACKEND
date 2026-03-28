@@ -1,10 +1,10 @@
 """
 Test Generator API Endpoints — SYNC (Production)
 
-v2.3 changes:
-  - Fixed: context_chunks now fetched via retrieve_context before generation
-  - Added: answer_table / answerTable in frontend question response
-  - All v2.2 features retained (usage limits, cbsePattern, sections)
+v2.4 changes:
+  - Fixed: FORMAT_MAP now includes all format variants (Short, Long, short_answer, long_answer)
+  - Fixed: Accountancy import path → test_generator_service (not generation_service)
+  - All v2.3 features retained (usage limits, cbsePattern, sections, answerTable)
 """
 
 from fastapi import APIRouter, HTTPException
@@ -40,11 +40,6 @@ router = APIRouter(prefix="/test-generator", tags=["Test Generator"])
 # ═══════════════════════════════════════════════════════════════════════
 
 def check_and_record_usage(user_id: str) -> dict:
-    """
-    Check if user has remaining test quota, and increment usage.
-    Returns: { allowed: bool, used: int, limit: int, remaining: int }
-    Raises HTTPException 403 if limit reached.
-    """
     if not user_id or user_id == "00000000-0000-0000-0000-000000000000":
         logger.warning("Usage check skipped: no valid user_id")
         return {"allowed": True, "used": 0, "limit": -1, "remaining": -1}
@@ -147,7 +142,6 @@ class FrontendQuestionResponse(BaseModel):
     format: str
     validationStatus: str
     section: Optional[str] = None
-    # v2.3: Accountancy table answer support
     answerTable: Optional[dict] = None
 
 
@@ -185,18 +179,38 @@ DIFFICULTY_MAP = {
     "Very Hard": "very_hard", "very_hard": "very_hard",
 }
 
+# ═══════════════════════════════════════════════════════════════════════
+# FIX v2.4: Complete FORMAT_MAP with ALL format variants
+# BUG WAS: "short_answer", "long_answer", "Short", "Long" were MISSING
+#          → everything defaulted to MCQ
+# ═══════════════════════════════════════════════════════════════════════
 FORMAT_MAP = {
-    # ... existing entries same raho ...
-    "Journal Entry": QuestionFormat.JOURNAL_ENTRY,
-    "journal_entry": QuestionFormat.JOURNAL_ENTRY,   # ← ADD
-    "Ledger": QuestionFormat.LEDGER,
-    "ledger": QuestionFormat.LEDGER,                  # ← ADD
-    "Trial Balance": QuestionFormat.TRIAL_BALANCE,
-    "trial_balance": QuestionFormat.TRIAL_BALANCE,    # ← ADD
-    "JournalEntry": QuestionFormat.JOURNAL_ENTRY,     # ← ADD (frontend camelCase)
-    "TrialBalance": QuestionFormat.TRIAL_BALANCE,     # ← ADD (frontend camelCase)
-    "PDF": QuestionFormat.MCQ,
-    "DOC": QuestionFormat.MCQ,
+    # ── Frontend display values (TestRowEditor buttons) ──
+    "MCQ":            QuestionFormat.MCQ,
+    "Short":          QuestionFormat.SHORT_ANSWER,
+    "Long":           QuestionFormat.LONG_ANSWER,
+    "Essay":          QuestionFormat.LONG_ANSWER,
+
+    # ── Backend snake_case values (from useTestGenerator FORMAT_MAP conversion) ──
+    "mcq":            QuestionFormat.MCQ,
+    "short_answer":   QuestionFormat.SHORT_ANSWER,
+    "long_answer":    QuestionFormat.LONG_ANSWER,
+    "assertion_reason": QuestionFormat.ASSERTION_REASON,
+    "case_based":     QuestionFormat.MCQ,
+
+    # ── Accountancy formats ──
+    "Journal Entry":  QuestionFormat.JOURNAL_ENTRY,
+    "journal_entry":  QuestionFormat.JOURNAL_ENTRY,
+    "JournalEntry":   QuestionFormat.JOURNAL_ENTRY,
+    "Ledger":         QuestionFormat.LEDGER,
+    "ledger":         QuestionFormat.LEDGER,
+    "Trial Balance":  QuestionFormat.TRIAL_BALANCE,
+    "trial_balance":  QuestionFormat.TRIAL_BALANCE,
+    "TrialBalance":   QuestionFormat.TRIAL_BALANCE,
+
+    # ── Legacy/fallback ──
+    "PDF":            QuestionFormat.MCQ,
+    "DOC":            QuestionFormat.MCQ,
 }
 
 MARKS_MAP = {
@@ -205,8 +219,8 @@ MARKS_MAP = {
     QuestionFormat.LONG_ANSWER: 5,
     QuestionFormat.ASSERTION_REASON: 1,
     QuestionFormat.JOURNAL_ENTRY: 4,
-    QuestionFormat.LEDGER: 4,
-    QuestionFormat.TRIAL_BALANCE: 5,
+    QuestionFormat.LEDGER: 6,
+    QuestionFormat.TRIAL_BALANCE: 6,
 }
 
 
@@ -261,9 +275,6 @@ def _transform_frontend_to_backend(req: FrontendGenerateRequest) -> TestGenerati
 
 
 def _transform_backend_to_frontend(resp, req: FrontendGenerateRequest) -> FrontendGenerateResponse:
-    """Transform backend response (list of GeneratedQuestion or TestGenerationResponse) to frontend format."""
-
-    # Handle both: list of questions directly, or TestGenerationResponse object
     if isinstance(resp, list):
         questions_list = resp
         test_id = str(uuid.uuid4())
@@ -287,7 +298,6 @@ def _transform_backend_to_frontend(resp, req: FrontendGenerateRequest) -> Fronte
     for q in questions_list:
         section = getattr(q, '_section', None)
 
-        # v2.3: Extract answer_table for Accountancy questions
         answer_table_data = None
         if hasattr(q, 'answer_table') and q.answer_table is not None:
             try:
@@ -349,30 +359,36 @@ async def generate_from_frontend(req: FrontendGenerateRequest):
                 f"{len(req.simpleData)} chapters, cbsePattern={req.cbsePattern}")
 
     try:
-        # ── USAGE CHECK (before burning Gemini tokens) ──────────
         usage = check_and_record_usage(req.userId)
-        # ────────────────────────────────────────────────────────
 
         backend_request = _transform_frontend_to_backend(req)
         total_q = sum(c.quantity for c in backend_request.chapters)
         logger.info(f"Transformed: {len(backend_request.chapters)} chapters, {total_q} questions")
 
-        # ── FETCH NCERT CONTEXT CHUNKS ──────────────────────────
         chapters = [ch.chapter for ch in backend_request.chapters]
         topics = [ch.topic for ch in backend_request.chapters if ch.topic]
         if not topics:
             topics = chapters
         context_chunks = retrieve_context(chapters, topics, backend_request.subject, backend_request.class_grade)
         logger.info(f"Retrieved {len(context_chunks)} context chunks")
-        # ────────────────────────────────────────────────────────
 
-        backend_response = generate_test(backend_request, context_chunks, cbse_pattern=req.cbsePattern)
+        # ═══════════════════════════════════════════════════════════
+        # FIX v2.4: Import from test_generator_service (NOT generation_service)
+        # ═══════════════════════════════════════════════════════════
+        resolved_subject = _resolve_subject(req.subject)
+        is_accountancy = resolved_subject.lower() in ("accountancy", "accounts", "accounting")
+
+        if req.cbsePattern and is_accountancy:
+            from app.services.test_generator_service import generate_cbse_accountancy_paper
+            backend_response = generate_cbse_accountancy_paper(backend_request, context_chunks)
+        else:
+            backend_response = generate_test(backend_request, context_chunks, cbse_pattern=req.cbsePattern)
+
         frontend_response = _transform_backend_to_frontend(backend_response, req)
 
         elapsed = round(time.time() - start, 2)
         frontend_response.generationTime = elapsed
 
-        # Add usage info to meta
         frontend_response.meta["usage"] = {
             "used": usage.get("used", 0),
             "limit": usage.get("limit", -1),

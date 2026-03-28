@@ -1,11 +1,11 @@
 """
-Export Service v6 — Professional PDF and DOCX with CBSE Sections + Accountancy Tables.
+Export Service v8 — Card-Style Question Boxes
 
-v6 changes:
-  - Accountancy table rendering (Journal Entry, Ledger, Trial Balance) in PDF
-  - Accountancy table rendering in DOCX
-  - answer_table field support in both PDF and DOCX
-  - All v5 features retained (CBSE sections, Unicode, LaTeX cleanup)
+v8 changes:
+  - Light gray card/box around each question (PDF)
+  - Subtle border + background + padding per question
+  - Thin separator between questions (DOCX)
+  - All v7 features retained (inline tables, CBSE sections, Accountancy tables)
 """
 
 import io
@@ -30,7 +30,20 @@ CBSE_SECTIONS_META = {
     "E": {"title": "Section E", "subtitle": "(4 marks each — Case Study Based)", "marks": 4, "instruction": "All questions are compulsory. Each carries 4 marks. Answer all sub-parts."},
 }
 
+# Accountancy Part-based sections (v8)
+ACCOUNTANCY_SECTIONS_META = {
+    "A_1m":  {"title": "Part A", "subtitle": "(1 mark each — MCQ / Assertion-Reason)", "marks": 1, "instruction": "Questions carry 1 mark each. Select the correct option."},
+    "A_3m":  {"title": "Part A", "subtitle": "(3 marks each)", "marks": 3, "instruction": "Questions carry 3 marks each. Answer briefly with working."},
+    "A_4m":  {"title": "Part A", "subtitle": "(4 marks each)", "marks": 4, "instruction": "Questions carry 4 marks each. Show complete working."},
+    "A_6m":  {"title": "Part A", "subtitle": "(6 marks each)", "marks": 6, "instruction": "Questions carry 6 marks each. Show detailed working with journal entries/accounts."},
+    "B1_1m": {"title": "Part B (Option I)", "subtitle": "Analysis of Financial Statements — (1 mark each)", "marks": 1, "instruction": "Questions carry 1 mark each."},
+    "B1_3m": {"title": "Part B (Option I)", "subtitle": "Analysis of Financial Statements — (3 marks each)", "marks": 3, "instruction": "Questions carry 3 marks each."},
+    "B1_4m": {"title": "Part B (Option I)", "subtitle": "Analysis of Financial Statements — (4 marks each)", "marks": 4, "instruction": "Questions carry 4 marks each."},
+    "B1_6m": {"title": "Part B (Option I)", "subtitle": "Analysis of Financial Statements — (6 marks each)", "marks": 6, "instruction": "Questions carry 6 marks each."},
+}
+
 SECTION_ORDER = ["A", "B", "C", "D", "E"]
+ACCOUNTANCY_SECTION_ORDER = ["A_1m", "A_3m", "A_4m", "A_6m", "B1_1m", "B1_3m", "B1_4m", "B1_6m"]
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -98,7 +111,7 @@ def _fix_chemical_formulas(text: str, use_tags: bool = True) -> str:
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# LaTeX → Clean Text (improved v5 — handles Unicode output from v11 gen)
+# LaTeX → Clean Text
 # ═══════════════════════════════════════════════════════════════════════
 
 SYMBOL_MAP = {
@@ -147,7 +160,23 @@ def _process_latex(text: str, use_tags: bool = False) -> str:
         return ""
 
     result = text
-    result = result.replace('₹', 'Rs.')   # ← ADDED: Fix 1 - Replace Rupee symbol for ReportLab compatibility
+    result = result.replace('₹', 'Rs.')
+
+    # Fix Unicode modifier letters (ordinal suffixes: 15ᵗʰ → 15th, 1ˢᵗ → 1st, etc.)
+    # ReportLab cannot render these — they show as ■■
+    MODIFIER_LETTERS = {
+        '\u1D57': 't',  # ᵗ MODIFIER LETTER SMALL T
+        '\u02B0': 'h',  # ʰ MODIFIER LETTER SMALL H
+        '\u02E2': 's',  # ˢ MODIFIER LETTER SMALL S
+        '\u1D48': 'd',  # ᵈ MODIFIER LETTER SMALL D
+        '\u02B3': 'r',  # ʳ MODIFIER LETTER SMALL R
+        '\u02E1': 'l',  # ˡ MODIFIER LETTER SMALL L
+        '\u1D43': 'a',  # ᵃ MODIFIER LETTER SMALL A
+        '\u1D49': 'e',  # ᵉ MODIFIER LETTER SMALL E
+        '\u1D52': 'o',  # ᵒ MODIFIER LETTER SMALL O
+    }
+    for mod, plain in MODIFIER_LETTERS.items():
+        result = result.replace(mod, plain)
 
     result = _fix_chemical_formulas(result, use_tags)
     result = re.sub(r'\$([^$]+)\$', r'\1', result)
@@ -218,11 +247,10 @@ def _latex_to_plain(text: str) -> str:
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# Markdown Table Parser (v7 — inline tables in question text)
+# Markdown Table Parser (v7)
 # ═══════════════════════════════════════════════════════════════════════
 
 def _parse_table_row(row_str: str) -> List[str]:
-    """Parse a pipe-separated row string into clean cells."""
     cells = [c.strip() for c in row_str.split('|')]
     cells = [c for c in cells if c]
     cells = [re.sub(r'\*\*(.+?)\*\*', r'\1', c) for c in cells]
@@ -231,14 +259,12 @@ def _parse_table_row(row_str: str) -> List[str]:
 
 
 def _parse_pipe_table_lines(lines: List[str]) -> tuple:
-    """Parse pipe-table lines into (headers, data_rows)."""
     headers: List[str] = []
     rows: List[List[str]] = []
     for line in lines:
         stripped = line.strip()
         if not stripped:
             continue
-        # Skip separator rows like |---|---|
         if re.match(r'^\|?[\s\-:]+\|[\s\-:|]*$', stripped):
             continue
         row = _parse_table_row(stripped)
@@ -250,18 +276,12 @@ def _parse_pipe_table_lines(lines: List[str]) -> tuple:
 
 
 def _split_text_and_tables(text: str) -> List[dict]:
-    """
-    Split question text into plain-text and markdown-table segments.
-    Handles both newline-separated and collapsed inline formats.
-    Returns list of {'type': 'text'|'table', 'content': str|(headers,rows)}
-    """
     if not text:
         return [{'type': 'text', 'content': ''}]
 
     segments: List[dict] = []
 
     if '\n' in text:
-        # ── Newline format (preferred — after generation service fix) ──
         lines = text.split('\n')
         i = 0
         current_text: List[str] = []
@@ -279,7 +299,6 @@ def _split_text_and_tables(text: str) -> List[dict]:
                 if current_text:
                     segments.append({'type': 'text', 'content': ' '.join(current_text).strip()})
                     current_text = []
-                # Collect all contiguous table lines
                 table_lines = []
                 while i < len(lines):
                     tl = lines[i].strip()
@@ -300,7 +319,6 @@ def _split_text_and_tables(text: str) -> List[dict]:
             segments.append({'type': 'text', 'content': ' '.join(current_text).strip()})
 
     else:
-        # ── Collapsed format: detect ---|--- separator ──
         sep_re = re.compile(r'\s*\|?\s*-{3,}(?:[\|\-\s:]*-{3,})+\s*\|?\s*')
         sep_m = sep_re.search(text)
 
@@ -310,7 +328,6 @@ def _split_text_and_tables(text: str) -> List[dict]:
         pre_sep = text[:sep_m.start()]
         post_sep = text[sep_m.end():]
 
-        # Header row = last |..| block in pre_sep
         hdr_m = re.search(r'((?:\|[^|]+)+\|)\s*$', pre_sep)
         if not hdr_m:
             return [{'type': 'text', 'content': text}]
@@ -318,7 +335,6 @@ def _split_text_and_tables(text: str) -> List[dict]:
         pre_table = pre_sep[:hdr_m.start()].strip()
         headers = _parse_table_row(hdr_m.group(1))
 
-        # Data rows from post_sep
         rows: List[List[str]] = []
         last_end = 0
         for m in re.finditer(r'((?:\|[^|]+)+\|)', post_sep):
@@ -340,7 +356,6 @@ def _split_text_and_tables(text: str) -> List[dict]:
 
 
 def _render_inline_table_pdf(headers: List[str], rows: List[List[str]], styles, W: float) -> list:
-    """Render a markdown-parsed inline table as a ReportLab Table."""
     from reportlab.lib.colors import HexColor
     from reportlab.platypus import Table, TableStyle, Paragraph, Spacer
 
@@ -350,7 +365,6 @@ def _render_inline_table_pdf(headers: List[str], rows: List[List[str]], styles, 
     num_cols = len(headers)
     cell_style = styles.get('Option', styles['Normal'])
 
-    # Header row
     table_data = [[Paragraph(f"<b>{h}</b>", cell_style) for h in headers]]
 
     for row in rows:
@@ -360,7 +374,6 @@ def _render_inline_table_pdf(headers: List[str], rows: List[List[str]], styles, 
             for c in padded
         ])
 
-    # Column widths
     if num_cols == 2:
         col_widths = [W * 0.60, W * 0.40]
     elif num_cols == 3:
@@ -411,17 +424,29 @@ def _has_sections(questions: List[dict]) -> bool:
     return False
 
 
+def _has_accountancy_sections(questions: List[dict]) -> bool:
+    """Check if questions use the Accountancy Part A/B section format."""
+    for q in questions:
+        sec = q.get('section') or q.get('_section') or ''
+        if sec in ACCOUNTANCY_SECTIONS_META or sec.startswith(('A_', 'B1_')):
+            return True
+    return False
+
+
+def _get_section_order(questions: List[dict]) -> tuple:
+    """Determine which section system to use and return (order, meta_dict)."""
+    if _has_accountancy_sections(questions):
+        return ACCOUNTANCY_SECTION_ORDER, ACCOUNTANCY_SECTIONS_META
+    elif _has_sections(questions):
+        return SECTION_ORDER, CBSE_SECTIONS_META
+    return None, None
+
+
 # ═══════════════════════════════════════════════════════════════════════
-# NEW v6: Accountancy Table Rendering — PDF
+# Accountancy Table Rendering — PDF
 # ═══════════════════════════════════════════════════════════════════════
 
 def _render_answer_table_pdf(answer_table, styles, W):
-    """
-    Render an Accountancy answer table (Journal Entry / Ledger / Trial Balance)
-    as a ReportLab Table with proper formatting.
-
-    Returns a list of story elements.
-    """
     from reportlab.lib.units import cm
     from reportlab.lib.colors import HexColor
     from reportlab.platypus import Table, TableStyle, Paragraph, Spacer
@@ -440,7 +465,6 @@ def _render_answer_table_pdf(answer_table, styles, W):
 
     num_cols = len(headers)
 
-    # Table title
     title_map = {
         "journal_entry": "Journal Entry",
         "ledger": "Ledger Account",
@@ -454,11 +478,9 @@ def _render_answer_table_pdf(answer_table, styles, W):
     ))
     elements.append(Spacer(1, 4))
 
-    # Build table data — header row
     header_style = styles.get('Option', styles['Normal'])
     table_data = [[Paragraph(f"<b>{h}</b>", header_style) for h in headers]]
 
-    # Data rows
     for row in rows:
         if not isinstance(row, list):
             continue
@@ -468,7 +490,6 @@ def _render_answer_table_pdf(answer_table, styles, W):
             for cell in padded
         ])
 
-    # Total row
     if total_row and isinstance(total_row, list):
         padded_total = (total_row + [""] * num_cols)[:num_cols]
         table_data.append([
@@ -476,7 +497,6 @@ def _render_answer_table_pdf(answer_table, styles, W):
             for cell in padded_total
         ])
 
-    # Column widths based on table type
     if table_type == "journal_entry":
         col_widths = [W * 0.13, W * 0.40, W * 0.07, W * 0.20, W * 0.20]
     elif table_type == "ledger":
@@ -489,10 +509,8 @@ def _render_answer_table_pdf(answer_table, styles, W):
 
     col_widths = col_widths[:num_cols]
 
-    # Create table
     t = Table(table_data, colWidths=col_widths, repeatRows=1)
 
-    # Styling
     style_cmds = [
         ('GRID', (0, 0), (-1, -1), 0.5, HexColor('#d1d5db')),
         ('BACKGROUND', (0, 0), (-1, 0), HexColor('#f3f4f6')),
@@ -504,7 +522,6 @@ def _render_answer_table_pdf(answer_table, styles, W):
         ('RIGHTPADDING', (0, 0), (-1, -1), 4),
     ]
 
-    # Right-align amount columns
     if table_type == "journal_entry":
         style_cmds.append(('ALIGN', (3, 0), (4, -1), 'RIGHT'))
     elif table_type == "trial_balance":
@@ -515,7 +532,6 @@ def _render_answer_table_pdf(answer_table, styles, W):
             style_cmds.append(('ALIGN', (7, 0), (7, -1), 'RIGHT'))
             style_cmds.append(('LINEAFTER', (3, 0), (3, -1), 1.5, HexColor('#374151')))
 
-    # Total row styling
     if total_row:
         last_row = len(table_data) - 1
         style_cmds.extend([
@@ -531,14 +547,10 @@ def _render_answer_table_pdf(answer_table, styles, W):
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# NEW v6: Accountancy Table Rendering — DOCX
+# Accountancy Table Rendering — DOCX
 # ═══════════════════════════════════════════════════════════════════════
 
 def _render_answer_table_docx(doc, answer_table):
-    """
-    Render an Accountancy answer table in a DOCX document.
-    Uses python-docx Table with proper formatting.
-    """
     from docx.shared import Pt, RGBColor
     from docx.enum.text import WD_ALIGN_PARAGRAPH
     from docx.enum.table import WD_TABLE_ALIGNMENT
@@ -557,7 +569,6 @@ def _render_answer_table_docx(doc, answer_table):
 
     num_cols = len(headers)
 
-    # Title
     title_map = {
         "journal_entry": "Journal Entry",
         "ledger": "Ledger Account",
@@ -570,15 +581,12 @@ def _render_answer_table_docx(doc, answer_table):
     tr.font.size = Pt(10)
     tr.font.color.rgb = RGBColor(4, 120, 87)
 
-    # Calculate total rows
     total_data_rows = 1 + len(rows) + (1 if total_row else 0)
 
-    # Create table
     table = doc.add_table(rows=total_data_rows, cols=num_cols)
     table.alignment = WD_TABLE_ALIGNMENT.CENTER
     table.style = 'Table Grid'
 
-    # Header row
     for j, header in enumerate(headers):
         cell = table.rows[0].cells[j]
         cell.text = ""
@@ -586,7 +594,6 @@ def _render_answer_table_docx(doc, answer_table):
         r = p.add_run(header)
         r.bold = True
         r.font.size = Pt(9)
-        # Header background - light gray
         shading = cell._element.get_or_add_tcPr()
         shd = shading.makeelement(qn('w:shd'), {
             qn('w:fill'): 'F3F4F6',
@@ -594,7 +601,6 @@ def _render_answer_table_docx(doc, answer_table):
         })
         shading.append(shd)
 
-    # Data rows
     for i, row in enumerate(rows):
         if not isinstance(row, list):
             continue
@@ -606,13 +612,11 @@ def _render_answer_table_docx(doc, answer_table):
             r = p.add_run(str(cell_text))
             r.font.size = Pt(9)
 
-            # Right-align amount columns
             if table_type in ("journal_entry", "trial_balance") and j >= num_cols - 2:
                 p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
             elif table_type == "ledger" and num_cols >= 8 and j in (3, 7):
                 p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
 
-    # Total row
     if total_row and isinstance(total_row, list):
         row_idx = 1 + len(rows)
         padded_total = (total_row + [""] * num_cols)[:num_cols]
@@ -624,11 +628,9 @@ def _render_answer_table_docx(doc, answer_table):
             r.bold = True
             r.font.size = Pt(9)
 
-            # Right-align amounts
             if table_type in ("journal_entry", "trial_balance") and j >= num_cols - 2:
                 p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
 
-            # Gray background for total row
             shading = cell._element.get_or_add_tcPr()
             shd = shading.makeelement(qn('w:shd'), {
                 qn('w:fill'): 'E5E7EB',
@@ -636,7 +638,7 @@ def _render_answer_table_docx(doc, answer_table):
             })
             shading.append(shd)
 
-    doc.add_paragraph()  # spacing after table
+    doc.add_paragraph()
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -644,7 +646,6 @@ def _render_answer_table_docx(doc, answer_table):
 # ═══════════════════════════════════════════════════════════════════════
 
 def _render_inline_table_docx(doc, headers: List[str], rows: List[List[str]]):
-    """Render a markdown-parsed inline table inside a DOCX document."""
     from docx.shared import Pt, RGBColor
     from docx.enum.text import WD_ALIGN_PARAGRAPH
     from docx.enum.table import WD_TABLE_ALIGNMENT
@@ -659,7 +660,6 @@ def _render_inline_table_docx(doc, headers: List[str], rows: List[List[str]]):
     table.alignment = WD_TABLE_ALIGNMENT.CENTER
     table.style = 'Table Grid'
 
-    # Header
     for j, h in enumerate(headers):
         cell = table.rows[0].cells[j]
         cell.text = ''
@@ -668,7 +668,6 @@ def _render_inline_table_docx(doc, headers: List[str], rows: List[List[str]]):
         r.bold = True
         r.font.size = Pt(9)
 
-    # Data rows
     for i, row in enumerate(rows):
         padded = (row + [''] * num_cols)[:num_cols]
         for j, val in enumerate(padded):
@@ -684,7 +683,82 @@ def _render_inline_table_docx(doc, headers: List[str], rows: List[List[str]]):
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# PDF Generation (v7 — with inline markdown table support)
+# v8 NEW: Question Card Wrapper (PDF)
+# ═══════════════════════════════════════════════════════════════════════
+
+def _wrap_question_card(elements, W):
+    """
+    Wrap a list of question flowables inside a light gray card with subtle border.
+    Returns a list of story elements (card table + spacing).
+    """
+    from reportlab.platypus import Table, TableStyle, Spacer
+    from reportlab.lib.colors import HexColor
+
+    # Remove trailing spacers from elements
+    clean = list(elements)
+    while clean and isinstance(clean[-1], Spacer):
+        clean.pop()
+
+    if not clean:
+        return [Spacer(1, 4)]
+
+    # Card = single-cell table containing stacked flowables
+    # Subtract padding from width so card fits perfectly
+    CARD_PAD_LR = 16  # total left + right padding inside card
+    card_inner_width = W  # outer card width matches page
+
+    t = Table(
+        [[clean]],
+        colWidths=[card_inner_width],
+    )
+
+    style_cmds = [
+        ('BACKGROUND',    (0, 0), (-1, -1), HexColor('#F9FAFB')),   # light gray bg
+        ('BOX',           (0, 0), (-1, -1), 0.6, HexColor('#E5E7EB')),  # subtle border
+        ('TOPPADDING',    (0, 0), (-1, -1), 8),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ('LEFTPADDING',   (0, 0), (-1, -1), 8),
+        ('RIGHTPADDING',  (0, 0), (-1, -1), 8),
+    ]
+
+    # Rounded corners (ReportLab 3.5+, graceful fallback)
+    try:
+        style_cmds.append(('ROUNDEDCORNERS', [6, 6, 6, 6]))
+    except Exception:
+        pass
+
+    t.setStyle(TableStyle(style_cmds))
+
+    return [t, Spacer(1, 7)]
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# v8 NEW: OR Separator (PDF)
+# ═══════════════════════════════════════════════════════════════════════
+
+def _render_or_separator(styles, W):
+    """Render a centered 'OR' separator between question and its alternative."""
+    from reportlab.platypus import Paragraph, Spacer, HRFlowable, Table, TableStyle
+    from reportlab.lib.colors import HexColor
+    from reportlab.lib.enums import TA_CENTER
+
+    or_elements = [
+        Spacer(1, 2),
+        Table(
+            [[
+                HRFlowable(width="30%", thickness=0.5, color=HexColor('#d1d5db')),
+                Paragraph("<b>OR</b>", styles.get('SectionHeader', styles['Normal'])),
+                HRFlowable(width="30%", thickness=0.5, color=HexColor('#d1d5db')),
+            ]],
+            colWidths=[W * 0.35, W * 0.30, W * 0.35],
+        ),
+        Spacer(1, 2),
+    ]
+    return or_elements
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# PDF Generation (v8 — with card-style question boxes)
 # ═══════════════════════════════════════════════════════════════════════
 
 def generate_pdf(
@@ -724,7 +798,7 @@ def generate_pdf(
         'SectionSub': dict(parent=styles['Normal'], fontSize=9, alignment=TA_CENTER, textColor=HexColor('#6b7280'), spaceAfter=2),
         'SectionInstruction': dict(parent=styles['Normal'], fontSize=8.5, alignment=TA_CENTER, textColor=HexColor('#9ca3af'), spaceAfter=8, leading=11),
         'SectionTitle': dict(parent=styles['Heading2'], fontSize=11, spaceBefore=14, spaceAfter=6, textColor=HexColor('#1a1a2e'), fontName='Helvetica-Bold'),
-        'QText': dict(parent=styles['Normal'], fontSize=10, spaceBefore=8, spaceAfter=3, leading=14, textColor=HexColor('#1f1f3a')),
+        'QText': dict(parent=styles['Normal'], fontSize=10, spaceBefore=4, spaceAfter=3, leading=14, textColor=HexColor('#1f1f3a')),
         'Option': dict(parent=styles['Normal'], fontSize=9.5, leftIndent=18, spaceBefore=2, spaceAfter=2, leading=13, textColor=HexColor('#333355')),
         'CorrectOption': dict(parent=styles['Normal'], fontSize=9.5, leftIndent=18, spaceBefore=2, spaceAfter=2, leading=13, textColor=HexColor('#047857'), fontName='Helvetica-Bold'),
         'AnswerLine': dict(parent=styles['Normal'], fontSize=9, leftIndent=18, spaceBefore=2, textColor=HexColor('#047857'), fontName='Helvetica-Bold'),
@@ -732,6 +806,7 @@ def generate_pdf(
         'Marks': dict(parent=styles['Normal'], fontSize=9, alignment=TA_RIGHT, textColor=HexColor('#9ca3af')),
         'Instruction': dict(parent=styles['Normal'], fontSize=9, leftIndent=12, spaceBefore=2, spaceAfter=2, textColor=HexColor('#4a4a6a'), leading=12),
         'FooterText': dict(parent=styles['Normal'], fontSize=8, textColor=HexColor('#9ca3af'), alignment=TA_CENTER),
+        'ORText': dict(parent=styles['Normal'], fontSize=10, alignment=TA_CENTER, textColor=HexColor('#6b7280'), fontName='Helvetica-Bold', spaceBefore=2, spaceAfter=2),
     }
     for name, props in custom_styles.items():
         try:
@@ -774,9 +849,11 @@ def generate_pdf(
     story.append(Spacer(1, 4))
     story.append(HRFlowable(width="100%", thickness=1.5, color=HexColor('#1a1a2e'), spaceAfter=8))
 
-    # ── General Instructions ──
-    has_sec = _has_sections(questions)
+    # ── Detect section type ──
+    sec_order, sec_meta_dict = _get_section_order(questions)
+    has_sec = sec_order is not None
 
+    # ── General Instructions ──
     story.append(Paragraph("<b>General Instructions:</b>", styles['SectionTitle']))
 
     base_instructions = [
@@ -784,7 +861,14 @@ def generate_pdf(
         "Read each question carefully before answering.",
     ]
 
-    if has_sec:
+    if sec_meta_dict is ACCOUNTANCY_SECTIONS_META:
+        base_instructions.extend([
+            "This question paper is divided into <b>Part A</b> and <b>Part B</b>.",
+            "<b>Part A</b> is compulsory for all candidates.",
+            "<b>Part B</b> has two options — attempt only one.",
+            "Internal choice has been provided in some questions.",
+        ])
+    elif has_sec:
         base_instructions.extend([
             f"This question paper has <b>5 Sections</b> — A, B, C, D, and E.",
             f"<b>Section A</b> has 20 MCQs / Assertion-Reason (1 mark each).",
@@ -805,22 +889,21 @@ def generate_pdf(
     story.append(Spacer(1, 6))
     story.append(HRFlowable(width="100%", thickness=0.5, color=HexColor('#e5e7eb'), spaceAfter=6))
 
-    # ── Questions ──
+    # ── Question renderer (returns elements for one question) ──
     labels = ["A", "B", "C", "D", "E", "F"]
-    q_num = 0
+
+    # Effective content width inside card (W minus card L+R padding)
+    QW = W - 20  # 8+8 padding + small buffer
 
     def _render_question(q, q_num):
-        """Render a single question — handles inline markdown tables in question text."""
         from reportlab.platypus import Table as RLTable, TableStyle as RLTableStyle
         elements = []
         raw_text = q.get('text', '')
         marks = q.get('marks', 1)
         marks_label = f"[{marks} {'mark' if marks == 1 else 'marks'}]"
 
-        # Split question text into text/table segments
         segments = _split_text_and_tables(raw_text)
 
-        # First text segment → Q number header
         first_text = ''
         for seg in segments:
             if seg['type'] == 'text' and seg['content']:
@@ -832,7 +915,7 @@ def generate_pdf(
         qt = RLTable(
             [[Paragraph(f"<b>Q{q_num}.</b> {first_text}", styles['QText']),
               Paragraph(marks_label, styles['Marks'])]],
-            colWidths=[W * 0.88, W * 0.12],
+            colWidths=[QW * 0.84, QW * 0.16],
         )
         qt.setStyle(RLTableStyle([
             ('VALIGN',        (0, 0), (-1, -1), 'TOP'),
@@ -841,21 +924,19 @@ def generate_pdf(
         ]))
         elements.append(qt)
 
-        # Remaining segments (inline tables + continuation text)
         first_text_skipped = False
         for seg in segments:
             if seg['type'] == 'text':
                 if not first_text_skipped:
                     first_text_skipped = True
-                    continue  # already rendered above
+                    continue
                 content = _latex_to_paragraph(seg['content'])
                 if content:
                     elements.append(Paragraph(content, styles['QText']))
             elif seg['type'] == 'table':
                 hdrs, rws = seg['content']
-                elements.extend(_render_inline_table_pdf(hdrs, rws, styles, W))
+                elements.extend(_render_inline_table_pdf(hdrs, rws, styles, QW))
 
-        # Options (MCQ)
         options = q.get('options', [])
         correct_answer = q.get('correctAnswer', q.get('correct_answer', ''))
 
@@ -882,11 +963,10 @@ def generate_pdf(
                 elif fmt in ('journal_entry', 'ledger', 'trial_balance'):
                     elements.append(Spacer(1, 80))
 
-        # Answer + explanation
         if include_answers and include_explanations:
             raw_table = q.get('answer_table') or q.get('answerTable')
             if raw_table and isinstance(raw_table, dict):
-                elements.extend(_render_answer_table_pdf(raw_table, styles, W))
+                elements.extend(_render_answer_table_pdf(raw_table, styles, QW))
             else:
                 ans = _latex_to_paragraph(correct_answer)
                 elements.append(Paragraph(f"<b>Answer:</b> {ans}", styles['AnswerLine']))
@@ -896,34 +976,69 @@ def generate_pdf(
             if exp:
                 elements.append(Paragraph(f"<b>Explanation:</b> {exp}", styles['Explanation']))
 
-        elements.append(Spacer(1, 4))
         return elements
+
+    # ── Render all questions with card wrapper ──
+    q_num = 0
 
     if has_sec:
         grouped = _group_by_section(questions)
+        last_section_title = None
 
-        for sec_key in SECTION_ORDER:
+        for sec_key in sec_order:
             sec_qs = grouped.get(sec_key, [])
             if not sec_qs:
                 continue
 
-            meta = CBSE_SECTIONS_META.get(sec_key, {})
+            meta = sec_meta_dict.get(sec_key, {})
+            current_title = meta.get('title', sec_key)
 
-            story.append(HRFlowable(width="60%", thickness=1, color=HexColor('#1a1a2e'), spaceBefore=12, spaceAfter=4))
-            story.append(Paragraph(f"<b>{meta.get('title', sec_key)}</b>", styles['SectionHeader']))
+            # Only show section header if title changed (e.g., Part A shown once)
+            if current_title != last_section_title:
+                story.append(HRFlowable(width="60%", thickness=1, color=HexColor('#1a1a2e'), spaceBefore=14, spaceAfter=4))
+                story.append(Paragraph(f"<b>{current_title}</b>", styles['SectionHeader']))
+                last_section_title = current_title
+
             story.append(Paragraph(meta.get('subtitle', ''), styles['SectionSub']))
             story.append(Paragraph(meta.get('instruction', ''), styles['SectionInstruction']))
             story.append(HRFlowable(width="40%", thickness=0.5, color=HexColor('#e5e7eb'), spaceAfter=6))
 
-            for q in sec_qs:
+            # Separate main vs OR questions
+            main_qs = [q for q in sec_qs if not q.get('_is_or', False)]
+            or_qs = [q for q in sec_qs if q.get('_is_or', False)]
+            or_queue = list(or_qs)  # queue of OR alternatives
+
+            for q in main_qs:
                 q_num += 1
                 elements = _render_question(q, q_num)
-                story.extend(elements)
+                card = _wrap_question_card(elements, W)
+                story.extend(card)
+
+                # Check if this question has an OR alternative
+                if or_queue:
+                    or_q = or_queue.pop(0)
+                    # OR separator
+                    story.extend(_render_or_separator(styles, W))
+                    # OR question (same q_num since it's an alternative)
+                    or_elements = _render_question(or_q, q_num)
+                    or_card = _wrap_question_card(or_elements, W)
+                    story.extend(or_card)
+
+            # Any remaining OR questions without a matched main
+            for or_q in or_queue:
+                q_num += 1
+                story.extend(_render_or_separator(styles, W))
+                or_elements = _render_question(or_q, q_num)
+                or_card = _wrap_question_card(or_elements, W)
+                story.extend(or_card)
+
     else:
+        # Non-sectioned: just render all with cards
         for q in questions:
             q_num += 1
             elements = _render_question(q, q_num)
-            story.extend(elements)
+            card = _wrap_question_card(elements, W)
+            story.extend(card)
 
     # ── Answer Key ──
     if include_answers and not include_explanations:
@@ -935,23 +1050,20 @@ def generate_pdf(
         all_qs_ordered = []
         if has_sec:
             grouped = _group_by_section(questions)
-            for sec_key in SECTION_ORDER:
+            for sec_key in sec_order:
                 all_qs_ordered.extend(grouped.get(sec_key, []))
         else:
             all_qs_ordered = questions
 
-        # v6: For table-based questions, render tables in answer key too
         for q in all_qs_ordered:
             q_num_ak += 1
             raw_table = q.get('answer_table') or q.get('answerTable')
             if raw_table and isinstance(raw_table, dict):
-                # Table answer — render full table in answer key
                 story.append(Paragraph(f"<b>Q{q_num_ak}.</b>", styles['QText']))
                 table_elements = _render_answer_table_pdf(raw_table, styles, W)
                 story.extend(table_elements)
                 story.append(Spacer(1, 4))
             else:
-                # Text answer — compact grid (existing logic)
                 correct = _latex_to_paragraph(q.get('correctAnswer', q.get('correct_answer', '')))
                 story.append(Paragraph(f"<b>Q{q_num_ak}.</b> {correct}", styles['QText']))
                 story.append(Spacer(1, 2))
@@ -967,7 +1079,7 @@ def generate_pdf(
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# DOCX Generation (v7 — with inline markdown table support)
+# DOCX Generation (v8 — with question separators)
 # ═══════════════════════════════════════════════════════════════════════
 
 def generate_docx(
@@ -983,6 +1095,7 @@ def generate_docx(
     from docx import Document
     from docx.shared import Pt, Cm, RGBColor
     from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.oxml.ns import qn
 
     doc = Document()
     for section in doc.sections:
@@ -1021,12 +1134,22 @@ def generate_docx(
 
     doc.add_paragraph("━" * 50)
 
+    # ── Detect section type ──
+    sec_order, sec_meta_dict = _get_section_order(questions)
+    has_sec = sec_order is not None
+
     # Instructions
-    has_sec = _has_sections(questions)
     doc.add_heading("General Instructions", level=2)
 
     instructions = ["All questions are compulsory.", "Read each question carefully."]
-    if has_sec:
+    if sec_meta_dict is ACCOUNTANCY_SECTIONS_META:
+        instructions.extend([
+            "This paper is divided into Part A and Part B.",
+            "Part A is compulsory for all candidates.",
+            "Part B has two options — attempt only one.",
+            "Internal choice has been provided in some questions.",
+        ])
+    elif has_sec:
         instructions.extend([
             "This paper has 5 Sections — A, B, C, D, and E.",
             "Section A: 20 questions × 1 mark (MCQ / Assertion-Reason)",
@@ -1047,11 +1170,31 @@ def generate_docx(
     labels = ["A", "B", "C", "D", "E", "F"]
     q_num = 0
 
+    def _add_docx_separator(doc):
+        """Add a thin gray separator line between questions in DOCX."""
+        sep_p = doc.add_paragraph()
+        sep_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        sep_p.paragraph_format.space_before = Pt(2)
+        sep_p.paragraph_format.space_after = Pt(2)
+        r = sep_p.add_run("─" * 60)
+        r.font.size = Pt(6)
+        r.font.color.rgb = RGBColor(209, 213, 219)  # light gray
+
+    def _add_docx_or_separator(doc):
+        """Add an OR separator in DOCX."""
+        sep_p = doc.add_paragraph()
+        sep_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        sep_p.paragraph_format.space_before = Pt(4)
+        sep_p.paragraph_format.space_after = Pt(4)
+        r = sep_p.add_run("─── OR ───")
+        r.font.size = Pt(10)
+        r.font.color.rgb = RGBColor(107, 114, 128)
+        r.bold = True
+
     def _render_q_docx(q, q_num):
         raw_text = q.get('text', '')
         marks = q.get('marks', 1)
 
-        # Q number + first text segment
         segments = _split_text_and_tables(raw_text)
         first_text = ''
         for seg in segments:
@@ -1071,7 +1214,6 @@ def generate_docx(
         rm.font.size = Pt(8)
         rm.font.color.rgb = RGBColor(156, 163, 175)
 
-        # Remaining segments
         first_text_skipped = False
         for seg in segments:
             if seg['type'] == 'text':
@@ -1104,7 +1246,6 @@ def generate_docx(
                 run.bold = True
                 run.font.color.rgb = RGBColor(4, 120, 87)
 
-        # v6: Answer with table support
         if include_answers and include_explanations:
             raw_table = q.get('answer_table') or q.get('answerTable')
             if raw_table and isinstance(raw_table, dict):
@@ -1134,20 +1275,29 @@ def generate_docx(
                 rv2.font.size = Pt(8)
                 rv2.font.color.rgb = RGBColor(107, 114, 128)
 
-        doc.add_paragraph()
-
     if has_sec:
         grouped = _group_by_section(questions)
-        for sec_key in SECTION_ORDER:
+        last_section_title = None
+
+        for sec_key in sec_order:
             sec_qs = grouped.get(sec_key, [])
             if not sec_qs:
                 continue
 
-            sec_meta = CBSE_SECTIONS_META.get(sec_key, {})
+            sec_meta = sec_meta_dict.get(sec_key, {})
+            current_title = sec_meta.get('title', sec_key)
 
-            doc.add_paragraph("━" * 50)
-            h = doc.add_heading(f"{sec_meta.get('title', sec_key)} {sec_meta.get('subtitle', '')}", level=1)
-            h.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            if current_title != last_section_title:
+                doc.add_paragraph("━" * 50)
+                h = doc.add_heading(current_title, level=1)
+                h.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                last_section_title = current_title
+
+            sub_h = doc.add_paragraph()
+            sub_h.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            sub_r = sub_h.add_run(sec_meta.get('subtitle', ''))
+            sub_r.font.size = Pt(9)
+            sub_r.font.color.rgb = RGBColor(107, 114, 128)
 
             inst_p = doc.add_paragraph()
             inst_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -1156,13 +1306,32 @@ def generate_docx(
             inst_r.font.color.rgb = RGBColor(107, 114, 128)
             inst_r.italic = True
 
-            for q in sec_qs:
+            # Separate main vs OR
+            main_qs = [q for q in sec_qs if not q.get('_is_or', False)]
+            or_qs = [q for q in sec_qs if q.get('_is_or', False)]
+            or_queue = list(or_qs)
+
+            for i, q in enumerate(main_qs):
                 q_num += 1
                 _render_q_docx(q, q_num)
+
+                # OR alternative
+                if or_queue:
+                    or_q = or_queue.pop(0)
+                    _add_docx_or_separator(doc)
+                    _render_q_docx(or_q, q_num)
+
+                # Separator between questions (not after last one in section)
+                if i < len(main_qs) - 1 or or_queue:
+                    _add_docx_separator(doc)
+
     else:
-        for q in questions:
+        for i, q in enumerate(questions):
             q_num += 1
             _render_q_docx(q, q_num)
+            # v8: Add separator between questions (not after last)
+            if i < len(questions) - 1:
+                _add_docx_separator(doc)
 
     # Answer Key
     if include_answers and not include_explanations:
@@ -1174,14 +1343,13 @@ def generate_docx(
         all_qs_ordered = []
         if has_sec:
             grouped = _group_by_section(questions)
-            for sec_key in SECTION_ORDER:
+            for sec_key in sec_order:
                 all_qs_ordered.extend(grouped.get(sec_key, []))
         else:
             all_qs_ordered = questions
 
         for q in all_qs_ordered:
             q_num_ak += 1
-            # v6: Table answers in answer key
             raw_table = q.get('answer_table') or q.get('answerTable')
             if raw_table and isinstance(raw_table, dict):
                 p = doc.add_paragraph()
