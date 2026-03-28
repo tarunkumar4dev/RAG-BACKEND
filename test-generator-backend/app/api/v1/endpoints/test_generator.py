@@ -66,7 +66,7 @@ def check_and_record_usage(user_id: str) -> dict:
                     "message": f"Monthly limit reached ({usage['used']}/{usage['limit']} tests). Upgrade your plan.",
                     "used": usage.get("used"),
                     "limit": usage.get("limit"),
-                    "upgrade_url": "/payment",
+                    "upgrade_url": "/pricing",
                 },
             )
 
