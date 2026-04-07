@@ -610,3 +610,9 @@ async def get_test(test_id: str, teacher_id: str):
     except Exception as e:
         logger.error(f"Get test error: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch test.")
+
+
+
+
+
+        

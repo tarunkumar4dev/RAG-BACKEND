@@ -2,9 +2,14 @@
 *.log
 logs/
 ncert-ingestion/pdfs/
+ncert-ingestion/poppler-24.08.0/
 backup_extra_files/
 .env
 *.pyc
 
 .vercel
 .env*.local
+answer_check/.env
+answer_check/sheets/*.jpg
+answer_check/sheets/*.pdf
+answer_check/results/

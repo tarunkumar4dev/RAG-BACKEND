@@ -1,0 +1,327 @@
+{
+  "answer_sheet_medium": {
+    "sheet_name": "answer_sheet",
+    "difficulty": "medium",
+    "time_seconds": 276.4432215690613,
+    "result": {
+      "student_answers": [
+        {
+          "q_no": 1,
+          "extracted_answer": "(C) 2,2,4.",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option selected."
+        },
+        {
+          "q_no": 2,
+          "extracted_answer": "(D) Fe2O3 + 3CO → 2Fe + 3CO2",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option selected."
+        },
+        {
+          "q_no": 3,
+          "extracted_answer": "(A) Calcium Phosphate",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option selected."
+        },
+        {
+          "q_no": 4,
+          "extracted_answer": "(C) 7",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option selected."
+        },
+        {
+          "q_no": 5,
+          "extracted_answer": "(B) Al, Al2O3",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option selected."
+        },
+        {
+          "q_no": 6,
+          "extracted_answer": "(D) Translocation",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option selected."
+        },
+        {
+          "q_no": 7,
+          "extracted_answer": "(C) Receptors in skin → Sensory neuron → Relay neuron → Motor neuron → Effector muscle in arm",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option selected."
+        },
+        {
+          "q_no": 8,
+          "extracted_answer": "(A) NOR",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option selected (assuming 'NOR' is the intended answer for 'Nose')."
+        },
+        {
+          "q_no": 9,
+          "extracted_answer": "(C) It has a very small surface area for glucose and oxygen to pass from mother to embryo.",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option selected."
+        },
+        {
+          "q_no": 10,
+          "extracted_answer": "(A) (i) & (ii)",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option selected."
+        },
+        {
+          "q_no": 11,
+          "extracted_answer": "(C) The brightness of the image will be reduce",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option selected."
+        },
+        {
+          "q_no": 12,
+          "extracted_answer": "(B) Refraction, dispersion, and internal reflection",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option selected."
+        },
+        {
+          "q_no": 13,
+          "extracted_answer": "(A) Red",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option selected."
+        },
+        {
+          "q_no": 14,
+          "extracted_answer": "(C) A solenoid",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option selected."
+        },
+        {
+          "q_no": 15,
+          "extracted_answer": "(A) both pointing into the plane of paper",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option selected."
+        },
+        {
+          "q_no": 16,
+          "extracted_answer": "(D) cropland ecosystem",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option selected."
+        },
+        {
+          "q_no": 17,
+          "extracted_answer": "(A) Both (A) Assertion & (R) Reason are true and R is correct explanation of A",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option selected."
+        },
+        {
+          "q_no": 18,
+          "extracted_answer": "(D) A is false but R is true",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option selected."
+        },
+        {
+          "q_no": 19,
+          "extracted_answer": "(B) Both Assertion (A) and Reason (R) is correct, but Reason (R) is NOT correct explanation of Assertion (A)",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option selected."
+        },
+        {
+          "q_no": 20,
+          "extracted_answer": "(B) Both Assertion (A) and Reason (R) are true, but Reason (R) is NOT correct explanation of Assertion (A)",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option selected."
+        },
+        {
+          "q_no": 21,
+          "extracted_answer": "(a) *Copper oxide is formed. Its colour is Black. *2Cu + O2 Heat -> 2CuO.",
+          "marks_awarded": 2,
+          "max_marks": 2,
+          "confidence": "high",
+          "feedback": "Correctly identified Copper Oxide, its black color, and provided the correct balanced equation."
+        },
+        {
+          "q_no": 22,
+          "extracted_answer": "(1) The intermolecular forces of attraction between carbon compounds is weak. Due to this, they have low melting & boiling point. (2) The carbon compounds do not contain ions and they form covalent bonds. As they don't conduct electricity.",
+          "marks_awarded": 2,
+          "max_marks": 2,
+          "confidence": "high",
+          "feedback": "Correctly explained low melting/boiling points due to weak intermolecular forces and non-conductivity due to covalent bonding (no ions)."
+        },
+        {
+          "q_no": 23,
+          "extracted_answer": "(a) (1) Cramps are caused due to formation of lactic acid in muscle cells. (2) Due to lack of oxygen, another pathway for breakdown of glucose is chosen. This is anaerobic respiration as performed in absence of oxygen. The products are different from aerobic respiration i.e. Lactic Acid.",
+          "marks_awarded": 2,
+          "max_marks": 2,
+          "confidence": "high",
+          "feedback": "Correctly explained the cause of cramps (lactic acid) and the role of anaerobic respiration due to lack of oxygen."
+        },
+        {
+          "q_no": 24,
+          "extracted_answer": "(1) Plasmodium reproduce by multiple fission. In this process, a single cell of plasmodium forms a protective coating (cyst) during unfavourable condition. The cell divides multiple times at once producing several daughter cells. (2) Leishmania reproduce by binary fission. In this process, the unicellular organism Leishmania divides into two daughter cells. This happens by division of nucleus and cytoplasm of the cell longitudinally.",
+          "marks_awarded": 2,
+          "max_marks": 2,
+          "confidence": "high",
+          "feedback": "Correctly identified and described reproduction in Plasmodium (multiple fission) and Leishmania (binary fission)."
+        },
+        {
+          "q_no": 25,
+          "extracted_answer": "(a) The convex lens converges the sunlight by refracting (bending) the rays of sunlight & bringing it to one point. Thus, the rays come together to produce heat & burn paper. (b) Principal focus. Bright spot represents the image of sun.",
+          "marks_awarded": 2,
+          "max_marks": 2,
+          "confidence": "high",
+          "feedback": "Correctly explained how a convex lens converges sunlight to produce heat and burn paper. Part (b) is also correct and relevant."
+        },
+        {
+          "q_no": 26,
+          "extracted_answer": "Q = 500C I = 25mA = 25/1000 A t = ? I = Q/t => t = Q/I t = 500C / (25/1000 A) = 500 * 1000 / 25 = 20 * 1000 = 20000 s.",
+          "marks_awarded": 2,
+          "max_marks": 2,
+          "confidence": "high",
+          "feedback": "Correct formula, substitution, and final answer for the calculation."
+        },
+        {
+          "q_no": 27,
+          "extracted_answer": "(1) Fe(s) + CuSO4(aq) → FeSO4(aq) + Cu(s) (2) Displacement reaction. In this reaction, a more reactive element displaces a less reactive element from its compound (solution). (3) Zinc (Zn) & Aluminium (Al).",
+          "marks_awarded": 3,
+          "max_marks": 3,
+          "confidence": "high",
+          "feedback": "Correct equation, definition of displacement reaction, and two valid examples."
+        },
+        {
+          "q_no": 28,
+          "extracted_answer": "(1) Cinnabar. Mercury is found in its sulphide ore in nature. (2) 2HgS + 3O2 → 2HgO + 2SO2 2HgO → Heat → 2Hg + O2 The condition required is heat. In first reaction presence of oxygen is also needed to oxidise mercury.",
+          "marks_awarded": 3,
+          "max_marks": 3,
+          "confidence": "high",
+          "feedback": "Correctly identified Cinnabar and provided both balanced equations for mercury extraction."
+        },
+        {
+          "q_no": 29,
+          "extracted_answer": "(i) Growth Hormone is secreted by pituitary gland. This helps in growth and development of bones and muscles in our body. Hence, it promotes the growth of height. (ii) Thyroxine Hormone is secreted by Thyroid gland. It regulates the metabolism of carbohydrates, protein and fats in the body.",
+          "marks_awarded": 3,
+          "max_marks": 3,
+          "confidence": "high",
+          "feedback": "Correctly identified the gland and function for both Growth Hormone and Thyroxine."
+        },
+        {
+          "q_no": 30,
+          "extracted_answer": "(a) F1 progeny plants were all tall. Their gene combination is (Tt). (b) Gene for shortness was repressed in plants of F1 progeny because they were recessive gene. Recessive gene 't' show appearance of a trait only in presence of another identical gene. In this case, a dominant gene 'T' for tallness was present. Hence, gene for shortness could not be expressed. (c) 3:1 for tall plants : short plants. The conclusion of experiment is the traits are controlled by two copies of gene, each acquired from one parent. The trait only one copy shows its appearance in the progeny, other is repressed. The phenotype are two types of genes, one dominant and other recessive. However, the repressed copy of gene may show in its appearance in next generation, if another identical copy is present.",
+          "marks_awarded": 3,
+          "max_marks": 3,
+          "confidence": "high",
+          "feedback": "Correctly stated F1 progeny, explained repression of recessive trait, and identified the 3:1 ratio."
+        },
+        {
+          "q_no": 31,
+          "extracted_answer": "(a) (1) The splitting of white light into its component colours due to dependence of wavelength refractive index on wavelength of light is called dispersion. (b) Dispersion of white light is caused by refraction. The white light has is mixture of seven colours i.e. VIBGYOR. Since the refractive index of a medium is different for different wavelengths of light, the seven components of white light bends at different angles on entering another medium. As a result, they separate out and appear as distinct colours. (c) Diagram (drawing of prism with dispersion).",
+          "marks_awarded": 0,
+          "max_marks": 3,
+          "confidence": "high",
+          "feedback": "The student answered a question about 'Dispersion of white light' which is not the intended question for Q31 as per the answer key (Hypermetropia). No marks awarded for content mismatch."
+        },
+        {
+          "q_no": 32,
+          "extracted_answer": "(a) When bundle of soft iron is placed inside a coil of a solenoid carrying current, then the bundle of soft iron is magnetised due to magnetic field produced by the steady current. The device obtained is electromagnet. It is called so because the magnet is obtained by magnetic field due to an electric current. (b) The magnetic field lines are & mostly straight and parallel to each other indicating that there is a uniform magnetic field inside solenoid. (Diagram also present).",
+          "marks_awarded": 2.5,
+          "max_marks": 2.5,
+          "confidence": "high",
+          "feedback": "Correctly explained the formation of an electromagnet and the nature of the magnetic field inside a solenoid."
+        },
+        {
+          "q_no": 33,
+          "extracted_answer": "(1) Food chain is a straight series of organisms that feeds on one another. It is generally depicted by a straight line. However, one organism is fed by several other kinds of organisms which in turn by are fed by many more organisms. So, A branched chain of food chain A food chain with several branches showing the flow of energy to different organisms from one is called food web. (2) If population of deer decreases, then the population of organisms in 3rd trophic level will (Tigers) will decrease as they'll have less food to eat and hence they'll die. In contrast, the population of organisms in first trophic level (grass) will increase dramatically as there will be less organisms to feed on them.",
+          "marks_awarded": 3,
+          "max_marks": 3,
+          "confidence": "high",
+          "feedback": "Correctly defined food chain and food web, and explained the impact of deer population decrease on tigers and grass."
+        },
+        {
+          "q_no": 34,
+          "extracted_answer": "(a) (i) crystals of ferrous sulphate has water of crystallisation. These are present as an essential part of crystal in fixed numbers per unit formula of the compound. On heating these molecules of water comes out of the crystals and becomes free water which can be seen in the test tube. FeSO4.7H2O → Δ FeSO4 + 7H2O. (ii) Green colour of FeSO4 crystal will fade and the crystal will become white in colour. (iii) Seven molecules. (I) CuSO4.5H2O (II) Na2CO3.10H2O (iv) When gypsum is heated at 100°C (373K), then it loses 1½ molecule of water of crystallisation to become plaster of paris with only ½ molecule of water of crystallisation. CaSO4.2H2O --100°C--> CaSO4.½H2O + 1½H2O",
+          "marks_awarded": 4.5,
+          "max_marks": 5,
+          "confidence": "high",
+          "feedback": "Well-explained points on water of crystallization, color change, number of water molecules, examples, and gypsum conversion. Missed mentioning the uses of Plaster of Paris."
+        },
+        {
+          "q_no": 35,
+          "extracted_answer": "(b) (i) Lime water turns milky due to formation of a calcium carbonate, white precipitate in it. Ca(OH)2 + CO2 → CaCO3 + H2O Now, in diagram (1), the air atmospheric air is passed into the solution. Since, atmospheric air contains a very small percentage of CO2, the solution turns milky slowly and takes a long time. While, air exhaled from mouth [diagram (II)] has a large percentage of CO2 and hence it turns the lime water milky faster (comparatively). (ii) Diagram (drawing of stomata with guard cells, open stomatal pore, chloroplast).",
+          "marks_awarded": 0,
+          "max_marks": 5,
+          "confidence": "high",
+          "feedback": "The student answered a question about 'Lime water test for CO2 and Stomata' which is not the intended question for Q35 as per the answer key (Photosynthesis experiment). No marks awarded for content mismatch."
+        },
+        {
+          "q_no": 36,
+          "extracted_answer": "(a) (i) Functions of stomata: (1) It helps in gaseous exchange of oxygen and carbon dioxide for photosynthesis and respiration. (2) It helps to remove excess water from plant, during transpiration. (ii) V = IR => V ∝ I. So, if voltage is decreased to one-third, then current will also become one-third of its initial value. *Ohm's Law: The voltage across the two terminals of a metallic conductor wire is proportional to the current flowing through it provided the temperature remains same.",
+          "marks_awarded": 0,
+          "max_marks": 5,
+          "confidence": "high",
+          "feedback": "The student answered a question about 'Functions of stomata and Ohm's Law definition' which is not the intended question for Q36 as per the answer key (Circuit numerical problem). No marks awarded for content mismatch."
+        },
+        {
+          "q_no": 37,
+          "extracted_answer": "(a) Hydrocarbons are the organic compounds which contain only hydrogen and carbon in it. (b) (1) Catenation or self combination. (2) Tetravalency. (c) (i) (1) Aldehyde -> -C=O-H (2) Ketone -> -C=O- (c) (ii) CH3COOH + C2H5OH --conc.H2SO4--> CH3COOC2H5 + H2O",
+          "marks_awarded": 0,
+          "max_marks": 6,
+          "confidence": "high",
+          "feedback": "The student answered a question about 'Chemistry concepts (Hydrocarbons, Catenation, Functional groups, Esterification)' which is not the intended question for Q37 as per the answer key (Pollination and plant reproduction). No marks awarded for content mismatch."
+        },
+        {
+          "q_no": 38,
+          "extracted_answer": "(a) *Self pollination occurs when the pollen grain is transferred from anther to stigma of the same flower. *Cross pollination takes place when the pollen grain is transferred from anther of one flower to stigma of another flower of same species. (b) *Corolla made of colourful petals attract insects for pollination. *All the petals fall off and detaches from plant after fertilisation. (c) (i) Plumule is known as future shoot. and Radicle is known as future root. *Cotyledon has stored food inside it. This is necessary for germination of seed and keeping seed alive in dormant state.",
+          "marks_awarded": 0,
+          "max_marks": 6,
+          "confidence": "high",
+          "feedback": "The student answered a question about 'Pollination and plant reproduction' which is not the intended question for Q38 as per the answer key (Mirror concepts). No marks awarded for content mismatch."
+        },
+        {
+          "q_no": 39,
+          "extracted_answer": "(a) Principal axis is a straight line passing from the pole of concave mirror and its centre of curvature. (b) Focal length (f) = 10cm. R = 2f => R = 2x10 => R = 20cm. (c) Convex mirror (diagram).",
+          "marks_awarded": 4,
+          "max_marks": 6,
+          "confidence": "high",
+          "feedback": "This answer corresponds to Answer Key Q38. Correctly defined principal axis and calculated radius of curvature. The convex mirror diagram is correct. However, the numerical part (c)(i) from the answer key was not attempted."
+        }
+      ],
+      "total_marks": 58,
+      "max_marks": 71.5,
+      "overall_remarks": "The student demonstrated strong knowledge in objective and short answer questions, achieving high marks in those sections. However, there is a significant discrepancy in the long answer questions (Q31, Q35, Q36, Q37, Q38) where the student answered questions on topics different from those specified in the answer key. This suggests a potential issue with question paper numbering or interpretation. For the questions that matched the answer key's content, the answers were generally accurate and well-explained.",
+      "readability_score": "good"
+    }
+  }
+}
