@@ -11,30 +11,36 @@ class Settings:
     SUPABASE_ANON_KEY: str = os.getenv("SUPABASE_ANON_KEY", "")
     DATABASE_URL: str = os.getenv("DATABASE_URL", "")
 
-    # ── Gemini ──────────────────────────────────────────────────────
+    # ── Gemini — COST OPTIMIZED ─────────────────────────────────────
+    # Switched from 2.5-flash → 2.5-flash-lite (6x cheaper output)
+    # Fallback changed from 2.5-pro → 2.5-flash (never Pro — 25x cheaper output)
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
-    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
-    GEMINI_GEN_MODEL: str = os.getenv("GEMINI_GEN_MODEL", "gemini-2.5-flash")
-    GEMINI_FALLBACK_MODEL: str = os.getenv("GEMINI_FALLBACK_MODEL", "gemini-2.5-pro")
-    GEMINI_VAL_MODEL: str = os.getenv("GEMINI_VAL_MODEL", "gemini-2.5-flash")
+    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite")
+    GEMINI_GEN_MODEL: str = os.getenv("GEMINI_GEN_MODEL", "gemini-2.5-flash-lite")
+    GEMINI_FALLBACK_MODEL: str = os.getenv("GEMINI_FALLBACK_MODEL", "gemini-2.5-flash")
+    GEMINI_VAL_MODEL: str = os.getenv("GEMINI_VAL_MODEL", "gemini-2.5-flash-lite")
+
+    # Thinking budget — CRITICAL for cost control
+    # 0 = no thinking (cheapest), -1 = unlimited (expensive)
+    GEMINI_THINKING_BUDGET: int = int(os.getenv("GEMINI_THINKING_BUDGET", "0"))
 
     # ── Generation (cost optimized) ─────────────────────────────────
-    BATCH_SIZE: int = int(os.getenv("BATCH_SIZE", "6"))
+    BATCH_SIZE: int = int(os.getenv("BATCH_SIZE", "10"))  # 6 → 10: fewer API calls
     BATCH_DELAY: int = int(os.getenv("BATCH_DELAY", "2"))
     OVERSHOOT_PER_CHAPTER: int = int(os.getenv("OVERSHOOT_PER_CHAPTER", "2"))
-    GENERATION_TEMPERATURE: float = 0.55  # Slightly higher for variety
-    MAX_OUTPUT_TOKENS: int = int(os.getenv("MAX_OUTPUT_TOKENS", "12288"))  # Increased for section-based papers
-    CONTEXT_CHARS_PER_CHUNK: int = int(os.getenv("CONTEXT_CHARS_PER_CHUNK", "500"))  # More context per chunk
-    MAX_CONTEXT_CHUNKS: int = int(os.getenv("MAX_CONTEXT_CHUNKS", "8"))  # More chunks
+    GENERATION_TEMPERATURE: float = 0.55
+    MAX_OUTPUT_TOKENS: int = int(os.getenv("MAX_OUTPUT_TOKENS", "4096"))  # 12288 → 4096: cap runaway output
+    CONTEXT_CHARS_PER_CHUNK: int = int(os.getenv("CONTEXT_CHARS_PER_CHUNK", "400"))  # 500 → 400: less input
+    MAX_CONTEXT_CHUNKS: int = int(os.getenv("MAX_CONTEXT_CHUNKS", "5"))  # 8 → 5: 30% less input
 
     # ── RAG ─────────────────────────────────────────────────────────
-    MAX_CHUNKS: int = int(os.getenv("MAX_CHUNKS", "15"))
+    MAX_CHUNKS: int = int(os.getenv("MAX_CHUNKS", "12"))  # 15 → 12
     SIMILARITY_THRESHOLD: float = 0.65
     EMBEDDING_MODEL: str = "all-MiniLM-L6-v2"
     EMBEDDING_DIM: int = 384
 
     # ── Pipeline ────────────────────────────────────────────────────
-    MAX_ITERATIONS: int = 3
+    MAX_ITERATIONS: int = 2  # 3 → 2: one less retry saves tokens
     MAX_QUESTIONS_PER_REQUEST: int = 100
     DEDUP_THRESHOLD: float = 0.82
 
@@ -53,7 +59,7 @@ class Settings:
 
     # ── App ─────────────────────────────────────────────────────────
     APP_NAME: str = "A4AI Test Generator"
-    APP_VERSION: str = "2.1.0"
+    APP_VERSION: str = "2.2.0"  # bumped for cost optimization
     ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
     DEBUG: bool = ENVIRONMENT == "development"
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")

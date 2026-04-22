@@ -725,7 +725,7 @@ def _parse_batch(raw: str, chapter: ChapterSection, request: TestGenerationReque
 
 
 # ---------------------------------------------------------------------------
-# Gemini Call with Retry (FIX: Added response_mime_type="application/json")
+# Gemini Call with Retry (FIXED: Added thinking_budget=0 to prevent token burn)
 # ---------------------------------------------------------------------------
 def _is_retryable(error_str: str) -> bool:
     return any(kw in error_str.upper() for kw in (k.upper() for k in RETRYABLE_KEYWORDS))
@@ -733,9 +733,13 @@ def _is_retryable(error_str: str) -> bool:
 
 def _call_gemini(client, prompt, model):
     last_exc = None
+    # Get thinking budget from settings, default to 0
+    thinking_budget = getattr(settings, 'GEMINI_THINKING_BUDGET', 0)
+    
     for attempt in range(MAX_RETRIES):
         try:
             t0 = time.time()
+            # ⭐ FIX: Added thinking_config to prevent 2-3x token burn
             resp = client.models.generate_content(
                 model=model,
                 contents=prompt,
@@ -743,7 +747,11 @@ def _call_gemini(client, prompt, model):
                     temperature=settings.GENERATION_TEMPERATURE,
                     top_p=0.92,
                     max_output_tokens=settings.MAX_OUTPUT_TOKENS,
-                    response_mime_type="application/json",  # ← ADDED: Force JSON output
+                    response_mime_type="application/json",
+                    # ⭐ CRITICAL: This saves 2-3x on output tokens
+                    thinking_config=genai_types.ThinkingConfig(
+                        thinking_budget=thinking_budget
+                    ),
                 ),
             )
             raw = (resp.text or "").strip()
