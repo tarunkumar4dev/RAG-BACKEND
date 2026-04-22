@@ -29,7 +29,7 @@ class Settings:
     BATCH_DELAY: int = int(os.getenv("BATCH_DELAY", "2"))
     OVERSHOOT_PER_CHAPTER: int = int(os.getenv("OVERSHOOT_PER_CHAPTER", "2"))
     GENERATION_TEMPERATURE: float = 0.55
-    MAX_OUTPUT_TOKENS: int = int(os.getenv("MAX_OUTPUT_TOKENS", "4096"))  # 12288 → 4096: cap runaway output
+    MAX_OUTPUT_TOKENS: int = int(os.getenv("MAX_OUTPUT_TOKENS", "8192")) 
     CONTEXT_CHARS_PER_CHUNK: int = int(os.getenv("CONTEXT_CHARS_PER_CHUNK", "400"))  # 500 → 400: less input
     MAX_CONTEXT_CHUNKS: int = int(os.getenv("MAX_CONTEXT_CHUNKS", "5"))  # 8 → 5: 30% less input
 
