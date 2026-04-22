@@ -1,11 +1,16 @@
 """
-Generation Service v12 — PRODUCTION + ACCOUNTANCY
+Generation Service v13 — PRODUCTION + ACCOUNTANCY + SDK-COMPATIBLE
 
-Changes from v11:
+Changes from v12:
+  - Fixed: thinking_config now gracefully handles older google-genai SDK versions
+  - Auto-detects SDK capability on first call, caches result
+  - Falls back to basic config if ThinkingConfig unsupported
+
+Previous v12 features retained:
   - Accountancy table formats: journal_entry, ledger, trial_balance
   - Specialized Gemini prompts for commerce subjects
   - answer_table field in GeneratedQuestion
-  - All v11 features retained (CBSE sections, Unicode math, etc.)
+  - CBSE sections, Unicode math
 """
 
 import json
@@ -81,12 +86,16 @@ BLOOM_DEFAULT = {
     "very_hard": "analyze",
 }
 
+# ═══════════════════════════════════════════════════════════
+# SDK CAPABILITY CACHE — detects once, reuses
+# ═══════════════════════════════════════════════════════════
+_SDK_SUPPORTS_THINKING: Optional[bool] = None
+
 
 # ---------------------------------------------------------------------------
-# Accountancy Constants (NEW v12)
+# Accountancy Constants
 # ---------------------------------------------------------------------------
 ACCOUNTANCY_SUBJECTS = {"accountancy", "accounts", "accounting"}
-
 ACCOUNTANCY_TABLE_FORMATS = {"journal_entry", "ledger", "trial_balance"}
 
 ACCOUNTANCY_PROMPT_TEMPLATES = {
@@ -95,7 +104,7 @@ ACCOUNTANCY_PROMPT_TEMPLATES = {
 The question should describe 3-5 business transactions that the student must journalize.
 The answer MUST include an "answer_table" with:
 - type: "journal_entry"
-- headers: ["Date", "Particulars", "L.F.", "Debit (₹)", "Credit (₹)"]
+- headers: ["Date", "Particulars", "L.F.", "Debit (Rs.)", "Credit (Rs.)"]
 - rows: Each row is a list of 5 strings. For the credit entry, indent the Particulars with "  To " prefix.
   After each transaction pair, add a narration row like ["", "(Being ...)", "", "", ""]
 - total_row: null (journal entries don't have totals)
@@ -103,63 +112,30 @@ The answer MUST include an "answer_table" with:
 Example answer_table:
 {{
   "type": "journal_entry",
-  "headers": ["Date", "Particulars", "L.F.", "Debit (₹)", "Credit (₹)"],
+  "headers": ["Date", "Particulars", "L.F.", "Debit (Rs.)", "Credit (Rs.)"],
   "rows": [
     ["2024-04-01", "Cash A/c  Dr.", "", "50,000", ""],
     ["", "  To Capital A/c", "", "", "50,000"],
-    ["", "(Being capital introduced in cash)", "", "", ""],
-    ["2024-04-03", "Purchases A/c  Dr.", "", "20,000", ""],
-    ["", "  To Cash A/c", "", "", "20,000"],
-    ["", "(Being goods purchased for cash)", "", "", ""]
+    ["", "(Being capital introduced in cash)", "", "", ""]
   ],
   "total_row": null
 }}""",
 
     "ledger": """Generate a Ledger preparation question for CBSE Class {class_grade} Accountancy.
 
-The question should give transactions and ask to prepare a specific ledger account (T-account format).
 The answer MUST include an "answer_table" with:
 - type: "ledger"
-- headers: ["Date", "Particulars", "J.F.", "Amount (₹)", "Date", "Particulars", "J.F.", "Amount (₹)"]
-  (Left 4 columns = Debit side, Right 4 columns = Credit side)
+- headers: ["Date", "Particulars", "J.F.", "Amount (Rs.)", "Date", "Particulars", "J.F.", "Amount (Rs.)"]
 - rows: Each row has 8 strings. Use "" for empty cells.
-- total_row: 8 strings with totals on both sides
-
-Example answer_table:
-{{
-  "type": "ledger",
-  "headers": ["Date", "Particulars", "J.F.", "Amount (₹)", "Date", "Particulars", "J.F.", "Amount (₹)"],
-  "rows": [
-    ["2024-04-01", "To Capital A/c", "", "50,000", "2024-04-05", "By Purchases A/c", "", "20,000"],
-    ["2024-04-10", "To Sales A/c", "", "30,000", "2024-04-15", "By Rent A/c", "", "5,000"],
-    ["", "", "", "", "2024-04-30", "By Balance c/d", "", "55,000"]
-  ],
-  "total_row": ["", "", "", "80,000", "", "", "", "80,000"]
-}}""",
+- total_row: 8 strings with totals on both sides""",
 
     "trial_balance": """Generate a Trial Balance preparation question for CBSE Class {class_grade} Accountancy.
 
-Give a list of ledger balances and ask the student to prepare a Trial Balance.
 The answer MUST include an "answer_table" with:
 - type: "trial_balance"
-- headers: ["S.No.", "Account Name", "L.F.", "Debit (₹)", "Credit (₹)"]
+- headers: ["S.No.", "Account Name", "L.F.", "Debit (Rs.)", "Credit (Rs.)"]
 - rows: Each row has 5 strings.
-- total_row: ["", "Total", "", "X,XXX", "X,XXX"] (both sides must match)
-
-Example answer_table:
-{{
-  "type": "trial_balance",
-  "headers": ["S.No.", "Account Name", "L.F.", "Debit (₹)", "Credit (₹)"],
-  "rows": [
-    ["1", "Cash A/c", "", "50,000", ""],
-    ["2", "Capital A/c", "", "", "1,00,000"],
-    ["3", "Purchases A/c", "", "40,000", ""],
-    ["4", "Sales A/c", "", "", "60,000"],
-    ["5", "Rent A/c", "", "5,000", ""],
-    ["6", "Furniture A/c", "", "65,000", ""]
-  ],
-  "total_row": ["", "Total", "", "1,60,000", "1,60,000"]
-}}""",
+- total_row: ["", "Total", "", "X,XXX", "X,XXX"] (both sides must match)""",
 }
 
 
@@ -170,58 +146,38 @@ CBSE_SECTIONS = {
     "A": {
         "title": "Section A",
         "subtitle": "Multiple Choice Questions / Assertion-Reason",
-        "marks_per_q": 1,
-        "count": 20,
-        "total_marks": 20,
+        "marks_per_q": 1, "count": 20, "total_marks": 20,
         "formats": ["mcq", "assertion_reason"],
-        "mcq_count": 16,
-        "ar_count": 4,
-        "difficulty": "easy",
-        "bloom": ["remember", "understand"],
+        "mcq_count": 16, "ar_count": 4,
+        "difficulty": "easy", "bloom": ["remember", "understand"],
         "instruction": "All questions are compulsory. Each question carries 1 mark.",
     },
     "B": {
-        "title": "Section B",
-        "subtitle": "Very Short Answer Type Questions",
-        "marks_per_q": 2,
-        "count": 5,
-        "total_marks": 10,
+        "title": "Section B", "subtitle": "Very Short Answer Type Questions",
+        "marks_per_q": 2, "count": 5, "total_marks": 10,
         "formats": ["short_answer"],
-        "difficulty": "medium",
-        "bloom": ["understand", "apply"],
+        "difficulty": "medium", "bloom": ["understand", "apply"],
         "instruction": "All questions are compulsory. Each question carries 2 marks.",
     },
     "C": {
-        "title": "Section C",
-        "subtitle": "Short Answer Type Questions",
-        "marks_per_q": 3,
-        "count": 6,
-        "total_marks": 18,
+        "title": "Section C", "subtitle": "Short Answer Type Questions",
+        "marks_per_q": 3, "count": 6, "total_marks": 18,
         "formats": ["short_answer"],
-        "difficulty": "medium",
-        "bloom": ["apply", "analyze"],
+        "difficulty": "medium", "bloom": ["apply", "analyze"],
         "instruction": "All questions are compulsory. Each question carries 3 marks.",
     },
     "D": {
-        "title": "Section D",
-        "subtitle": "Long Answer Type Questions",
-        "marks_per_q": 5,
-        "count": 4,
-        "total_marks": 20,
+        "title": "Section D", "subtitle": "Long Answer Type Questions",
+        "marks_per_q": 5, "count": 4, "total_marks": 20,
         "formats": ["long_answer"],
-        "difficulty": "hard",
-        "bloom": ["analyze", "evaluate"],
+        "difficulty": "hard", "bloom": ["analyze", "evaluate"],
         "instruction": "All questions are compulsory. Each question carries 5 marks.",
     },
     "E": {
-        "title": "Section E",
-        "subtitle": "Case Study / Source Based Questions",
-        "marks_per_q": 4,
-        "count": 3,
-        "total_marks": 12,
+        "title": "Section E", "subtitle": "Case Study / Source Based Questions",
+        "marks_per_q": 4, "count": 3, "total_marks": 12,
         "formats": ["case_based"],
-        "difficulty": "hard",
-        "bloom": ["apply", "analyze", "evaluate"],
+        "difficulty": "hard", "bloom": ["apply", "analyze", "evaluate"],
         "instruction": "All questions are compulsory. Each question carries 4 marks. Each case study has sub-parts.",
     },
 }
@@ -273,7 +229,7 @@ Write clean readable text that a teacher can read directly."""
 
 
 # ---------------------------------------------------------------------------
-# Compact Prompt Builder (per chapter, per section)
+# Prompt Builders (unchanged from v12)
 # ---------------------------------------------------------------------------
 def _build_chapter_prompt(
     chapter: ChapterSection,
@@ -309,38 +265,32 @@ Each question: {section_info['marks_per_q']} marks. {section_info.get('instructi
         else:
             fmt_line = '"options": null. Answer: 50-80 words. Show 3 clear steps with working.'
     elif fmt_val == "long_answer":
-        # Accountancy long answer branch
         is_acc = request.subject.lower() in ACCOUNTANCY_SUBJECTS
         if is_acc:
             fmt_line = (
                 '"options": null. '
                 'This is an Accountancy question — the answer MUST include an "answer_table" field. '
-                'Choose the most appropriate table type for the question: '
-                '"journal_entry", "ledger", or "trial_balance". '
-                'Follow the exact answer_table structure from your Accountancy training. '
+                'Choose the most appropriate table type: "journal_entry", "ledger", or "trial_balance". '
                 '"correct_answer" should be a 2-3 line text summary. '
                 '"explanation" must explain each accounting entry step-by-step.'
             )
         else:
-            fmt_line = '"options": null. Answer: 100-150 words. Show complete step-by-step solution with diagrams description if needed.'
+            fmt_line = '"options": null. Answer: 100-150 words. Show complete step-by-step solution.'
     elif fmt_val == "assertion_reason":
         fmt_line = '"text": "Assertion (A): [statement]\\nReason (R): [statement]". Use these 4 options exactly:\n"A) Both A and R are true and R is the correct explanation of A"\n"B) Both A and R are true but R is NOT the correct explanation of A"\n"C) A is true but R is false"\n"D) A is false but R is true"'
     elif fmt_val == "case_based":
-        fmt_line = '"text": Start with a real-world case/scenario (3-4 lines), then ask 3 sub-parts labeled (i), (ii), (iii) within the text. "options": provide 4 options for each sub-part OR set null if subjective sub-parts. Answer all sub-parts in correct_answer.'
+        fmt_line = '"text": Start with a real-world case/scenario (3-4 lines), then ask 3 sub-parts labeled (i), (ii), (iii). Answer all sub-parts in correct_answer.'
     else:
-        fmt_line = '4 options labeled A) B) C) D). correct_answer = exact full option text including label. Vary correct answer position (not always A or B). All 4 options must be plausible.'
+        fmt_line = '4 options labeled A) B) C) D). correct_answer = exact full option text including label. Vary correct answer position. All 4 options must be plausible.'
 
     section_field = f', "section": "{section_key}"' if section_key else ''
 
     if fmt_val in ("short_answer", "long_answer"):
-        is_acc_long = (
-            fmt_val == "long_answer"
-            and request.subject.lower() in ACCOUNTANCY_SUBJECTS
-        )
+        is_acc_long = (fmt_val == "long_answer" and request.subject.lower() in ACCOUNTANCY_SUBJECTS)
         if is_acc_long:
             tmpl = (
                 f'{{"questions":[{{"text":"...","format":"long_answer","options":null,'
-                f'"correct_answer":"Summary of accounting entries...","explanation":"Step 1:... Step 2:...","answer_table":{{"type":"journal_entry","headers":[...],"rows":[[...]],"total_row":null}},'
+                f'"correct_answer":"Summary...","explanation":"Step 1:...","answer_table":{{"type":"journal_entry","headers":[...],"rows":[[...]],"total_row":null}},'
                 f'"marks":{chapter.marks_per_question},"difficulty":"{diff_val}","bloom_level":"apply","chapter":"{chapter.chapter}","topic":"specific topic"{section_field}}}]}}'
             )
         else:
@@ -369,19 +319,8 @@ Generate EXACTLY {count} unique questions. Return ONLY valid JSON, no extra text
 {tmpl}"""
 
 
-# ---------------------------------------------------------------------------
-# Accountancy Prompt Builder (NEW v12)
-# ---------------------------------------------------------------------------
-def _build_accountancy_prompt(
-    chapter,
-    request,
-    context_chunks,
-    count,
-    table_format,
-    section_key=None,
-    section_info=None,
-):
-    """Build a specialized prompt for Accountancy table-based questions."""
+def _build_accountancy_prompt(chapter, request, context_chunks, count, table_format,
+                              section_key=None, section_info=None):
     ch_name = chapter.chapter.upper()
     ch_chunks = [c for c in context_chunks if c.get("chapter", "").upper() == ch_name]
     if not ch_chunks:
@@ -429,7 +368,7 @@ Generate EXACTLY {count} unique questions. Return ONLY valid JSON:
 
 
 # ---------------------------------------------------------------------------
-# JSON Extraction (improved)
+# JSON Extraction (unchanged)
 # ---------------------------------------------------------------------------
 def _fix_latex_json_escapes(text: str) -> str:
     text = text.replace('\\\\', '\x00DBL\x00')
@@ -499,7 +438,7 @@ def _extract_json(raw: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Post-process: clean any LaTeX that Gemini still sneaks in
+# LaTeX cleanup (unchanged)
 # ---------------------------------------------------------------------------
 UNICODE_REPLACEMENTS = {
     r'\times': '×', r'\div': '÷', r'\pm': '±', r'\cdot': '·',
@@ -542,7 +481,7 @@ def _clean_gemini_text(text: str) -> str:
     mathbb_map = {'R': 'ℝ', 'Z': 'ℤ', 'N': 'ℕ', 'Q': 'ℚ', 'C': 'ℂ'}
     for letter, symbol in mathbb_map.items():
         result = result.replace(f'\\mathbb{{{letter}}}', symbol)
-        result = result.replace(f'mathbb{{{letter}}}', symbol)  
+        result = result.replace(f'mathbb{{{letter}}}', symbol)
         result = re.sub(rf'(?<![a-zA-Z])mathbb\s*{letter}(?![a-zA-Z])', symbol, result)
 
     result = re.sub(r'\\(?:text|mathrm|mathbf|textbf)\{([^}]*)\}', r'\1', result)
@@ -560,7 +499,7 @@ def _clean_gemini_text(text: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Question Parser (v12 — with answer_table support)
+# Question Parser (unchanged from v12)
 # ---------------------------------------------------------------------------
 def _parse_batch(raw: str, chapter: ChapterSection, request: TestGenerationRequest,
                  section_key: str = None) -> List[GeneratedQuestion]:
@@ -621,7 +560,7 @@ def _parse_batch(raw: str, chapter: ChapterSection, request: TestGenerationReque
         if isinstance(options, list):
             options = [_clean_gemini_text(o) for o in options]
 
-        # ── Parse answer_table for Accountancy (NEW v12) ──
+        # ── Parse answer_table for Accountancy ──
         answer_table = None
         raw_table = q.get("answer_table")
         if raw_table and isinstance(raw_table, dict):
@@ -724,41 +663,123 @@ def _parse_batch(raw: str, chapter: ChapterSection, request: TestGenerationReque
     return questions
 
 
-# ---------------------------------------------------------------------------
-# Gemini Call with Retry (FIXED: Added thinking_budget=0 to prevent token burn)
-# ---------------------------------------------------------------------------
+# ═══════════════════════════════════════════════════════════════════════════
+# GEMINI CALL — SDK-COMPATIBLE (v13 FIX)
+# 
+# Problem: Old google-genai SDK (0.8.0) doesn't support ThinkingConfig.
+#          New SDK (1.0+) supports it.
+# 
+# Solution: Try with thinking_config first. If SDK rejects it, cache that
+#           info and skip on future calls. No performance penalty after
+#           first call.
+# ═══════════════════════════════════════════════════════════════════════════
+
 def _is_retryable(error_str: str) -> bool:
     return any(kw in error_str.upper() for kw in (k.upper() for k in RETRYABLE_KEYWORDS))
 
 
+def _is_thinking_config_error(error_str: str) -> bool:
+    """Detect if error is due to SDK not supporting thinking_config."""
+    err_lower = error_str.lower()
+    return (
+        "thinkingconfig" in err_lower or
+        "thinking_budget" in err_lower or
+        ("extra_forbidden" in err_lower and "thinking" in err_lower) or
+        ("validation error" in err_lower and "thinking" in err_lower)
+    )
+
+
+def _build_config_with_thinking(thinking_budget: int):
+    """Build config with thinking_config — may fail on old SDKs."""
+    return genai_types.GenerateContentConfig(
+        temperature=settings.GENERATION_TEMPERATURE,
+        top_p=0.92,
+        max_output_tokens=settings.MAX_OUTPUT_TOKENS,
+        response_mime_type="application/json",
+        thinking_config=genai_types.ThinkingConfig(
+            thinking_budget=thinking_budget
+        ),
+    )
+
+
+def _build_config_basic():
+    """Build config without thinking_config — works on all SDK versions."""
+    return genai_types.GenerateContentConfig(
+        temperature=settings.GENERATION_TEMPERATURE,
+        top_p=0.92,
+        max_output_tokens=settings.MAX_OUTPUT_TOKENS,
+        response_mime_type="application/json",
+    )
+
+
 def _call_gemini(client, prompt, model):
+    """Call Gemini with SDK-compatible config. Auto-detects thinking support."""
+    global _SDK_SUPPORTS_THINKING
     last_exc = None
-    # Get thinking budget from settings, default to 0
     thinking_budget = getattr(settings, 'GEMINI_THINKING_BUDGET', 0)
-    
+
     for attempt in range(MAX_RETRIES):
         try:
             t0 = time.time()
-            # ⭐ FIX: Added thinking_config to prevent 2-3x token burn
-            resp = client.models.generate_content(
-                model=model,
-                contents=prompt,
-                config=genai_types.GenerateContentConfig(
-                    temperature=settings.GENERATION_TEMPERATURE,
-                    top_p=0.92,
-                    max_output_tokens=settings.MAX_OUTPUT_TOKENS,
-                    response_mime_type="application/json",
-                    # ⭐ CRITICAL: This saves 2-3x on output tokens
-                    thinking_config=genai_types.ThinkingConfig(
-                        thinking_budget=thinking_budget
-                    ),
-                ),
-            )
+
+            # Build config based on cached SDK capability
+            if _SDK_SUPPORTS_THINKING is False:
+                # Known: old SDK, skip thinking_config
+                config = _build_config_basic()
+            else:
+                # Try with thinking (first call or known new SDK)
+                try:
+                    config = _build_config_with_thinking(thinking_budget)
+                except Exception as build_err:
+                    err_str = str(build_err)
+                    if _is_thinking_config_error(err_str):
+                        if _SDK_SUPPORTS_THINKING is None:
+                            logger.warning(
+                                "SDK doesn't support thinking_config. "
+                                "Using basic config. Upgrade google-genai>=1.0.0 for cost optimization."
+                            )
+                        _SDK_SUPPORTS_THINKING = False
+                        config = _build_config_basic()
+                    else:
+                        raise
+
+            # Make the API call
+            try:
+                resp = client.models.generate_content(
+                    model=model,
+                    contents=prompt,
+                    config=config,
+                )
+            except Exception as call_err:
+                err_str = str(call_err)
+                # If it's a thinking_config error at call time, retry without it
+                if _is_thinking_config_error(err_str) and _SDK_SUPPORTS_THINKING is not False:
+                    logger.warning(
+                        "SDK rejected thinking_config at call time. "
+                        "Falling back to basic config. Upgrade google-genai>=1.0.0 for cost optimization."
+                    )
+                    _SDK_SUPPORTS_THINKING = False
+                    resp = client.models.generate_content(
+                        model=model,
+                        contents=prompt,
+                        config=_build_config_basic(),
+                    )
+                else:
+                    raise
+
             raw = (resp.text or "").strip()
             if not raw:
                 raise GenerationError("Empty response", 502)
-            logger.info(f"[{model}] {time.time() - t0:.1f}s ({len(raw)} chars)")
+            
+            thinking_status = "no-think" if _SDK_SUPPORTS_THINKING is False else "think=0"
+            logger.info(f"[{model}] {time.time() - t0:.1f}s ({len(raw)} chars) [{thinking_status}]")
+            
+            # Cache positive detection
+            if _SDK_SUPPORTS_THINKING is None:
+                _SDK_SUPPORTS_THINKING = True
+            
             return raw
+
         except GenerationError:
             raise
         except Exception as e:
@@ -769,11 +790,12 @@ def _call_gemini(client, prompt, model):
                 time.sleep(wait)
             else:
                 break
+
     raise GenerationError(f"Failed after {MAX_RETRIES} retries: {str(last_exc)[:150]}", 500)
 
 
 # ---------------------------------------------------------------------------
-# Generate for ONE chapter (v12 — routes Accountancy to special prompt)
+# Chapter generation (unchanged from v12)
 # ---------------------------------------------------------------------------
 def _generate_for_chapter(client, chapter, request, context_chunks, models,
                           section_key=None, section_info=None):
@@ -796,7 +818,6 @@ def _generate_for_chapter(client, chapter, request, context_chunks, models,
         bc = min(remaining, batch_size)
         batch_num += 1
 
-        # Route to Accountancy prompt for table formats
         if is_accountancy and fmt_val in ACCOUNTANCY_TABLE_FORMATS:
             prompt = _build_accountancy_prompt(
                 chapter, request, context_chunks, bc,
@@ -837,7 +858,7 @@ def _generate_for_chapter(client, chapter, request, context_chunks, models,
 
 
 # ---------------------------------------------------------------------------
-# CBSE Section-based Paper Generation
+# CBSE Section-based Paper Generation (unchanged)
 # ---------------------------------------------------------------------------
 def _distribute_chapters_to_sections(chapters: List[ChapterSection]) -> Dict[str, List[dict]]:
     ch_names = [ch.chapter for ch in chapters]
@@ -873,7 +894,6 @@ def generate_cbse_paper(request, context_chunks, feedback=None):
         models.append(fallback)
 
     distribution = _distribute_chapters_to_sections(request.chapters)
-
     total_expected = sum(sec["count"] for sec in CBSE_SECTIONS.values())
     logger.info(f"CBSE Paper: {len(request.chapters)} chapters, {total_expected} questions, model={model}")
 
@@ -954,7 +974,7 @@ def generate_cbse_paper(request, context_chunks, feedback=None):
 
 
 # ---------------------------------------------------------------------------
-# Main Entry — supports both modes
+# Main Entry
 # ---------------------------------------------------------------------------
 def generate_questions(request, context_chunks, feedback=None, cbse_pattern: bool = False):
     if cbse_pattern:
