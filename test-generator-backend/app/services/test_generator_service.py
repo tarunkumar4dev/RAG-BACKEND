@@ -1,16 +1,16 @@
 """
-Generation Service v13 — PRODUCTION + ACCOUNTANCY + SDK-COMPATIBLE
+Generation Service v14 — PRODUCTION + ACCOUNTANCY + SDK-COMPATIBLE + ROBUST JSON
 
-Changes from v12:
-  - Fixed: thinking_config now gracefully handles older google-genai SDK versions
-  - Auto-detects SDK capability on first call, caches result
-  - Falls back to basic config if ThinkingConfig unsupported
+Changes from v13:
+  - Filters out deprecated models (gemini-2.0-flash → 404 for new users)
+  - Robust JSON parser: handles truncated responses, unescaped newlines in strings
+  - Per-question extraction fallback: saves partial batches instead of losing all
+  - Escapes control characters inside JSON strings before parsing
 
-Previous v12 features retained:
-  - Accountancy table formats: journal_entry, ledger, trial_balance
-  - Specialized Gemini prompts for commerce subjects
-  - answer_table field in GeneratedQuestion
-  - CBSE sections, Unicode math
+Previous features retained:
+  - SDK auto-detection for thinking_config (old/new google-genai)
+  - Accountancy table formats (journal_entry, ledger, trial_balance)
+  - CBSE sections, Unicode math, LaTeX cleanup
 """
 
 import json
@@ -86,15 +86,19 @@ BLOOM_DEFAULT = {
     "very_hard": "analyze",
 }
 
-# ═══════════════════════════════════════════════════════════
-# SDK CAPABILITY CACHE — detects once, reuses
-# ═══════════════════════════════════════════════════════════
 _SDK_SUPPORTS_THINKING: Optional[bool] = None
 
+# Models deprecated/unavailable for new projects — filter from fallback chain
+DEPRECATED_MODELS = frozenset({
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-lite",
+    "gemini-2.0-flash-001",
+    "gemini-2.0-flash-lite-001",
+    "gemini-1.5-flash",
+    "gemini-1.5-pro",
+})
 
-# ---------------------------------------------------------------------------
-# Accountancy Constants
-# ---------------------------------------------------------------------------
+
 ACCOUNTANCY_SUBJECTS = {"accountancy", "accounts", "accounting"}
 ACCOUNTANCY_TABLE_FORMATS = {"journal_entry", "ledger", "trial_balance"}
 
@@ -139,9 +143,6 @@ The answer MUST include an "answer_table" with:
 }
 
 
-# ---------------------------------------------------------------------------
-# CBSE Section Templates
-# ---------------------------------------------------------------------------
 CBSE_SECTIONS = {
     "A": {
         "title": "Section A",
@@ -183,9 +184,6 @@ CBSE_SECTIONS = {
 }
 
 
-# ---------------------------------------------------------------------------
-# Exception + Client
-# ---------------------------------------------------------------------------
 class GenerationError(Exception):
     def __init__(self, message: str, status_code: int = 500):
         super().__init__(message)
@@ -204,9 +202,6 @@ def _get_gemini_client() -> genai.Client:
     return _client_cache
 
 
-# ---------------------------------------------------------------------------
-# MATH FORMATTING INSTRUCTIONS
-# ---------------------------------------------------------------------------
 MATH_FORMAT_INSTRUCTION = """MATH FORMATTING RULES (CRITICAL — follow exactly):
 • Use UNICODE symbols directly: α β γ θ π σ φ ω ε δ λ μ Σ Π Δ
 • Fractions: write as (numerator/denominator), e.g. (3/4), (x+1/x-1)
@@ -223,13 +218,17 @@ MATH_FORMAT_INSTRUCTION = """MATH FORMATTING RULES (CRITICAL — follow exactly)
 • Combinations: C(n,r) or ⁿCᵣ, Permutations: P(n,r) or ⁿPᵣ
 • Absolute value: |x|, floor: ⌊x⌋, ceil: ⌈x⌉
 
-DO NOT use LaTeX commands like \\frac, \\sqrt, \\theta, \\left, \\right, \\mathbb.
-DO NOT use $ delimiters.
+CRITICAL JSON RULES:
+- Do NOT use unescaped newlines inside JSON string values — use \\n instead
+- Do NOT use LaTeX commands like \\frac, \\sqrt, \\theta, \\left, \\right, \\mathbb
+- Do NOT use $ delimiters around math
+- Keep each question's JSON compact
+
 Write clean readable text that a teacher can read directly."""
 
 
 # ---------------------------------------------------------------------------
-# Prompt Builders (unchanged from v12)
+# Prompt Builders
 # ---------------------------------------------------------------------------
 def _build_chapter_prompt(
     chapter: ChapterSection,
@@ -367,9 +366,11 @@ Generate EXACTLY {count} unique questions. Return ONLY valid JSON:
 {{"questions":[{{"text":"...","format":"{table_format}","options":null,"correct_answer":"Summary of entries...","explanation":"Step-by-step accounting logic...","answer_table":{{"type":"{table_format}","headers":[...],"rows":[[...]],"total_row":null}},"marks":{chapter.marks_per_question},"difficulty":"{diff_val}","bloom_level":"apply","chapter":"{chapter.chapter}","topic":"specific topic"{section_field}}}]}}"""
 
 
-# ---------------------------------------------------------------------------
-# JSON Extraction (unchanged)
-# ---------------------------------------------------------------------------
+# ═══════════════════════════════════════════════════════════════════════════
+# JSON Extraction — ROBUST v14
+# Handles: truncated responses, unescaped newlines, bad LaTeX escapes,
+#          control chars inside strings, trailing commas, and partial extraction
+# ═══════════════════════════════════════════════════════════════════════════
 def _fix_latex_json_escapes(text: str) -> str:
     text = text.replace('\\\\', '\x00DBL\x00')
     for prefix in ['frac', 'forall', 'binom', 'boxed', 'bold', 'not', 'neq',
@@ -385,6 +386,108 @@ def _fix_latex_json_escapes(text: str) -> str:
     return text
 
 
+def _escape_control_chars_in_strings(text: str) -> str:
+    """
+    Walk through text and escape raw newlines/tabs/CRs that appear INSIDE JSON strings.
+    Gemini sometimes emits literal newlines inside string values which is invalid JSON.
+    """
+    result = []
+    in_string = False
+    escape_next = False
+
+    for ch in text:
+        if escape_next:
+            result.append(ch)
+            escape_next = False
+            continue
+
+        if ch == '\\':
+            result.append(ch)
+            escape_next = True
+            continue
+
+        if ch == '"':
+            in_string = not in_string
+            result.append(ch)
+            continue
+
+        if in_string:
+            if ch == '\n':
+                result.append('\\n')
+            elif ch == '\r':
+                result.append('\\r')
+            elif ch == '\t':
+                result.append('\\t')
+            elif ord(ch) < 0x20:
+                result.append(f'\\u{ord(ch):04x}')
+            else:
+                result.append(ch)
+        else:
+            result.append(ch)
+
+    return ''.join(result)
+
+
+def _extract_questions_individually(text: str) -> list:
+    """
+    Last-resort: extract individual question objects by matching balanced braces.
+    Saves partial batches when the outer JSON is truncated or has one bad question.
+    """
+    questions = []
+    depth = 0
+    start = -1
+    in_string = False
+    escape_next = False
+
+    qs_match = re.search(r'"questions"\s*:\s*\[', text)
+    if not qs_match:
+        return []
+
+    i = qs_match.end()
+    while i < len(text):
+        ch = text[i]
+
+        if escape_next:
+            escape_next = False
+            i += 1
+            continue
+
+        if ch == '\\':
+            escape_next = True
+            i += 1
+            continue
+
+        if ch == '"':
+            in_string = not in_string
+
+        if not in_string:
+            if ch == '{':
+                if depth == 0:
+                    start = i
+                depth += 1
+            elif ch == '}':
+                depth -= 1
+                if depth == 0 and start != -1:
+                    candidate = text[start:i+1]
+                    try:
+                        cleaned = _escape_control_chars_in_strings(candidate)
+                        cleaned = re.sub(r",\s*([}\]])", r"\1", cleaned)
+                        obj = json.loads(cleaned)
+                        questions.append(obj)
+                    except (json.JSONDecodeError, ValueError):
+                        try:
+                            fixed = _fix_latex_json_escapes(cleaned)
+                            obj = json.loads(fixed)
+                            questions.append(obj)
+                        except (json.JSONDecodeError, ValueError):
+                            pass  # skip broken question, continue
+                    start = -1
+
+        i += 1
+
+    return questions
+
+
 def _extract_json(raw: str) -> dict:
     text = raw.strip().lstrip("\ufeff\u200b")
 
@@ -392,6 +495,7 @@ def _extract_json(raw: str) -> dict:
     if fence:
         text = fence.group(1).strip()
 
+    # Attempt 1: direct parse
     try:
         return json.loads(text)
     except json.JSONDecodeError:
@@ -399,46 +503,69 @@ def _extract_json(raw: str) -> dict:
 
     fb = text.find("{")
     lb = text.rfind("}")
-    if fb == -1 or lb <= fb:
+    if fb == -1:
         raise ValueError(f"No JSON found (len={len(raw)})")
 
-    candidate = text[fb:lb + 1]
+    # If no closing brace found, text is truncated — use what we have
+    if lb <= fb:
+        candidate = text[fb:]
+    else:
+        candidate = text[fb:lb + 1]
 
+    # Attempt 2: as-is
     try:
         return json.loads(candidate)
     except json.JSONDecodeError:
         pass
 
+    # Attempt 3: strip trailing commas
     cleaned = re.sub(r",\s*([}\]])", r"\1", candidate)
     try:
         return json.loads(cleaned)
     except json.JSONDecodeError:
         pass
 
-    fixed = _fix_latex_json_escapes(cleaned)
+    # Attempt 4: escape control chars inside strings (NEW v14)
+    escaped_ctrl = _escape_control_chars_in_strings(cleaned)
+    try:
+        return json.loads(escaped_ctrl)
+    except json.JSONDecodeError:
+        pass
+
+    # Attempt 5: fix LaTeX escapes
+    fixed = _fix_latex_json_escapes(escaped_ctrl)
     try:
         return json.loads(fixed)
     except json.JSONDecodeError:
         pass
 
+    # Attempt 6: aggressive backslash escaping
     aggressive = re.sub(r'(?<!\\)\\(?![\\"/bfnrtu{])', r'\\\\', fixed)
     try:
         return json.loads(aggressive)
     except json.JSONDecodeError:
         pass
 
+    # Attempt 7: nuclear — strip remaining control chars
     nuclear = re.sub(r'[\x00-\x1f]', ' ', aggressive)
     try:
         return json.loads(nuclear)
     except json.JSONDecodeError:
         pass
 
-    logger.error(f"JSON failed 6 attempts. Preview: {candidate[:200]}")
+    # Attempt 8 (v14 NEW): per-question extraction — saves partial batches
+    logger.warning(f"Bulk parse failed, attempting per-question extraction (len={len(raw)})")
+    individual_qs = _extract_questions_individually(text)
+    if individual_qs:
+        logger.info(f"Recovered {len(individual_qs)} questions via per-question extraction")
+        return {"questions": individual_qs}
+
+    logger.error(f"JSON failed all attempts. Preview: {candidate[:200]}")
     raise ValueError(f"Could not parse JSON (len={len(raw)})")
 
 
 # ---------------------------------------------------------------------------
-# LaTeX cleanup (unchanged)
+# LaTeX cleanup
 # ---------------------------------------------------------------------------
 UNICODE_REPLACEMENTS = {
     r'\times': '×', r'\div': '÷', r'\pm': '±', r'\cdot': '·',
@@ -499,7 +626,7 @@ def _clean_gemini_text(text: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Question Parser (unchanged from v12)
+# Question Parser
 # ---------------------------------------------------------------------------
 def _parse_batch(raw: str, chapter: ChapterSection, request: TestGenerationRequest,
                  section_key: str = None) -> List[GeneratedQuestion]:
@@ -664,22 +791,23 @@ def _parse_batch(raw: str, chapter: ChapterSection, request: TestGenerationReque
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# GEMINI CALL — SDK-COMPATIBLE (v13 FIX)
-# 
-# Problem: Old google-genai SDK (0.8.0) doesn't support ThinkingConfig.
-#          New SDK (1.0+) supports it.
-# 
-# Solution: Try with thinking_config first. If SDK rejects it, cache that
-#           info and skip on future calls. No performance penalty after
-#           first call.
+# GEMINI CALL — SDK-COMPATIBLE + model filtering (v14)
 # ═══════════════════════════════════════════════════════════════════════════
+
+def _filter_valid_models(models: List[str]) -> List[str]:
+    """Remove deprecated models from the fallback chain."""
+    valid = [m for m in models if m not in DEPRECATED_MODELS]
+    if not valid:
+        valid = ["gemini-2.5-flash-lite", "gemini-2.5-flash"]
+        logger.warning(f"All configured models deprecated. Using safe defaults: {valid}")
+    return valid
+
 
 def _is_retryable(error_str: str) -> bool:
     return any(kw in error_str.upper() for kw in (k.upper() for k in RETRYABLE_KEYWORDS))
 
 
 def _is_thinking_config_error(error_str: str) -> bool:
-    """Detect if error is due to SDK not supporting thinking_config."""
     err_lower = error_str.lower()
     return (
         "thinkingconfig" in err_lower or
@@ -689,8 +817,16 @@ def _is_thinking_config_error(error_str: str) -> bool:
     )
 
 
+def _is_model_not_found(error_str: str) -> bool:
+    """404 error — model deprecated or unavailable."""
+    return "404" in error_str and (
+        "not_found" in error_str.lower() or
+        "not found" in error_str.lower() or
+        "no longer available" in error_str.lower()
+    )
+
+
 def _build_config_with_thinking(thinking_budget: int):
-    """Build config with thinking_config — may fail on old SDKs."""
     return genai_types.GenerateContentConfig(
         temperature=settings.GENERATION_TEMPERATURE,
         top_p=0.92,
@@ -703,7 +839,6 @@ def _build_config_with_thinking(thinking_budget: int):
 
 
 def _build_config_basic():
-    """Build config without thinking_config — works on all SDK versions."""
     return genai_types.GenerateContentConfig(
         temperature=settings.GENERATION_TEMPERATURE,
         top_p=0.92,
@@ -722,12 +857,9 @@ def _call_gemini(client, prompt, model):
         try:
             t0 = time.time()
 
-            # Build config based on cached SDK capability
             if _SDK_SUPPORTS_THINKING is False:
-                # Known: old SDK, skip thinking_config
                 config = _build_config_basic()
             else:
-                # Try with thinking (first call or known new SDK)
                 try:
                     config = _build_config_with_thinking(thinking_budget)
                 except Exception as build_err:
@@ -743,7 +875,6 @@ def _call_gemini(client, prompt, model):
                     else:
                         raise
 
-            # Make the API call
             try:
                 resp = client.models.generate_content(
                     model=model,
@@ -752,11 +883,19 @@ def _call_gemini(client, prompt, model):
                 )
             except Exception as call_err:
                 err_str = str(call_err)
-                # If it's a thinking_config error at call time, retry without it
+
+                # Model deprecated — bail immediately, let fallback handle
+                if _is_model_not_found(err_str):
+                    logger.error(f"Model {model} is deprecated/unavailable (404).")
+                    raise GenerationError(
+                        f"Model {model} unavailable. Update GEMINI_MODEL/GEMINI_FALLBACK_MODEL env vars.",
+                        404
+                    )
+
+                # Thinking config rejected — retry without it
                 if _is_thinking_config_error(err_str) and _SDK_SUPPORTS_THINKING is not False:
                     logger.warning(
-                        "SDK rejected thinking_config at call time. "
-                        "Falling back to basic config. Upgrade google-genai>=1.0.0 for cost optimization."
+                        "SDK rejected thinking_config at call time. Falling back to basic config."
                     )
                     _SDK_SUPPORTS_THINKING = False
                     resp = client.models.generate_content(
@@ -770,17 +909,17 @@ def _call_gemini(client, prompt, model):
             raw = (resp.text or "").strip()
             if not raw:
                 raise GenerationError("Empty response", 502)
-            
+
             thinking_status = "no-think" if _SDK_SUPPORTS_THINKING is False else "think=0"
             logger.info(f"[{model}] {time.time() - t0:.1f}s ({len(raw)} chars) [{thinking_status}]")
-            
-            # Cache positive detection
+
             if _SDK_SUPPORTS_THINKING is None:
                 _SDK_SUPPORTS_THINKING = True
-            
+
             return raw
 
         except GenerationError:
+            # 404 and other GenerationErrors propagate immediately
             raise
         except Exception as e:
             last_exc = e
@@ -795,7 +934,7 @@ def _call_gemini(client, prompt, model):
 
 
 # ---------------------------------------------------------------------------
-# Chapter generation (unchanged from v12)
+# Chapter generation
 # ---------------------------------------------------------------------------
 def _generate_for_chapter(client, chapter, request, context_chunks, models,
                           section_key=None, section_info=None):
@@ -858,7 +997,20 @@ def _generate_for_chapter(client, chapter, request, context_chunks, models,
 
 
 # ---------------------------------------------------------------------------
-# CBSE Section-based Paper Generation (unchanged)
+# Model chain builder
+# ---------------------------------------------------------------------------
+def _build_models_chain() -> List[str]:
+    """Build the model fallback chain, filtering out deprecated models."""
+    model = settings.GEMINI_GEN_MODEL
+    models = [model]
+    fallback = getattr(settings, 'GEMINI_FALLBACK_MODEL', None)
+    if fallback and fallback != model:
+        models.append(fallback)
+    return _filter_valid_models(models)
+
+
+# ---------------------------------------------------------------------------
+# CBSE Section-based Paper Generation
 # ---------------------------------------------------------------------------
 def _distribute_chapters_to_sections(chapters: List[ChapterSection]) -> Dict[str, List[dict]]:
     ch_names = [ch.chapter for ch in chapters]
@@ -887,15 +1039,11 @@ def generate_cbse_paper(request, context_chunks, feedback=None):
         raise GenerationError("No NCERT content found. Verify chapters.", 404)
 
     client = _get_gemini_client()
-    model = settings.GEMINI_GEN_MODEL
-    models = [model]
-    fallback = getattr(settings, 'GEMINI_FALLBACK_MODEL', None)
-    if fallback and fallback != model:
-        models.append(fallback)
+    models = _build_models_chain()
 
     distribution = _distribute_chapters_to_sections(request.chapters)
     total_expected = sum(sec["count"] for sec in CBSE_SECTIONS.values())
-    logger.info(f"CBSE Paper: {len(request.chapters)} chapters, {total_expected} questions, model={model}")
+    logger.info(f"CBSE Paper: {len(request.chapters)} chapters, {total_expected} questions, models={models}")
 
     all_questions = []
     t0 = time.time()
@@ -984,14 +1132,10 @@ def generate_questions(request, context_chunks, feedback=None, cbse_pattern: boo
         raise GenerationError("No NCERT content found. Verify chapters.", 404)
 
     client = _get_gemini_client()
-    model = settings.GEMINI_GEN_MODEL
-    models = [model]
-    fallback = getattr(settings, 'GEMINI_FALLBACK_MODEL', None)
-    if fallback and fallback != model:
-        models.append(fallback)
+    models = _build_models_chain()
 
     total = sum(s.quantity for s in request.chapters)
-    logger.info(f"Generation: {len(request.chapters)} chapters, {total} questions, model={model}")
+    logger.info(f"Generation: {len(request.chapters)} chapters, {total} questions, models={models}")
 
     all_questions = []
     t0 = time.time()
