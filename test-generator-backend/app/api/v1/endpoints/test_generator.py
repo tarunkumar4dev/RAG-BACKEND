@@ -5,6 +5,9 @@ v2.4 changes:
   - Fixed: FORMAT_MAP now includes all format variants (Short, Long, short_answer, long_answer)
   - Fixed: Accountancy import path → test_generator_service (not generation_service)
   - All v2.3 features retained (usage limits, cbsePattern, sections, answerTable)
+v2.5 changes:
+  - Added paperDate field to FrontendGenerateRequest model
+  - Added paperDate to meta dict in _transform_backend_to_frontend
 """
 
 from fastapi import APIRouter, HTTPException
@@ -113,6 +116,7 @@ class FrontendChapterRow(BaseModel):
 
 class FrontendGenerateRequest(BaseModel):
     examTitle: str = "Untitled Test"
+    paperDate: Optional[str] = None  # ADDED v2.5: ISO date string, e.g., "2026-04-23"
     board: str = "CBSE"
     classGrade: str = "Class 10"
     subject: str = "Science"
@@ -344,6 +348,7 @@ def _transform_backend_to_frontend(resp, req: FrontendGenerateRequest) -> Fronte
             "classGrade": req.classGrade,
             "subject": req.subject,
             "cbsePattern": req.cbsePattern,
+            "paperDate": req.paperDate,  # ADDED v2.5
         },
     )
 
@@ -356,7 +361,7 @@ def _transform_backend_to_frontend(resp, req: FrontendGenerateRequest) -> Fronte
 async def generate_from_frontend(req: FrontendGenerateRequest):
     start = time.time()
     logger.info(f"Frontend generate: {req.subject} {req.classGrade}, "
-                f"{len(req.simpleData)} chapters, cbsePattern={req.cbsePattern}")
+                f"{len(req.simpleData)} chapters, cbsePattern={req.cbsePattern}, paperDate={req.paperDate}")
 
     try:
         usage = check_and_record_usage(req.userId)
@@ -610,9 +615,3 @@ async def get_test(test_id: str, teacher_id: str):
     except Exception as e:
         logger.error(f"Get test error: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch test.")
-
-
-
-
-
-        

@@ -4,11 +4,18 @@ RAG Service — Keyword Search (Vercel-compatible, no torch/sentence-transformer
 Uses existing ncert_chunks table: id, class_grade, subject, chapter, content, embedding
 Vector search disabled for Vercel deployment (size limit).
 Keyword search is accurate enough for NCERT structured content.
+
+v3 changes:
+  - Robust chapter name normalization: strips dashes, commas, parentheses, ampersands
+  - Multi-strategy matching: exact → substring → word-overlap (fuzzy)
+  - Handles: "Light - Reflection & Refraction" <-> "Light Reflection and Refraction"
+  - Handles: "Acids, Bases & Salts" <-> "Acids Bases and Salts"
+  - Handles: "Metals & Non-metals" <-> "Metals and Non-metals"
 """
 
 import logging
 import re
-from typing import List, Dict, Optional
+from typing import List, Dict, Set
 
 from app.core.config import settings
 from app.core.database import get_supabase
@@ -17,14 +24,46 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# Chapter Name Normalization
+# Chapter Name Normalization — ROBUST
 # ---------------------------------------------------------------------------
+# Common "noise words" to ignore when doing word-overlap matching
+_STOPWORDS: Set[str] = {
+    "and", "of", "the", "in", "a", "an", "to", "for", "with", "on",
+    "at", "by", "from", "its", "it", "is", "are", "be",
+}
+
+
 def _normalize_chapter_name(name: str) -> str:
-    text = name.strip()
-    text = re.sub(r"\s+", " ", text)
-    text = text.replace(" & ", " and ").replace("&", " and ")
+    """
+    Aggressively normalize chapter name for reliable matching.
+
+    Handles:
+      - All dash variants (- – —) → space
+      - Colons, commas, semicolons → space
+      - Parentheses & brackets → space
+      - Ampersand (&) → "and"
+      - Multiple spaces → single space
+      - Case: lowercased
+    """
+    if not name:
+        return ""
+    text = name.strip().lower()
+
+    # Normalize ampersand to "and" (with padding spaces so words don't merge)
+    text = text.replace("&", " and ")
+
+    # Replace all dashes, colons, commas, parens, brackets, slashes with space
+    text = re.sub(r"[\u2013\u2014\-:,;()\[\]\/]", " ", text)
+
+    # Collapse whitespace
     text = re.sub(r"\s+", " ", text).strip()
+
     return text
+
+
+def _word_set(normalized: str) -> Set[str]:
+    """Return significant words (excluding stopwords) from a normalized string."""
+    return {w for w in normalized.split() if w and w not in _STOPWORDS}
 
 
 def _resolve_chapters(
@@ -32,6 +71,14 @@ def _resolve_chapters(
     subject: str,
     class_grade: str,
 ) -> List[str]:
+    """
+    Map frontend chapter names to actual DB chapter names.
+
+    Strategy (per requested chapter):
+      1. Exact normalized match
+      2. Substring match (either direction)
+      3. Word-overlap match (>= 2 significant words in common, or all-words-of-shorter-in-longer)
+    """
     supabase = get_supabase()
     db_chapters: List[str] = []
 
@@ -49,16 +96,24 @@ def _resolve_chapters(
             for row in (response.data or [])
             if row.get("chapter")
         })
-        logger.info(f"DB has {len(db_chapters)} chapters for {subject} class {class_grade}")
+        logger.info(
+            f"DB has {len(db_chapters)} chapters for {subject} class {class_grade}"
+        )
     except Exception as e:
         logger.error(f"Chapter resolution query failed: {e}")
 
+    # Fallback: per-chapter ILIKE search if bulk fetch was thin
     if len(db_chapters) < 3:
         logger.warning("Few chapters from bulk query, trying per-chapter ILIKE...")
         for req_ch in requested_chapters:
             try:
-                search_name = _normalize_chapter_name(req_ch)
-                search_words = [w for w in search_name.split() if len(w) > 2][:3]
+                normalized = _normalize_chapter_name(req_ch)
+                search_words = [
+                    w for w in normalized.split()
+                    if len(w) > 2 and w not in _STOPWORDS
+                ][:3]
+                if not search_words:
+                    continue
                 ilike_pattern = f"%{'%'.join(search_words)}%"
                 resp = (
                     supabase.table("ncert_chunks")
@@ -76,44 +131,76 @@ def _resolve_chapters(
                 logger.error(f"Per-chapter ILIKE failed for '{req_ch}': {e}")
 
     if not db_chapters:
-        logger.warning(f"No chapters found in DB for {subject} class {class_grade}")
+        logger.warning(
+            f"No chapters found in DB for {subject} class {class_grade}. "
+            f"Returning requested chapters as-is."
+        )
         return requested_chapters
 
+    # Build lookup: normalized_name -> actual_db_name
     db_lookup: Dict[str, str] = {}
     for ch in db_chapters:
-        db_lookup[_normalize_chapter_name(ch).lower()] = ch
+        db_lookup[_normalize_chapter_name(ch)] = ch
 
     matched: List[str] = []
     unmatched: List[str] = []
 
     for req_ch in requested_chapters:
-        req_norm = _normalize_chapter_name(req_ch).lower()
+        req_norm = _normalize_chapter_name(req_ch)
+        req_words = _word_set(req_norm)
 
+        # ── Strategy 1: Exact normalized match ──
         if req_norm in db_lookup:
             matched.append(db_lookup[req_norm])
+            logger.debug(f"Exact match: '{req_ch}' -> '{db_lookup[req_norm]}'")
             continue
 
+        # ── Strategy 2: Substring match (either direction) ──
         found = False
         for db_norm, db_actual in db_lookup.items():
-            if req_norm in db_norm or db_norm in req_norm:
+            if req_norm and db_norm and (req_norm in db_norm or db_norm in req_norm):
                 matched.append(db_actual)
+                logger.debug(f"Substring match: '{req_ch}' -> '{db_actual}'")
                 found = True
                 break
+        if found:
+            continue
 
-        if not found:
-            req_words = set(req_norm.split()) - {"and", "of", "the", "in", "a"}
-            for db_norm, db_actual in db_lookup.items():
-                db_words = set(db_norm.split()) - {"and", "of", "the", "in", "a"}
-                if len(req_words & db_words) >= 2:
-                    matched.append(db_actual)
-                    found = True
-                    break
+        # ── Strategy 3: Word-overlap match ──
+        # Best match = highest overlap count; require either:
+        #   (a) all significant words of shorter side contained in longer, OR
+        #   (b) >= 2 significant words in common
+        best_match: str = None
+        best_score: int = 0
+        for db_norm, db_actual in db_lookup.items():
+            db_words = _word_set(db_norm)
+            if not db_words or not req_words:
+                continue
+            overlap = req_words & db_words
+            overlap_count = len(overlap)
 
-        if not found:
-            unmatched.append(req_ch)
+            shorter = req_words if len(req_words) <= len(db_words) else db_words
+            all_of_shorter_matched = shorter and shorter.issubset(req_words & db_words)
+
+            if all_of_shorter_matched or overlap_count >= 2:
+                if overlap_count > best_score:
+                    best_score = overlap_count
+                    best_match = db_actual
+
+        if best_match:
+            matched.append(best_match)
+            logger.debug(
+                f"Word-overlap match (score={best_score}): '{req_ch}' -> '{best_match}'"
+            )
+            continue
+
+        unmatched.append(req_ch)
 
     if unmatched:
-        logger.warning(f"Could not match chapters: {unmatched}. DB has: {db_chapters}")
+        logger.warning(
+            f"Could not match chapters: {unmatched}. "
+            f"DB has: {db_chapters}"
+        )
     if matched:
         logger.info(f"Resolved chapters: {matched}")
 
@@ -157,7 +244,7 @@ def keyword_search(
 
     try:
         results: List[Dict] = []
-        seen_ids: set = set()
+        seen_ids: Set = set()
 
         for keyword in keywords[:8]:
             if not keyword or len(keyword.strip()) < 2:
@@ -176,6 +263,7 @@ def keyword_search(
             response = query.limit(limit).execute()
             rows = response.data or []
 
+            # Fallback: if chapter filter returned nothing, try without chapter filter
             if not rows and chapters:
                 query_broad = (
                     supabase.table("ncert_chunks")
@@ -212,7 +300,7 @@ def retrieve_context(
 ) -> List[Dict]:
     """
     Retrieval pipeline (keyword-only for Vercel):
-      1. Resolve chapter names against DB
+      1. Resolve chapter names against DB (with fuzzy matching)
       2. Keyword search with chapter-filter fallback
       3. Return top chunks
     """
@@ -229,7 +317,9 @@ def retrieve_context(
                 split_keywords.append(word)
     split_keywords.extend(resolved_chapters)
 
-    query_text = " ".join(filter(None, [subject, str(class_grade)] + resolved_chapters + topics))
+    query_text = " ".join(
+        filter(None, [subject, str(class_grade)] + resolved_chapters + topics)
+    )
     logger.info(f"RAG query: '{query_text[:80]}...'")
 
     # Keyword search only (vector search disabled for Vercel size limit)
