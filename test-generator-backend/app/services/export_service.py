@@ -1,10 +1,13 @@
 """
-Export Service v9 — Card-Style Question Boxes + Paper Date Support
+Export Service v10 — Manual Questions + Image Support
 
-v9 changes:
-  - Added paperDate parameter to generate_pdf and generate_docx functions
-  - Paper date displayed in header (replaces auto-generated today's date when provided)
-  - All v8 features retained (card-style question boxes, inline tables, CBSE sections, Accountancy tables)
+v10 changes:
+  - Added _render_manual_question_image() helper (fetches URL, embeds into PDF/DOCX)
+  - Added _is_manual() detection helper
+  - "MANUAL" badge rendered for teacher-added questions
+  - Manual questions ordered by `section` if CBSE paper, else appended at end
+  - Image-based manual questions show the uploaded image inline
+  - All v9 features retained (card-style question boxes, paper date, CBSE sections, Accountancy tables)
 """
 
 import io
@@ -13,6 +16,8 @@ import base64
 import logging
 from typing import List, Optional
 from datetime import datetime
+from urllib.request import urlopen, Request
+from urllib.error import URLError, HTTPError
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +34,6 @@ CBSE_SECTIONS_META = {
     "E": {"title": "Section E", "subtitle": "(4 marks each — Case Study Based)", "marks": 4, "instruction": "All questions are compulsory. Each carries 4 marks. Answer all sub-parts."},
 }
 
-# Accountancy Part-based sections (v8)
 ACCOUNTANCY_SECTIONS_META = {
     "A_1m":  {"title": "Part A", "subtitle": "(1 mark each — MCQ / Assertion-Reason)", "marks": 1, "instruction": "Questions carry 1 mark each. Select the correct option."},
     "A_3m":  {"title": "Part A", "subtitle": "(3 marks each)", "marks": 3, "instruction": "Questions carry 3 marks each. Answer briefly with working."},
@@ -46,7 +50,7 @@ ACCOUNTANCY_SECTION_ORDER = ["A_1m", "A_3m", "A_4m", "A_6m", "B1_1m", "B1_3m", "
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# Unicode sub/super scripts (v4 compat)
+# Unicode sub/super scripts
 # ═══════════════════════════════════════════════════════════════════════
 
 UNICODE_SUBSCRIPTS = {
@@ -161,18 +165,10 @@ def _process_latex(text: str, use_tags: bool = False) -> str:
     result = text
     result = result.replace('₹', 'Rs.')
 
-    # Fix Unicode modifier letters (ordinal suffixes: 15ᵗʰ → 15th, 1ˢᵗ → 1st, etc.)
-    # ReportLab cannot render these — they show as ■■
     MODIFIER_LETTERS = {
-        '\u1D57': 't',  # ᵗ MODIFIER LETTER SMALL T
-        '\u02B0': 'h',  # ʰ MODIFIER LETTER SMALL H
-        '\u02E2': 's',  # ˢ MODIFIER LETTER SMALL S
-        '\u1D48': 'd',  # ᵈ MODIFIER LETTER SMALL D
-        '\u02B3': 'r',  # ʳ MODIFIER LETTER SMALL R
-        '\u02E1': 'l',  # ˡ MODIFIER LETTER SMALL L
-        '\u1D43': 'a',  # ᵃ MODIFIER LETTER SMALL A
-        '\u1D49': 'e',  # ᵉ MODIFIER LETTER SMALL E
-        '\u1D52': 'o',  # ᵒ MODIFIER LETTER SMALL O
+        '\u1D57': 't', '\u02B0': 'h', '\u02E2': 's', '\u1D48': 'd',
+        '\u02B3': 'r', '\u02E1': 'l', '\u1D43': 'a', '\u1D49': 'e',
+        '\u1D52': 'o',
     }
     for mod, plain in MODIFIER_LETTERS.items():
         result = result.replace(mod, plain)
@@ -246,22 +242,15 @@ def _latex_to_plain(text: str) -> str:
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# Date Formatting Helper (v9)
+# Date Formatting
 # ═══════════════════════════════════════════════════════════════════════
 
 def _format_date_for_display(paper_date: Optional[str] = None) -> str:
-    """
-    Format paperDate for display.
-    If paperDate is provided (ISO format: "2026-04-23"), convert to "23/04/2026".
-    Otherwise, return today's date in "dd/mm/yyyy" format.
-    """
     if paper_date:
         try:
-            # Parse ISO date: "2026-04-23" -> "23/04/2026"
             dt = datetime.strptime(paper_date, "%Y-%m-%d")
             return dt.strftime("%d/%m/%Y")
         except ValueError:
-            # Try alternate format if needed
             try:
                 dt = datetime.fromisoformat(paper_date.replace('Z', '+00:00'))
                 return dt.strftime("%d/%m/%Y")
@@ -273,7 +262,92 @@ def _format_date_for_display(paper_date: Optional[str] = None) -> str:
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# Markdown Table Parser (v7)
+# v10 NEW: Manual Question + Image Helpers
+# ═══════════════════════════════════════════════════════════════════════
+
+def _is_manual(q: dict) -> bool:
+    """Detect if a question was added manually by the teacher."""
+    return bool(
+        q.get("isManual")
+        or q.get("is_manual")
+        or q.get("validationStatus") == "manual"
+        or q.get("validation_status") == "manual"
+    )
+
+
+def _get_image_url(q: dict) -> Optional[str]:
+    """Extract image URL from question (manual image-based questions)."""
+    return q.get("imageUrl") or q.get("image_url") or None
+
+
+def _fetch_image_bytes(url: str, timeout: int = 8) -> Optional[bytes]:
+    """
+    Fetch image from URL and return bytes. Returns None on failure.
+    Used for embedding images into PDF/DOCX.
+    """
+    if not url or not url.startswith(("http://", "https://")):
+        return None
+    try:
+        req = Request(url, headers={"User-Agent": "A4AI-ExportService/1.0"})
+        with urlopen(req, timeout=timeout) as resp:
+            if resp.status != 200:
+                logger.warning(f"Image fetch returned {resp.status} for {url}")
+                return None
+            return resp.read()
+    except (URLError, HTTPError, TimeoutError) as e:
+        logger.warning(f"Failed to fetch image {url}: {e}")
+        return None
+    except Exception as e:
+        logger.warning(f"Unexpected error fetching image {url}: {e}")
+        return None
+
+
+def _render_manual_question_image_pdf(image_url: str, W: float):
+    """
+    Download image from URL and wrap in ReportLab Image flowable.
+    Returns list of flowables (Spacer, Image, Spacer) or empty list on failure.
+    """
+    from reportlab.lib.units import cm
+    from reportlab.platypus import Image as RLImage, Spacer
+
+    img_bytes = _fetch_image_bytes(image_url)
+    if not img_bytes:
+        return []
+
+    try:
+        img_stream = io.BytesIO(img_bytes)
+        # Max width ~ 80% of content width, max height 8 cm
+        max_w = W * 0.80
+        max_h = 8 * cm
+        img = RLImage(img_stream, width=max_w, height=max_h, kind='proportional')
+        img.hAlign = 'CENTER'
+        return [Spacer(1, 4), img, Spacer(1, 6)]
+    except Exception as e:
+        logger.warning(f"Failed to render image in PDF: {e}")
+        return []
+
+
+def _render_manual_question_image_docx(doc, image_url: str):
+    """Download and embed image into DOCX. Silent fail on error."""
+    from docx.shared import Cm
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+
+    img_bytes = _fetch_image_bytes(image_url)
+    if not img_bytes:
+        return
+
+    try:
+        img_stream = io.BytesIO(img_bytes)
+        p = doc.add_paragraph()
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        run = p.add_run()
+        run.add_picture(img_stream, width=Cm(10))
+    except Exception as e:
+        logger.warning(f"Failed to embed image in DOCX: {e}")
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# Markdown Table Parser
 # ═══════════════════════════════════════════════════════════════════════
 
 def _parse_table_row(row_str: str) -> List[str]:
@@ -451,7 +525,6 @@ def _has_sections(questions: List[dict]) -> bool:
 
 
 def _has_accountancy_sections(questions: List[dict]) -> bool:
-    """Check if questions use the Accountancy Part A/B section format."""
     for q in questions:
         sec = q.get('section') or q.get('_section') or ''
         if sec in ACCOUNTANCY_SECTIONS_META or sec.startswith(('A_', 'B1_')):
@@ -460,7 +533,6 @@ def _has_accountancy_sections(questions: List[dict]) -> bool:
 
 
 def _get_section_order(questions: List[dict]) -> tuple:
-    """Determine which section system to use and return (order, meta_dict)."""
     if _has_accountancy_sections(questions):
         return ACCOUNTANCY_SECTION_ORDER, ACCOUNTANCY_SECTIONS_META
     elif _has_sections(questions):
@@ -667,12 +739,8 @@ def _render_answer_table_docx(doc, answer_table):
     doc.add_paragraph()
 
 
-# ═══════════════════════════════════════════════════════════════════════
-# Markdown Table Rendering — DOCX
-# ═══════════════════════════════════════════════════════════════════════
-
 def _render_inline_table_docx(doc, headers: List[str], rows: List[List[str]]):
-    from docx.shared import Pt, RGBColor
+    from docx.shared import Pt
     from docx.enum.text import WD_ALIGN_PARAGRAPH
     from docx.enum.table import WD_TABLE_ALIGNMENT
 
@@ -709,18 +777,13 @@ def _render_inline_table_docx(doc, headers: List[str], rows: List[List[str]]):
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# v8 NEW: Question Card Wrapper (PDF)
+# Question Card Wrapper (PDF)
 # ═══════════════════════════════════════════════════════════════════════
 
 def _wrap_question_card(elements, W):
-    """
-    Wrap a list of question flowables inside a light gray card with subtle border.
-    Returns a list of story elements (card table + spacing).
-    """
     from reportlab.platypus import Table, TableStyle, Spacer
     from reportlab.lib.colors import HexColor
 
-    # Remove trailing spacers from elements
     clean = list(elements)
     while clean and isinstance(clean[-1], Spacer):
         clean.pop()
@@ -728,10 +791,7 @@ def _wrap_question_card(elements, W):
     if not clean:
         return [Spacer(1, 4)]
 
-    # Card = single-cell table containing stacked flowables
-    # Subtract padding from width so card fits perfectly
-    CARD_PAD_LR = 16  # total left + right padding inside card
-    card_inner_width = W  # outer card width matches page
+    card_inner_width = W
 
     t = Table(
         [[clean]],
@@ -739,15 +799,14 @@ def _wrap_question_card(elements, W):
     )
 
     style_cmds = [
-        ('BACKGROUND',    (0, 0), (-1, -1), HexColor('#F9FAFB')),   # light gray bg
-        ('BOX',           (0, 0), (-1, -1), 0.6, HexColor('#E5E7EB')),  # subtle border
+        ('BACKGROUND',    (0, 0), (-1, -1), HexColor('#F9FAFB')),
+        ('BOX',           (0, 0), (-1, -1), 0.6, HexColor('#E5E7EB')),
         ('TOPPADDING',    (0, 0), (-1, -1), 8),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
         ('LEFTPADDING',   (0, 0), (-1, -1), 8),
         ('RIGHTPADDING',  (0, 0), (-1, -1), 8),
     ]
 
-    # Rounded corners (ReportLab 3.5+, graceful fallback)
     try:
         style_cmds.append(('ROUNDEDCORNERS', [6, 6, 6, 6]))
     except Exception:
@@ -758,15 +817,9 @@ def _wrap_question_card(elements, W):
     return [t, Spacer(1, 7)]
 
 
-# ═══════════════════════════════════════════════════════════════════════
-# v8 NEW: OR Separator (PDF)
-# ═══════════════════════════════════════════════════════════════════════
-
 def _render_or_separator(styles, W):
-    """Render a centered 'OR' separator between question and its alternative."""
-    from reportlab.platypus import Paragraph, Spacer, HRFlowable, Table, TableStyle
+    from reportlab.platypus import Paragraph, Spacer, HRFlowable, Table
     from reportlab.lib.colors import HexColor
-    from reportlab.lib.enums import TA_CENTER
 
     or_elements = [
         Spacer(1, 2),
@@ -784,7 +837,7 @@ def _render_or_separator(styles, W):
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# PDF Generation (v9 — with paperDate support)
+# PDF Generation (v10 — manual question + image support)
 # ═══════════════════════════════════════════════════════════════════════
 
 def generate_pdf(
@@ -796,7 +849,7 @@ def generate_pdf(
     include_answers: bool = False,
     include_explanations: bool = False,
     logo_base64: Optional[str] = None,
-    paper_date: Optional[str] = None,  # v9: ADDED paper_date parameter
+    paper_date: Optional[str] = None,
 ) -> bytes:
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.units import cm
@@ -805,7 +858,7 @@ def generate_pdf(
     from reportlab.lib.colors import HexColor
     from reportlab.platypus import (
         SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
-        PageBreak, HRFlowable, Image as RLImage, KeepTogether,
+        PageBreak, HRFlowable, Image as RLImage,
     )
 
     buffer = io.BytesIO()
@@ -834,6 +887,7 @@ def generate_pdf(
         'Instruction': dict(parent=styles['Normal'], fontSize=9, leftIndent=12, spaceBefore=2, spaceAfter=2, textColor=HexColor('#4a4a6a'), leading=12),
         'FooterText': dict(parent=styles['Normal'], fontSize=8, textColor=HexColor('#9ca3af'), alignment=TA_CENTER),
         'ORText': dict(parent=styles['Normal'], fontSize=10, alignment=TA_CENTER, textColor=HexColor('#6b7280'), fontName='Helvetica-Bold', spaceBefore=2, spaceAfter=2),
+        'ManualBadge': dict(parent=styles['Normal'], fontSize=7.5, textColor=HexColor('#4f46e5'), fontName='Helvetica-Bold'),
     }
     for name, props in custom_styles.items():
         try:
@@ -843,7 +897,6 @@ def generate_pdf(
 
     story = []
 
-    # ── Header (v9: Use paper_date if provided, else today) ──
     display_date = _format_date_for_display(paper_date)
 
     logo_img = None
@@ -877,11 +930,9 @@ def generate_pdf(
     story.append(Spacer(1, 4))
     story.append(HRFlowable(width="100%", thickness=1.5, color=HexColor('#1a1a2e'), spaceAfter=8))
 
-    # ── Detect section type ──
     sec_order, sec_meta_dict = _get_section_order(questions)
     has_sec = sec_order is not None
 
-    # ── General Instructions ──
     story.append(Paragraph("<b>General Instructions:</b>", styles['SectionTitle']))
 
     base_instructions = [
@@ -917,11 +968,9 @@ def generate_pdf(
     story.append(Spacer(1, 6))
     story.append(HRFlowable(width="100%", thickness=0.5, color=HexColor('#e5e7eb'), spaceAfter=6))
 
-    # ── Question renderer (returns elements for one question) ──
     labels = ["A", "B", "C", "D", "E", "F"]
 
-    # Effective content width inside card (W minus card L+R padding)
-    QW = W - 20  # 8+8 padding + small buffer
+    QW = W - 20
 
     def _render_question(q, q_num):
         from reportlab.platypus import Table as RLTable, TableStyle as RLTableStyle
@@ -929,6 +978,7 @@ def generate_pdf(
         raw_text = q.get('text', '')
         marks = q.get('marks', 1)
         marks_label = f"[{marks} {'mark' if marks == 1 else 'marks'}]"
+        is_manual = _is_manual(q)
 
         segments = _split_text_and_tables(raw_text)
 
@@ -940,8 +990,14 @@ def generate_pdf(
         if not first_text:
             first_text = _latex_to_paragraph(raw_text)
 
+        # v10: Build question header with optional MANUAL badge
+        if is_manual:
+            q_text_html = f"<b>Q{q_num}.</b> {first_text} <font color='#4f46e5' size='7'><b>[MANUAL]</b></font>"
+        else:
+            q_text_html = f"<b>Q{q_num}.</b> {first_text}"
+
         qt = RLTable(
-            [[Paragraph(f"<b>Q{q_num}.</b> {first_text}", styles['QText']),
+            [[Paragraph(q_text_html, styles['QText']),
               Paragraph(marks_label, styles['Marks'])]],
             colWidths=[QW * 0.84, QW * 0.16],
         )
@@ -951,6 +1007,12 @@ def generate_pdf(
             ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
         ]))
         elements.append(qt)
+
+        # v10: Manual question image (if present)
+        image_url = _get_image_url(q)
+        if image_url:
+            img_elements = _render_manual_question_image_pdf(image_url, QW)
+            elements.extend(img_elements)
 
         first_text_skipped = False
         for seg in segments:
@@ -990,6 +1052,8 @@ def generate_pdf(
                     elements.append(Spacer(1, 60))
                 elif fmt in ('journal_entry', 'ledger', 'trial_balance'):
                     elements.append(Spacer(1, 80))
+                elif fmt == 'image':
+                    elements.append(Spacer(1, 30))
 
         if include_answers and include_explanations:
             raw_table = q.get('answer_table') or q.get('answerTable')
@@ -1006,7 +1070,6 @@ def generate_pdf(
 
         return elements
 
-    # ── Render all questions with card wrapper ──
     q_num = 0
 
     if has_sec:
@@ -1021,7 +1084,6 @@ def generate_pdf(
             meta = sec_meta_dict.get(sec_key, {})
             current_title = meta.get('title', sec_key)
 
-            # Only show section header if title changed (e.g., Part A shown once)
             if current_title != last_section_title:
                 story.append(HRFlowable(width="60%", thickness=1, color=HexColor('#1a1a2e'), spaceBefore=14, spaceAfter=4))
                 story.append(Paragraph(f"<b>{current_title}</b>", styles['SectionHeader']))
@@ -1031,10 +1093,9 @@ def generate_pdf(
             story.append(Paragraph(meta.get('instruction', ''), styles['SectionInstruction']))
             story.append(HRFlowable(width="40%", thickness=0.5, color=HexColor('#e5e7eb'), spaceAfter=6))
 
-            # Separate main vs OR questions
             main_qs = [q for q in sec_qs if not q.get('_is_or', False)]
             or_qs = [q for q in sec_qs if q.get('_is_or', False)]
-            or_queue = list(or_qs)  # queue of OR alternatives
+            or_queue = list(or_qs)
 
             for q in main_qs:
                 q_num += 1
@@ -1042,17 +1103,13 @@ def generate_pdf(
                 card = _wrap_question_card(elements, W)
                 story.extend(card)
 
-                # Check if this question has an OR alternative
                 if or_queue:
                     or_q = or_queue.pop(0)
-                    # OR separator
                     story.extend(_render_or_separator(styles, W))
-                    # OR question (same q_num since it's an alternative)
                     or_elements = _render_question(or_q, q_num)
                     or_card = _wrap_question_card(or_elements, W)
                     story.extend(or_card)
 
-            # Any remaining OR questions without a matched main
             for or_q in or_queue:
                 q_num += 1
                 story.extend(_render_or_separator(styles, W))
@@ -1060,15 +1117,27 @@ def generate_pdf(
                 or_card = _wrap_question_card(or_elements, W)
                 story.extend(or_card)
 
+        # v10: Manual questions with no section → render at end under "Additional Questions"
+        unsectioned = grouped.get('NONE', [])
+        if unsectioned:
+            story.append(HRFlowable(width="60%", thickness=1, color=HexColor('#4f46e5'), spaceBefore=14, spaceAfter=4))
+            story.append(Paragraph(f"<b>Additional Questions</b>", styles['SectionHeader']))
+            story.append(Paragraph("(Added by teacher)", styles['SectionSub']))
+            story.append(HRFlowable(width="40%", thickness=0.5, color=HexColor('#e5e7eb'), spaceAfter=6))
+
+            for q in unsectioned:
+                q_num += 1
+                elements = _render_question(q, q_num)
+                card = _wrap_question_card(elements, W)
+                story.extend(card)
+
     else:
-        # Non-sectioned: just render all with cards
         for q in questions:
             q_num += 1
             elements = _render_question(q, q_num)
             card = _wrap_question_card(elements, W)
             story.extend(card)
 
-    # ── Answer Key ──
     if include_answers and not include_explanations:
         story.append(PageBreak())
         story.append(Paragraph("<b>Answer Key</b>", styles['SchoolName']))
@@ -1080,6 +1149,7 @@ def generate_pdf(
             grouped = _group_by_section(questions)
             for sec_key in sec_order:
                 all_qs_ordered.extend(grouped.get(sec_key, []))
+            all_qs_ordered.extend(grouped.get('NONE', []))
         else:
             all_qs_ordered = questions
 
@@ -1096,7 +1166,6 @@ def generate_pdf(
                 story.append(Paragraph(f"<b>Q{q_num_ak}.</b> {correct}", styles['QText']))
                 story.append(Spacer(1, 2))
 
-    # ── Footer (v9: Use same display_date) ──
     story.append(Spacer(1, 20))
     story.append(HRFlowable(width="100%", thickness=0.5, color=HexColor('#e5e7eb'), spaceAfter=6))
     story.append(Paragraph(f"Generated by A4AI Test Engine · {board} {subject} Class {class_grade} · {display_date}", styles['FooterText']))
@@ -1107,7 +1176,7 @@ def generate_pdf(
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# DOCX Generation (v9 — with paperDate support)
+# DOCX Generation (v10 — manual question + image support)
 # ═══════════════════════════════════════════════════════════════════════
 
 def generate_docx(
@@ -1119,12 +1188,11 @@ def generate_docx(
     include_answers: bool = False,
     include_explanations: bool = False,
     logo_base64: Optional[str] = None,
-    paper_date: Optional[str] = None,  # v9: ADDED paper_date parameter
+    paper_date: Optional[str] = None,
 ) -> bytes:
     from docx import Document
     from docx.shared import Pt, Cm, RGBColor
     from docx.enum.text import WD_ALIGN_PARAGRAPH
-    from docx.oxml.ns import qn
 
     doc = Document()
     for section in doc.sections:
@@ -1133,7 +1201,6 @@ def generate_docx(
         section.left_margin = Cm(2)
         section.right_margin = Cm(2)
 
-    # v9: Use paper_date if provided, else today
     display_date = _format_date_for_display(paper_date)
 
     if logo_base64:
@@ -1165,11 +1232,9 @@ def generate_docx(
 
     doc.add_paragraph("━" * 50)
 
-    # ── Detect section type ──
     sec_order, sec_meta_dict = _get_section_order(questions)
     has_sec = sec_order is not None
 
-    # Instructions
     doc.add_heading("General Instructions", level=2)
 
     instructions = ["All questions are compulsory.", "Read each question carefully."]
@@ -1202,17 +1267,15 @@ def generate_docx(
     q_num = 0
 
     def _add_docx_separator(doc):
-        """Add a thin gray separator line between questions in DOCX."""
         sep_p = doc.add_paragraph()
         sep_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
         sep_p.paragraph_format.space_before = Pt(2)
         sep_p.paragraph_format.space_after = Pt(2)
         r = sep_p.add_run("─" * 60)
         r.font.size = Pt(6)
-        r.font.color.rgb = RGBColor(209, 213, 219)  # light gray
+        r.font.color.rgb = RGBColor(209, 213, 219)
 
     def _add_docx_or_separator(doc):
-        """Add an OR separator in DOCX."""
         sep_p = doc.add_paragraph()
         sep_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
         sep_p.paragraph_format.space_before = Pt(4)
@@ -1225,6 +1288,7 @@ def generate_docx(
     def _render_q_docx(q, q_num):
         raw_text = q.get('text', '')
         marks = q.get('marks', 1)
+        is_manual = _is_manual(q)
 
         segments = _split_text_and_tables(raw_text)
         first_text = ''
@@ -1241,9 +1305,22 @@ def generate_docx(
         rq.font.size = Pt(11)
         rt = p.add_run(first_text)
         rt.font.size = Pt(11)
+
+        # v10: MANUAL badge
+        if is_manual:
+            rb = p.add_run("  [MANUAL]")
+            rb.font.size = Pt(8)
+            rb.font.color.rgb = RGBColor(79, 70, 229)
+            rb.bold = True
+
         rm = p.add_run(f"  [{marks} {'mark' if marks == 1 else 'marks'}]")
         rm.font.size = Pt(8)
         rm.font.color.rgb = RGBColor(156, 163, 175)
+
+        # v10: Manual question image
+        image_url = _get_image_url(q)
+        if image_url:
+            _render_manual_question_image_docx(doc, image_url)
 
         first_text_skipped = False
         for seg in segments:
@@ -1337,7 +1414,6 @@ def generate_docx(
             inst_r.font.color.rgb = RGBColor(107, 114, 128)
             inst_r.italic = True
 
-            # Separate main vs OR
             main_qs = [q for q in sec_qs if not q.get('_is_or', False)]
             or_qs = [q for q in sec_qs if q.get('_is_or', False)]
             or_queue = list(or_qs)
@@ -1346,25 +1422,41 @@ def generate_docx(
                 q_num += 1
                 _render_q_docx(q, q_num)
 
-                # OR alternative
                 if or_queue:
                     or_q = or_queue.pop(0)
                     _add_docx_or_separator(doc)
                     _render_q_docx(or_q, q_num)
 
-                # Separator between questions (not after last one in section)
                 if i < len(main_qs) - 1 or or_queue:
+                    _add_docx_separator(doc)
+
+        # v10: Unsectioned manual questions appended
+        unsectioned = grouped.get('NONE', [])
+        if unsectioned:
+            doc.add_paragraph("━" * 50)
+            h = doc.add_heading("Additional Questions", level=1)
+            h.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+            sub_h = doc.add_paragraph()
+            sub_h.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            sub_r = sub_h.add_run("(Added by teacher)")
+            sub_r.font.size = Pt(9)
+            sub_r.font.color.rgb = RGBColor(107, 114, 128)
+            sub_r.italic = True
+
+            for i, q in enumerate(unsectioned):
+                q_num += 1
+                _render_q_docx(q, q_num)
+                if i < len(unsectioned) - 1:
                     _add_docx_separator(doc)
 
     else:
         for i, q in enumerate(questions):
             q_num += 1
             _render_q_docx(q, q_num)
-            # v8: Add separator between questions (not after last)
             if i < len(questions) - 1:
                 _add_docx_separator(doc)
 
-    # Answer Key
     if include_answers and not include_explanations:
         doc.add_page_break()
         h = doc.add_heading("Answer Key", level=0)
@@ -1376,6 +1468,7 @@ def generate_docx(
             grouped = _group_by_section(questions)
             for sec_key in sec_order:
                 all_qs_ordered.extend(grouped.get(sec_key, []))
+            all_qs_ordered.extend(grouped.get('NONE', []))
         else:
             all_qs_ordered = questions
 

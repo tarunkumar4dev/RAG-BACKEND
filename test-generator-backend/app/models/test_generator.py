@@ -1,10 +1,16 @@
 """
 Test Generator Models — Pydantic schemas for the full pipeline.
 
-Covers: request, generation, response, feedback, save, quiz.
+Covers: request, generation, response, feedback, save, quiz, manual questions.
+
+v3 Changes:
+  - Added ManualQuestionPayload model for teacher-added questions
+  - Added is_manual flag to GeneratedQuestion
+  - Added "image" and "manual" QuestionFormat values
+  - SaveTestRequest now accepts full questions list
 
 v2 Changes:
-  - Added AnswerTable model for Accountancy tabular answers (Journal Entry, Ledger, Trial Balance)
+  - Added AnswerTable model for Accountancy tabular answers
   - Added answer_table field to GeneratedQuestion
   - Added JOURNAL_ENTRY, LEDGER, TRIAL_BALANCE to QuestionFormat
 """
@@ -38,10 +44,13 @@ class QuestionFormat(str, Enum):
     LONG_ANSWER = "long_answer"
     ASSERTION_REASON = "assertion_reason"
     CASE_BASED = "case_based"
-    # ── NEW: Commerce / Accountancy formats ──
+    # Commerce / Accountancy formats
     JOURNAL_ENTRY = "journal_entry"
     LEDGER = "ledger"
     TRIAL_BALANCE = "trial_balance"
+    # v3: Manual-only formats
+    IMAGE = "image"
+    MANUAL = "manual"
 
 
 class TestPattern(str, Enum):
@@ -73,17 +82,19 @@ MARKS_MAP = {
     QuestionFormat.JOURNAL_ENTRY: 4,
     QuestionFormat.LEDGER: 4,
     QuestionFormat.TRIAL_BALANCE: 5,
+    QuestionFormat.IMAGE: 3,
+    QuestionFormat.MANUAL: 2,
 }
 
 
-# ── NEW: Tabular answer structure ─────────────────────────────────────────────
+# ── Tabular answer structure ─────────────────────────────────────────────
 
 class AnswerTable(BaseModel):
     """Structured table answer for Accountancy questions."""
-    type: str  # "journal_entry", "ledger", "trial_balance"
+    type: str
     headers: List[str]
     rows: List[List[str]]
-    total_row: Optional[List[str]] = None  # For Trial Balance totals
+    total_row: Optional[List[str]] = None
 
 
 # ── Main request ──────────────────────────────────────────────────────────────
@@ -132,10 +143,85 @@ class GeneratedQuestion(BaseModel):
     chapter: str
     topic: Optional[str] = None
     format: QuestionFormat
-    validation_status: Literal["verified", "needs_review"] = "verified"
+    validation_status: Literal["verified", "needs_review", "manual"] = "verified"
     validation_notes: Optional[str] = None
-    # ── NEW: Tabular answer for Accountancy ──
+    # Tabular answer for Accountancy
     answer_table: Optional[AnswerTable] = None
+    # v3: Manual question fields
+    is_manual: bool = False
+    image_url: Optional[str] = None  # for image-based manual questions
+    section: Optional[str] = None  # CBSE section (A/B/C/D/E)
+
+
+# ── v3: Manual Question Payload (from frontend) ──────────────────────────────
+
+class ManualQuestionPayload(BaseModel):
+    """
+    Represents a question added manually by the teacher.
+    Accepts both camelCase (frontend) and snake_case keys.
+    """
+    id: str
+    text: str
+    options: Optional[List[str]] = None
+    correctAnswer: Optional[str] = None      # frontend camelCase
+    correct_answer: Optional[str] = None     # backend snake_case
+    explanation: Optional[str] = ""
+    marks: int = 1
+    difficulty: str = "medium"
+    chapter: Optional[str] = "Manual Addition"
+    topic: Optional[str] = None
+    format: str = "manual"  # mcq, short_answer, long_answer, image, manual
+    type: Optional[str] = None  # alternative name from frontend
+    imageUrl: Optional[str] = None
+    image_url: Optional[str] = None
+    section: Optional[str] = None
+    isManual: bool = True
+    is_manual: bool = True
+
+    def to_generated_question(self) -> GeneratedQuestion:
+        """Convert to the standard GeneratedQuestion model for DB save/export."""
+        correct = self.correctAnswer or self.correct_answer or ""
+        img_url = self.imageUrl or self.image_url
+
+        # Map format/type → QuestionFormat
+        fmt_raw = (self.type or self.format or "manual").lower()
+        fmt_map = {
+            "mcq": QuestionFormat.MCQ,
+            "short": QuestionFormat.SHORT_ANSWER,
+            "short_answer": QuestionFormat.SHORT_ANSWER,
+            "long": QuestionFormat.LONG_ANSWER,
+            "long_answer": QuestionFormat.LONG_ANSWER,
+            "image": QuestionFormat.IMAGE,
+            "manual": QuestionFormat.MANUAL,
+        }
+        fmt = fmt_map.get(fmt_raw, QuestionFormat.MANUAL)
+
+        # Map difficulty
+        diff_raw = self.difficulty.lower()
+        diff_map = {
+            "easy": DifficultyLevel.EASY,
+            "medium": DifficultyLevel.MEDIUM,
+            "hard": DifficultyLevel.HARD,
+        }
+        diff = diff_map.get(diff_raw, DifficultyLevel.MEDIUM)
+
+        return GeneratedQuestion(
+            id=self.id,
+            text=self.text,
+            options=self.options if fmt == QuestionFormat.MCQ else None,
+            correct_answer=correct,
+            explanation=self.explanation or "",
+            marks=self.marks,
+            difficulty=diff,
+            bloom_level=None,
+            chapter=self.chapter or "Manual Addition",
+            topic=self.topic,
+            format=fmt,
+            validation_status="manual",
+            is_manual=True,
+            image_url=img_url,
+            section=self.section,
+        )
 
 
 # ── Response ──────────────────────────────────────────────────────────────────
@@ -173,6 +259,8 @@ class SaveTestRequest(BaseModel):
     test_id: str
     teacher_id: str
     export_format: Literal["pdf", "docx"] = "pdf"
+    # v3: allow passing the final question list (including manual additions)
+    questions: Optional[List[dict]] = None
 
 
 # ── Quiz ──────────────────────────────────────────────────────────────────────

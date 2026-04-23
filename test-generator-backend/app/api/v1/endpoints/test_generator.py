@@ -1,13 +1,15 @@
 """
-Test Generator API Endpoints — SYNC (Production)
+Test Generator API Endpoints — v2.5
+
+v2.5 changes:
+  - /save now accepts a full questions list (including manual additions) and persists them
+  - /export now supports paperDate and manual_questions fields
+  - ExportRequest validates manual questions + images
+  - Added /tests/{test_id}/add-manual-question endpoint (optional per-question persist)
 
 v2.4 changes:
-  - Fixed: FORMAT_MAP now includes all format variants (Short, Long, short_answer, long_answer)
-  - Fixed: Accountancy import path → test_generator_service (not generation_service)
-  - All v2.3 features retained (usage limits, cbsePattern, sections, answerTable)
-v2.5 changes:
-  - Added paperDate field to FrontendGenerateRequest model
-  - Added paperDate to meta dict in _transform_backend_to_frontend
+  - Fixed: FORMAT_MAP includes all format variants
+  - Fixed: Accountancy import path → test_generator_service
 """
 
 from fastapi import APIRouter, HTTPException
@@ -25,6 +27,7 @@ from app.models.test_generator import (
     ChapterSection,
     DifficultyLevel,
     QuestionFormat,
+    ManualQuestionPayload,  # v2.5
 )
 from app.services.test_generator_service import generate_test, handle_feedback
 from app.services.rag_service import retrieve_context
@@ -116,7 +119,7 @@ class FrontendChapterRow(BaseModel):
 
 class FrontendGenerateRequest(BaseModel):
     examTitle: str = "Untitled Test"
-    paperDate: Optional[str] = None  # ADDED v2.5: ISO date string, e.g., "2026-04-23"
+    paperDate: Optional[str] = None  # ISO date string
     board: str = "CBSE"
     classGrade: str = "Class 10"
     subject: str = "Science"
@@ -147,6 +150,9 @@ class FrontendQuestionResponse(BaseModel):
     validationStatus: str
     section: Optional[str] = None
     answerTable: Optional[dict] = None
+    # v2.5: manual question fields
+    isManual: bool = False
+    imageUrl: Optional[str] = None
 
 
 class FrontendGenerateResponse(BaseModel):
@@ -161,16 +167,31 @@ class FrontendGenerateResponse(BaseModel):
     meta: dict = {}
 
 
+# v2.5: Export accepts paperDate + manual flags
 class ExportRequest(BaseModel):
     examTitle: str = "Test Paper"
+    paperDate: Optional[str] = None
     board: str = "CBSE"
     classGrade: str = "Class 10"
     subject: str = "Science"
-    questions: list
+    questions: list  # array of question dicts (can contain manual ones)
     includeAnswers: bool = False
     includeExplanations: bool = False
     format: str = "pdf"
     logoBase64: Optional[str] = None
+
+
+# v2.5: Save accepts questions array
+class FrontendSaveRequest(BaseModel):
+    test_id: str
+    teacher_id: str
+    questions: Optional[List[dict]] = None  # full final question list incl. manual
+
+
+# v2.5: Standalone manual question add endpoint payload
+class AddManualQuestionRequest(BaseModel):
+    teacher_id: str
+    question: ManualQuestionPayload
 
 
 # ── Transform helpers ───────────────────────────────────────────────
@@ -183,26 +204,18 @@ DIFFICULTY_MAP = {
     "Very Hard": "very_hard", "very_hard": "very_hard",
 }
 
-# ═══════════════════════════════════════════════════════════════════════
-# FIX v2.4: Complete FORMAT_MAP with ALL format variants
-# BUG WAS: "short_answer", "long_answer", "Short", "Long" were MISSING
-#          → everything defaulted to MCQ
-# ═══════════════════════════════════════════════════════════════════════
 FORMAT_MAP = {
-    # ── Frontend display values (TestRowEditor buttons) ──
     "MCQ":            QuestionFormat.MCQ,
     "Short":          QuestionFormat.SHORT_ANSWER,
     "Long":           QuestionFormat.LONG_ANSWER,
     "Essay":          QuestionFormat.LONG_ANSWER,
 
-    # ── Backend snake_case values (from useTestGenerator FORMAT_MAP conversion) ──
     "mcq":            QuestionFormat.MCQ,
     "short_answer":   QuestionFormat.SHORT_ANSWER,
     "long_answer":    QuestionFormat.LONG_ANSWER,
     "assertion_reason": QuestionFormat.ASSERTION_REASON,
     "case_based":     QuestionFormat.MCQ,
 
-    # ── Accountancy formats ──
     "Journal Entry":  QuestionFormat.JOURNAL_ENTRY,
     "journal_entry":  QuestionFormat.JOURNAL_ENTRY,
     "JournalEntry":   QuestionFormat.JOURNAL_ENTRY,
@@ -212,7 +225,6 @@ FORMAT_MAP = {
     "trial_balance":  QuestionFormat.TRIAL_BALANCE,
     "TrialBalance":   QuestionFormat.TRIAL_BALANCE,
 
-    # ── Legacy/fallback ──
     "PDF":            QuestionFormat.MCQ,
     "DOC":            QuestionFormat.MCQ,
 }
@@ -300,7 +312,7 @@ def _transform_backend_to_frontend(resp, req: FrontendGenerateRequest) -> Fronte
 
     questions = []
     for q in questions_list:
-        section = getattr(q, '_section', None)
+        section = getattr(q, '_section', None) or getattr(q, 'section', None)
 
         answer_table_data = None
         if hasattr(q, 'answer_table') and q.answer_table is not None:
@@ -329,6 +341,8 @@ def _transform_backend_to_frontend(resp, req: FrontendGenerateRequest) -> Fronte
             validationStatus=q.validation_status,
             section=section,
             answerTable=answer_table_data,
+            isManual=getattr(q, 'is_manual', False),
+            imageUrl=getattr(q, 'image_url', None),
         ))
 
     return FrontendGenerateResponse(
@@ -348,7 +362,7 @@ def _transform_backend_to_frontend(resp, req: FrontendGenerateRequest) -> Fronte
             "classGrade": req.classGrade,
             "subject": req.subject,
             "cbsePattern": req.cbsePattern,
-            "paperDate": req.paperDate,  # ADDED v2.5
+            "paperDate": req.paperDate,
         },
     )
 
@@ -377,9 +391,6 @@ async def generate_from_frontend(req: FrontendGenerateRequest):
         context_chunks = retrieve_context(chapters, topics, backend_request.subject, backend_request.class_grade)
         logger.info(f"Retrieved {len(context_chunks)} context chunks")
 
-        # ═══════════════════════════════════════════════════════════
-        # FIX v2.4: Import from test_generator_service (NOT generation_service)
-        # ═══════════════════════════════════════════════════════════
         resolved_subject = _resolve_subject(req.subject)
         is_accountancy = resolved_subject.lower() in ("accountancy", "accounts", "accounting")
 
@@ -408,12 +419,19 @@ async def generate_from_frontend(req: FrontendGenerateRequest):
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
+        error_str = str(e)
+        if "No NCERT content found" in error_str:
+            chapter_names = [ch.chapter for ch in backend_request.chapters] if 'backend_request' in locals() else []
+            raise HTTPException(
+                status_code=404,
+                detail=f"Content not available for selected chapters: {', '.join(chapter_names)}. Try different chapters or contact support."
+            )
         logger.error(f"Frontend generate error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Generation failed: {str(e)}")
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# ENDPOINT: Export PDF / DOCX
+# ENDPOINT: Export PDF / DOCX (v2.5 — paperDate + manual questions)
 # ═══════════════════════════════════════════════════════════════════════
 
 @router.post("/export")
@@ -421,14 +439,33 @@ async def export_test(req: ExportRequest):
     try:
         class_num = _extract_class_number(req.classGrade)
 
+        # Normalize questions: ensure section field exists, mark manual
+        normalized_questions = []
         for q in req.questions:
-            if isinstance(q, dict) and 'section' not in q:
+            if not isinstance(q, dict):
+                continue
+            if 'section' not in q:
                 q['section'] = None
+            # Detect manual question from multiple possible flag names
+            is_manual = bool(
+                q.get('isManual')
+                or q.get('is_manual')
+                or q.get('validationStatus') == 'manual'
+                or q.get('validation_status') == 'manual'
+            )
+            if is_manual:
+                q['isManual'] = True
+                q['is_manual'] = True
+            normalized_questions.append(q)
+
+        manual_count = sum(1 for q in normalized_questions if q.get('is_manual'))
+        if manual_count:
+            logger.info(f"Export includes {manual_count} manual question(s)")
 
         if req.format.lower() == "docx":
             from app.services.export_service import generate_docx
             file_bytes = generate_docx(
-                questions=req.questions,
+                questions=normalized_questions,
                 exam_title=req.examTitle,
                 board=req.board,
                 class_grade=class_num,
@@ -436,6 +473,7 @@ async def export_test(req: ExportRequest):
                 include_answers=req.includeAnswers,
                 include_explanations=req.includeExplanations,
                 logo_base64=req.logoBase64,
+                paper_date=req.paperDate,
             )
             filename = f"{req.examTitle.replace(' ', '_')}.docx"
             return Response(
@@ -446,7 +484,7 @@ async def export_test(req: ExportRequest):
         else:
             from app.services.export_service import generate_pdf
             file_bytes = generate_pdf(
-                questions=req.questions,
+                questions=normalized_questions,
                 exam_title=req.examTitle,
                 board=req.board,
                 class_grade=class_num,
@@ -454,6 +492,7 @@ async def export_test(req: ExportRequest):
                 include_answers=req.includeAnswers,
                 include_explanations=req.includeExplanations,
                 logo_base64=req.logoBase64,
+                paper_date=req.paperDate,
             )
             filename = f"{req.examTitle.replace(' ', '_')}.pdf"
             return Response(
@@ -482,7 +521,6 @@ async def get_chapters(subject: str = "Science", class_grade: str = "10"):
             .eq("class_grade", class_grade) \
             .execute()
 
-        # Extract unique chapters and sort
         chapters = sorted(set(row["chapter"] for row in (result.data or [])))
         return {"ok": True, "subject": subject, "classGrade": class_grade, "chapters": chapters, "count": len(chapters)}
     except Exception as e:
@@ -536,7 +574,7 @@ async def health_detail():
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# OTHER ENDPOINTS (unchanged)
+# OTHER ENDPOINTS
 # ═══════════════════════════════════════════════════════════════════════
 
 @router.post("/generate", response_model=TestGenerationResponse)
@@ -566,15 +604,151 @@ async def feedback(request: TestFeedbackRequest):
         raise HTTPException(status_code=500, detail="Feedback processing failed.")
 
 
+# ═══════════════════════════════════════════════════════════════════════
+# ENDPOINT: Save Test (v2.5 — accepts full question list incl. manual)
+# ═══════════════════════════════════════════════════════════════════════
+
 @router.post("/save")
-async def save_test(request: SaveTestRequest):
+async def save_test(request: FrontendSaveRequest):
+    """
+    Save the final test to DB.
+    If `questions` is provided, overwrites the questions table for this test
+    (used when teacher has added manual questions or edited existing ones).
+    """
     supabase = get_supabase()
     try:
+        # Always update test status
         supabase.table("tests").update({"status": "saved"}).eq("id", request.test_id).execute()
+
+        # v2.5: Persist final question list if provided (includes manual questions)
+        if request.questions:
+            logger.info(f"Saving {len(request.questions)} questions for test {request.test_id}")
+
+            # Delete old questions for this test (manual questions may have been added)
+            try:
+                supabase.table("questions").delete().eq("test_id", request.test_id).execute()
+            except Exception as del_err:
+                logger.warning(f"Could not delete old questions (table may not exist): {del_err}")
+
+            # Insert all questions fresh
+            rows_to_insert = []
+            for idx, q in enumerate(request.questions):
+                if not isinstance(q, dict):
+                    continue
+
+                is_manual = bool(
+                    q.get('isManual')
+                    or q.get('is_manual')
+                    or q.get('validationStatus') == 'manual'
+                )
+
+                row = {
+                    "id": q.get("id") or str(uuid.uuid4()),
+                    "test_id": request.test_id,
+                    "position": idx + 1,
+                    "text": q.get("text", ""),
+                    "options": q.get("options") or [],
+                    "correct_answer": q.get("correctAnswer") or q.get("correct_answer", ""),
+                    "explanation": q.get("explanation", ""),
+                    "marks": q.get("marks", 1),
+                    "difficulty": q.get("difficulty", "medium"),
+                    "chapter": q.get("chapter", ""),
+                    "topic": q.get("topic"),
+                    "format": q.get("format", "mcq"),
+                    "bloom_level": q.get("bloomLevel") or q.get("bloom_level"),
+                    "section": q.get("section"),
+                    "is_manual": is_manual,
+                    "image_url": q.get("imageUrl") or q.get("image_url"),
+                    "answer_table": q.get("answerTable") or q.get("answer_table"),
+                }
+                rows_to_insert.append(row)
+
+            if rows_to_insert:
+                try:
+                    supabase.table("questions").insert(rows_to_insert).execute()
+                    logger.info(f"Inserted {len(rows_to_insert)} questions")
+                except Exception as ins_err:
+                    # Non-fatal: the test row itself is still saved
+                    logger.error(f"Failed to insert questions: {ins_err}")
+
         return {"success": True, "test_id": request.test_id, "message": "Test saved."}
     except Exception as e:
-        logger.error(f"Save error: {e}")
+        logger.error(f"Save error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Save failed.")
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# ENDPOINT: Add Manual Question (v2.5 — optional per-question persist)
+# ═══════════════════════════════════════════════════════════════════════
+
+@router.post("/tests/{test_id}/add-manual-question")
+async def add_manual_question(test_id: str, req: AddManualQuestionRequest):
+    """
+    Add a single manual question to an existing test.
+    Returns the stored question. Used if teacher wants to persist immediately
+    (not wait for 'Save & Finish').
+    """
+    supabase = get_supabase()
+    try:
+        gq = req.question.to_generated_question()
+
+        # Determine position
+        try:
+            existing = supabase.table("questions").select("position").eq("test_id", test_id).execute()
+            max_pos = max((r.get("position", 0) for r in (existing.data or [])), default=0)
+        except Exception:
+            max_pos = 0
+
+        row = {
+            "id": gq.id,
+            "test_id": test_id,
+            "position": max_pos + 1,
+            "text": gq.text,
+            "options": gq.options or [],
+            "correct_answer": gq.correct_answer,
+            "explanation": gq.explanation,
+            "marks": gq.marks,
+            "difficulty": gq.difficulty.value,
+            "chapter": gq.chapter,
+            "topic": gq.topic,
+            "format": gq.format.value,
+            "bloom_level": None,
+            "section": gq.section,
+            "is_manual": True,
+            "image_url": gq.image_url,
+            "answer_table": None,
+        }
+
+        try:
+            supabase.table("questions").insert(row).execute()
+        except Exception as ins_err:
+            logger.error(f"Insert manual question failed: {ins_err}")
+            raise HTTPException(status_code=500, detail="Failed to save manual question")
+
+        return {
+            "ok": True,
+            "test_id": test_id,
+            "question": {
+                "id": gq.id,
+                "text": gq.text,
+                "options": gq.options,
+                "correctAnswer": gq.correct_answer,
+                "explanation": gq.explanation,
+                "marks": gq.marks,
+                "difficulty": gq.difficulty.value,
+                "chapter": gq.chapter,
+                "format": gq.format.value,
+                "section": gq.section,
+                "imageUrl": gq.image_url,
+                "isManual": True,
+                "validationStatus": "manual",
+            },
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Add manual question error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed: {str(e)}")
 
 
 @router.post("/quiz/create")

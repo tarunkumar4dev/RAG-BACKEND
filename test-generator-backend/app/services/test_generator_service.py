@@ -488,12 +488,55 @@ def _extract_questions_individually(text: str) -> list:
     return questions
 
 
+"""
+Patch for test_generator_service.py — Improved JSON extraction for truncated Gemini responses
+
+Replace the `_extract_json` function with this version.
+
+Changes:
+  - Detects truncated responses early (no matching closing brace)
+  - Immediately falls through to per-question extraction if truncation detected
+  - Better logging to show what was recovered
+"""
+
+
 def _extract_json(raw: str) -> dict:
+    """
+    Robust JSON extractor with multiple fallback strategies.
+    Handles: truncated responses, unescaped newlines, LaTeX escapes, control chars.
+    """
     text = raw.strip().lstrip("\ufeff\u200b")
 
     fence = re.search(r"```(?:json)?\s*([\s\S]*?)```", text)
     if fence:
         text = fence.group(1).strip()
+
+    # ── Early detection: is this truncated? ──
+    # Count unmatched braces
+    open_braces = text.count("{")
+    close_braces = text.count("}")
+    open_brackets = text.count("[")
+    close_brackets = text.count("]")
+
+    is_truncated = (
+        open_braces > close_braces + 1  # significantly unbalanced
+        or open_brackets > close_brackets
+        or not text.rstrip().endswith(("}", "]"))
+    )
+
+    if is_truncated:
+        logger.warning(
+            f"JSON appears truncated (braces: {open_braces}/{close_braces}, "
+            f"brackets: {open_brackets}/{close_brackets}). "
+            f"Skipping to per-question extraction."
+        )
+        individual_qs = _extract_questions_individually(text)
+        if individual_qs:
+            logger.info(
+                f"✓ Recovered {len(individual_qs)} questions from truncated response"
+            )
+            return {"questions": individual_qs}
+        # else fall through and try normal parsing
 
     # Attempt 1: direct parse
     try:
@@ -506,7 +549,6 @@ def _extract_json(raw: str) -> dict:
     if fb == -1:
         raise ValueError(f"No JSON found (len={len(raw)})")
 
-    # If no closing brace found, text is truncated — use what we have
     if lb <= fb:
         candidate = text[fb:]
     else:
@@ -525,7 +567,7 @@ def _extract_json(raw: str) -> dict:
     except json.JSONDecodeError:
         pass
 
-    # Attempt 4: escape control chars inside strings (NEW v14)
+    # Attempt 4: escape control chars inside strings
     escaped_ctrl = _escape_control_chars_in_strings(cleaned)
     try:
         return json.loads(escaped_ctrl)
@@ -553,11 +595,13 @@ def _extract_json(raw: str) -> dict:
     except json.JSONDecodeError:
         pass
 
-    # Attempt 8 (v14 NEW): per-question extraction — saves partial batches
-    logger.warning(f"Bulk parse failed, attempting per-question extraction (len={len(raw)})")
+    # Attempt 8: per-question extraction — last resort
+    logger.warning(
+        f"All bulk parse attempts failed, trying per-question extraction (len={len(raw)})"
+    )
     individual_qs = _extract_questions_individually(text)
     if individual_qs:
-        logger.info(f"Recovered {len(individual_qs)} questions via per-question extraction")
+        logger.info(f"✓ Recovered {len(individual_qs)} questions via per-question extraction")
         return {"questions": individual_qs}
 
     logger.error(f"JSON failed all attempts. Preview: {candidate[:200]}")
