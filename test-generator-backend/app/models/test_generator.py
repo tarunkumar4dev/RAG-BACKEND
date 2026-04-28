@@ -3,6 +3,12 @@ Test Generator Models — Pydantic schemas for the full pipeline.
 
 Covers: request, generation, response, feedback, save, quiz, manual questions.
 
+v4 Changes:
+  - Added QuestionTable model for Statistics / Data-handling questions
+    (table is part of the QUESTION, e.g. frequency distribution given to student)
+  - Added question_table field to GeneratedQuestion
+  - This is distinct from answer_table (Accountancy — table IS the answer)
+
 v3 Changes:
   - Added ManualQuestionPayload model for teacher-added questions
   - Added is_manual flag to GeneratedQuestion
@@ -87,7 +93,7 @@ MARKS_MAP = {
 }
 
 
-# ── Tabular answer structure ─────────────────────────────────────────────
+# ── Tabular ANSWER structure (Accountancy — the table IS the answer) ─────────
 
 class AnswerTable(BaseModel):
     """Structured table answer for Accountancy questions."""
@@ -95,6 +101,19 @@ class AnswerTable(BaseModel):
     headers: List[str]
     rows: List[List[str]]
     total_row: Optional[List[str]] = None
+
+
+# ── v4: Tabular QUESTION structure (Statistics — table is part of the prompt)
+# Distinct from AnswerTable. Used when the question presents data to the student
+# (e.g. frequency distribution, data table) and asks them to compute something
+# from it. The student's answer is text/calculation, not another table.
+
+class QuestionTable(BaseModel):
+    """Structured table embedded in the QUESTION (data given to student)."""
+    type: str  # "frequency_distribution", "cumulative_frequency", "data_table"
+    headers: List[str]
+    rows: List[List[str]]
+    caption: Optional[str] = None  # e.g. "Marks obtained by 50 students"
 
 
 # ── Main request ──────────────────────────────────────────────────────────────
@@ -147,6 +166,8 @@ class GeneratedQuestion(BaseModel):
     validation_notes: Optional[str] = None
     # Tabular answer for Accountancy
     answer_table: Optional[AnswerTable] = None
+    # v4: Tabular question data for Statistics / Data-handling
+    question_table: Optional[QuestionTable] = None
     # v3: Manual question fields
     is_manual: bool = False
     image_url: Optional[str] = None  # for image-based manual questions

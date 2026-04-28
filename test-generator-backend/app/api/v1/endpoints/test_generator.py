@@ -1,5 +1,10 @@
 """
-Test Generator API Endpoints — v2.5
+Test Generator API Endpoints — v2.6
+
+v2.6 changes (additive only):
+  - FrontendQuestionResponse: added questionTable field for Statistics questions
+  - _transform_backend_to_frontend: extracts question_table similar to answer_table
+  - /save: persists question_table along with answer_table (forward compat)
 
 v2.5 changes:
   - /save now accepts a full questions list (including manual additions) and persists them
@@ -150,6 +155,8 @@ class FrontendQuestionResponse(BaseModel):
     validationStatus: str
     section: Optional[str] = None
     answerTable: Optional[dict] = None
+    # v2.6: structured table embedded in the QUESTION (Statistics, etc.)
+    questionTable: Optional[dict] = None
     # v2.5: manual question fields
     isManual: bool = False
     imageUrl: Optional[str] = None
@@ -290,6 +297,25 @@ def _transform_frontend_to_backend(req: FrontendGenerateRequest) -> TestGenerati
     )
 
 
+def _serialize_table_field(table_obj):
+    """
+    Safely convert a Pydantic table model (AnswerTable / QuestionTable) or dict
+    to a plain dict for the frontend response.
+    """
+    if table_obj is None:
+        return None
+    try:
+        if hasattr(table_obj, 'model_dump'):
+            return table_obj.model_dump()
+        if hasattr(table_obj, 'dict'):
+            return table_obj.dict()
+        if isinstance(table_obj, dict):
+            return table_obj
+    except Exception as e:
+        logger.warning(f"Table serialization failed: {e}")
+    return None
+
+
 def _transform_backend_to_frontend(resp, req: FrontendGenerateRequest) -> FrontendGenerateResponse:
     if isinstance(resp, list):
         questions_list = resp
@@ -314,17 +340,11 @@ def _transform_backend_to_frontend(resp, req: FrontendGenerateRequest) -> Fronte
     for q in questions_list:
         section = getattr(q, '_section', None) or getattr(q, 'section', None)
 
-        answer_table_data = None
-        if hasattr(q, 'answer_table') and q.answer_table is not None:
-            try:
-                if hasattr(q.answer_table, 'model_dump'):
-                    answer_table_data = q.answer_table.model_dump()
-                elif hasattr(q.answer_table, 'dict'):
-                    answer_table_data = q.answer_table.dict()
-                elif isinstance(q.answer_table, dict):
-                    answer_table_data = q.answer_table
-            except Exception:
-                answer_table_data = None
+        # v2.5: answer_table (Accountancy) — table IS the answer
+        answer_table_data = _serialize_table_field(getattr(q, 'answer_table', None))
+
+        # v2.6: question_table (Statistics) — table is part of the question
+        question_table_data = _serialize_table_field(getattr(q, 'question_table', None))
 
         questions.append(FrontendQuestionResponse(
             id=q.id,
@@ -341,6 +361,7 @@ def _transform_backend_to_frontend(resp, req: FrontendGenerateRequest) -> Fronte
             validationStatus=q.validation_status,
             section=section,
             answerTable=answer_table_data,
+            questionTable=question_table_data,  # v2.6
             isManual=getattr(q, 'is_manual', False),
             imageUrl=getattr(q, 'image_url', None),
         ))
@@ -605,7 +626,7 @@ async def feedback(request: TestFeedbackRequest):
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# ENDPOINT: Save Test (v2.5 — accepts full question list incl. manual)
+# ENDPOINT: Save Test (v2.6 — accepts full question list incl. manual + tables)
 # ═══════════════════════════════════════════════════════════════════════
 
 @router.post("/save")
@@ -660,6 +681,8 @@ async def save_test(request: FrontendSaveRequest):
                     "is_manual": is_manual,
                     "image_url": q.get("imageUrl") or q.get("image_url"),
                     "answer_table": q.get("answerTable") or q.get("answer_table"),
+                    # v2.6: Statistics question table
+                    "question_table": q.get("questionTable") or q.get("question_table"),
                 }
                 rows_to_insert.append(row)
 
@@ -669,7 +692,19 @@ async def save_test(request: FrontendSaveRequest):
                     logger.info(f"Inserted {len(rows_to_insert)} questions")
                 except Exception as ins_err:
                     # Non-fatal: the test row itself is still saved
-                    logger.error(f"Failed to insert questions: {ins_err}")
+                    # If question_table column doesn't exist, retry without it
+                    err_str = str(ins_err).lower()
+                    if "question_table" in err_str and ("column" in err_str or "schema" in err_str):
+                        logger.warning("question_table column missing in DB, retrying without it")
+                        for r in rows_to_insert:
+                            r.pop("question_table", None)
+                        try:
+                            supabase.table("questions").insert(rows_to_insert).execute()
+                            logger.info(f"Inserted {len(rows_to_insert)} questions (without question_table)")
+                        except Exception as retry_err:
+                            logger.error(f"Insert retry also failed: {retry_err}")
+                    else:
+                        logger.error(f"Failed to insert questions: {ins_err}")
 
         return {"success": True, "test_id": request.test_id, "message": "Test saved."}
     except Exception as e:
