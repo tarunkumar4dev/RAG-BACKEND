@@ -1006,7 +1006,7 @@ def _render_inline_table_docx(doc, headers: List[str], rows: List[List[str]]):
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# Question Card Wrapper (PDF)
+# Question Card Wrapper (PDF) — COMPACT LAYOUT (CHANGE 2 applied)
 # ═══════════════════════════════════════════════════════════════════════
 
 def _wrap_question_card(elements, W):
@@ -1027,13 +1027,14 @@ def _wrap_question_card(elements, W):
         colWidths=[card_inner_width],
     )
 
+    # CHANGE 2: Tighter padding (8→5/6, box 0.6→0.5)
     style_cmds = [
         ('BACKGROUND',    (0, 0), (-1, -1), HexColor('#F9FAFB')),
-        ('BOX',           (0, 0), (-1, -1), 0.6, HexColor('#E5E7EB')),
-        ('TOPPADDING',    (0, 0), (-1, -1), 8),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-        ('LEFTPADDING',   (0, 0), (-1, -1), 8),
-        ('RIGHTPADDING',  (0, 0), (-1, -1), 8),
+        ('BOX',           (0, 0), (-1, -1), 0.5, HexColor('#E5E7EB')),
+        ('TOPPADDING',    (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ('LEFTPADDING',   (0, 0), (-1, -1), 6),
+        ('RIGHTPADDING',  (0, 0), (-1, -1), 6),
     ]
 
     try:
@@ -1043,7 +1044,8 @@ def _wrap_question_card(elements, W):
 
     t.setStyle(TableStyle(style_cmds))
 
-    return [t, Spacer(1, 7)]
+    # CHANGE 2: Spacer reduced from 7 to 4
+    return [t, Spacer(1, 4)]
 
 
 def _render_or_separator(styles, W):
@@ -1066,7 +1068,7 @@ def _render_or_separator(styles, W):
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# PDF Generation (v11 — question_table support)
+# PDF Generation (v11 — question_table support + COMPACT LAYOUT)
 # ═══════════════════════════════════════════════════════════════════════
 
 def generate_pdf(
@@ -1091,27 +1093,46 @@ def generate_pdf(
     )
 
     buffer = io.BytesIO()
+    
+    # CHANGE 1: Reduced page margins (1.5→1.0, 2→1.5)
     doc = SimpleDocTemplate(
         buffer, pagesize=A4,
-        topMargin=1.5 * cm, bottomMargin=1.5 * cm,
-        leftMargin=2 * cm, rightMargin=2 * cm,
+        topMargin=1.0 * cm, bottomMargin=1.0 * cm,
+        leftMargin=1.5 * cm, rightMargin=1.5 * cm,
     )
 
     styles = getSampleStyleSheet()
-    W = A4[0] - 4 * cm
+    
+    # CHANGE 1: Updated content width calculation (4cm→3cm)
+    W = A4[0] - 3 * cm
 
+    # CHANGE 3: Tighter paragraph styles + CHANGE 4: Compressed section headers
     custom_styles = {
         'SchoolName': dict(parent=styles['Title'], fontSize=14, leading=18, spaceAfter=2, alignment=TA_CENTER, textColor=HexColor('#1a1a2e'), fontName='Helvetica-Bold'),
         'ExamMeta': dict(parent=styles['Normal'], fontSize=10, alignment=TA_CENTER, textColor=HexColor('#4a4a6a'), spaceAfter=4),
-        'SectionHeader': dict(parent=styles['Heading1'], fontSize=12, spaceBefore=18, spaceAfter=4, textColor=HexColor('#1a1a2e'), fontName='Helvetica-Bold', alignment=TA_CENTER),
+        
+        # CHANGE 4: Compressed section headers (spaceBefore 18→10, spaceAfter 4→2, fontSize 12→11)
+        'SectionHeader': dict(parent=styles['Heading1'], fontSize=11, spaceBefore=10, spaceAfter=2, textColor=HexColor('#1a1a2e'), fontName='Helvetica-Bold', alignment=TA_CENTER),
         'SectionSub': dict(parent=styles['Normal'], fontSize=9, alignment=TA_CENTER, textColor=HexColor('#6b7280'), spaceAfter=2),
-        'SectionInstruction': dict(parent=styles['Normal'], fontSize=8.5, alignment=TA_CENTER, textColor=HexColor('#9ca3af'), spaceAfter=8, leading=11),
+        
+        # CHANGE 4: Compressed section instruction (spaceAfter 8→4, leading 11→10)
+        'SectionInstruction': dict(parent=styles['Normal'], fontSize=8.5, alignment=TA_CENTER, textColor=HexColor('#9ca3af'), spaceAfter=4, leading=10),
+        
         'SectionTitle': dict(parent=styles['Heading2'], fontSize=11, spaceBefore=14, spaceAfter=6, textColor=HexColor('#1a1a2e'), fontName='Helvetica-Bold'),
-        'QText': dict(parent=styles['Normal'], fontSize=10, spaceBefore=4, spaceAfter=3, leading=14, textColor=HexColor('#1f1f3a')),
-        'Option': dict(parent=styles['Normal'], fontSize=9.5, leftIndent=18, spaceBefore=2, spaceAfter=2, leading=13, textColor=HexColor('#333355')),
-        'CorrectOption': dict(parent=styles['Normal'], fontSize=9.5, leftIndent=18, spaceBefore=2, spaceAfter=2, leading=13, textColor=HexColor('#047857'), fontName='Helvetica-Bold'),
-        'AnswerLine': dict(parent=styles['Normal'], fontSize=9, leftIndent=18, spaceBefore=2, textColor=HexColor('#047857'), fontName='Helvetica-Bold'),
-        'Explanation': dict(parent=styles['Normal'], fontSize=8.5, leftIndent=18, spaceBefore=2, spaceAfter=6, textColor=HexColor('#6b7280'), leading=12),
+        
+        # CHANGE 3: Tighter question text (spaceBefore 4→2, spaceAfter 3→1, leading 14→12)
+        'QText': dict(parent=styles['Normal'], fontSize=10, spaceBefore=2, spaceAfter=1, leading=12, textColor=HexColor('#1f1f3a')),
+        
+        # CHANGE 3: Tighter options (leftIndent 18→14, spaceBefore 2→1, spaceAfter 2→1, leading 13→11.5)
+        'Option': dict(parent=styles['Normal'], fontSize=9.5, leftIndent=14, spaceBefore=1, spaceAfter=1, leading=11.5, textColor=HexColor('#333355')),
+        'CorrectOption': dict(parent=styles['Normal'], fontSize=9.5, leftIndent=14, spaceBefore=1, spaceAfter=1, leading=11.5, textColor=HexColor('#047857'), fontName='Helvetica-Bold'),
+        
+        # CHANGE 3: Tighter answer line (leftIndent 18→14)
+        'AnswerLine': dict(parent=styles['Normal'], fontSize=9, leftIndent=14, spaceBefore=1, textColor=HexColor('#047857'), fontName='Helvetica-Bold'),
+        
+        # CHANGE 3: Tighter explanation (leftIndent 18→14, spaceAfter 6→3, leading 12→11)
+        'Explanation': dict(parent=styles['Normal'], fontSize=8.5, leftIndent=14, spaceBefore=1, spaceAfter=3, textColor=HexColor('#6b7280'), leading=11),
+        
         'Marks': dict(parent=styles['Normal'], fontSize=9, alignment=TA_RIGHT, textColor=HexColor('#9ca3af')),
         'Instruction': dict(parent=styles['Normal'], fontSize=9, leftIndent=12, spaceBefore=2, spaceAfter=2, textColor=HexColor('#4a4a6a'), leading=12),
         'FooterText': dict(parent=styles['Normal'], fontSize=8, textColor=HexColor('#9ca3af'), alignment=TA_CENTER),
@@ -1291,15 +1312,16 @@ def generate_pdf(
                 elements.append(Paragraph(f"{prefix}{opt_clean}", style))
         else:
             fmt = q.get('format', 'mcq')
+            # CHANGE 5: Reduced blank space for student answers
             if not include_answers:
                 if fmt == 'short_answer':
-                    elements.append(Spacer(1, 24))
+                    elements.append(Spacer(1, 18))  # was 24
                 elif fmt == 'long_answer':
-                    elements.append(Spacer(1, 60))
+                    elements.append(Spacer(1, 40))  # was 60
                 elif fmt in ('journal_entry', 'ledger', 'trial_balance'):
-                    elements.append(Spacer(1, 80))
+                    elements.append(Spacer(1, 50))  # was 80
                 elif fmt == 'image':
-                    elements.append(Spacer(1, 30))
+                    elements.append(Spacer(1, 20))  # was 30
 
         if include_answers and include_explanations:
             raw_table = q.get('answer_table') or q.get('answerTable')

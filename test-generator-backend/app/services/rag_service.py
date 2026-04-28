@@ -11,6 +11,11 @@ v3 changes:
   - Handles: "Light - Reflection & Refraction" <-> "Light Reflection and Refraction"
   - Handles: "Acids, Bases & Salts" <-> "Acids Bases and Salts"
   - Handles: "Metals & Non-metals" <-> "Metals and Non-metals"
+  
+v4 changes:
+  - FIX: Don't search for chapter names in content; use them only for chapter filtering
+  - Two modes: keyword search (when topics provided) vs direct chapter fetch (no topics)
+  - Fallback to chapter chunks when keyword search returns empty
 """
 
 import logging
@@ -231,7 +236,7 @@ def vector_search(
 
 
 # ---------------------------------------------------------------------------
-# Keyword Search (primary search method)
+# Keyword Search (FIXED - two modes)
 # ---------------------------------------------------------------------------
 def keyword_search(
     keywords: List[str],
@@ -240,20 +245,53 @@ def keyword_search(
     chapters: List[str],
     limit: int = 10,
 ) -> List[Dict]:
+    """
+    Search NCERT chunks. Two modes:
+      1. If keywords provided → search those keywords IN content, filtered by chapter
+      2. If no keywords → just return chunks from the chapter (no content filter)
+    """
     supabase = get_supabase()
 
     try:
         results: List[Dict] = []
         seen_ids: Set = set()
 
+        # ── Mode 2: No keywords → fetch chapter chunks directly ──
+        if not keywords or all(not k.strip() for k in keywords):
+            if chapters:
+                logger.info(f"No keywords provided. Fetching chapter chunks directly.")
+                query = (
+                    supabase.table("ncert_chunks")
+                    .select("id, chapter, subject, class_grade, content")
+                    .ilike("subject", f"%{subject}%")
+                    .eq("class_grade", str(class_grade))
+                    .in_("chapter", chapters)
+                )
+                response = query.limit(limit).execute()
+                rows = response.data or []
+                for row in rows:
+                    if row["id"] not in seen_ids:
+                        row["similarity"] = 0.7
+                        results.append(row)
+                        seen_ids.add(row["id"])
+                return results[:limit]
+            return []
+
+        # ── Mode 1: Keywords provided → search inside content ──
         for keyword in keywords[:8]:
-            if not keyword or len(keyword.strip()) < 2:
+            kw = (keyword or "").strip()
+            if len(kw) < 3:
+                continue
+
+            # Skip keywords that look like full chapter names — they won't be
+            # found verbatim in content. Heuristic: > 4 words = probably a title
+            if len(kw.split()) > 4:
                 continue
 
             query = (
                 supabase.table("ncert_chunks")
                 .select("id, chapter, subject, class_grade, content")
-                .ilike("content", f"%{keyword}%")
+                .ilike("content", f"%{kw}%")
                 .ilike("subject", f"%{subject}%")
                 .eq("class_grade", str(class_grade))
             )
@@ -263,12 +301,12 @@ def keyword_search(
             response = query.limit(limit).execute()
             rows = response.data or []
 
-            # Fallback: if chapter filter returned nothing, try without chapter filter
+            # Fallback: if chapter filter returned nothing, broaden
             if not rows and chapters:
                 query_broad = (
                     supabase.table("ncert_chunks")
                     .select("id, chapter, subject, class_grade, content")
-                    .ilike("content", f"%{keyword}%")
+                    .ilike("content", f"%{kw}%")
                     .ilike("subject", f"%{subject}%")
                     .eq("class_grade", str(class_grade))
                 )
@@ -281,6 +319,24 @@ def keyword_search(
                     results.append(row)
                     seen_ids.add(row["id"])
 
+        # ── Final fallback: if keyword search yielded nothing, return chapter chunks ──
+        if not results and chapters:
+            logger.info(f"Keyword search empty. Falling back to chapter chunks.")
+            query = (
+                supabase.table("ncert_chunks")
+                .select("id, chapter, subject, class_grade, content")
+                .ilike("subject", f"%{subject}%")
+                .eq("class_grade", str(class_grade))
+                .in_("chapter", chapters)
+            )
+            response = query.limit(limit).execute()
+            rows = response.data or []
+            for row in rows:
+                if row["id"] not in seen_ids:
+                    row["similarity"] = 0.5
+                    results.append(row)
+                    seen_ids.add(row["id"])
+
         return results[:limit]
 
     except Exception as e:
@@ -289,7 +345,7 @@ def keyword_search(
 
 
 # ---------------------------------------------------------------------------
-# Main Entry Point
+# Main Entry Point (FIXED)
 # ---------------------------------------------------------------------------
 def retrieve_context(
     chapters: List[str],
@@ -299,32 +355,43 @@ def retrieve_context(
     max_chunks: int = 10,
 ) -> List[Dict]:
     """
-    Retrieval pipeline (keyword-only for Vercel):
-      1. Resolve chapter names against DB (with fuzzy matching)
-      2. Keyword search with chapter-filter fallback
-      3. Return top chunks
+    Retrieval pipeline:
+      1. Resolve chapter names against DB (fuzzy matching)
+      2. Build keywords ONLY from real topics (not from chapter names!)
+      3. If no real topics → fetch chapter chunks directly
+      4. Return top chunks
     """
+    # Resolve chapter names
     resolved_chapters = _resolve_chapters(chapters, subject, class_grade)
     if resolved_chapters != chapters:
         logger.info(f"Chapter resolution: {chapters} -> {resolved_chapters}")
 
-    # Build keywords from topics + chapters
-    split_keywords: List[str] = []
-    for t in topics:
+    # ─────────────────────────────────────────────────────────────────
+    # FIX: Don't add chapter names as content keywords.
+    # Only use real topics (subtopics) as keywords for content search.
+    # ─────────────────────────────────────────────────────────────────
+    real_topics: List[str] = []
+    for t in topics or []:
+        if not t:
+            continue
+        # Skip if topic == chapter name (no actual topic info)
+        if t in chapters or t in resolved_chapters:
+            continue
         for part in t.split(","):
             word = part.strip()
             if len(word) >= 3:
-                split_keywords.append(word)
-    split_keywords.extend(resolved_chapters)
+                real_topics.append(word)
 
     query_text = " ".join(
-        filter(None, [subject, str(class_grade)] + resolved_chapters + topics)
+        filter(None, [subject, str(class_grade)] + resolved_chapters + real_topics)
     )
-    logger.info(f"RAG query: '{query_text[:80]}...'")
+    logger.info(
+        f"RAG query: '{query_text[:80]}...' | real_topics={real_topics}"
+    )
 
-    # Keyword search only (vector search disabled for Vercel size limit)
+    # Keyword search with ONLY real topic keywords, NOT chapter names
     keyword_results = keyword_search(
-        keywords=split_keywords,
+        keywords=real_topics,  # ← only real topic keywords, NOT chapter names
         subject=subject,
         class_grade=str(class_grade),
         chapters=resolved_chapters,
