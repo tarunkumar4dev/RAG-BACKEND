@@ -48,7 +48,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
-MAX_RETRIES = 4
+MAX_RETRIES = 2
 BASE_BACKOFF_SECONDS = 2
 MAX_BACKOFF_SECONDS = 20
 JITTER_RANGE = (0.5, 1.2)
@@ -1654,9 +1654,21 @@ def _parse_batch(raw: str, chapter: ChapterSection, request: TestGenerationReque
                  section_key: str = None) -> List[GeneratedQuestion]:
     try:
         data = _extract_json(raw)
-        raw_qs = data.get("questions", [])
     except (ValueError, AttributeError) as e:
         logger.error(f"Parse failed ({chapter.chapter}): {e}")
+        return []
+
+    # Normalize: accept both {"questions": [...]} and direct [...]
+    if isinstance(data, dict):
+        raw_qs = data.get("questions", [])
+    elif isinstance(data, list):
+        raw_qs = data
+    else:
+        logger.error(f"Parse failed ({chapter.chapter}): unexpected type {type(data).__name__}")
+        return []
+
+    if not isinstance(raw_qs, list):
+        logger.error(f"Parse failed ({chapter.chapter}): questions field not a list")
         return []
 
     if not isinstance(raw_qs, list):
