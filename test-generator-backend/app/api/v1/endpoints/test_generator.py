@@ -538,7 +538,7 @@ async def get_chapters(subject: str = "Science", class_grade: str = "10"):
         supabase = get_supabase()
         result = supabase.table("ncert_chunks") \
             .select("chapter") \
-            .ilike("subject", subject) \
+            .ilike("subject", f"%{subject}%") \
             .eq("class_grade", class_grade) \
             .execute()
 
