@@ -313,7 +313,7 @@ async def create_quiz(payload: CreateQuizRequest, request: Request):
     return {
         "quiz_id": quiz_id,
         "share_slug": slug,
-        "share_link": f"https://a4ai.in/q/{slug}",
+        "share_link": f"{request.headers.get('origin', 'https://a4ai.in')}/q/{slug}",
         "total_questions": len(questions),
         "ends_at": ends_at.isoformat(),
         "generation_seconds": duration,
