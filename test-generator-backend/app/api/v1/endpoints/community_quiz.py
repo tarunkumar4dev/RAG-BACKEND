@@ -1,15 +1,6 @@
 # app/api/v1/endpoints/community_quiz.py
 # ──────────────────────────────────────────────────────────
-# Community Quiz API — Video-based quizzes by creators (Aman Bhaiya use case)
-#
-# POST   /community-quizzes/preview-video    → Teacher pastes URL, sees preview
-# POST   /community-quizzes                  → Create quiz (fetch + generate)
-# GET    /community-quizzes                  → List teacher's quizzes
-# GET    /community-quizzes/q/{slug}         → Public landing page data
-# POST   /community-quizzes/q/{slug}/start   → Public: register, get questions
-# POST   /community-quizzes/q/{slug}/submit  → Public: submit, get score+rank
-# GET    /community-quizzes/{quiz_id}/leaderboard → Teacher: ranked list
-# POST   /community-quizzes/test-generate-no-auth  → 🧪 TEMP test (delete in prod)
+# Community Quiz API — v2 with manual source support
 # ──────────────────────────────────────────────────────────
 
 import hashlib
@@ -37,15 +28,13 @@ router = APIRouter(prefix="/community-quizzes", tags=["Community Quizzes"])
 
 
 # ═══════════════════════════════════════════════════════════
-# AUTH HELPERS (verifies Supabase JWT from Authorization header)
+# AUTH HELPERS
 # ═══════════════════════════════════════════════════════════
 
 def get_optional_user_id(request: Request) -> Optional[str]:
-    """Extract user ID from Bearer token. Returns None if not authenticated."""
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
         return None
-
     try:
         token = auth_header.split(" ")[1]
         sb = get_supabase()
@@ -65,11 +54,29 @@ def get_required_user_id(request: Request) -> str:
 
 
 # ═══════════════════════════════════════════════════════════
-# PYDANTIC MODELS (kept inline for simplicity)
+# PYDANTIC MODELS
 # ═══════════════════════════════════════════════════════════
 
 class PreviewVideoRequest(BaseModel):
     url: str
+
+
+class ManualQuestion(BaseModel):
+    question_text: str = Field(..., min_length=1, max_length=2000)
+    options: List[str] = Field(..., min_length=4, max_length=4)
+    correct_option: int = Field(..., ge=0, le=3)
+    explanation: Optional[str] = ""
+    marks: int = Field(1, ge=1, le=10)
+
+    @field_validator("options")
+    @classmethod
+    def _check_options(cls, v):
+        if len(v) != 4:
+            raise ValueError("Exactly 4 options required")
+        for opt in v:
+            if not opt or not opt.strip():
+                raise ValueError("All options must be non-empty")
+        return [o.strip() for o in v]
 
 
 class CreateQuizRequest(BaseModel):
@@ -85,9 +92,13 @@ class CreateQuizRequest(BaseModel):
     duration_minutes: int = Field(20, ge=1, le=240)
     duration_window_hours: int = Field(168, ge=1, le=720)
 
+    # For video source: AI generates these many questions
     question_count: int = Field(20, ge=1, le=50)
     difficulty: str = Field("mixed", pattern="^(easy|medium|hard|mixed)$")
     focus: str = Field("mixed", pattern="^(conceptual|factual|mixed)$")
+
+    # For manual source: provide questions directly
+    manual_questions: Optional[List[ManualQuestion]] = None
 
     creator_name: Optional[str] = None
     creator_logo_url: Optional[str] = None
@@ -101,6 +112,16 @@ class CreateQuizRequest(BaseModel):
     def _check_url(cls, v, info):
         if info.data.get("source_type") == "video" and not v:
             raise ValueError("source_url is required when source_type='video'")
+        return v
+
+    @field_validator("manual_questions")
+    @classmethod
+    def _check_manual(cls, v, info):
+        if info.data.get("source_type") == "manual":
+            if not v or len(v) < 1:
+                raise ValueError("manual_questions required (min 1) when source_type='manual'")
+            if len(v) > 50:
+                raise ValueError("Maximum 50 questions allowed")
         return v
 
 
@@ -124,7 +145,6 @@ class SubmitAttemptRequest(BaseModel):
 
 
 class TestGenerateRequest(BaseModel):
-    """🧪 For temporary no-auth test endpoint only."""
     url: str
     count: int = 5
     difficulty: str = "medium"
@@ -134,7 +154,7 @@ class TestGenerateRequest(BaseModel):
 # HELPERS
 # ═══════════════════════════════════════════════════════════
 
-SLUG_CHARS = "abcdefghijkmnpqrstuvwxyz23456789"  # no ambiguous 0/O/1/l
+SLUG_CHARS = "abcdefghijkmnpqrstuvwxyz23456789"
 
 
 def _generate_slug(length: int = 7) -> str:
@@ -156,15 +176,24 @@ def _normalize_phone(phone: str) -> str:
     return "".join(c for c in phone if c.isdigit() or c == "+")
 
 
+def _get_share_link(request: Request, slug: str) -> str:
+    """Build share link based on request origin (works in dev and prod)."""
+    origin = request.headers.get("origin") or request.headers.get("referer", "")
+    if origin:
+        # Strip path from referer
+        if "://" in origin:
+            origin = "/".join(origin.split("/", 3)[:3])
+        return f"{origin}/q/{slug}"
+    return f"https://a4ai.in/q/{slug}"
+
+
 # ═══════════════════════════════════════════════════════════
-# 1. POST /preview-video — teacher pastes URL, sees preview
+# 1. POST /preview-video
 # ═══════════════════════════════════════════════════════════
 
 @router.post("/preview-video")
 async def preview_video(payload: PreviewVideoRequest, request: Request):
-    """Fetches transcript + metadata so teacher can confirm before generating."""
     teacher_id = get_required_user_id(request)
-
     try:
         data = fetch_video_data(payload.url)
     except TranscriptFetchError as e:
@@ -183,19 +212,24 @@ async def preview_video(payload: PreviewVideoRequest, request: Request):
 
 
 # ═══════════════════════════════════════════════════════════
-# 2. POST / — create quiz (sync, takes 60-90s)
+# 2. POST / — create quiz (video OR manual)
 # ═══════════════════════════════════════════════════════════
 
 @router.post("", status_code=201)
 async def create_quiz(payload: CreateQuizRequest, request: Request):
-    """Full flow: fetch transcript → generate questions → save quiz."""
+    """
+    Create quiz. Two paths:
+      - source_type='video': fetches transcript + AI-generates questions (60-90s)
+      - source_type='manual': uses provided manual_questions directly (instant)
+    """
     teacher_id = get_required_user_id(request)
     sb = get_supabase()
     started_at = datetime.now(timezone.utc)
     transcript_text = None
     source_metadata = {}
+    questions: List[dict] = []
 
-    # Step 1: Fetch transcript if video source
+    # ─────────── SOURCE: VIDEO ───────────
     if payload.source_type == "video":
         try:
             video_data = fetch_video_data(payload.source_url)
@@ -210,29 +244,48 @@ async def create_quiz(payload: CreateQuizRequest, request: Request):
             }
         except TranscriptFetchError as e:
             raise HTTPException(status_code=400, detail={"code": e.code, "message": e.message})
+
+        try:
+            questions = generate_questions_from_transcript(
+                transcript=transcript_text,
+                title=source_metadata.get("title", ""),
+                channel=source_metadata.get("channel", ""),
+                count=payload.question_count,
+                difficulty=payload.difficulty,
+                focus=payload.focus,
+            )
+        except QuestionGenerationError as e:
+            raise HTTPException(status_code=500, detail={"code": e.code, "message": e.message})
+
+    # ─────────── SOURCE: MANUAL ───────────
+    elif payload.source_type == "manual":
+        if not payload.manual_questions:
+            raise HTTPException(
+                status_code=400,
+                detail={"code": "no_questions", "message": "manual_questions required"},
+            )
+        questions = [
+            {
+                "question_text": q.question_text.strip(),
+                "options": q.options,
+                "correct_option": q.correct_option,
+                "explanation": (q.explanation or "").strip(),
+                "marks": q.marks,
+            }
+            for q in payload.manual_questions
+        ]
+        source_metadata = {"created_by": "manual", "question_count": len(questions)}
+
     else:
         raise HTTPException(
             status_code=501,
             detail={
                 "code": "not_implemented",
-                "message": "Only video source is implemented in this build. NCERT/manual flows coming soon.",
+                "message": f"Source type '{payload.source_type}' not yet supported. Use 'video' or 'manual'.",
             },
         )
 
-    # Step 2: Generate questions
-    try:
-        questions = generate_questions_from_transcript(
-            transcript=transcript_text,
-            title=source_metadata.get("title", ""),
-            channel=source_metadata.get("channel", ""),
-            count=payload.question_count,
-            difficulty=payload.difficulty,
-            focus=payload.focus,
-        )
-    except QuestionGenerationError as e:
-        raise HTTPException(status_code=500, detail={"code": e.code, "message": e.message})
-
-    # Step 3: Generate unique slug
+    # ─────────── Generate unique slug ───────────
     slug = None
     for _ in range(5):
         candidate = _generate_slug()
@@ -243,9 +296,9 @@ async def create_quiz(payload: CreateQuizRequest, request: Request):
     if not slug:
         raise HTTPException(status_code=500, detail={"code": "slug_collision", "message": "Could not generate unique slug"})
 
-    # Step 4: Insert quiz
+    # ─────────── Insert quiz ───────────
     ends_at = started_at + timedelta(hours=payload.duration_window_hours)
-    total_marks = len(questions)
+    total_marks = sum(q.get("marks", 1) for q in questions)
 
     quiz_insert = sb.table("community_quizzes").insert({
         "teacher_id": teacher_id,
@@ -277,23 +330,23 @@ async def create_quiz(payload: CreateQuizRequest, request: Request):
 
     quiz_id = quiz_insert.data[0]["id"]
 
-    # Step 5: Insert questions
+    # ─────────── Insert questions ───────────
     question_rows = [
         {
             "quiz_id": quiz_id,
             "question_text": q["question_text"],
             "options": q["options"],
             "correct_option": q["correct_option"],
-            "explanation": q["explanation"],
-            "marks": 1,
+            "explanation": q.get("explanation", ""),
+            "marks": q.get("marks", 1),
             "order_index": i,
-            "source": "auto",
+            "source": payload.source_type if payload.source_type == "manual" else "auto",
         }
         for i, q in enumerate(questions)
     ]
     sb.table("community_quiz_questions").insert(question_rows).execute()
 
-    # Step 6: Log job for analytics
+    # ─────────── Log job ───────────
     duration = int((datetime.now(timezone.utc) - started_at).total_seconds())
     try:
         sb.table("quiz_generation_jobs").insert({
@@ -306,17 +359,18 @@ async def create_quiz(payload: CreateQuizRequest, request: Request):
             "completed_at": datetime.now(timezone.utc).isoformat(),
         }).execute()
     except Exception as e:
-        logger.warning(f"Could not log generation job: {e}")  # non-fatal
+        logger.warning(f"Could not log generation job: {e}")
 
-    logger.info(f"Community quiz created: {quiz_id} ({slug}) with {len(questions)} questions in {duration}s")
+    logger.info(f"Community quiz created: {quiz_id} ({slug}) [{payload.source_type}] {len(questions)} questions in {duration}s")
 
     return {
         "quiz_id": quiz_id,
         "share_slug": slug,
-        "share_link": f"{request.headers.get('origin', 'https://a4ai.in')}/q/{slug}",
+        "share_link": _get_share_link(request, slug),
         "total_questions": len(questions),
         "ends_at": ends_at.isoformat(),
         "generation_seconds": duration,
+        "source_type": payload.source_type,
     }
 
 
@@ -339,7 +393,7 @@ async def list_my_quizzes(request: Request):
 
 
 # ═══════════════════════════════════════════════════════════
-# 4. GET /q/{slug} — public landing page data
+# 4. GET /q/{slug} — public landing
 # ═══════════════════════════════════════════════════════════
 
 @router.get("/q/{slug}")
@@ -364,14 +418,13 @@ async def get_public_quiz(slug: str):
 
 
 # ═══════════════════════════════════════════════════════════
-# 5. POST /q/{slug}/start — register participant + return questions
+# 5. POST /q/{slug}/start
 # ═══════════════════════════════════════════════════════════
 
 @router.post("/q/{slug}/start")
 async def start_attempt(slug: str, payload: StartAttemptRequest, request: Request):
     sb = get_supabase()
 
-    # Fetch quiz
     quiz_result = sb.table("community_quizzes").select("*").eq("share_slug", slug).execute()
     if not quiz_result.data:
         raise HTTPException(status_code=404, detail={"code": "quiz_not_found", "message": "Quiz not found"})
@@ -384,7 +437,6 @@ async def start_attempt(slug: str, payload: StartAttemptRequest, request: Reques
     phone = _normalize_phone(payload.phone)
     ip = _get_client_ip(request)
 
-    # Try to insert. UNIQUE(quiz_id, phone) constraint prevents duplicates.
     try:
         attempt_insert = sb.table("community_quiz_attempts").insert({
             "quiz_id": quiz["id"],
@@ -412,12 +464,10 @@ async def start_attempt(slug: str, payload: StartAttemptRequest, request: Reques
 
     attempt_id = attempt_insert.data[0]["id"]
 
-    # Fetch questions WITHOUT correct_option/explanation
     q_result = sb.table("community_quiz_questions").select(
         "id, question_text, options, marks, order_index"
     ).eq("quiz_id", quiz["id"]).order("order_index").execute()
 
-    # Increment total_attempts (best-effort)
     try:
         sb.table("community_quizzes").update({
             "total_attempts": (quiz.get("total_attempts") or 0) + 1
@@ -439,14 +489,13 @@ async def start_attempt(slug: str, payload: StartAttemptRequest, request: Reques
 
 
 # ═══════════════════════════════════════════════════════════
-# 6. POST /q/{slug}/submit — server-side scoring
+# 6. POST /q/{slug}/submit
 # ═══════════════════════════════════════════════════════════
 
 @router.post("/q/{slug}/submit")
 async def submit_attempt(slug: str, payload: SubmitAttemptRequest):
     sb = get_supabase()
 
-    # Fetch attempt
     attempt_result = sb.table("community_quiz_attempts").select("*").eq("id", payload.attempt_id).execute()
     if not attempt_result.data:
         raise HTTPException(status_code=404, detail={"code": "attempt_not_found", "message": "Attempt not found"})
@@ -455,21 +504,18 @@ async def submit_attempt(slug: str, payload: SubmitAttemptRequest):
     if attempt["status"] != "in_progress":
         raise HTTPException(status_code=409, detail={"code": "already_submitted", "message": "Already submitted"})
 
-    # Verify slug matches
     quiz_result = sb.table("community_quizzes").select("*").eq("id", attempt["quiz_id"]).execute()
     if not quiz_result.data or quiz_result.data[0]["share_slug"] != slug:
         raise HTTPException(status_code=400, detail={"code": "quiz_mismatch", "message": "Invalid attempt for this quiz"})
 
     quiz = quiz_result.data[0]
 
-    # Fetch questions WITH correct answers
     questions_result = sb.table("community_quiz_questions").select(
         "id, correct_option, marks, explanation, order_index, question_text, options"
     ).eq("quiz_id", attempt["quiz_id"]).execute()
 
     correct_map = {q["id"]: q for q in questions_result.data}
 
-    # Evaluate
     total_score = 0
     correct_count = 0
     attempted_count = 0
@@ -508,16 +554,13 @@ async def submit_attempt(slug: str, payload: SubmitAttemptRequest):
                 "explanation": q.get("explanation"),
             })
 
-    # Compute time taken
     started_at = datetime.fromisoformat(attempt["started_at"].replace("Z", "+00:00"))
     submitted_at = datetime.now(timezone.utc)
     time_taken = int((submitted_at - started_at).total_seconds())
 
-    # Save answers
     if answer_rows:
         sb.table("community_quiz_answers").insert(answer_rows).execute()
 
-    # Update attempt
     sb.table("community_quiz_attempts").update({
         "submitted_at": submitted_at.isoformat(),
         "time_taken_seconds": time_taken,
@@ -528,7 +571,6 @@ async def submit_attempt(slug: str, payload: SubmitAttemptRequest):
         "tab_switch_count": payload.tab_switch_count,
     }).eq("id", payload.attempt_id).execute()
 
-    # Increment completions (best-effort)
     try:
         sb.table("community_quizzes").update({
             "total_completions": (quiz.get("total_completions") or 0) + 1
@@ -536,7 +578,6 @@ async def submit_attempt(slug: str, payload: SubmitAttemptRequest):
     except Exception:
         pass
 
-    # Get rank from leaderboard view
     rank = None
     total_participants = 0
     try:
@@ -565,7 +606,7 @@ async def submit_attempt(slug: str, payload: SubmitAttemptRequest):
 
 
 # ═══════════════════════════════════════════════════════════
-# 7. GET /{quiz_id}/leaderboard — teacher view
+# 7. GET /{quiz_id}/leaderboard
 # ═══════════════════════════════════════════════════════════
 
 @router.get("/{quiz_id}/leaderboard")
@@ -573,7 +614,6 @@ async def get_leaderboard(quiz_id: str, request: Request):
     teacher_id = get_required_user_id(request)
     sb = get_supabase()
 
-    # Verify ownership
     quiz_result = sb.table("community_quizzes").select(
         "id, teacher_id, title, total_questions, total_marks"
     ).eq("id", quiz_id).execute()
@@ -595,13 +635,11 @@ async def get_leaderboard(quiz_id: str, request: Request):
 
 
 # ═══════════════════════════════════════════════════════════
-# 🧪 8. TEMPORARY TEST ENDPOINT — DELETE BEFORE PRODUCTION
-# Tests transcript fetch + question generation without auth
+# 🧪 8. TEMPORARY TEST ENDPOINT (delete in prod)
 # ═══════════════════════════════════════════════════════════
 
 @router.post("/test-generate-no-auth")
 async def test_generate_no_auth(payload: TestGenerateRequest):
-    """⚠️ TEMP — no auth, for local testing only. DELETE before deploying."""
     try:
         video_data = fetch_video_data(payload.url)
     except TranscriptFetchError as e:
