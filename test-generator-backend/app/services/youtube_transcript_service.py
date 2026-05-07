@@ -12,32 +12,42 @@ from urllib.parse import urlparse, parse_qs
 
 import requests
 
-# Try to import youtube_transcript_api (handles both old and new versions)
+logger = logging.getLogger(__name__)
+
+# ─── Lazy import — only loaded if package installed ───
+# Manual quiz flow doesn't need this. Vercel can run without it.
 YT_API_AVAILABLE = False
 YT_API_NEW = False  # True if v1.0+ (new instance-based API)
 
+# Placeholder exception classes (used if package not installed)
+class _PlaceholderException(Exception):
+    pass
+
+YouTubeTranscriptApi = None
+TranscriptsDisabled = _PlaceholderException
+NoTranscriptFound = _PlaceholderException
+VideoUnavailable = _PlaceholderException
+
 try:
-    try:
-    from youtube_transcript_api import YouTubeTranscriptApi
-    YOUTUBE_AVAILABLE = True
-except ImportError:
-    YouTubeTranscriptApi = None
-    YOUTUBE_AVAILABLE = False
+    from youtube_transcript_api import YouTubeTranscriptApi as _YTApi
     from youtube_transcript_api._errors import (
-        TranscriptsDisabled,
-        NoTranscriptFound,
-        VideoUnavailable,
+        TranscriptsDisabled as _TD,
+        NoTranscriptFound as _NTF,
+        VideoUnavailable as _VU,
     )
-    # Detect API version: new version has 'list' method, old has 'list_transcripts'
+    YouTubeTranscriptApi = _YTApi
+    TranscriptsDisabled = _TD
+    NoTranscriptFound = _NTF
+    VideoUnavailable = _VU
+
+    # Detect API version: old version has 'list_transcripts', new has 'list'
     if hasattr(YouTubeTranscriptApi, "list_transcripts"):
         YT_API_NEW = False  # old static-method API
     else:
         YT_API_NEW = True  # new instance-based API
     YT_API_AVAILABLE = True
 except ImportError:
-    logging.warning("youtube_transcript_api not installed. Run: pip install youtube-transcript-api")
-
-logger = logging.getLogger(__name__)
+    logger.warning("youtube_transcript_api not installed. Video quiz disabled. Manual quiz still works.")
 
 
 class TranscriptFetchError(Exception):
@@ -108,7 +118,6 @@ def _normalize_segments(segments) -> list:
         if isinstance(seg, dict):
             normalized.append(seg)
         else:
-            # New API: object with .text, .start, .duration attributes
             normalized.append({
                 "text": getattr(seg, "text", ""),
                 "start": getattr(seg, "start", 0.0),
@@ -122,7 +131,7 @@ def fetch_transcript(video_id: str) -> dict:
 
     if not YT_API_AVAILABLE:
         raise TranscriptFetchError(
-            "youtube-transcript-api not installed. Run: pip install youtube-transcript-api",
+            "Video quiz generation not available on this server. Use manual quiz instead.",
             code="dependency_missing"
         )
 
@@ -152,7 +161,6 @@ def fetch_transcript(video_id: str) -> dict:
                 raise TranscriptFetchError("No captions available for this video.", code="no_captions")
 
             fetched = transcript.fetch()
-            # New API returns FetchedTranscript object with .snippets
             raw_segments = fetched.snippets if hasattr(fetched, "snippets") else fetched
             segments = _normalize_segments(raw_segments)
             language_code = transcript.language_code
