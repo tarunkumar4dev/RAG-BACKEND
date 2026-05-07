@@ -106,6 +106,7 @@ class CreateQuizRequest(BaseModel):
 
     show_leaderboard_to_participants: bool = False
     show_correct_answers_after_submit: bool = True
+    leaderboard_reveal_mode: str = Field("after_end", pattern="^(never|after_end|immediate)$")
 
     @field_validator("source_url")
     @classmethod
@@ -322,6 +323,7 @@ async def create_quiz(payload: CreateQuizRequest, request: Request):
         "creator_logo_url": payload.creator_logo_url,
         "creator_channel_url": payload.creator_channel_url,
         "show_leaderboard_to_participants": payload.show_leaderboard_to_participants,
+        "leaderboard_reveal_mode": payload.leaderboard_reveal_mode,
         "show_correct_answers_after_submit": payload.show_correct_answers_after_submit,
     }).execute()
 
@@ -403,7 +405,8 @@ async def get_public_quiz(slug: str):
     result = sb.table("community_quizzes").select(
         "id, title, description, subject, chapter, class_level, "
         "duration_minutes, ends_at, total_questions, total_marks, status, "
-        "creator_name, creator_logo_url, creator_channel_url, source_metadata"
+        "creator_name, creator_logo_url, creator_channel_url, source_metadata, "
+        "leaderboard_reveal_mode"
     ).eq("share_slug", slug).execute()
 
     if not result.data:
@@ -587,6 +590,16 @@ async def submit_attempt(slug: str, payload: SubmitAttemptRequest):
     except Exception as e:
         logger.warning(f"Could not fetch rank: {e}")
 
+    # Determine if leaderboard should show
+    reveal_mode = quiz.get("leaderboard_reveal_mode", "after_end")
+    ends_at = datetime.fromisoformat(quiz["ends_at"].replace("Z", "+00:00"))
+    quiz_ended = ends_at < datetime.now(timezone.utc)
+
+    show_leaderboard = (
+        reveal_mode == "immediate" or
+        (reveal_mode == "after_end" and quiz_ended)
+    )
+
     response = {
         "total_score": total_score,
         "total_marks": quiz["total_marks"],
@@ -596,7 +609,9 @@ async def submit_attempt(slug: str, payload: SubmitAttemptRequest):
         "time_taken_seconds": time_taken,
         "rank": rank,
         "total_participants": total_participants,
-        "show_leaderboard": quiz.get("show_leaderboard_to_participants", False),
+        "show_leaderboard": show_leaderboard,
+        "leaderboard_reveal_mode": reveal_mode,
+        "quiz_ends_at": quiz["ends_at"],
     }
 
     if quiz.get("show_correct_answers_after_submit"):
@@ -635,7 +650,57 @@ async def get_leaderboard(quiz_id: str, request: Request):
 
 
 # ═══════════════════════════════════════════════════════════
-# 🧪 8. TEMPORARY TEST ENDPOINT (delete in prod)
+# 8. GET /q/{slug}/leaderboard — public (respects reveal mode)
+# ═══════════════════════════════════════════════════════════
+
+@router.get("/q/{slug}/leaderboard")
+async def get_public_leaderboard(slug: str):
+    """Public leaderboard — only accessible based on reveal_mode."""
+    sb = get_supabase()
+
+    quiz_result = sb.table("community_quizzes").select(
+        "id, title, total_questions, total_marks, ends_at, leaderboard_reveal_mode"
+    ).eq("share_slug", slug).execute()
+
+    if not quiz_result.data:
+        raise HTTPException(status_code=404, detail={"code": "quiz_not_found", "message": "Quiz not found"})
+
+    quiz = quiz_result.data[0]
+    reveal_mode = quiz.get("leaderboard_reveal_mode", "after_end")
+    ends_at = datetime.fromisoformat(quiz["ends_at"].replace("Z", "+00:00"))
+    quiz_ended = ends_at < datetime.now(timezone.utc)
+
+    can_view = (
+        reveal_mode == "immediate" or
+        (reveal_mode == "after_end" and quiz_ended)
+    )
+
+    if not can_view:
+        return {
+            "quiz": {"id": quiz["id"], "title": quiz["title"], "ends_at": quiz["ends_at"]},
+            "available": False,
+            "reveal_mode": reveal_mode,
+            "quiz_ended": quiz_ended,
+            "leaderboard": [],
+            "total_participants": 0,
+        }
+
+    leaderboard = sb.table("community_quiz_leaderboard").select(
+        "attempt_id, participant_name, total_score, time_taken_seconds, rank, submitted_at"
+    ).eq("quiz_id", quiz["id"]).order("rank").limit(100).execute()
+
+    return {
+        "quiz": {"id": quiz["id"], "title": quiz["title"], "total_questions": quiz["total_questions"], "total_marks": quiz["total_marks"], "ends_at": quiz["ends_at"]},
+        "available": True,
+        "reveal_mode": reveal_mode,
+        "quiz_ended": quiz_ended,
+        "leaderboard": leaderboard.data or [],
+        "total_participants": len(leaderboard.data or []),
+    }
+
+
+# ═══════════════════════════════════════════════════════════
+# 🧪 9. TEMPORARY TEST ENDPOINT (delete in prod)
 # ═══════════════════════════════════════════════════════════
 
 @router.post("/test-generate-no-auth")
