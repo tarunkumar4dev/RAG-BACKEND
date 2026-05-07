@@ -17,7 +17,12 @@ YT_API_AVAILABLE = False
 YT_API_NEW = False  # True if v1.0+ (new instance-based API)
 
 try:
+    try:
     from youtube_transcript_api import YouTubeTranscriptApi
+    YOUTUBE_AVAILABLE = True
+except ImportError:
+    YouTubeTranscriptApi = None
+    YOUTUBE_AVAILABLE = False
     from youtube_transcript_api._errors import (
         TranscriptsDisabled,
         NoTranscriptFound,

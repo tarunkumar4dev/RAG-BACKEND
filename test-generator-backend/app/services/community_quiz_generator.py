@@ -24,13 +24,20 @@ import os
 import re
 from typing import Literal
 
-import google.generativeai as genai
+# Lazy import — only loaded when video flow runs
+# Manual flow doesn't need Gemini
+try:
+    import google.generativeai as genai
+    GEMINI_AVAILABLE = True
+except ImportError:
+    genai = None
+    GEMINI_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
 # Configure Gemini (assumes GEMINI_API_KEY in env)
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-if GEMINI_API_KEY:
+if GEMINI_API_KEY and GEMINI_AVAILABLE:
     genai.configure(api_key=GEMINI_API_KEY)
 
 MODEL_NAME = "gemini-flash-latest"  # cost-optimized per current preference
@@ -228,6 +235,12 @@ def generate_questions_from_transcript(
     Returns list of validated question dicts ready for DB insertion.
     Each dict: {question_text, options, correct_option, explanation}
     """
+    if not GEMINI_AVAILABLE:
+        raise QuestionGenerationError(
+            "Video quiz generation not available on this server. Use manual quiz instead.",
+            code="gemini_not_installed",
+        )
+
     if not GEMINI_API_KEY:
         raise QuestionGenerationError(
             "GEMINI_API_KEY not configured in environment",
