@@ -1,6 +1,6 @@
 # app/api/v1/endpoints/community_quiz.py
 # ──────────────────────────────────────────────────────────
-# Community Quiz API — v2 with manual source support
+# Community Quiz API — v3 with delete endpoint
 # ──────────────────────────────────────────────────────────
 
 import hashlib
@@ -8,8 +8,6 @@ import logging
 import random
 from datetime import datetime, timedelta, timezone
 from typing import Optional, List
-
-#Changes done
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field, field_validator
@@ -89,17 +87,15 @@ class CreateQuizRequest(BaseModel):
     class_level: Optional[str] = None
 
     source_type: str = Field(..., pattern="^(video|ncert|manual|bank)$")
-    source_url: Optional[str] = None  # required if source_type='video'
+    source_url: Optional[str] = None
 
     duration_minutes: int = Field(20, ge=1, le=240)
     duration_window_hours: int = Field(168, ge=1, le=720)
 
-    # For video source: AI generates these many questions
     question_count: int = Field(20, ge=1, le=50)
     difficulty: str = Field("mixed", pattern="^(easy|medium|hard|mixed)$")
     focus: str = Field("mixed", pattern="^(conceptual|factual|mixed)$")
 
-    # For manual source: provide questions directly
     manual_questions: Optional[List[ManualQuestion]] = None
 
     creator_name: Optional[str] = None
@@ -180,10 +176,8 @@ def _normalize_phone(phone: str) -> str:
 
 
 def _get_share_link(request: Request, slug: str) -> str:
-    """Build share link based on request origin (works in dev and prod)."""
     origin = request.headers.get("origin") or request.headers.get("referer", "")
     if origin:
-        # Strip path from referer
         if "://" in origin:
             origin = "/".join(origin.split("/", 3)[:3])
         return f"{origin}/q/{slug}"
@@ -215,16 +209,11 @@ async def preview_video(payload: PreviewVideoRequest, request: Request):
 
 
 # ═══════════════════════════════════════════════════════════
-# 2. POST / — create quiz (video OR manual)
+# 2. POST / — create quiz
 # ═══════════════════════════════════════════════════════════
 
 @router.post("", status_code=201)
 async def create_quiz(payload: CreateQuizRequest, request: Request):
-    """
-    Create quiz. Two paths:
-      - source_type='video': fetches transcript + AI-generates questions (60-90s)
-      - source_type='manual': uses provided manual_questions directly (instant)
-    """
     teacher_id = get_required_user_id(request)
     sb = get_supabase()
     started_at = datetime.now(timezone.utc)
@@ -232,7 +221,6 @@ async def create_quiz(payload: CreateQuizRequest, request: Request):
     source_metadata = {}
     questions: List[dict] = []
 
-    # ─────────── SOURCE: VIDEO ───────────
     if payload.source_type == "video":
         try:
             video_data = fetch_video_data(payload.source_url)
@@ -260,7 +248,6 @@ async def create_quiz(payload: CreateQuizRequest, request: Request):
         except QuestionGenerationError as e:
             raise HTTPException(status_code=500, detail={"code": e.code, "message": e.message})
 
-    # ─────────── SOURCE: MANUAL ───────────
     elif payload.source_type == "manual":
         if not payload.manual_questions:
             raise HTTPException(
@@ -282,13 +269,9 @@ async def create_quiz(payload: CreateQuizRequest, request: Request):
     else:
         raise HTTPException(
             status_code=501,
-            detail={
-                "code": "not_implemented",
-                "message": f"Source type '{payload.source_type}' not yet supported. Use 'video' or 'manual'.",
-            },
+            detail={"code": "not_implemented", "message": f"Source type '{payload.source_type}' not supported."},
         )
 
-    # ─────────── Generate unique slug ───────────
     slug = None
     for _ in range(5):
         candidate = _generate_slug()
@@ -299,7 +282,6 @@ async def create_quiz(payload: CreateQuizRequest, request: Request):
     if not slug:
         raise HTTPException(status_code=500, detail={"code": "slug_collision", "message": "Could not generate unique slug"})
 
-    # ─────────── Insert quiz ───────────
     ends_at = started_at + timedelta(hours=payload.duration_window_hours)
     total_marks = sum(q.get("marks", 1) for q in questions)
 
@@ -334,7 +316,6 @@ async def create_quiz(payload: CreateQuizRequest, request: Request):
 
     quiz_id = quiz_insert.data[0]["id"]
 
-    # ─────────── Insert questions ───────────
     question_rows = [
         {
             "quiz_id": quiz_id,
@@ -350,7 +331,6 @@ async def create_quiz(payload: CreateQuizRequest, request: Request):
     ]
     sb.table("community_quiz_questions").insert(question_rows).execute()
 
-    # ─────────── Log job ───────────
     duration = int((datetime.now(timezone.utc) - started_at).total_seconds())
     try:
         sb.table("quiz_generation_jobs").insert({
@@ -365,7 +345,7 @@ async def create_quiz(payload: CreateQuizRequest, request: Request):
     except Exception as e:
         logger.warning(f"Could not log generation job: {e}")
 
-    logger.info(f"Community quiz created: {quiz_id} ({slug}) [{payload.source_type}] {len(questions)} questions in {duration}s")
+    logger.info(f"Quiz created: {quiz_id} ({slug}) [{payload.source_type}] {len(questions)}q in {duration}s")
 
     return {
         "quiz_id": quiz_id,
@@ -592,7 +572,6 @@ async def submit_attempt(slug: str, payload: SubmitAttemptRequest):
     except Exception as e:
         logger.warning(f"Could not fetch rank: {e}")
 
-    # Determine if leaderboard should show
     reveal_mode = quiz.get("leaderboard_reveal_mode", "after_end")
     ends_at = datetime.fromisoformat(quiz["ends_at"].replace("Z", "+00:00"))
     quiz_ended = ends_at < datetime.now(timezone.utc)
@@ -623,7 +602,7 @@ async def submit_attempt(slug: str, payload: SubmitAttemptRequest):
 
 
 # ═══════════════════════════════════════════════════════════
-# 7. GET /{quiz_id}/leaderboard
+# 7. GET /{quiz_id}/leaderboard — admin
 # ═══════════════════════════════════════════════════════════
 
 @router.get("/{quiz_id}/leaderboard")
@@ -652,12 +631,11 @@ async def get_leaderboard(quiz_id: str, request: Request):
 
 
 # ═══════════════════════════════════════════════════════════
-# 8. GET /q/{slug}/leaderboard — public (respects reveal mode)
+# 8. GET /q/{slug}/leaderboard — public
 # ═══════════════════════════════════════════════════════════
 
 @router.get("/q/{slug}/leaderboard")
 async def get_public_leaderboard(slug: str):
-    """Public leaderboard — only accessible based on reveal_mode."""
     sb = get_supabase()
 
     quiz_result = sb.table("community_quizzes").select(
@@ -702,7 +680,53 @@ async def get_public_leaderboard(slug: str):
 
 
 # ═══════════════════════════════════════════════════════════
-# 🧪 9. TEMPORARY TEST ENDPOINT (delete in prod)
+# 9. DELETE /{quiz_id} — hard delete with cascade
+# ═══════════════════════════════════════════════════════════
+
+@router.delete("/{quiz_id}", status_code=200)
+async def delete_quiz(quiz_id: str, request: Request):
+    teacher_id = get_required_user_id(request)
+    sb = get_supabase()
+
+    # Verify ownership
+    result = sb.table("community_quizzes").select("id, teacher_id").eq("id", quiz_id).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail={"code": "quiz_not_found", "message": "Quiz not found"})
+    if result.data[0]["teacher_id"] != teacher_id:
+        raise HTTPException(status_code=403, detail={"code": "forbidden", "message": "Not your quiz"})
+
+    # Manual cascade (in case FK doesn't have ON DELETE CASCADE)
+    try:
+        attempts = sb.table("community_quiz_attempts").select("id").eq("quiz_id", quiz_id).execute()
+        attempt_ids = [a["id"] for a in (attempts.data or [])]
+        if attempt_ids:
+            sb.table("community_quiz_answers").delete().in_("attempt_id", attempt_ids).execute()
+    except Exception as e:
+        logger.warning(f"Cascade delete answers failed: {e}")
+
+    try:
+        sb.table("community_quiz_attempts").delete().eq("quiz_id", quiz_id).execute()
+    except Exception as e:
+        logger.warning(f"Cascade delete attempts failed: {e}")
+
+    try:
+        sb.table("community_quiz_questions").delete().eq("quiz_id", quiz_id).execute()
+    except Exception as e:
+        logger.warning(f"Cascade delete questions failed: {e}")
+
+    try:
+        sb.table("quiz_generation_jobs").delete().eq("quiz_id", quiz_id).execute()
+    except Exception as e:
+        logger.warning(f"Cascade delete jobs failed: {e}")
+
+    sb.table("community_quizzes").delete().eq("id", quiz_id).execute()
+
+    logger.info(f"Quiz deleted: {quiz_id} by teacher {teacher_id}")
+    return {"deleted": True, "quiz_id": quiz_id}
+
+
+# ═══════════════════════════════════════════════════════════
+# 🧪 10. TEMPORARY TEST ENDPOINT (delete in prod)
 # ═══════════════════════════════════════════════════════════
 
 @router.post("/test-generate-no-auth")
