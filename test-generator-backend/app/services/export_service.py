@@ -1,22 +1,17 @@
 """
-Export Service v11 — Question Table Support (Statistics)
+Export Service v12 — Matrix Bracket Support + Question Table Support (Statistics)
 
-v11 changes (additive only):
-  - Added _render_question_table_pdf() — renders structured tables that are
-    PART of the question (e.g. frequency distribution given to student)
-  - Added _render_question_table_docx() for DOCX parity
-  - Added _get_question_table() helper
-  - Question rendering now prefers structured question_table over inline
-    markdown tables (avoids double-rendering when both are present)
-  - Blue-toned styling distinguishes question_table from emerald answer_table
+v12 changes:
+  - Added _convert_matrix_brackets() — converts [[a,b],[c,d]] to boxed matrix display
+  - Matrix rendering works in both PDF and DOCX
 
-v10 features retained:
-  - Manual question + image support
-  - "MANUAL" badge for teacher-added questions
-  - Accountancy answer_table rendering
+v11 features retained:
+  - Added _render_question_table_pdf() / _render_question_table_docx()
+  - Blue-toned question_table styling (Statistics)
+  - Manual question + image support (badge hidden in PDF/DOCX)
+  - Accountancy answer_table rendering (emerald)
   - CBSE section grouping (5-section + Accountancy Part A/B)
-  - Paper date support
-  - Card-style question boxes
+  - Paper date support, card-style question boxes
 """
 
 import io
@@ -32,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# CBSE Section Definitions (must match generation_service)
+# CBSE Section Definitions
 # ═══════════════════════════════════════════════════════════════════════
 
 CBSE_SECTIONS_META = {
@@ -44,10 +39,10 @@ CBSE_SECTIONS_META = {
 }
 
 ACCOUNTANCY_SECTIONS_META = {
-    "A_1m":  {"title": "Part A", "subtitle": "(1 mark each — MCQ / Assertion-Reason)", "marks": 1, "instruction": "Questions carry 1 mark each. Select the correct option."},
-    "A_3m":  {"title": "Part A", "subtitle": "(3 marks each)", "marks": 3, "instruction": "Questions carry 3 marks each. Answer briefly with working."},
-    "A_4m":  {"title": "Part A", "subtitle": "(4 marks each)", "marks": 4, "instruction": "Questions carry 4 marks each. Show complete working."},
-    "A_6m":  {"title": "Part A", "subtitle": "(6 marks each)", "marks": 6, "instruction": "Questions carry 6 marks each. Show detailed working with journal entries/accounts."},
+    "A_1m":  {"title": "Part A", "subtitle": "(1 mark each — MCQ / Assertion-Reason)", "marks": 1, "instruction": "Questions carry 1 mark each."},
+    "A_3m":  {"title": "Part A", "subtitle": "(3 marks each)", "marks": 3, "instruction": "Questions carry 3 marks each."},
+    "A_4m":  {"title": "Part A", "subtitle": "(4 marks each)", "marks": 4, "instruction": "Questions carry 4 marks each."},
+    "A_6m":  {"title": "Part A", "subtitle": "(6 marks each)", "marks": 6, "instruction": "Questions carry 6 marks each."},
     "B1_1m": {"title": "Part B (Option I)", "subtitle": "Analysis of Financial Statements — (1 mark each)", "marks": 1, "instruction": "Questions carry 1 mark each."},
     "B1_3m": {"title": "Part B (Option I)", "subtitle": "Analysis of Financial Statements — (3 marks each)", "marks": 3, "instruction": "Questions carry 3 marks each."},
     "B1_4m": {"title": "Part B (Option I)", "subtitle": "Analysis of Financial Statements — (4 marks each)", "marks": 4, "instruction": "Questions carry 4 marks each."},
@@ -121,6 +116,69 @@ def _fix_chemical_formulas(text: str, use_tags: bool = True) -> str:
             result_parts.append(fixed)
     return ''.join(result_parts)
 
+
+# ═══════════════════════════════════════════════════════════════════════
+# v12 NEW: Matrix Bracket Converter
+# ═══════════════════════════════════════════════════════════════════════
+
+def _convert_matrix_brackets(text: str, use_tags: bool = False) -> str:
+    """
+    Convert [[a,b],[c,d]] notation to proper matrix box format.
+    """
+    if not text:
+        return text
+
+    # DEBUG
+    if '[[' in text:
+        logger.warning(f"MATRIX_IN: {text[:150]!r}")
+
+    bracket_pattern = re.compile(r'\[\[(.*?)\]\]', re.DOTALL)
+
+    def build_matrix(inner_content: str) -> str:
+        rows_raw = re.split(r'\],\s*\[', inner_content)
+        if len(rows_raw) <= 1:
+            return f"[[{inner_content}]]"
+
+        matrix_rows = []
+        max_cols = 0
+        for row in rows_raw:
+            values = [v.strip() for v in row.split(',') if v.strip()]
+            matrix_rows.append(values)
+            max_cols = max(max_cols, len(values))
+
+        if not matrix_rows:
+            return f"[[{inner_content}]]"
+
+        if use_tags:
+            lines = ['┌' + ' ' * (max_cols * 6) + '┐']
+            for row in matrix_rows:
+                padded = row + [''] * (max_cols - len(row))
+                line = '│ ' + '  '.join(f'{v:>4}' for v in padded) + ' │'
+                lines.append(line)
+            lines.append('└' + ' ' * (max_cols * 6) + '┘')
+            return '<br/>' + '<br/>'.join(lines) + '<br/>'
+        else:
+            lines = ['┌' + ' ' * (max_cols * 5) + '┐']
+            for row in matrix_rows:
+                padded = row + [''] * (max_cols - len(row))
+                line = '│ ' + '  '.join(f'{v:>3}' for v in padded) + ' │'
+                lines.append(line)
+            lines.append('└' + ' ' * (max_cols * 5) + '┘')
+            return '\n'.join(lines)
+
+    def replace_matrix(match):
+        inner = match.group(1)
+        if not inner or ',' not in inner:
+            return match.group(0)
+        return build_matrix(inner)
+
+    result = bracket_pattern.sub(replace_matrix, text)
+
+    # DEBUG
+    if '[[' in text:
+        logger.warning(f"MATRIX_OUT: {result[:150]!r}")
+
+    return result
 
 # ═══════════════════════════════════════════════════════════════════════
 # LaTeX → Clean Text
@@ -222,13 +280,14 @@ def _process_latex(text: str, use_tags: bool = False) -> str:
         result = re.sub(r'\^\{([^}]*)\}', r'^\1', result)
         result = re.sub(r'\^([a-zA-Z0-9°])', r'^\1', result)
         result = re.sub(r'_\{([^}]*)\}', r'_\1', result)
-
-    result = re.sub(r'\\([a-zA-Z]+)\{([^}]*)\}', r'\2', result)
-    result = re.sub(r'\\([a-zA-Z]+)', '', result)
+        result = re.sub(r'_([a-zA-Z0-9])', r'_\1', result)
 
     result = result.replace('{', '').replace('}', '')
     result = _fix_unicode_scripts(result, use_tags)
     result = re.sub(r'\s+', ' ', result).strip()
+
+    # v12: Convert matrix brackets AFTER whitespace cleanup, so the box chars survive
+    result = _convert_matrix_brackets(result, use_tags)
 
     return result
 
@@ -236,7 +295,8 @@ def _process_latex(text: str, use_tags: bool = False) -> str:
 def _latex_to_paragraph(text: str) -> str:
     result = _process_latex(text, use_tags=True)
     tags = {}
-    for i, tag in enumerate(re.findall(r'</?(?:super|sub|b|i)>', result)):
+    # Include <br/> in the tag list so it survives HTML escaping
+    for i, tag in enumerate(re.findall(r'</?(?:super|sub|b|i)>|<br\s*/?>', result)):
         ph = f"__TAG{i}__"
         tags[ph] = tag
         result = result.replace(tag, ph, 1)
@@ -271,11 +331,10 @@ def _format_date_for_display(paper_date: Optional[str] = None) -> str:
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# v10 Manual Question + Image Helpers
+# Manual Question + Image Helpers
 # ═══════════════════════════════════════════════════════════════════════
 
 def _is_manual(q: dict) -> bool:
-    """Detect if a question was added manually by the teacher."""
     return bool(
         q.get("isManual")
         or q.get("is_manual")
@@ -285,30 +344,23 @@ def _is_manual(q: dict) -> bool:
 
 
 def _get_image_url(q: dict) -> Optional[str]:
-    """Extract image URL from question (manual image-based questions)."""
     return q.get("imageUrl") or q.get("image_url") or None
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# v11 NEW: Question Table Helper (Statistics — table is part of question)
+# v11: Question Table Helper
 # ═══════════════════════════════════════════════════════════════════════
 
 def _get_question_table(q: dict) -> Optional[dict]:
-    """
-    Extract structured question_table from question dict.
-    Accepts both camelCase (frontend) and snake_case (backend) keys.
-    """
     qt = q.get("questionTable") or q.get("question_table")
     if not qt or not isinstance(qt, dict):
         return None
-    # Validate basic structure
     if not qt.get("headers") or not qt.get("rows"):
         return None
     return qt
 
 
 def _fetch_image_bytes(url: str, timeout: int = 8) -> Optional[bytes]:
-    """Fetch image from URL and return bytes. Returns None on failure."""
     if not url or not url.startswith(("http://", "https://")):
         return None
     try:
@@ -327,7 +379,6 @@ def _fetch_image_bytes(url: str, timeout: int = 8) -> Optional[bytes]:
 
 
 def _render_manual_question_image_pdf(image_url: str, W: float):
-    """Download image from URL and wrap in ReportLab Image flowable."""
     from reportlab.lib.units import cm
     from reportlab.platypus import Image as RLImage, Spacer
 
@@ -348,7 +399,6 @@ def _render_manual_question_image_pdf(image_url: str, W: float):
 
 
 def _render_manual_question_image_docx(doc, image_url: str):
-    """Download and embed image into DOCX. Silent fail on error."""
     from docx.shared import Cm
     from docx.enum.text import WD_ALIGN_PARAGRAPH
 
@@ -367,7 +417,7 @@ def _render_manual_question_image_docx(doc, image_url: str):
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# Markdown Table Parser (existing — used as fallback when no question_table)
+# Markdown Table Parser
 # ═══════════════════════════════════════════════════════════════════════
 
 def _parse_table_row(row_str: str) -> List[str]:
@@ -476,10 +526,6 @@ def _split_text_and_tables(text: str) -> List[dict]:
 
 
 def _strip_markdown_table_from_text(text: str) -> str:
-    """
-    Remove markdown pipe table from text, preserving non-table content.
-    Used when question_table is structured — avoids double rendering.
-    """
     if not text or '\n' not in text:
         return text
 
@@ -496,7 +542,6 @@ def _strip_markdown_table_from_text(text: str) -> str:
         )
 
         if has_pipes and next_is_sep:
-            # Skip the entire table block
             while i < len(lines):
                 tl = lines[i].strip()
                 if tl.startswith('|') or re.match(r'^\|?[\s\-:]+\|', tl):
@@ -507,7 +552,6 @@ def _strip_markdown_table_from_text(text: str) -> str:
             output_lines.append(line)
             i += 1
 
-    # Clean up consecutive blank lines
     result = '\n'.join(output_lines)
     result = re.sub(r'\n{3,}', '\n\n', result)
     return result.strip()
@@ -561,7 +605,7 @@ def _render_inline_table_pdf(headers: List[str], rows: List[List[str]], styles, 
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# Helper: Group questions by section
+# Group questions by section
 # ═══════════════════════════════════════════════════════════════════════
 
 def _group_by_section(questions: List[dict]) -> dict:
@@ -599,16 +643,10 @@ def _get_section_order(questions: List[dict]) -> tuple:
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# v11 NEW: Question Table Rendering — PDF
-# (Statistics, Data-handling — table is data given TO the student)
+# v11: Question Table Rendering — PDF
 # ═══════════════════════════════════════════════════════════════════════
 
 def _render_question_table_pdf(question_table, styles, W):
-    """
-    Render a structured question_table (e.g. frequency distribution) in PDF.
-    Used when the table is part of the question, not the answer.
-    Blue-toned styling distinguishes from emerald answer_table.
-    """
     from reportlab.lib.colors import HexColor
     from reportlab.platypus import Table, TableStyle, Paragraph, Spacer
 
@@ -625,7 +663,6 @@ def _render_question_table_pdf(question_table, styles, W):
 
     num_cols = len(headers)
 
-    # Optional caption above table
     if caption:
         elements.append(Spacer(1, 2))
         cap_style = styles.get('QText', styles['Normal'])
@@ -639,10 +676,8 @@ def _render_question_table_pdf(question_table, styles, W):
 
     cell_style = styles.get('Option', styles['Normal'])
 
-    # Header row (bold)
     table_data = [[Paragraph(f"<b>{_latex_to_paragraph(str(h))}</b>", cell_style) for h in headers]]
 
-    # Data rows
     for row in rows:
         if not isinstance(row, list):
             continue
@@ -652,7 +687,6 @@ def _render_question_table_pdf(question_table, styles, W):
             for cell in padded
         ])
 
-    # Smart column widths — first col wider for "Class Interval" type, rest balanced
     if num_cols == 2:
         col_widths = [W * 0.55, W * 0.45]
     elif num_cols == 3:
@@ -666,22 +700,19 @@ def _render_question_table_pdf(question_table, styles, W):
 
     col_widths = col_widths[:num_cols]
 
-    # Center the table on the page (use a slightly narrower table)
     t = Table(table_data, colWidths=col_widths, repeatRows=1, hAlign='CENTER')
 
     style_cmds = [
-        ('GRID',          (0, 0), (-1, -1), 0.5, HexColor('#bfdbfe')),  # blue-200
-        ('BACKGROUND',    (0, 0), (-1, 0),  HexColor('#dbeafe')),       # blue-100 header
-        ('TEXTCOLOR',     (0, 0), (-1, 0),  HexColor('#1e3a8a')),       # blue-900 header text
+        ('GRID',          (0, 0), (-1, -1), 0.5, HexColor('#bfdbfe')),
+        ('BACKGROUND',    (0, 0), (-1, 0),  HexColor('#dbeafe')),
+        ('TEXTCOLOR',     (0, 0), (-1, 0),  HexColor('#1e3a8a')),
         ('VALIGN',        (0, 0), (-1, -1), 'MIDDLE'),
         ('ALIGN',         (0, 0), (-1, 0),  'CENTER'),
         ('TOPPADDING',    (0, 0), (-1, -1), 5),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
         ('LEFTPADDING',   (0, 0), (-1, -1), 6),
         ('RIGHTPADDING',  (0, 0), (-1, -1), 6),
-        # Right-align numerical columns (everything after the first)
         ('ALIGN',         (1, 1), (-1, -1), 'RIGHT'),
-        # First column stays left-aligned for "Class Interval", "Marks" etc.
         ('ALIGN',         (0, 1), (0, -1),  'LEFT'),
     ]
 
@@ -693,11 +724,10 @@ def _render_question_table_pdf(question_table, styles, W):
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# v11 NEW: Question Table Rendering — DOCX
+# v11: Question Table Rendering — DOCX
 # ═══════════════════════════════════════════════════════════════════════
 
 def _render_question_table_docx(doc, question_table):
-    """Render a structured question_table in DOCX. Blue-toned styling."""
     from docx.shared import Pt, RGBColor
     from docx.enum.text import WD_ALIGN_PARAGRAPH
     from docx.enum.table import WD_TABLE_ALIGNMENT
@@ -715,22 +745,20 @@ def _render_question_table_docx(doc, question_table):
 
     num_cols = len(headers)
 
-    # Optional caption
     if caption:
         cp = doc.add_paragraph()
         cp.alignment = WD_ALIGN_PARAGRAPH.CENTER
         cr = cp.add_run(_latex_to_plain(str(caption)))
         cr.italic = True
         cr.font.size = Pt(9)
-        cr.font.color.rgb = RGBColor(75, 85, 99)  # gray-600
+        cr.font.color.rgb = RGBColor(75, 85, 99)
 
-    total_data_rows = 1 + len(rows)  # header + data
+    total_data_rows = 1 + len(rows)
 
     table = doc.add_table(rows=total_data_rows, cols=num_cols)
     table.alignment = WD_TABLE_ALIGNMENT.CENTER
     table.style = 'Table Grid'
 
-    # Header row — blue styling
     for j, header in enumerate(headers):
         cell = table.rows[0].cells[j]
         cell.text = ""
@@ -739,17 +767,15 @@ def _render_question_table_docx(doc, question_table):
         r = p.add_run(_latex_to_plain(str(header)))
         r.bold = True
         r.font.size = Pt(10)
-        r.font.color.rgb = RGBColor(30, 58, 138)  # blue-900
+        r.font.color.rgb = RGBColor(30, 58, 138)
 
-        # Light blue header background
         shading = cell._element.get_or_add_tcPr()
         shd = shading.makeelement(qn('w:shd'), {
-            qn('w:fill'): 'DBEAFE',  # blue-100
+            qn('w:fill'): 'DBEAFE',
             qn('w:val'): 'clear',
         })
         shading.append(shd)
 
-    # Data rows
     for i, row in enumerate(rows):
         if not isinstance(row, list):
             continue
@@ -761,11 +787,9 @@ def _render_question_table_docx(doc, question_table):
             r = p.add_run(_latex_to_plain(str(cell_text)))
             r.font.size = Pt(10)
 
-            # Right-align numerical columns (everything after first column)
             if j > 0:
                 p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
 
-    # Spacer after table
     doc.add_paragraph()
 
 
@@ -774,7 +798,6 @@ def _render_question_table_docx(doc, question_table):
 # ═══════════════════════════════════════════════════════════════════════
 
 def _render_answer_table_pdf(answer_table, styles, W):
-    from reportlab.lib.units import cm
     from reportlab.lib.colors import HexColor
     from reportlab.platypus import Table, TableStyle, Paragraph, Spacer
 
@@ -1006,7 +1029,7 @@ def _render_inline_table_docx(doc, headers: List[str], rows: List[List[str]]):
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# Question Card Wrapper (PDF) — COMPACT LAYOUT (CHANGE 2 applied)
+# Question Card Wrapper (PDF)
 # ═══════════════════════════════════════════════════════════════════════
 
 def _wrap_question_card(elements, W):
@@ -1027,7 +1050,6 @@ def _wrap_question_card(elements, W):
         colWidths=[card_inner_width],
     )
 
-    # CHANGE 2: Tighter padding (8→5/6, box 0.6→0.5)
     style_cmds = [
         ('BACKGROUND',    (0, 0), (-1, -1), HexColor('#F9FAFB')),
         ('BOX',           (0, 0), (-1, -1), 0.5, HexColor('#E5E7EB')),
@@ -1044,7 +1066,6 @@ def _wrap_question_card(elements, W):
 
     t.setStyle(TableStyle(style_cmds))
 
-    # CHANGE 2: Spacer reduced from 7 to 4
     return [t, Spacer(1, 4)]
 
 
@@ -1068,7 +1089,7 @@ def _render_or_separator(styles, W):
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# PDF Generation (v11 — question_table support + COMPACT LAYOUT)
+# PDF Generation
 # ═══════════════════════════════════════════════════════════════════════
 
 def generate_pdf(
@@ -1094,7 +1115,6 @@ def generate_pdf(
 
     buffer = io.BytesIO()
     
-    # CHANGE 1: Reduced page margins (1.5→1.0, 2→1.5)
     doc = SimpleDocTemplate(
         buffer, pagesize=A4,
         topMargin=1.0 * cm, bottomMargin=1.0 * cm,
@@ -1103,36 +1123,20 @@ def generate_pdf(
 
     styles = getSampleStyleSheet()
     
-    # CHANGE 1: Updated content width calculation (4cm→3cm)
     W = A4[0] - 3 * cm
 
-    # CHANGE 3: Tighter paragraph styles + CHANGE 4: Compressed section headers
     custom_styles = {
         'SchoolName': dict(parent=styles['Title'], fontSize=14, leading=18, spaceAfter=2, alignment=TA_CENTER, textColor=HexColor('#1a1a2e'), fontName='Helvetica-Bold'),
         'ExamMeta': dict(parent=styles['Normal'], fontSize=10, alignment=TA_CENTER, textColor=HexColor('#4a4a6a'), spaceAfter=4),
-        
-        # CHANGE 4: Compressed section headers (spaceBefore 18→10, spaceAfter 4→2, fontSize 12→11)
         'SectionHeader': dict(parent=styles['Heading1'], fontSize=11, spaceBefore=10, spaceAfter=2, textColor=HexColor('#1a1a2e'), fontName='Helvetica-Bold', alignment=TA_CENTER),
         'SectionSub': dict(parent=styles['Normal'], fontSize=9, alignment=TA_CENTER, textColor=HexColor('#6b7280'), spaceAfter=2),
-        
-        # CHANGE 4: Compressed section instruction (spaceAfter 8→4, leading 11→10)
         'SectionInstruction': dict(parent=styles['Normal'], fontSize=8.5, alignment=TA_CENTER, textColor=HexColor('#9ca3af'), spaceAfter=4, leading=10),
-        
         'SectionTitle': dict(parent=styles['Heading2'], fontSize=11, spaceBefore=14, spaceAfter=6, textColor=HexColor('#1a1a2e'), fontName='Helvetica-Bold'),
-        
-        # CHANGE 3: Tighter question text (spaceBefore 4→2, spaceAfter 3→1, leading 14→12)
         'QText': dict(parent=styles['Normal'], fontSize=10, spaceBefore=2, spaceAfter=1, leading=12, textColor=HexColor('#1f1f3a')),
-        
-        # CHANGE 3: Tighter options (leftIndent 18→14, spaceBefore 2→1, spaceAfter 2→1, leading 13→11.5)
         'Option': dict(parent=styles['Normal'], fontSize=9.5, leftIndent=14, spaceBefore=1, spaceAfter=1, leading=11.5, textColor=HexColor('#333355')),
         'CorrectOption': dict(parent=styles['Normal'], fontSize=9.5, leftIndent=14, spaceBefore=1, spaceAfter=1, leading=11.5, textColor=HexColor('#047857'), fontName='Helvetica-Bold'),
-        
-        # CHANGE 3: Tighter answer line (leftIndent 18→14)
         'AnswerLine': dict(parent=styles['Normal'], fontSize=9, leftIndent=14, spaceBefore=1, textColor=HexColor('#047857'), fontName='Helvetica-Bold'),
-        
-        # CHANGE 3: Tighter explanation (leftIndent 18→14, spaceAfter 6→3, leading 12→11)
         'Explanation': dict(parent=styles['Normal'], fontSize=8.5, leftIndent=14, spaceBefore=1, spaceAfter=3, textColor=HexColor('#6b7280'), leading=11),
-        
         'Marks': dict(parent=styles['Normal'], fontSize=9, alignment=TA_RIGHT, textColor=HexColor('#9ca3af')),
         'Instruction': dict(parent=styles['Normal'], fontSize=9, leftIndent=12, spaceBefore=2, spaceAfter=2, textColor=HexColor('#4a4a6a'), leading=12),
         'FooterText': dict(parent=styles['Normal'], fontSize=8, textColor=HexColor('#9ca3af'), alignment=TA_CENTER),
@@ -1228,13 +1232,9 @@ def generate_pdf(
         raw_text = q.get('text', '')
         marks = q.get('marks', 1)
         marks_label = f"[{marks} {'mark' if marks == 1 else 'marks'}]"
-        is_manual = _is_manual(q)
 
-        # v11: Get structured question_table (Statistics)
         question_table = _get_question_table(q)
 
-        # If structured question_table is present, strip any inline markdown
-        # table from text to avoid rendering it twice
         if question_table:
             raw_text = _strip_markdown_table_from_text(raw_text)
 
@@ -1248,11 +1248,8 @@ def generate_pdf(
         if not first_text:
             first_text = _latex_to_paragraph(raw_text)
 
-        # Build question header with optional MANUAL badge
-        if is_manual:
-            q_text_html = f"<b>Q{q_num}.</b> {first_text} <font color='#4f46e5' size='7'><b>[MANUAL]</b></font>"
-        else:
-            q_text_html = f"<b>Q{q_num}.</b> {first_text}"
+        # ✅ No MANUAL badge
+        q_text_html = f"<b>Q{q_num}.</b> {first_text}"
 
         qt = RLTable(
             [[Paragraph(q_text_html, styles['QText']),
@@ -1266,12 +1263,10 @@ def generate_pdf(
         ]))
         elements.append(qt)
 
-        # v11: Render structured question_table right after question text
         if question_table:
             qt_elements = _render_question_table_pdf(question_table, styles, QW)
             elements.extend(qt_elements)
 
-        # Manual question image (if present)
         image_url = _get_image_url(q)
         if image_url:
             img_elements = _render_manual_question_image_pdf(image_url, QW)
@@ -1287,8 +1282,6 @@ def generate_pdf(
                 if content:
                     elements.append(Paragraph(content, styles['QText']))
             elif seg['type'] == 'table':
-                # If structured question_table was rendered, skip inline markdown
-                # tables to avoid double rendering
                 if question_table:
                     continue
                 hdrs, rws = seg['content']
@@ -1312,16 +1305,15 @@ def generate_pdf(
                 elements.append(Paragraph(f"{prefix}{opt_clean}", style))
         else:
             fmt = q.get('format', 'mcq')
-            # CHANGE 5: Reduced blank space for student answers
             if not include_answers:
                 if fmt == 'short_answer':
-                    elements.append(Spacer(1, 18))  # was 24
+                    elements.append(Spacer(1, 18))
                 elif fmt == 'long_answer':
-                    elements.append(Spacer(1, 40))  # was 60
+                    elements.append(Spacer(1, 40))
                 elif fmt in ('journal_entry', 'ledger', 'trial_balance'):
-                    elements.append(Spacer(1, 50))  # was 80
+                    elements.append(Spacer(1, 50))
                 elif fmt == 'image':
-                    elements.append(Spacer(1, 20))  # was 30
+                    elements.append(Spacer(1, 20))
 
         if include_answers and include_explanations:
             raw_table = q.get('answer_table') or q.get('answerTable')
@@ -1385,7 +1377,6 @@ def generate_pdf(
                 or_card = _wrap_question_card(or_elements, W)
                 story.extend(or_card)
 
-        # Manual questions with no section → render at end under "Additional Questions"
         unsectioned = grouped.get('NONE', [])
         if unsectioned:
             story.append(HRFlowable(width="60%", thickness=1, color=HexColor('#4f46e5'), spaceBefore=14, spaceAfter=4))
@@ -1444,7 +1435,7 @@ def generate_pdf(
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# DOCX Generation (v11 — question_table support)
+# DOCX Generation
 # ═══════════════════════════════════════════════════════════════════════
 
 def generate_docx(
@@ -1556,12 +1547,9 @@ def generate_docx(
     def _render_q_docx(q, q_num):
         raw_text = q.get('text', '')
         marks = q.get('marks', 1)
-        is_manual = _is_manual(q)
 
-        # v11: Get structured question_table (Statistics)
         question_table = _get_question_table(q)
 
-        # If structured question_table is present, strip inline markdown table
         if question_table:
             raw_text = _strip_markdown_table_from_text(raw_text)
 
@@ -1581,22 +1569,15 @@ def generate_docx(
         rt = p.add_run(first_text)
         rt.font.size = Pt(11)
 
-        # MANUAL badge
-        if is_manual:
-            rb = p.add_run("  [MANUAL]")
-            rb.font.size = Pt(8)
-            rb.font.color.rgb = RGBColor(79, 70, 229)
-            rb.bold = True
+        # ✅ No MANUAL badge
 
         rm = p.add_run(f"  [{marks} {'mark' if marks == 1 else 'marks'}]")
         rm.font.size = Pt(8)
         rm.font.color.rgb = RGBColor(156, 163, 175)
 
-        # v11: Render structured question_table right after question text
         if question_table:
             _render_question_table_docx(doc, question_table)
 
-        # Manual question image
         image_url = _get_image_url(q)
         if image_url:
             _render_manual_question_image_docx(doc, image_url)
@@ -1612,7 +1593,6 @@ def generate_docx(
                     cp = doc.add_paragraph()
                     cp.add_run(content).font.size = Pt(11)
             elif seg['type'] == 'table':
-                # Skip inline markdown if structured question_table already rendered
                 if question_table:
                     continue
                 hdrs, rws = seg['content']
@@ -1712,7 +1692,6 @@ def generate_docx(
                 if i < len(main_qs) - 1 or or_queue:
                     _add_docx_separator(doc)
 
-        # Unsectioned manual questions appended
         unsectioned = grouped.get('NONE', [])
         if unsectioned:
             doc.add_paragraph("━" * 50)

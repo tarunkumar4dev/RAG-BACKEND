@@ -1,22 +1,16 @@
 """
-Test Generator Service v14 — STATISTICS SUPPORT + ROBUST JSON
+Test Generator Service v18 — ROBUST HISTORY SUBTOPIC MATCHING
 
-v14 changes (additive only, no breaking changes):
-  - Added QuestionTable support for Statistics / Data-handling questions
-  - Added STATISTICS_PROMPT_TEMPLATES — forces inline markdown table + structured JSON
-  - Added _build_statistics_prompt() — dedicated prompt builder for Statistics chapters
-  - Added validation gate in _parse_batch — drops broken Stats questions
-    (text mentions "following table" but no table data present)
-  - Added robust JSON extraction (handles truncated responses, unescaped newlines
-    inside strings — critical for markdown tables in question text)
-  - Routes Statistics chapters to specialized prompt automatically
+v18 changes (only one function changed):
+  - _get_subtopic_context() now uses aggressive normalization +
+    substring + word-overlap matching, so chapter name variations
+    like "Nationalism in India", "The Rise of Nationalism in Europe",
+    "Rise of Nationalism Europe" all match correctly
 
-v13 features retained:
-  - Accountancy table formats (journal_entry, ledger, trial_balance)
-  - CBSE Accountancy paper pattern (Part A + Part B with OR alternatives)
-  - Unicode modifier letter cleanup (15ᵗʰ → 15th)
-  - Generic CBSE 5-section pattern for Science/Maths
-  - Model fallback chain
+v18.1 additions:
+  - English Writing Skills prompt builder
+  - English Grammar prompt builder
+  - Routing in _generate_for_chapter for writing/grammar pseudo-chapters
 """
 
 import json
@@ -40,14 +34,11 @@ from app.models.test_generator import (
     QuestionFormat,
     ChapterSection,
     AnswerTable,
-    QuestionTable,  # v14: new
+    QuestionTable,
 )
 
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Constants
-# ---------------------------------------------------------------------------
 MAX_RETRIES = 2
 BASE_BACKOFF_SECONDS = 2
 MAX_BACKOFF_SECONDS = 20
@@ -74,10 +65,10 @@ ASSERTION_REASON_OPTIONS = [
 ]
 
 DIFF_INST = {
-    "easy": "EASY: 1-step recall. Bloom: remember/understand.",
-    "medium": "MEDIUM: 2-3 steps, 1 formula. Bloom: understand/apply.",
-    "hard": "HARD: 3+ steps, 2+ concepts combined. Bloom: apply/analyze. Distractors: wrong formula, sign error, misconception.",
-    "very_hard": "VERY HARD: Olympiad level, 3+ concepts, non-routine. All options plausible. Bloom: analyze/evaluate/create.",
+    "easy": "EASY: Direct conceptual question testing understanding. AVOID pure historical/biographical recall (no 'who discovered when' questions). Bloom: understand.",
+    "medium": "MEDIUM: 2-3 steps applying concepts to real-world scenarios. Use 'Give reasons', 'Why does', or 'Explain how' framing. Bloom: understand/apply.",
+    "hard": "HARD: 3+ steps, scenario-based reasoning, compare-contrast across concepts. Distractors: wrong concept, common misconception. Bloom: apply/analyze.",
+    "very_hard": "VERY HARD: Multi-concept analysis, experimental reasoning, evaluate trade-offs. All options plausible. Bloom: analyze/evaluate/create.",
 }
 
 BLOOM_VALID = {
@@ -93,12 +84,7 @@ BLOOM_DEFAULT = {
     "very_hard": "analyze",
 }
 
-
-# ---------------------------------------------------------------------------
-# Accountancy Constants
-# ---------------------------------------------------------------------------
 ACCOUNTANCY_SUBJECTS = {"accountancy", "accounts", "accounting"}
-
 ACCOUNTANCY_TABLE_FORMATS = {"journal_entry", "ledger", "trial_balance"}
 
 ACCOUNTANCY_PROMPT_TEMPLATES = {
@@ -110,304 +96,287 @@ The answer MUST include an "answer_table" with:
 - headers: ["Date", "Particulars", "L.F.", "Debit (Rs.)", "Credit (Rs.)"]
 - rows: Each row is a list of 5 strings. For the credit entry, indent the Particulars with "  To " prefix.
   After each transaction pair, add a narration row like ["", "(Being ...)", "", "", ""]
-- total_row: null (journal entries don't have totals)
-
-Example answer_table:
-{{
-  "type": "journal_entry",
-  "headers": ["Date", "Particulars", "L.F.", "Debit (Rs.)", "Credit (Rs.)"],
-  "rows": [
-    ["2024-04-01", "Cash A/c  Dr.", "", "50,000", ""],
-    ["", "  To Capital A/c", "", "", "50,000"],
-    ["", "(Being capital introduced in cash)", "", "", ""],
-    ["2024-04-03", "Purchases A/c  Dr.", "", "20,000", ""],
-    ["", "  To Cash A/c", "", "", "20,000"],
-    ["", "(Being goods purchased for cash)", "", "", ""]
-  ],
-  "total_row": null
-}}""",
+- total_row: null""",
 
     "ledger": """Generate a Ledger preparation question for CBSE Class {class_grade} Accountancy.
 
-The question should give transactions and ask to prepare a specific ledger account (T-account format).
+The question should give transactions and ask to prepare a specific ledger account.
 The answer MUST include an "answer_table" with:
 - type: "ledger"
 - headers: ["Date", "Particulars", "J.F.", "Amount (Rs.)", "Date", "Particulars", "J.F.", "Amount (Rs.)"]
-  (Left 4 columns = Debit side, Right 4 columns = Credit side)
-- rows: Each row has 8 strings. Use "" for empty cells.
-- total_row: 8 strings with totals on both sides
-
-Example answer_table:
-{{
-  "type": "ledger",
-  "headers": ["Date", "Particulars", "J.F.", "Amount (Rs.)", "Date", "Particulars", "J.F.", "Amount (Rs.)"],
-  "rows": [
-    ["2024-04-01", "To Capital A/c", "", "50,000", "2024-04-05", "By Purchases A/c", "", "20,000"],
-    ["2024-04-10", "To Sales A/c", "", "30,000", "2024-04-15", "By Rent A/c", "", "5,000"],
-    ["", "", "", "", "2024-04-30", "By Balance c/d", "", "55,000"]
-  ],
-  "total_row": ["", "", "", "80,000", "", "", "", "80,000"]
-}}""",
+- rows: Each row has 8 strings.
+- total_row: 8 strings with totals on both sides""",
 
     "trial_balance": """Generate a Trial Balance preparation question for CBSE Class {class_grade} Accountancy.
 
-Give a list of ledger balances and ask the student to prepare a Trial Balance.
 The answer MUST include an "answer_table" with:
 - type: "trial_balance"
 - headers: ["S.No.", "Account Name", "L.F.", "Debit (Rs.)", "Credit (Rs.)"]
 - rows: Each row has 5 strings.
-- total_row: ["", "Total", "", "X,XXX", "X,XXX"] (both sides must match)
-
-Example answer_table:
-{{
-  "type": "trial_balance",
-  "headers": ["S.No.", "Account Name", "L.F.", "Debit (Rs.)", "Credit (Rs.)"],
-  "rows": [
-    ["1", "Cash A/c", "", "50,000", ""],
-    ["2", "Capital A/c", "", "", "1,00,000"],
-    ["3", "Purchases A/c", "", "40,000", ""],
-    ["4", "Sales A/c", "", "", "60,000"],
-    ["5", "Rent A/c", "", "5,000", ""],
-    ["6", "Furniture A/c", "", "65,000", ""]
-  ],
-  "total_row": ["", "Total", "", "1,60,000", "1,60,000"]
-}}""",
+- total_row: ["", "Total", "", "X,XXX", "X,XXX"]""",
 }
 
-
-# ═══════════════════════════════════════════════════════════════════════════
-# v14 NEW: Statistics / Data-handling Constants
-# ═══════════════════════════════════════════════════════════════════════════
-
-# Chapter names that typically need data tables in questions
-STATISTICS_CHAPTERS = {
-    "statistics",
-    "data handling",
-    "data analysis",
-    "probability",  # often involves frequency data
-}
-
-# Topic keywords that indicate table-driven questions
+STATISTICS_CHAPTERS = {"statistics", "data handling", "data analysis", "probability"}
 STATISTICS_TOPIC_KEYWORDS = {
-    "frequency", "mean", "median", "mode",
-    "histogram", "ogive", "cumulative",
-    "class interval", "grouped data",
-    "frequency distribution", "frequency polygon",
+    "frequency", "mean", "median", "mode", "histogram", "ogive", "cumulative",
+    "class interval", "grouped data", "frequency distribution", "frequency polygon",
 }
-
-# Phrases in question text that REQUIRE a table to be present
 TABLE_REQUIRED_TRIGGERS = (
-    "following table",
-    "following frequency distribution",
-    "following frequency",
-    "following data",
-    "table shows",
-    "data given below",
-    "given below",
-    "the table below",
-    "from the table",
-    "in the table",
-    "based on the data",
-    "the data:",
-    "calculate the mean of the following",
-    "calculate the median of the following",
-    "calculate the mode of the following",
-    "find the mean of the following",
-    "find the median of the following",
-    "find the mode of the following",
+    "following table", "following frequency distribution", "following frequency",
+    "following data", "table shows", "data given below", "given below",
+    "the table below", "from the table", "in the table", "based on the data",
+    "the data:", "calculate the mean of the following", "calculate the median of the following",
+    "calculate the mode of the following", "find the mean of the following",
+    "find the median of the following", "find the mode of the following",
 )
 
 
-def _is_statistics_question(chapter_name: str, topic: Optional[str] = None) -> bool:
-    """Detect if a chapter/topic typically requires data tables in questions."""
-    ch_lower = (chapter_name or "").lower().strip()
+# ═══════════════════════════════════════════════════════════════════════════
+# English Writing & Grammar Prompts
+# ═══════════════════════════════════════════════════════════════════════════
 
+ENGLISH_WRITING_TYPES = {
+    "letter": "Formal Letter (100-120 words) — letter to editor, complaint, enquiry, request to authority, application",
+    "paragraph": "Analytical Paragraph (100-120 words) — based on a chart/graph/data/cue/situation",
+    "any": "Either a Formal Letter OR an Analytical Paragraph (100-120 words). Vary across questions.",
+}
+
+ENGLISH_GRAMMAR_TOPICS = [
+    "Tenses (present/past/future, perfect, continuous)",
+    "Modals (can, could, may, might, must, should, would, will, shall)",
+    "Determiners (a, an, the, this, that, some, any, much, many, few, little)",
+    "Subject-Verb Concord",
+    "Reported Speech (statements, questions, commands, requests)",
+    "Gap-Filling exercises",
+    "Editing/Omission exercises",
+    "Sentence Transformation",
+]
+
+
+def _build_english_writing_prompt(chapter, request, count, section_key=None, section_info=None):
+    """Build prompt for CBSE English Writing Skills questions."""
+    diff_val = chapter.difficulty.value if hasattr(chapter.difficulty, 'value') else str(chapter.difficulty)
+    fmt_val = chapter.format.value if hasattr(chapter.format, 'value') else str(chapter.format)
+    marks = chapter.marks_per_question
+
+    # Decide writing type from topic field, fallback to "any"
+    topic = (getattr(chapter, 'topic', None) or "").lower()
+    if "letter" in topic:
+        writing_type = ENGLISH_WRITING_TYPES["letter"]
+    elif "paragraph" in topic or "analytical" in topic:
+        writing_type = ENGLISH_WRITING_TYPES["paragraph"]
+    else:
+        writing_type = ENGLISH_WRITING_TYPES["any"]
+
+    section_ctx = ""
+    if section_key and section_info:
+        section_ctx = f"\nThis is for {section_info.get('title', '')} ({section_info.get('subtitle', '')}).\nEach question: {marks} marks."
+
+    section_field = f', "section": "{section_key}"' if section_key else ''
+
+    return f"""You are an expert CBSE Class {request.class_grade} English paper setter for the Writing Skills section.
+{section_ctx}
+
+Generate {count} unique CBSE-style WRITING questions.
+
+WRITING TYPE: {writing_type}
+
+EACH QUESTION MUST:
+- Present a clear real-world scenario (current/relatable to Indian students)
+- Specify exact word limit: 100-120 words
+- For Letters: give all required details (sender, receiver, purpose, key points to include)
+- For Analytical Paragraphs: provide a chart/graph description, data table, or visual cue in words
+- Be answerable based on the cue given (no external knowledge needed)
+- The "correct_answer" should be a complete model answer (100-120 words) showing proper format
+- The "explanation" should explain the marking scheme: format (1m), content (2m), expression/grammar (2m)
+
+CBSE LETTER FORMAT REMINDER (in your model answer):
+- Sender's address
+- Date
+- Receiver's address
+- Subject line
+- Salutation
+- Body (3 paragraphs: introduction, main content, closing)
+- Complimentary close + name
+
+CBSE ANALYTICAL PARAGRAPH REMINDER (in your model answer):
+- Opening sentence stating what the data shows
+- 2-3 sentences analyzing trends/patterns/comparisons
+- Closing sentence with conclusion or inference
+
+"format" must be exactly "long_answer". "options": null.
+
+Return ONLY valid JSON:
+{{"questions":[{{"text":"[full scenario with all cue details]","format":"long_answer","options":null,"correct_answer":"[complete 100-120 word model answer with proper format]","explanation":"Marking: Format (1m) + Content (2m) + Expression (2m) = 5m. Key points expected: ...","marks":{marks},"difficulty":"{diff_val}","bloom_level":"create","chapter":"{chapter.chapter}","topic":"{getattr(chapter, 'topic', None) or 'writing'}"{section_field}}}]}}"""
+
+
+def _build_english_grammar_prompt(chapter, request, count, section_key=None, section_info=None):
+    """Build prompt for CBSE English Grammar questions."""
+    diff_val = chapter.difficulty.value if hasattr(chapter.difficulty, 'value') else str(chapter.difficulty)
+    fmt_val = chapter.format.value if hasattr(chapter.format, 'value') else str(chapter.format)
+    marks = chapter.marks_per_question
+
+    section_ctx = ""
+    if section_key and section_info:
+        section_ctx = f"\nThis is for {section_info.get('title', '')}.\nEach question: {marks} marks."
+
+    section_field = f', "section": "{section_key}"' if section_key else ''
+
+    topics_list = "\n".join(f"  • {t}" for t in ENGLISH_GRAMMAR_TOPICS)
+
+    if fmt_val == "mcq":
+        fmt_line = '"options": 4 options labeled A) B) C) D). correct_answer = exact full option text.'
+        json_tmpl = (
+            f'{{"questions":[{{"text":"Fill in the blank: She ___ to school every day. Choose the correct option.",'
+            f'"format":"mcq","options":["A) go","B) goes","C) going","D) gone"],'
+            f'"correct_answer":"B) goes","explanation":"Subject-verb agreement: singular subject \\"She\\" takes singular verb \\"goes\\".",'
+            f'"marks":{marks},"difficulty":"{diff_val}","bloom_level":"apply",'
+            f'"chapter":"{chapter.chapter}","topic":"specific grammar topic"{section_field}}}]}}'
+        )
+    elif fmt_val == "short_answer":
+        fmt_line = '"options": null. Provide direct answer (filled blank, corrected sentence, or transformed sentence).'
+        json_tmpl = (
+            f'{{"questions":[{{"text":"Fill in the blank with the correct form of verb: She ___ (go) to school every day.",'
+            f'"format":"short_answer","options":null,'
+            f'"correct_answer":"goes","explanation":"Simple present tense, third person singular requires \\"goes\\".",'
+            f'"marks":{marks},"difficulty":"{diff_val}","bloom_level":"apply",'
+            f'"chapter":"{chapter.chapter}","topic":"tenses"{section_field}}}]}}'
+        )
+    else:
+        fmt_line = 'Provide 4 options A) B) C) D).'
+        json_tmpl = (
+            f'{{"questions":[{{"text":"...","format":"{fmt_val}","options":["A) ...","B) ...","C) ...","D) ..."],'
+            f'"correct_answer":"B) ...","explanation":"...",'
+            f'"marks":{marks},"difficulty":"{diff_val}","bloom_level":"apply",'
+            f'"chapter":"{chapter.chapter}","topic":"specific grammar topic"{section_field}}}]}}'
+        )
+
+    return f"""You are an expert CBSE Class {request.class_grade} English paper setter for the Grammar section.
+{section_ctx}
+
+Generate {count} unique CBSE-style GRAMMAR questions.
+
+GRAMMAR TOPICS TO COVER (rotate across questions, don't repeat):
+{topics_list}
+
+EACH QUESTION MUST:
+- Test ONE specific grammar concept
+- Use Gap-Fill / Editing / Transformation / Reported Speech format
+- Be at Class {request.class_grade} difficulty level
+- Have an unambiguous correct answer
+- Vary topics across questions — DO NOT repeat the same grammar topic
+
+QUESTION TYPES (rotate):
+1. Gap-fill: "She ___ (go) to school every day."
+2. Editing: "Spot the error: He don't like coffee."
+3. Transformation: "Change to passive: They built the house."
+4. Reported speech: "Change to indirect: He said, 'I am tired.'"
+5. Modal/Determiner choice: "Choose the correct option..."
+
+FORMAT RULES:
+{fmt_line}
+
+Return ONLY valid JSON:
+{json_tmpl}"""
+
+
+def _is_statistics_question(chapter_name: str, topic: Optional[str] = None) -> bool:
+    ch_lower = (chapter_name or "").lower().strip()
     for stat_ch in STATISTICS_CHAPTERS:
         if stat_ch in ch_lower:
             return True
-
     combined = f"{ch_lower} {(topic or '').lower()}"
     for kw in STATISTICS_TOPIC_KEYWORDS:
         if kw in combined:
             return True
-
     return False
 
 
 def _has_inline_table(text: str) -> bool:
-    """
-    Check if text contains a markdown pipe table.
-    Looks for at least 2 pipe-separated rows with a header separator line.
-    """
     if not text:
         return False
-    # Need pipes
     if text.count("|") < 4:
         return False
-    # Need a separator line like |---|---|  or  |:---:|---:|
     if not re.search(r"\|[\s\-:]+\|", text):
         return False
     return True
 
 
 def _references_table(text: str) -> bool:
-    """Check if text references a table (trigger phrase)."""
     if not text:
         return False
     text_lower = text.lower()
     return any(phrase in text_lower for phrase in TABLE_REQUIRED_TRIGGERS)
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# v16: Inline Data Detection + Recovery
-#
-# Gemini sometimes bypasses both markdown and structured table by writing data
-# as comma-separated lists inline:
-#   "xi: 10, 20, 36, 40, 50  fi: 1, 1, 3, 4, 3"
-#   "Class Interval: 0-10, 10-20, 20-30  Frequency: 5, 12, 15"
-#
-# We detect these and try to recover into a proper QuestionTable using regex
-# patterns rather than fixed keyword lists (more robust to variations).
-# ═══════════════════════════════════════════════════════════════════════════
-
-
 def _extract_inline_data(text: str) -> Optional[dict]:
-    """
-    Try to extract inline data into a structured table. Tries 3 strategies:
-
-    1. Single-line markdown pipes: "Class | Frequency ---|--- 0-10 | 5 10-20 | 12"
-    2. Label-colon pattern: "Class Interval: 0-10, 10-20  Frequency: 5, 12"
-    3. xi/fi shorthand: "xi: 10, 20, 36  fi: 1, 1, 3"
-
-    Returns dict like {"headers": [...], "rows": [[...]], "type": "..."} or None.
-    """
     if not text:
         return None
-
-    # Strategy 1: Single-line markdown pipes
     result = _extract_singleline_markdown(text)
     if result:
         return result
-
-    # Strategy 2/3: "Label: data, data..." patterns (works for both Class Interval and xi/fi)
     result = _extract_label_colon_pattern(text)
     if result:
         return result
-
     return None
 
 
 def _extract_singleline_markdown(text: str) -> Optional[dict]:
-    """Extract from single-line markdown like 'Class | Freq ---|--- 0-10 | 5 10-20 | 12'."""
-    # Need at least 4 pipes and a separator dash sequence
     if text.count("|") < 4:
         return None
     if not re.search(r'-{3,}', text):
         return None
-
-    # Split on the separator (---|---)
     sep_match = re.search(r'\|?[\s\-]*-{3,}[\s\-|]*-{2,}\s*\|?', text)
     if not sep_match:
         return None
-
     before = text[:sep_match.start()]
     after = text[sep_match.end():]
-
-    # Trim before to the section after the last sentence boundary
-    # (avoids grabbing question prefix like "Find the mean of...Class Interval")
-    last_break = max(
-        before.rfind('. '),
-        before.rfind('? '),
-        before.rfind('! '),
-        before.rfind('\n'),
-        -1,
-    )
+    last_break = max(before.rfind('. '), before.rfind('? '), before.rfind('! '), before.rfind('\n'), -1)
     if last_break >= 0:
         before = before[last_break + 1:].lstrip()
-
-    # Extract "Header1 | Header2" — limit each header to ~30 chars
-    header_match = re.search(
-        r'([A-Za-z][^|]{1,40}?)\s*\|\s*([A-Za-z][^|]{1,40}?)\s*$',
-        before,
-    )
+    header_match = re.search(r'([A-Za-z][^|]{1,40}?)\s*\|\s*([A-Za-z][^|]{1,40}?)\s*$', before)
     if not header_match:
         return None
-
     header1 = _clean_label(header_match.group(1).strip())
     header2 = _clean_label(header_match.group(2).strip())
-
-    # Data rows from after — pattern is "val1 | val2 val3 | val4 ..."
-    row_pattern = re.compile(
-        r'(\d+\s*-\s*\d+|\d+\.?\d*|[a-zA-Z]\d?)\s*\|\s*(\d+\.?\d*|[a-zA-Z]\d?)'
-    )
+    row_pattern = re.compile(r'(\d+\s*-\s*\d+|\d+\.?\d*|[a-zA-Z]\d?)\s*\|\s*(\d+\.?\d*|[a-zA-Z]\d?)')
     rows = []
     for m in row_pattern.finditer(after):
         c1 = re.sub(r'\s*-\s*', '-', m.group(1).strip())
         c2 = m.group(2).strip()
         rows.append([c1, c2])
-
     if len(rows) < 3:
         return None
-
-    return {
-        "type": "frequency_distribution",
-        "headers": [header1, header2],
-        "rows": rows,
-        "caption": None,
-    }
+    return {"type": "frequency_distribution", "headers": [header1, header2], "rows": rows, "caption": None}
 
 
 def _extract_label_colon_pattern(text: str) -> Optional[dict]:
-    """
-    Find all "label: data, data, ..." segments and pair the first two
-    as column1 and column2 of a frequency distribution.
-    """
-    # Pattern: a label (letters, parens, _) then colon then comma-separated values
-    # Values can be: numeric ranges (0-10), numbers (5, 5.2), or single-letter placeholders (p, x, f1)
     pattern = re.compile(
         r'([A-Za-z][A-Za-z0-9\s\(\)_/]{2,40}?)\s*[:|]\s*'
         r'((?:\d+\s*-\s*\d+|\d+\.?\d*|[a-zA-Z]\d?)'
         r'(?:\s*,\s*(?:\d+\s*-\s*\d+|\d+\.?\d*|[a-zA-Z]\d?))+)',
     )
-
     matches = []
     for m in pattern.finditer(text):
         label = m.group(1).strip()
         data_str = m.group(2)
         values = _parse_inline_values(": " + data_str)
         if len(values) >= 3:
-            matches.append({
-                "label": label,
-                "values": values,
-                "pos": m.start(),
-            })
-
+            matches.append({"label": label, "values": values, "pos": m.start()})
     if len(matches) < 2:
         return None
-
-    # Take the first two label-data pairs
     col1, col2 = matches[0], matches[1]
-
-    # Match lengths if needed (truncate to shorter)
     min_len = min(len(col1["values"]), len(col2["values"]))
     if min_len < 3:
         return None
     col1_values = col1["values"][:min_len]
     col2_values = col2["values"][:min_len]
-
-    # Sanity: at least one column should look like ranges OR numbers
     col1_has_ranges = any("-" in v for v in col1_values)
-    col1_all_numeric = all(
-        re.match(r'^-?\d+\.?\d*$|^[a-zA-Z]\d?$', v) for v in col1_values
-    )
+    col1_all_numeric = all(re.match(r'^-?\d+\.?\d*$|^[a-zA-Z]\d?$', v) for v in col1_values)
     if not (col1_has_ranges or col1_all_numeric):
         return None
-
-    # Clean labels
-    col1_label = _clean_label(col1["label"],
-                               default="Class Interval" if col1_has_ranges else "xi")
+    col1_label = _clean_label(col1["label"], default="Class Interval" if col1_has_ranges else "xi")
     col2_label = _clean_label(col2["label"], default="Frequency")
-
     return {
         "type": "frequency_distribution",
         "headers": [col1_label, col2_label],
@@ -417,23 +386,15 @@ def _extract_label_colon_pattern(text: str) -> Optional[dict]:
 
 
 def _clean_label(raw_label: str, default: str = "Value") -> str:
-    """Clean up a label: strip parens, shorthand markers, normalize."""
     if not raw_label:
         return default
-
-    # Strip parenthetical content like "(fi)" or "(xi)"
     cleaned = re.sub(r'\s*\([^\)]*\)\s*', '', raw_label).strip()
-    # Remove leading/trailing punctuation
     cleaned = re.sub(r'^[:.,;\s]+|[:.,;\s]+$', '', cleaned).strip()
-
     if not cleaned or len(cleaned) < 2:
         return default
-
-    # Normalize common labels
     lower = cleaned.lower()
     label_map = {
-        "fi": "Frequency",
-        "f_i": "Frequency",
+        "fi": "Frequency", "f_i": "Frequency",
         "number of students": "Number of Students",
         "number of workers": "Number of Workers",
         "number of patients": "Number of Patients",
@@ -443,87 +404,50 @@ def _clean_label(raw_label: str, default: str = "Value") -> str:
         "frequency": "Frequency",
         "marks obtained": "Marks Obtained",
         "class interval": "Class Interval",
-        "daily wages": "Daily Wages",
-        "age": "Age",
+        "daily wages": "Daily Wages", "age": "Age",
         "daily income": "Daily Income",
-        "lifetimes": "Lifetimes",
-        "lifetime": "Lifetime",
+        "lifetimes": "Lifetimes", "lifetime": "Lifetime",
         "family size": "Family Size",
         "absentees": "Number of Absentees",
         "number of absentees": "Number of Absentees",
         "daily expenditure": "Daily Expenditure",
-        "xi": "xi",
-        "x_i": "xi",
+        "xi": "xi", "x_i": "xi",
     }
-
     if lower in label_map:
         return label_map[lower]
-
-    # Title-case the cleaned label as fallback
     return cleaned.title()
 
 
 def _parse_inline_values(segment: str) -> List[str]:
-    """
-    Parse a segment like ": 0-10, 10-20, 20-30, 30-40" or "10, 20, 36, 40"
-    into a list of value strings.
-    """
     if not segment:
         return []
-
-    # Strip leading punctuation/colons/parens
     segment = re.sub(r'^[\s:;\(\)]+', '', segment)
-    # Strip trailing punctuation
     segment = re.sub(r'[\s:;\(\)\.]+$', '', segment)
-
-    # Split on commas
     parts = [p.strip() for p in segment.split(",")]
-
-    # Each part should look like a number or a range like "0-10"
     valid = []
     for p in parts:
-        # Range like "0-10" or "100-120"
         if re.match(r'^-?\d+\s*-\s*\d+$', p):
             valid.append(re.sub(r'\s*-\s*', '-', p))
-        # Pure number (int or decimal, possibly with trailing letter for missing freq like "p", "f")
         elif re.match(r'^-?\d+\.?\d*$', p):
             valid.append(p)
-        elif re.match(r'^[a-zA-Z]\d?$', p):  # missing-frequency placeholders like "p", "f", "f1", "x"
+        elif re.match(r'^[a-zA-Z]\d?$', p):
             valid.append(p)
         else:
-            # Stop at first invalid token (likely text after data ends)
             break
-
     return valid
 
 
 def _has_inline_data_leak(text: str) -> bool:
-    """
-    Detect if text contains comma-separated data that should have been in a
-    structured table. Used to drop questions that bypassed the structured-only rule.
-    """
     if not text:
         return False
-    # Look for sequences of 4+ comma-separated numbers/ranges
-    # e.g. "10, 20, 30, 40, 50" or "0-10, 10-20, 20-30, 30-40"
-    pattern = re.compile(
-        r'(?:\d+\s*-\s*\d+|\d+)(?:\s*,\s*(?:\d+\s*-\s*\d+|\d+|[a-zA-Z]\d?)){3,}'
-    )
+    pattern = re.compile(r'(?:\d+\s*-\s*\d+|\d+)(?:\s*,\s*(?:\d+\s*-\s*\d+|\d+|[a-zA-Z]\d?)){3,}')
     return bool(pattern.search(text))
 
 
 def _strip_inline_data_from_text(text: str, recovered_table: dict) -> str:
-    """
-    After extracting inline data into structured table, remove the data portion
-    from text so it doesn't appear twice in PDF.
-    """
     if not text or not recovered_table:
         return text
-
-    # Find earliest position where data/headers start
     earliest = len(text)
-
-    # Match label-colon pattern (e.g. "Class Interval: 0-10, ...")
     label_pattern = re.compile(
         r'([A-Za-z][A-Za-z0-9\s\(\)_/]{2,40}?)\s*[:|]\s*'
         r'((?:\d+\s*-\s*\d+|\d+\.?\d*|[a-zA-Z]\d?)'
@@ -532,139 +456,61 @@ def _strip_inline_data_from_text(text: str, recovered_table: dict) -> str:
     m = label_pattern.search(text)
     if m and m.start() < earliest:
         earliest = m.start()
-
-    # Match markdown pipe pattern. For markdown we need to walk back from the
-    # pipe to the LAST sentence break, so we keep "Find median." but drop
-    # "Marks Obtained | Number of Students ---|--- ..."
-    pipe_match = re.search(
-        r'[A-Za-z][^|\n]{0,40}\|\s*[A-Za-z][^|\n]{0,40}\s*\|?[\s\-]*-{3,}',
-        text,
-    )
+    pipe_match = re.search(r'[A-Za-z][^|\n]{0,40}\|\s*[A-Za-z][^|\n]{0,40}\s*\|?[\s\-]*-{3,}', text)
     if pipe_match:
-        # Walk back from pipe_match.start() to find the prior sentence boundary
         prior_text = text[:pipe_match.start()]
-        last_break = max(
-            prior_text.rfind('. '),
-            prior_text.rfind('? '),
-            prior_text.rfind('! '),
-            prior_text.rfind('\n'),
-            -1,
-        )
-        # Position to cut at is just after the sentence break (or pipe start if no break)
+        last_break = max(prior_text.rfind('. '), prior_text.rfind('? '), prior_text.rfind('! '), prior_text.rfind('\n'), -1)
         cut_pos = (last_break + 2) if last_break >= 0 else pipe_match.start()
         if cut_pos < earliest:
             earliest = cut_pos
-
     if earliest >= len(text):
         return text
-
     cleaned = text[:earliest].strip()
-
-    # Remove trailing connectives like "as follows:", "given below:", etc.
     cleaned = re.sub(
         r'(?:as follows|the following|given below|below|here|are given|are as follows)\s*[:.]?\s*$',
         '', cleaned, flags=re.IGNORECASE,
     ).strip()
     cleaned = re.sub(r'[:;,]+$', '', cleaned).strip()
-
     if len(cleaned) < 15:
         cleaned = "Find the answer based on the given data."
-
     if not cleaned.endswith(('.', '?', '!')):
         cleaned += "."
-
     return cleaned
 
 
 STATISTICS_PROMPT_TEMPLATES = {
     "frequency_distribution": """STATISTICS QUESTION — STRUCTURED TABLE FORMAT (STRICT)
 
-═══ ABSOLUTE REQUIREMENT ═══
+The "question_table" field is MANDATORY. Questions WITHOUT a valid "question_table" will be REJECTED.
+DO NOT put the data table inside "text" as pipes/dashes. Keep "text" CLEAN.
 
-The "question_table" field is MANDATORY. It is THE PRIMARY source of table data.
-Questions WITHOUT a valid "question_table" field WILL BE REJECTED automatically.
-
-DO NOT put the data table inside "text" as pipes/dashes. Keep "text" CLEAN — only
-the question prompt, no data. The data goes in "question_table" only.
-
-═══ EXACT OUTPUT FORMAT — COPY THIS STRUCTURE ═══
-
+EXACT OUTPUT FORMAT:
 {{
   "text": "Find the mean of the given frequency distribution.",
   "question_table": {{
     "type": "frequency_distribution",
     "headers": ["Class Interval", "Frequency"],
-    "rows": [
-      ["0-10", "5"],
-      ["10-20", "8"],
-      ["20-30", "15"],
-      ["30-40", "12"],
-      ["40-50", "7"],
-      ["50-60", "3"]
-    ],
+    "rows": [["0-10","5"],["10-20","8"],["20-30","15"],["30-40","12"],["40-50","7"],["50-60","3"]],
     "caption": "Marks scored by 50 students"
   }},
-  "correct_answer": "xi values: 5, 15, 25, 35, 45, 55. Σfi = 50, Σfixi = 1510. Mean = 1510/50 = 30.2",
-  "explanation": "Step 1: Find xi (mid-point) of each class. Step 2: Compute fixi for each row. Step 3: Mean = Σfixi / Σfi = 1510/50 = 30.2"
+  "correct_answer": "...",
+  "explanation": "..."
 }}
 
-═══ REJECTION CRITERIA — auto-dropped if any of these occur ═══
+REJECTION CRITERIA:
+- "question_table" is null/missing/empty
+- "text" contains comma-separated number lists or labels like "Class Interval:", "xi:", "fi:" followed by data
+- "rows" contains anything other than strings
 
-❌ "question_table" is null, missing, or empty
-❌ "question_table" has empty "headers" or empty "rows"
-❌ "text" contains inline table pipes/dashes (data must be in question_table only)
-❌ "rows" contains anything other than strings (numbers must be quoted: "5" not 5)
-❌ "text" contains comma-separated number lists (4+ values like "5, 12, 15, 8, 6")
-❌ "text" contains labels like "Class Interval:", "xi:", "fi:", "Frequency:" followed by data
-
-═══ FORBIDDEN PATTERNS (these are real failures we've seen) ═══
-
-❌ FORBIDDEN — Comma-separated lists in text:
-   "text": "Find mean. Class Interval: 0-10, 10-20, 20-30 Frequency: 5, 12, 15"
-
-❌ FORBIDDEN — xi/fi shorthand:
-   "text": "Find mean. xi: 10, 20, 36 fi: 1, 1, 3"
-
-❌ FORBIDDEN — Single-line markdown:
-   "text": "Find mean. Class | Frequency ---|--- 0-10 | 5 10-20 | 12"
-
-❌ FORBIDDEN — Data appended after question:
-   "text": "Find median of: 5, 8, 12, 15, 20, 25"
-
-✅ CORRECT — Clean text + structured question_table:
-   "text": "Find the mean of the given frequency distribution.",
-   "question_table": {{"headers": [...], "rows": [[...], ...]}}
-
-═══ DATA REALISM RULES ═══
-
-- Use 5-7 class intervals (NOT less, NOT more)
-- Class intervals must be of EQUAL width (all 10, all 5, all 20 etc.)
-- Frequencies must vary realistically — not all same, not extreme outliers
-- Σfi (total frequency) should be a round number (30, 40, 50, 60, 80, 100)
-- Use realistic CBSE contexts: marks scored, daily wages, heights, weights,
-  ages, family incomes, distances, time spent, etc.
-- Numbers must be plausible for the context (Indian classroom)
-
-═══ THE GOLDEN RULE ═══
-
-Clean text + structured question_table = ACCEPTED
-Inline table in text + no question_table = REJECTED
-
-Always emit both: clean text describing what to find, and structured question_table
-with all the data. Never put data in text, never skip question_table.
+DATA RULES:
+- Use 5-7 class intervals of EQUAL width
+- Σfi should be a round number (30, 40, 50, 60, 80, 100)
+- Use realistic CBSE contexts (marks, wages, heights, ages)
 """
 }
 
 
-def _build_statistics_prompt(
-    chapter: ChapterSection,
-    request: TestGenerationRequest,
-    context_chunks: List[Dict],
-    count: int,
-    section_key: Optional[str] = None,
-    section_info: Optional[dict] = None,
-) -> str:
-    """Build a Statistics-specific prompt that forces table data in questions."""
+def _build_statistics_prompt(chapter, request, context_chunks, count, section_key=None, section_info=None):
     ch_name = chapter.chapter.upper()
     ch_chunks = [c for c in context_chunks if c.get("chapter", "").upper() == ch_name]
     if not ch_chunks:
@@ -681,86 +527,47 @@ def _build_statistics_prompt(
 
     section_ctx = ""
     if section_key and section_info:
-        section_ctx = f"""
-This is for {section_info['title']} ({section_info['subtitle']}).
-Each question: {section_info['marks_per_q']} marks. {section_info.get('instruction', '')}"""
+        section_ctx = f"\nThis is for {section_info['title']} ({section_info['subtitle']}).\nEach question: {section_info['marks_per_q']} marks. {section_info.get('instruction', '')}"
 
-    # Format-specific answer instructions
     if fmt_val == "mcq":
-        fmt_line = (
-            'Provide 4 options labeled A) B) C) D). '
-            'correct_answer = exact full option text. '
-            'Distractors should be plausible (e.g. mode/median confusion, '
-            'arithmetic errors in calculation, off-by-one mistakes).'
-        )
-    elif fmt_val == "short_answer":
-        fmt_line = (
-            '"options": null. Show full calculation: tabular working with '
-            'xi (mid-point), fi, fixi columns. Then Σfi, Σfixi, and final answer.'
-        )
-    elif fmt_val == "long_answer":
-        fmt_line = (
-            '"options": null. Show complete tabular working with all required '
-            'columns (xi, fi, di, fidi, etc. as needed for the method). '
-            'Apply the formula step-by-step. State the final answer clearly with units.'
-        )
+        fmt_line = 'Provide 4 options labeled A) B) C) D). correct_answer = exact full option text.'
+    elif fmt_val in ("short_answer", "long_answer"):
+        fmt_line = '"options": null. Show full tabular working.'
     elif fmt_val == "assertion_reason":
-        fmt_line = (
-            '"text": "Assertion (A): [statement about a statistical concept]\\n'
-            'Reason (R): [related principle]". '
-            'Use 4 standard AR options. NOTE: For pure assertion-reason questions, '
-            'a question_table is NOT required — only include if the assertion '
-            'references specific numerical data.'
-        )
+        fmt_line = '"text": "Assertion (A): ...\\nReason (R): ...". For pure AR, question_table can be null.'
     else:
         fmt_line = '4 options labeled A) B) C) D).'
 
     template_instruction = STATISTICS_PROMPT_TEMPLATES["frequency_distribution"]
-
     section_field = f', "section": "{section_key}"' if section_key else ''
 
-    # JSON template — for AR/conceptual questions, question_table can be null
     if fmt_val == "assertion_reason":
         json_tmpl = (
-            f'{{"questions":[{{'
-            f'"text":"Assertion (A): ...\\nReason (R): ...",'
-            f'"format":"assertion_reason",'
-            f'"options":["A) ...","B) ...","C) ...","D) ..."],'
-            f'"correct_answer":"A) ...",'
-            f'"explanation":"...",'
-            f'"question_table":null,'
-            f'"marks":{chapter.marks_per_question},'
-            f'"difficulty":"{diff_val}","bloom_level":"apply",'
-            f'"chapter":"{chapter.chapter}","topic":"specific topic"{section_field}'
-            f'}}]}}'
+            f'{{"questions":[{{"text":"Assertion (A): ...\\nReason (R): ...","format":"assertion_reason",'
+            f'"options":["A) ...","B) ...","C) ...","D) ..."],"correct_answer":"A) ...","explanation":"...",'
+            f'"question_table":null,"marks":{chapter.marks_per_question},"difficulty":"{diff_val}",'
+            f'"bloom_level":"apply","chapter":"{chapter.chapter}","topic":"specific topic"{section_field}}}]}}'
         )
     elif fmt_val == "mcq":
         json_tmpl = (
-            f'{{"questions":[{{'
-            f'"text":"Find the mean of the given frequency distribution.",'
-            f'"format":"mcq",'
-            f'"options":["A) 28.4","B) 30.2","C) 32.6","D) 26.8"],'
-            f'"correct_answer":"B) 30.2",'
-            f'"explanation":"Σfi = 50, Σfixi = 1510, Mean = 1510/50 = 30.2",'
-            f'"question_table":{{"type":"frequency_distribution","headers":["Class Interval","Frequency"],"rows":[["0-10","5"],["10-20","8"],["20-30","15"],["30-40","12"],["40-50","7"],["50-60","3"]],"caption":"Marks scored by 50 students"}},'
-            f'"marks":{chapter.marks_per_question},'
-            f'"difficulty":"{diff_val}","bloom_level":"apply",'
-            f'"chapter":"{chapter.chapter}","topic":"specific topic"{section_field}'
-            f'}}]}}'
+            f'{{"questions":[{{"text":"Find the mean of the given frequency distribution.","format":"mcq",'
+            f'"options":["A) 28.4","B) 30.2","C) 32.6","D) 26.8"],"correct_answer":"B) 30.2",'
+            f'"explanation":"Σfi = 50, Σfixi = 1510, Mean = 30.2",'
+            f'"question_table":{{"type":"frequency_distribution","headers":["Class Interval","Frequency"],'
+            f'"rows":[["0-10","5"],["10-20","8"],["20-30","15"],["30-40","12"],["40-50","7"],["50-60","3"]],'
+            f'"caption":"Marks scored by 50 students"}},'
+            f'"marks":{chapter.marks_per_question},"difficulty":"{diff_val}","bloom_level":"apply",'
+            f'"chapter":"{chapter.chapter}","topic":"specific topic"{section_field}}}]}}'
         )
     else:
         json_tmpl = (
-            f'{{"questions":[{{'
-            f'"text":"Find the mean of the given frequency distribution.",'
-            f'"format":"{fmt_val}",'
-            f'"options":null,'
-            f'"correct_answer":"xi: 5,15,25,35,45,55. Σfi=50, Σfixi=1510. Mean = 1510/50 = 30.2",'
-            f'"explanation":"Step 1: Find xi (mid-point) of each class. Step 2: Compute fixi. Step 3: Mean = Σfixi / Σfi = 30.2",'
-            f'"question_table":{{"type":"frequency_distribution","headers":["Class Interval","Frequency"],"rows":[["0-10","5"],["10-20","8"],["20-30","15"],["30-40","12"],["40-50","7"],["50-60","3"]],"caption":"Marks scored by 50 students"}},'
-            f'"marks":{chapter.marks_per_question},'
-            f'"difficulty":"{diff_val}","bloom_level":"apply",'
-            f'"chapter":"{chapter.chapter}","topic":"specific topic"{section_field}'
-            f'}}]}}'
+            f'{{"questions":[{{"text":"Find the mean of the given frequency distribution.","format":"{fmt_val}",'
+            f'"options":null,"correct_answer":"...","explanation":"...",'
+            f'"question_table":{{"type":"frequency_distribution","headers":["Class Interval","Frequency"],'
+            f'"rows":[["0-10","5"],["10-20","8"],["20-30","15"],["30-40","12"],["40-50","7"],["50-60","3"]],'
+            f'"caption":"Marks scored by 50 students"}},'
+            f'"marks":{chapter.marks_per_question},"difficulty":"{diff_val}","bloom_level":"apply",'
+            f'"chapter":"{chapter.chapter}","topic":"specific topic"{section_field}}}]}}'
         )
 
     return f"""You are an expert CBSE Class {request.class_grade} {request.subject} paper setter
@@ -777,187 +584,49 @@ FORMAT RULES:
 {MATH_FORMAT_INSTRUCTION}
 
 "format" must be exactly "{fmt_val}". "chapter" must be exactly "{chapter.chapter}".
-Every question MUST have detailed explanation showing complete working.
-Each question must test a DIFFERENT concept (mean, median, mode, cumulative, etc.).
-Vary the contexts and data — no two questions should use the same scenario.
+Each question must test a DIFFERENT concept. Vary contexts and data.
 
 NCERT Reference:
 {ctx}
 
-Generate EXACTLY {count} unique questions. Return ONLY valid JSON, no extra text:
+Generate EXACTLY {count} unique questions. Return ONLY valid JSON:
 {json_tmpl}"""
 
 
-# ---------------------------------------------------------------------------
-# CBSE Section Templates (Generic — Science/Maths/etc.)
-# ---------------------------------------------------------------------------
 CBSE_SECTIONS = {
-    "A": {
-        "title": "Section A",
-        "subtitle": "Multiple Choice Questions / Assertion-Reason",
-        "marks_per_q": 1,
-        "count": 20,
-        "total_marks": 20,
-        "formats": ["mcq", "assertion_reason"],
-        "mcq_count": 16,
-        "ar_count": 4,
-        "difficulty": "easy",
-        "bloom": ["remember", "understand"],
-        "instruction": "All questions are compulsory. Each question carries 1 mark.",
-    },
-    "B": {
-        "title": "Section B",
-        "subtitle": "Very Short Answer Type Questions",
-        "marks_per_q": 2,
-        "count": 5,
-        "total_marks": 10,
-        "formats": ["short_answer"],
-        "difficulty": "medium",
-        "bloom": ["understand", "apply"],
-        "instruction": "All questions are compulsory. Each question carries 2 marks.",
-    },
-    "C": {
-        "title": "Section C",
-        "subtitle": "Short Answer Type Questions",
-        "marks_per_q": 3,
-        "count": 6,
-        "total_marks": 18,
-        "formats": ["short_answer"],
-        "difficulty": "medium",
-        "bloom": ["apply", "analyze"],
-        "instruction": "All questions are compulsory. Each question carries 3 marks.",
-    },
-    "D": {
-        "title": "Section D",
-        "subtitle": "Long Answer Type Questions",
-        "marks_per_q": 5,
-        "count": 4,
-        "total_marks": 20,
-        "formats": ["long_answer"],
-        "difficulty": "hard",
-        "bloom": ["analyze", "evaluate"],
-        "instruction": "All questions are compulsory. Each question carries 5 marks.",
-    },
-    "E": {
-        "title": "Section E",
-        "subtitle": "Case Study / Source Based Questions",
-        "marks_per_q": 4,
-        "count": 3,
-        "total_marks": 12,
-        "formats": ["case_based"],
-        "difficulty": "hard",
-        "bloom": ["apply", "analyze", "evaluate"],
-        "instruction": "All questions are compulsory. Each question carries 4 marks. Each case study has sub-parts.",
-    },
+    "A": {"title": "Section A", "subtitle": "Multiple Choice Questions / Assertion-Reason", "marks_per_q": 1, "count": 20, "total_marks": 20, "formats": ["mcq", "assertion_reason"], "mcq_count": 16, "ar_count": 4, "difficulty": "easy", "bloom": ["remember", "understand"], "instruction": "All questions are compulsory. Each question carries 1 mark."},
+    "B": {"title": "Section B", "subtitle": "Very Short Answer Type Questions", "marks_per_q": 2, "count": 5, "total_marks": 10, "formats": ["short_answer"], "difficulty": "medium", "bloom": ["understand", "apply"], "instruction": "All questions are compulsory. Each question carries 2 marks."},
+    "C": {"title": "Section C", "subtitle": "Short Answer Type Questions", "marks_per_q": 3, "count": 6, "total_marks": 18, "formats": ["short_answer"], "difficulty": "medium", "bloom": ["apply", "analyze"], "instruction": "All questions are compulsory. Each question carries 3 marks."},
+    "D": {"title": "Section D", "subtitle": "Long Answer Type Questions", "marks_per_q": 5, "count": 4, "total_marks": 20, "formats": ["long_answer"], "difficulty": "hard", "bloom": ["analyze", "evaluate"], "instruction": "All questions are compulsory. Each question carries 5 marks."},
+    "E": {"title": "Section E", "subtitle": "Case Study / Source Based Questions", "marks_per_q": 4, "count": 3, "total_marks": 12, "formats": ["case_based"], "difficulty": "hard", "bloom": ["apply", "analyze", "evaluate"], "instruction": "All questions are compulsory. Each question carries 4 marks."},
 }
 
-
-# ---------------------------------------------------------------------------
-# CBSE Accountancy Class 12 — Pattern Config (SQP 2025-26)
-# ---------------------------------------------------------------------------
 CBSE_ACCOUNTANCY_PATTERN = {
-    "total_questions": 34,
-    "total_marks": 80,
+    "total_questions": 34, "total_marks": 80,
     "parts": {
         "A": {
-            "title": "Part A",
-            "subtitle": "Accounting for Partnership Firms and Companies",
-            "marks": 60,
+            "title": "Part A", "subtitle": "Accounting for Partnership Firms and Companies", "marks": 60,
             "instruction": "Question 1 to 16 carry 1 mark each. Questions 17 to 20 carry 3 marks each. Questions 21-22 carry 4 marks each. Questions 23 to 26 carry 6 marks each.",
             "groups": [
-                {
-                    "id": "A1",
-                    "marks_per_q": 1,
-                    "count": 16,
-                    "or_count": 4,
-                    "formats": ["mcq", "assertion_reason"],
-                    "mcq_count": 12,
-                    "ar_count": 4,
-                    "difficulty": "easy",
-                    "blooms": ["remember", "understand"],
-                },
-                {
-                    "id": "A3",
-                    "marks_per_q": 3,
-                    "count": 4,
-                    "or_count": 2,
-                    "formats": ["short_answer"],
-                    "difficulty": "medium",
-                    "blooms": ["understand", "apply"],
-                },
-                {
-                    "id": "A4",
-                    "marks_per_q": 4,
-                    "count": 2,
-                    "or_count": 1,
-                    "formats": ["short_answer", "journal_entry"],
-                    "difficulty": "medium",
-                    "blooms": ["apply", "analyze"],
-                },
-                {
-                    "id": "A6",
-                    "marks_per_q": 6,
-                    "count": 4,
-                    "or_count": 2,
-                    "formats": ["long_answer", "journal_entry", "ledger"],
-                    "difficulty": "hard",
-                    "blooms": ["analyze", "evaluate"],
-                },
+                {"id": "A1", "marks_per_q": 1, "count": 16, "or_count": 4, "formats": ["mcq", "assertion_reason"], "mcq_count": 12, "ar_count": 4, "difficulty": "easy", "blooms": ["remember", "understand"]},
+                {"id": "A3", "marks_per_q": 3, "count": 4, "or_count": 2, "formats": ["short_answer"], "difficulty": "medium", "blooms": ["understand", "apply"]},
+                {"id": "A4", "marks_per_q": 4, "count": 2, "or_count": 1, "formats": ["short_answer", "journal_entry"], "difficulty": "medium", "blooms": ["apply", "analyze"]},
+                {"id": "A6", "marks_per_q": 6, "count": 4, "or_count": 2, "formats": ["long_answer", "journal_entry", "ledger"], "difficulty": "hard", "blooms": ["analyze", "evaluate"]},
             ],
         },
         "B1": {
-            "title": "Part B (Option I)",
-            "subtitle": "Analysis of Financial Statements",
-            "marks": 20,
+            "title": "Part B (Option I)", "subtitle": "Analysis of Financial Statements", "marks": 20,
             "instruction": "Question 27 to 30 carry 1 mark each. Questions 31-32 carry 3 marks each. Question 33 carries 4 marks. Question 34 carries 6 marks.",
             "groups": [
-                {
-                    "id": "B1_1",
-                    "marks_per_q": 1,
-                    "count": 4,
-                    "or_count": 2,
-                    "formats": ["mcq", "assertion_reason"],
-                    "mcq_count": 3,
-                    "ar_count": 1,
-                    "difficulty": "easy",
-                    "blooms": ["remember", "understand"],
-                },
-                {
-                    "id": "B1_3",
-                    "marks_per_q": 3,
-                    "count": 2,
-                    "or_count": 1,
-                    "formats": ["short_answer"],
-                    "difficulty": "medium",
-                    "blooms": ["understand", "apply"],
-                },
-                {
-                    "id": "B1_4",
-                    "marks_per_q": 4,
-                    "count": 1,
-                    "or_count": 1,
-                    "formats": ["short_answer"],
-                    "difficulty": "medium",
-                    "blooms": ["apply", "analyze"],
-                },
-                {
-                    "id": "B1_6",
-                    "marks_per_q": 6,
-                    "count": 1,
-                    "or_count": 0,
-                    "formats": ["long_answer"],
-                    "difficulty": "hard",
-                    "blooms": ["analyze", "evaluate"],
-                },
+                {"id": "B1_1", "marks_per_q": 1, "count": 4, "or_count": 2, "formats": ["mcq", "assertion_reason"], "mcq_count": 3, "ar_count": 1, "difficulty": "easy", "blooms": ["remember", "understand"]},
+                {"id": "B1_3", "marks_per_q": 3, "count": 2, "or_count": 1, "formats": ["short_answer"], "difficulty": "medium", "blooms": ["understand", "apply"]},
+                {"id": "B1_4", "marks_per_q": 4, "count": 1, "or_count": 1, "formats": ["short_answer"], "difficulty": "medium", "blooms": ["apply", "analyze"]},
+                {"id": "B1_6", "marks_per_q": 6, "count": 1, "or_count": 0, "formats": ["long_answer"], "difficulty": "hard", "blooms": ["analyze", "evaluate"]},
             ],
         },
     },
 }
 
-
-# ---------------------------------------------------------------------------
-# Accountancy Topic → Part Classification
-# ---------------------------------------------------------------------------
 ACCOUNTANCY_PART_A_TOPICS = {
     "accounting for partnership", "reconstitution of partnership",
     "admission of a partner", "retirement and death of a partner",
@@ -990,18 +659,13 @@ def _classify_chapter_part(chapter_name: str) -> str:
     for topic in ACCOUNTANCY_PART_A_TOPICS:
         if topic in ch_lower or ch_lower in topic:
             return "A"
-    if any(kw in ch_lower for kw in ["partner", "share", "debenture", "company", "goodwill",
-                                       "admission", "retire", "death", "dissolut", "forfeit"]):
+    if any(kw in ch_lower for kw in ["partner", "share", "debenture", "company", "goodwill", "admission", "retire", "death", "dissolut", "forfeit"]):
         return "A"
-    if any(kw in ch_lower for kw in ["ratio", "cash flow", "financial statement", "comparative",
-                                       "common size", "balance sheet"]):
+    if any(kw in ch_lower for kw in ["ratio", "cash flow", "financial statement", "comparative", "common size", "balance sheet"]):
         return "B1"
     return "A"
 
 
-# ---------------------------------------------------------------------------
-# Exception + Client
-# ---------------------------------------------------------------------------
 class GenerationError(Exception):
     def __init__(self, message: str, status_code: int = 500):
         super().__init__(message)
@@ -1020,50 +684,174 @@ def _get_gemini_client() -> genai.Client:
     return _client_cache
 
 
-# ---------------------------------------------------------------------------
-# MATH FORMATTING INSTRUCTIONS
-# ---------------------------------------------------------------------------
-MATH_FORMAT_INSTRUCTION = """MATH FORMATTING RULES (CRITICAL — follow exactly):
-• Use UNICODE symbols directly: α β γ θ π σ φ ω ε δ λ μ Σ Π Δ
-• Fractions: write as (numerator/denominator), e.g. (3/4), (x+1/x-1)
-• Square root: √(x), cube root: ∛(x)
-• Powers: x², x³, xⁿ, x^(n+1) for complex exponents
-• Subscripts: a₁, a₂, xₙ or a_n for complex subscripts
+MATH_FORMAT_INSTRUCTION = """MATH FORMATTING RULES:
+• Use UNICODE: α β γ θ π σ φ ω ε δ λ μ Σ Π Δ
+• Fractions: (numerator/denominator)
+• Square root: √(x)
+• Powers: x², x³, xⁿ
+• Subscripts: a₁, a₂, xₙ
 • Inequalities: ≤ ≥ ≠ ≈
-• Set notation: ∈ ∉ ∪ ∩ ⊂ ⊃ ⊆ ⊇ ∅ ℝ ℤ ℕ ℚ
-• Arrows: → ⇒ ⇔ ←
+• Set: ∈ ∉ ∪ ∩ ⊂ ⊃ ⊆ ⊇ ∅ ℝ ℤ ℕ ℚ
+• Arrows: -> => <= <-
 • Logical: ∀ ∃ ∴ ∵
 • Operations: × ÷ ± ∓ · ∞
-• Ordinals: write as plain text: 1st, 2nd, 3rd, 4th, 15th (NOT superscript modifiers)
+• Ordinals: "1st", "2nd", "15th" (NOT superscript)
 
 CRITICAL JSON RULES:
-- Do NOT use unescaped newlines inside JSON string values — always use \\n instead
-- Do NOT use LaTeX commands like \\frac, \\sqrt, \\theta, \\left, \\right, \\mathbb
-- Do NOT use $ delimiters around math
-- Do NOT use Unicode modifier letters for ordinals (like ᵗʰ, ˢᵗ). Write "15th" not "15ᵗʰ".
-- Keep each question's JSON compact
-
-Write clean readable text that a teacher can read directly."""
+- Do NOT use unescaped newlines inside strings — use \\n
+- Do NOT use LaTeX commands like \\frac, \\sqrt, \\theta
+- Do NOT use $ delimiters
+- Do NOT use Unicode modifier letters (ᵗʰ, ˢᵗ)"""
 
 
-# ---------------------------------------------------------------------------
-# Unicode Modifier Letter Cleanup
-# ---------------------------------------------------------------------------
+CBSE_QUALITY_DIRECTIVES = """═══ CBSE BOARD PATTERN — STRICT QUALITY RULES ═══
+
+❌ FORBIDDEN — DO NOT generate:
+  • "Who first discovered X and in what year?"
+  • "When did [scientist] make [discovery]?"
+  • "What material did [scientist] use for first observation?"
+  • Pure biographical/historical recall about scientists
+  • Single-fact recall on dates, names, founding years
+  • Questions answerable from chapter introduction page only
+
+✅ REQUIRED — Generate CBSE board-style questions:
+  • SCENARIO-BASED: "Renuka kept onion peel in hypotonic solution; Sahil kept
+    RBC in same. Onion peel swelled, RBC burst. Why? Explain."
+  • "GIVE REASONS" / "EXPLAIN WHY": "Why is mitochondria called the powerhouse?"
+  • COMPARE & CONTRAST: "Write 3 differences between plant cell and animal cell."
+  • DIAGRAM-BASED: "Draw a plant cell. Label parts that (a) synthesize protein..."
+  • APPLY-A-CONCEPT: "Why do vegetables release water when salted?"
+  • EXPERIMENTAL REASONING: "Two beakers with raisins — explain difference."
+  • ASSERTION-REASON ON CONCEPTS (not history)
+
+═══ COGNITIVE DISTRIBUTION (mandatory) ═══
+  • PURE RECALL — MAXIMUM 20%
+  • CONCEPTUAL UNDERSTANDING — ~30%
+  • APPLIED SCENARIOS + REASONING — ~50%
+
+═══ CONTENT FOCUS ═══
+Even if intro chunks discuss discovery history (Robert Hooke 1665, etc.),
+DO NOT make those the subject. Use as background only. Generate questions
+on CORE CONCEPTS and APPLICATIONS that CBSE actually tests.
+"""
+
+
+CBSE_HISTORY_SUBTOPICS = {
+    "the rise of nationalism in europe": [
+        "French Revolution and the idea of nation (La Patrie, Le Citoyen)",
+        "Napoleonic Code and administrative reforms (Civil Code of 1804)",
+        "Congress of Vienna 1815 and Metternich's conservative regime",
+        "Revolutions of 1830 and 1848 — liberal nationalism",
+        "Greek War of Independence (1821-1832)",
+        "Unification of Germany — Bismarck, Prussia, wars with Denmark/Austria/France",
+        "Unification of Italy — Mazzini, Cavour, Garibaldi, Victor Emmanuel II",
+        "Unification of Britain — Act of Union 1707, bloodless revolution 1688",
+        "Visualising the nation — Marianne, Germania, female allegories",
+        "Nationalism and culture — Romanticism, Herder, Grimm Brothers, folk culture",
+        "Hunger, hardship and popular revolt — 1830s economic crisis, weavers' revolt",
+        "The Frankfurt Parliament 1848 — demands and failure",
+        "Role of language and folklore in nationalism (Poland, Greece)",
+        "Balkan nationalism and the lead-up to World War I",
+        "Frédéric Sorrieu's utopian vision (1848 prints)"
+    ],
+    "nationalism in india": [
+        "Non-Cooperation Movement (1920-22) — causes, spread, withdrawal",
+        "Civil Disobedience Movement (1930-34) — Salt March, Dandi, response",
+        "Rowlatt Act and Jallianwala Bagh massacre",
+        "Khilafat Movement and Hindu-Muslim unity",
+        "Differing strands: Swaraj vs separate electorates",
+        "Role of Mahatma Gandhi — Satyagraha philosophy",
+        "Simon Commission and boycott (1928)",
+        "Lahore Congress and Purna Swaraj (1929)",
+        "Quit India Movement (1942)",
+        "Role of business classes, industrialists in nationalism",
+        "Peasant movements — Awadh, Bardoli, Champaran",
+        "Cultural processes — Bharat Mata, Bankim Chandra, Tagore",
+        "Dalit politics and Ambedkar's role",
+        "Muslim League, Two-Nation Theory, and partition",
+        "Limits of civil disobedience — participation by caste/class/gender"
+    ],
+}
+
+CBSE_QUALITY_DIRECTIVES_HUMANITIES = """═══ CBSE BOARD PATTERN — HISTORY / HUMANITIES ═══
+
+❌ FORBIDDEN — DO NOT generate:
+  • "Who was..." ending with just a name
+  • "In which year did X happen?" — isolated date recall
+  • "Define absolutism/utopian/nation-state" — bare definitions
+  • Random, out-of-context questions not in NCERT
+  • Questions testing the same sub-topic twice
+
+✅ REQUIRED — Generate CBSE board-style questions:
+  • "Explain the significance of..." (multiple points, cause-effect)
+  • "Analyze the role of X in..." (critical thinking)
+  • "How did X contribute to Y? Explain with examples."
+  • "Describe any three features/measures/reforms of..."
+  • "Compare and contrast..." (German vs Italian unification)
+  • ASSERTION-REASON: Test conceptual understanding, not trivia
+  • SOURCE-BASED / CASE-STUDY: Excerpt + 2-3 sub-questions
+
+═══ TOPIC DIVERSITY — STRICTLY ENFORCED ═══
+Each batch MUST cover DIFFERENT sub-topics. No two questions should test
+the same sub-topic. Use this list:
+
+TOPICS TO COVER (pick unique ones):
+{subtopic_list}
+
+Do NOT generate two questions on the same bullet point above.
+"""
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# v18 FIX: Robust subtopic matching with normalization + word-overlap
+# ═══════════════════════════════════════════════════════════════════════════
+def _get_subtopic_context(chapter_name: str) -> Optional[str]:
+    """Return CBSE sub-topics list with robust chapter name matching."""
+    if not chapter_name:
+        return None
+    
+    # Aggressive normalization: lowercase, strip punctuation, collapse spaces
+    def _norm(s: str) -> str:
+        s = s.lower().strip()
+        s = re.sub(r"[\u2013\u2014\-:,;()\[\]\/&]", " ", s)
+        s = re.sub(r"\s+", " ", s).strip()
+        return s
+    
+    stopwords = {"the", "of", "in", "a", "an", "and", "to", "for"}
+    ch_norm = _norm(chapter_name)
+    ch_words = set(ch_norm.split()) - stopwords
+    
+    best_match = None
+    best_score = 0
+    
+    for key, topics in CBSE_HISTORY_SUBTOPICS.items():
+        key_norm = _norm(key)
+        # Strategy 1: exact normalized match
+        if key_norm == ch_norm:
+            return "\n".join(f"  • {t}" for t in topics)
+        # Strategy 2: substring match (either direction)
+        if key_norm in ch_norm or ch_norm in key_norm:
+            return "\n".join(f"  • {t}" for t in topics)
+        # Strategy 3: word-overlap (>= 2 significant words)
+        key_words = set(key_norm.split()) - stopwords
+        overlap = len(ch_words & key_words)
+        if overlap >= 2 and overlap > best_score:
+            best_score = overlap
+            best_match = topics
+    
+    if best_match:
+        return "\n".join(f"  • {t}" for t in best_match)
+    return None
+
+
 MODIFIER_LETTERS = {
-    '\u1D57': 't',  # ᵗ
-    '\u02B0': 'h',  # ʰ
-    '\u02E2': 's',  # ˢ
-    '\u1D48': 'd',  # ᵈ
-    '\u02B3': 'r',  # ʳ
-    '\u02E1': 'l',  # ˡ
-    '\u1D43': 'a',  # ᵃ
-    '\u1D49': 'e',  # ᵉ
-    '\u1D52': 'o',  # ᵒ
+    '\u1D57': 't', '\u02B0': 'h', '\u02E2': 's', '\u1D48': 'd',
+    '\u02B3': 'r', '\u02E1': 'l', '\u1D43': 'a', '\u1D49': 'e',
+    '\u1D52': 'o',
 }
 
 
 def _fix_modifier_letters(text: str) -> str:
-    """Convert Unicode modifier letters to plain text (15ᵗʰ → 15th)."""
     if not text:
         return text
     result = text
@@ -1072,17 +860,7 @@ def _fix_modifier_letters(text: str) -> str:
     return result
 
 
-# ---------------------------------------------------------------------------
-# Compact Prompt Builder (per chapter, per section)
-# ---------------------------------------------------------------------------
-def _build_chapter_prompt(
-    chapter: ChapterSection,
-    request: TestGenerationRequest,
-    context_chunks: List[Dict],
-    count: int,
-    section_key: str = None,
-    section_info: dict = None,
-) -> str:
+def _build_chapter_prompt(chapter, request, context_chunks, count, section_key=None, section_info=None):
     ch_name = chapter.chapter.upper()
     ch_chunks = [c for c in context_chunks if c.get("chapter", "").upper() == ch_name]
     if not ch_chunks:
@@ -1099,9 +877,7 @@ def _build_chapter_prompt(
 
     section_ctx = ""
     if section_key and section_info:
-        section_ctx = f"""
-This is for {section_info['title']} ({section_info['subtitle']}).
-Each question: {section_info['marks_per_q']} marks. {section_info.get('instruction', '')}"""
+        section_ctx = f"\nThis is for {section_info['title']} ({section_info['subtitle']}).\nEach question: {section_info['marks_per_q']} marks. {section_info.get('instruction', '')}"
 
     if fmt_val == "short_answer":
         if section_info and section_info.get("marks_per_q", 2) == 2:
@@ -1111,44 +887,41 @@ Each question: {section_info['marks_per_q']} marks. {section_info.get('instructi
     elif fmt_val == "long_answer":
         is_acc = request.subject.lower() in ACCOUNTANCY_SUBJECTS
         if is_acc:
-            fmt_line = (
-                '"options": null. '
-                'This is an Accountancy question — the answer MUST include an "answer_table" field. '
-                'Choose the most appropriate table type: "journal_entry", "ledger", or "trial_balance". '
-                '"correct_answer" should be a 2-3 line text summary. '
-                '"explanation" must explain each accounting entry step-by-step.'
-            )
+            fmt_line = '"options": null. This is Accountancy — answer MUST include "answer_table" field.'
         else:
-            fmt_line = '"options": null. Answer: 100-150 words. Show complete step-by-step solution with diagrams description if needed.'
+            fmt_line = '"options": null. Answer: 100-150 words. Step-by-step solution.'
     elif fmt_val == "assertion_reason":
-        fmt_line = '"text": "Assertion (A): [statement]\\nReason (R): [statement]". Use these 4 options exactly:\n"A) Both A and R are true and R is the correct explanation of A"\n"B) Both A and R are true but R is NOT the correct explanation of A"\n"C) A is true but R is false"\n"D) A is false but R is true"'
+        fmt_line = '"text": "Assertion (A): ...\\nReason (R): ...". Use 4 standard AR options.'
     elif fmt_val == "case_based":
-        fmt_line = '"text": Start with a real-world case/scenario (3-4 lines), then ask 3 sub-parts labeled (i), (ii), (iii) within the text. "options": provide 4 options for each sub-part OR set null if subjective sub-parts. Answer all sub-parts in correct_answer.'
+        fmt_line = '"text": Real-world case (3-4 lines), then 3 sub-parts (i),(ii),(iii). "options": 4 each OR null.'
     else:
-        fmt_line = '4 options labeled A) B) C) D). correct_answer = exact full option text including label. Vary correct answer position (not always A or B). All 4 options must be plausible.'
+        fmt_line = '4 options labeled A) B) C) D). Vary correct answer position. All plausible.'
 
     section_field = f', "section": "{section_key}"' if section_key else ''
 
     if fmt_val in ("short_answer", "long_answer"):
-        is_acc_long = (
-            fmt_val == "long_answer"
-            and request.subject.lower() in ACCOUNTANCY_SUBJECTS
-        )
+        is_acc_long = (fmt_val == "long_answer" and request.subject.lower() in ACCOUNTANCY_SUBJECTS)
         if is_acc_long:
             tmpl = (
                 f'{{"questions":[{{"text":"...","format":"long_answer","options":null,'
-                f'"correct_answer":"Summary of accounting entries...","explanation":"Step 1:... Step 2:...","answer_table":{{"type":"journal_entry","headers":[...],"rows":[[...]],"total_row":null}},'
+                f'"correct_answer":"Summary...","explanation":"...","answer_table":{{"type":"journal_entry","headers":[...],"rows":[[...]],"total_row":null}},'
                 f'"marks":{chapter.marks_per_question},"difficulty":"{diff_val}","bloom_level":"apply","chapter":"{chapter.chapter}","topic":"specific topic"{section_field}}}]}}'
             )
         else:
-            tmpl = f'{{"questions":[{{"text":"...","format":"{fmt_val}","options":null,"correct_answer":"full detailed answer","explanation":"Step 1:... Step 2:... Final:...","marks":{chapter.marks_per_question},"difficulty":"{diff_val}","bloom_level":"apply","chapter":"{chapter.chapter}","topic":"specific topic"{section_field}}}]}}'
+            tmpl = f'{{"questions":[{{"text":"...","format":"{fmt_val}","options":null,"correct_answer":"...","explanation":"...","marks":{chapter.marks_per_question},"difficulty":"{diff_val}","bloom_level":"apply","chapter":"{chapter.chapter}","topic":"specific topic"{section_field}}}]}}'
     else:
-        tmpl = f'{{"questions":[{{"text":"...","format":"{fmt_val}","options":["A) ...","B) ...","C) ...","D) ..."],"correct_answer":"B) exact option","explanation":"Step 1:... Step 2:... Answer:...","marks":{chapter.marks_per_question},"difficulty":"{diff_val}","bloom_level":"apply","chapter":"{chapter.chapter}","topic":"specific topic"{section_field}}}]}}'
+        tmpl = f'{{"questions":[{{"text":"...","format":"{fmt_val}","options":["A) ...","B) ...","C) ...","D) ..."],"correct_answer":"B) exact option","explanation":"...","marks":{chapter.marks_per_question},"difficulty":"{diff_val}","bloom_level":"apply","chapter":"{chapter.chapter}","topic":"specific topic"{section_field}}}]}}'
+
+    # Pick subject-specific directives
+    subtopic_list = _get_subtopic_context(chapter.chapter)
+    quality_text = CBSE_QUALITY_DIRECTIVES_HUMANITIES.format(subtopic_list=subtopic_list) if subtopic_list else CBSE_QUALITY_DIRECTIVES
 
     return f"""You are an expert CBSE Class {request.class_grade} {request.subject} paper setter.
 {section_ctx}
 Chapter: {chapter.chapter}
 Difficulty: {DIFF_INST.get(diff_val, DIFF_INST["medium"])}
+
+{quality_text}
 
 FORMAT RULES:
 {fmt_line}
@@ -1156,23 +929,16 @@ FORMAT RULES:
 {MATH_FORMAT_INSTRUCTION}
 
 "format" must be exactly "{fmt_val}". "chapter" must be exactly "{chapter.chapter}".
-Every question MUST have a detailed explanation (min 3 lines showing complete working).
-Each question must test a DIFFERENT concept/topic from this chapter. No repeated concepts.
+Each question must test a DIFFERENT sub-topic. Use the topic list above where given.
 
 NCERT Reference:
 {ctx}
 
-Generate EXACTLY {count} unique questions. Return ONLY valid JSON, no extra text:
+Generate EXACTLY {count} unique questions. Return ONLY valid JSON:
 {tmpl}"""
 
 
-# ---------------------------------------------------------------------------
-# Accountancy Prompt Builder
-# ---------------------------------------------------------------------------
-def _build_accountancy_prompt(
-    chapter, request, context_chunks, count,
-    table_format, section_key=None, section_info=None,
-):
+def _build_accountancy_prompt(chapter, request, context_chunks, count, table_format, section_key=None, section_info=None):
     ch_name = chapter.chapter.upper()
     ch_chunks = [c for c in context_chunks if c.get("chapter", "").upper() == ch_name]
     if not ch_chunks:
@@ -1185,16 +951,12 @@ def _build_accountancy_prompt(
             ctx += f"\n[{i}] {content}\n"
 
     diff_val = chapter.difficulty.value if hasattr(chapter.difficulty, 'value') else str(chapter.difficulty)
-
     section_ctx = ""
     if section_key and section_info:
-        section_ctx = f"""
-This is for {section_info['title']} ({section_info['subtitle']}).
-Each question: {section_info['marks_per_q']} marks. {section_info.get('instruction', '')}"""
+        section_ctx = f"\nThis is for {section_info['title']} ({section_info['subtitle']}).\nEach question: {section_info['marks_per_q']} marks."
 
     template_instruction = ACCOUNTANCY_PROMPT_TEMPLATES.get(table_format, "")
     template_instruction = template_instruction.format(class_grade=request.class_grade)
-
     section_field = f', "section": "{section_key}"' if section_key else ''
 
     return f"""You are an expert CBSE Class {request.class_grade} Accountancy paper setter.
@@ -1204,47 +966,33 @@ Difficulty: {DIFF_INST.get(diff_val, DIFF_INST["medium"])}
 
 {template_instruction}
 
-IMPORTANT RULES:
-- All amounts must use Indian number format (e.g., 1,00,000 not 100,000)
-- Use Rs. for currency (NOT the ₹ symbol)
-- Use realistic business scenarios relevant to the chapter
-- Each question must test a DIFFERENT concept
-- "correct_answer" should be a text summary of the answer
-- "answer_table" is the structured table (MANDATORY for this format)
-- "explanation" must explain the accounting principle and each entry
-- Write ordinals as plain text: "15th" not "15ᵗʰ"
+RULES:
+- Indian number format (1,00,000 not 100,000), Rs. not ₹
+- Realistic business scenarios
+- Each question tests DIFFERENT concept
+- Ordinals as plain text: "15th" not "15ᵗʰ"
 
 NCERT Reference:
 {ctx}
 
 Generate EXACTLY {count} unique questions. Return ONLY valid JSON:
-{{"questions":[{{"text":"...","format":"{table_format}","options":null,"correct_answer":"Summary of entries...","explanation":"Step-by-step accounting logic...","answer_table":{{"type":"{table_format}","headers":[...],"rows":[[...]],"total_row":null}},"marks":{chapter.marks_per_question},"difficulty":"{diff_val}","bloom_level":"apply","chapter":"{chapter.chapter}","topic":"specific topic"{section_field}}}]}}"""
+{{"questions":[{{"text":"...","format":"{table_format}","options":null,"correct_answer":"...","explanation":"...","answer_table":{{"type":"{table_format}","headers":[...],"rows":[[...]],"total_row":null}},"marks":{chapter.marks_per_question},"difficulty":"{diff_val}","bloom_level":"apply","chapter":"{chapter.chapter}","topic":"specific topic"{section_field}}}]}}"""
 
 
-# ---------------------------------------------------------------------------
-# Accountancy CBSE Pattern Prompt Builder (for OR questions)
-# ---------------------------------------------------------------------------
-ACCOUNTANCY_PROMPT_RULES = """ACCOUNTANCY QUESTION RULES (CRITICAL):
-• Every numerical question MUST include GIVEN DATA — amounts in Rs., dates, ratios, account balances.
-• Use Rs. for currency (not the ₹ symbol). Example: Rs. 5,00,000 (with commas for Indian numbering).
-• Partnership questions: include capital amounts, profit-sharing ratios, dates of admission/retirement.
-• Company accounts: include share details (face value, premium/discount, payment schedule).
-• Journal entry questions: the answer must show Date, Particulars, L.F., Debit (Rs.), Credit (Rs.).
-• For 3+ mark questions, include a scenario/case with at least 3-4 numerical data points.
-• For 6 mark questions, include detailed scenarios with balance sheet extracts or multiple transactions.
-• Financial statement questions: include actual financial data (Revenue, Expenses, Assets, Liabilities with amounts).
-• Cash flow questions: include opening and closing balances of relevant items.
-• Ratio questions: provide the necessary financial data to calculate the ratio.
-• NEVER give vague questions — always provide specific numbers, dates, and names of companies/partners.
-• Use realistic Indian company names (e.g., Priya Ltd., Raman Enterprises) and partner names.
-• All amounts should be in round figures suitable for manual calculation.
-• Write ordinals as plain text: "15th" not "15ᵗʰ"."""
+ACCOUNTANCY_PROMPT_RULES = """ACCOUNTANCY RULES (CRITICAL):
+• Every numerical question MUST include GIVEN DATA — amounts in Rs., dates, ratios.
+• Use Rs. (not ₹). Format: Rs. 5,00,000.
+• Partnership: capital amounts, profit-sharing ratios, dates.
+• Companies: share details (face value, premium, payment schedule).
+• 3+ mark questions: scenario with 3-4 numerical data points.
+• 6 mark questions: detailed scenarios with balance sheet extracts.
+• NEVER vague — always specific numbers, dates, names.
+• Use realistic Indian names (Priya Ltd., Raman Enterprises).
+• Round figures suitable for manual calculation.
+• Ordinals as plain text: "15th" not "15ᵗʰ"."""
 
 
-def _build_accountancy_cbse_prompt(
-    chapter, request, context_chunks, count,
-    group_info, part_key, generate_or=False,
-):
+def _build_accountancy_cbse_prompt(chapter, request, context_chunks, count, group_info, part_key, generate_or=False):
     ch_name = chapter.chapter.upper()
     ch_chunks = [c for c in context_chunks if c.get("chapter", "").upper() == ch_name]
     if not ch_chunks:
@@ -1261,38 +1009,33 @@ def _build_accountancy_cbse_prompt(
     marks = chapter.marks_per_question
 
     part_info = CBSE_ACCOUNTANCY_PATTERN["parts"].get(part_key, {})
-    part_ctx = f"""This is for {part_info.get('title', '')} — {part_info.get('subtitle', '')}.
-Each question carries {marks} marks."""
+    part_ctx = f"This is for {part_info.get('title', '')} — {part_info.get('subtitle', '')}.\nEach question carries {marks} marks."
 
     or_instruction = ""
     if generate_or:
-        or_instruction = """
-IMPORTANT: For EACH question, also generate an OR alternative question.
-The OR question must test a DIFFERENT concept but carry the SAME marks and difficulty.
-Format the OR question with the field "is_or": true.
-So for each question slot, output TWO questions: the main one and its OR alternative."""
+        or_instruction = "\nFor EACH question, also generate an OR alternative testing DIFFERENT concept. Mark with \"is_or\": true."
 
     if fmt_val == "mcq":
-        fmt_line = '4 options labeled A) B) C) D). correct_answer = exact full option text. All options must be plausible with numerical values where applicable. Vary correct answer position.'
+        fmt_line = '4 options A) B) C) D). correct_answer = exact full text. Vary correct position.'
     elif fmt_val == "assertion_reason":
-        fmt_line = '"text": "Assertion (A): [statement]\\nReason (R): [related principle]". Use 4 standard AR options.'
+        fmt_line = '"text": "Assertion (A): ...\\nReason (R): ...". Use 4 standard AR options.'
     elif marks == 3:
-        fmt_line = '"options": null. Answer in 50-80 words with complete journal entries or calculations.'
+        fmt_line = '"options": null. Answer 50-80 words with journal entries or calculations.'
     elif marks == 4:
-        fmt_line = '"options": null. Answer in 80-120 words. Include journal entries with proper format or detailed calculations.'
+        fmt_line = '"options": null. Answer 80-120 words.'
     elif marks == 6:
-        fmt_line = '"options": null. Answer in 120-200 words. Include complete journal entries, ledger accounts, or detailed calculations with all working notes.'
+        fmt_line = '"options": null. Answer 120-200 words with complete entries/ledgers.'
     else:
-        fmt_line = '"options": null. Provide a clear, detailed answer with proper accounting format.'
+        fmt_line = '"options": null. Clear, detailed answer.'
 
     section_tag = f"{part_key}_{marks}m"
 
     if fmt_val in ("mcq", "assertion_reason"):
         json_template = f'{{"questions":[{{"text":"...","format":"{fmt_val}","options":["A) ...","B) ...","C) ...","D) ..."],"correct_answer":"B) exact option","explanation":"...","marks":{marks},"difficulty":"{diff_val}","bloom_level":"apply","chapter":"{chapter.chapter}","topic":"specific topic","section":"{section_tag}","is_or":false}}]}}'
     else:
-        json_template = f'{{"questions":[{{"text":"[question with given numerical data]","format":"{fmt_val}","options":null,"correct_answer":"[complete answer]","explanation":"[detailed working]","marks":{marks},"difficulty":"{diff_val}","bloom_level":"apply","chapter":"{chapter.chapter}","topic":"specific topic","section":"{section_tag}","is_or":false}}]}}'
+        json_template = f'{{"questions":[{{"text":"[question with given data]","format":"{fmt_val}","options":null,"correct_answer":"[answer]","explanation":"[working]","marks":{marks},"difficulty":"{diff_val}","bloom_level":"apply","chapter":"{chapter.chapter}","topic":"specific topic","section":"{section_tag}","is_or":false}}]}}'
 
-    return f"""You are an expert CBSE Class 12 Accountancy paper setter following the latest CBSE pattern.
+    return f"""You are an expert CBSE Class 12 Accountancy paper setter.
 
 {part_ctx}
 {or_instruction}
@@ -1308,21 +1051,14 @@ FORMAT RULES:
 {MATH_FORMAT_INSTRUCTION}
 
 "format" must be exactly "{fmt_val}". "chapter" must be exactly "{chapter.chapter}".
-Every question MUST have a detailed explanation showing complete working.
-Each question must test a DIFFERENT concept from this chapter. No repeated concepts.
 
 NCERT Reference:
 {ctx}
 
-Generate EXACTLY {count} {'pairs of questions (main + OR alternative)' if generate_or else 'unique questions'}. Return ONLY valid JSON:
+Generate EXACTLY {count} {'pairs (main + OR)' if generate_or else 'unique questions'}. Return ONLY valid JSON:
 {json_template}"""
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# JSON Extraction — v14 ROBUST
-# Handles: truncated responses, unescaped newlines inside strings,
-#          bad LaTeX escapes, control chars, trailing commas, partial extraction
-# ═══════════════════════════════════════════════════════════════════════════
 def _fix_latex_json_escapes(text: str) -> str:
     text = text.replace('\\\\', '\x00DBL\x00')
     for prefix in ['frac', 'forall', 'binom', 'boxed', 'bold', 'not', 'neq',
@@ -1339,31 +1075,22 @@ def _fix_latex_json_escapes(text: str) -> str:
 
 
 def _escape_control_chars_in_strings(text: str) -> str:
-    """
-    Walk through text and escape raw newlines/tabs/CRs that appear INSIDE JSON strings.
-    Gemini sometimes emits literal newlines inside string values which is invalid JSON.
-    Critical for Statistics where markdown tables in question text use newlines.
-    """
     result = []
     in_string = False
     escape_next = False
-
     for ch in text:
         if escape_next:
             result.append(ch)
             escape_next = False
             continue
-
         if ch == '\\':
             result.append(ch)
             escape_next = True
             continue
-
         if ch == '"':
             in_string = not in_string
             result.append(ch)
             continue
-
         if in_string:
             if ch == '\n':
                 result.append('\\n')
@@ -1377,42 +1104,31 @@ def _escape_control_chars_in_strings(text: str) -> str:
                 result.append(ch)
         else:
             result.append(ch)
-
     return ''.join(result)
 
 
 def _extract_questions_individually(text: str) -> list:
-    """
-    Last-resort: extract individual question objects by matching balanced braces.
-    Saves partial batches when the outer JSON is truncated or has one bad question.
-    """
     questions = []
     depth = 0
     start = -1
     in_string = False
     escape_next = False
-
     qs_match = re.search(r'"questions"\s*:\s*\[', text)
     if not qs_match:
         return []
-
     i = qs_match.end()
     while i < len(text):
         ch = text[i]
-
         if escape_next:
             escape_next = False
             i += 1
             continue
-
         if ch == '\\':
             escape_next = True
             i += 1
             continue
-
         if ch == '"':
             in_string = not in_string
-
         if not in_string:
             if ch == '{':
                 if depth == 0:
@@ -1433,30 +1149,22 @@ def _extract_questions_individually(text: str) -> list:
                             obj = json.loads(fixed)
                             questions.append(obj)
                         except (json.JSONDecodeError, ValueError):
-                            pass  # skip broken question, continue
+                            pass
                     start = -1
-
         i += 1
-
     return questions
 
 
 def _extract_json(raw: str) -> dict:
-    """
-    Robust JSON extractor with multiple fallback strategies.
-    """
     text = raw.strip().lstrip("\ufeff\u200b")
-
     fence = re.search(r"```(?:json)?\s*([\s\S]*?)```", text)
     if fence:
         text = fence.group(1).strip()
 
-    # Early detection: is this truncated?
     open_braces = text.count("{")
     close_braces = text.count("}")
     open_brackets = text.count("[")
     close_brackets = text.count("]")
-
     is_truncated = (
         open_braces > close_braces + 1
         or open_brackets > close_brackets
@@ -1464,17 +1172,12 @@ def _extract_json(raw: str) -> dict:
     )
 
     if is_truncated:
-        logger.warning(
-            f"JSON appears truncated (braces: {open_braces}/{close_braces}, "
-            f"brackets: {open_brackets}/{close_brackets}). "
-            f"Skipping to per-question extraction."
-        )
+        logger.warning(f"JSON truncated, trying per-question extraction")
         individual_qs = _extract_questions_individually(text)
         if individual_qs:
-            logger.info(f"✓ Recovered {len(individual_qs)} questions from truncated response")
+            logger.info(f"✓ Recovered {len(individual_qs)} questions")
             return {"questions": individual_qs}
 
-    # Attempt 1: direct parse
     try:
         return json.loads(text)
     except json.JSONDecodeError:
@@ -1483,76 +1186,58 @@ def _extract_json(raw: str) -> dict:
     fb = text.find("{")
     lb = text.rfind("}")
     if fb == -1:
-        raise ValueError(f"No JSON found (len={len(raw)})")
+        raise ValueError(f"No JSON found")
 
-    if lb <= fb:
-        candidate = text[fb:]
-    else:
-        candidate = text[fb:lb + 1]
+    candidate = text[fb:] if lb <= fb else text[fb:lb + 1]
 
-    # Attempt 2: as-is
     try:
         return json.loads(candidate)
     except json.JSONDecodeError:
         pass
 
-    # Attempt 3: strip trailing commas
     cleaned = re.sub(r",\s*([}\]])", r"\1", candidate)
     try:
         return json.loads(cleaned)
     except json.JSONDecodeError:
         pass
 
-    # Attempt 4: escape control chars inside strings (CRITICAL for markdown tables)
     escaped_ctrl = _escape_control_chars_in_strings(cleaned)
     try:
         return json.loads(escaped_ctrl)
     except json.JSONDecodeError:
         pass
 
-    # Attempt 5: fix LaTeX escapes
     fixed = _fix_latex_json_escapes(escaped_ctrl)
     try:
         return json.loads(fixed)
     except json.JSONDecodeError:
         pass
 
-    # Attempt 6: aggressive backslash escaping
     aggressive = re.sub(r'(?<!\\)\\(?![\\"/bfnrtu{])', r'\\\\', fixed)
     try:
         return json.loads(aggressive)
     except json.JSONDecodeError:
         pass
 
-    # Attempt 7: per-question extraction — last resort BEFORE nuclear
-    logger.warning(
-        f"All bulk parse attempts failed, trying per-question extraction (len={len(raw)})"
-    )
     individual_qs = _extract_questions_individually(text)
     if individual_qs:
-        logger.info(f"✓ Recovered {len(individual_qs)} questions via per-question extraction")
         return {"questions": individual_qs}
 
-    logger.error(f"JSON failed all attempts. Preview: {candidate[:200]}")
-    raise ValueError(f"Could not parse JSON (len={len(raw)})")
+    raise ValueError(f"Could not parse JSON")
 
 
-# ---------------------------------------------------------------------------
-# Post-process: clean Gemini text
-# ---------------------------------------------------------------------------
 UNICODE_REPLACEMENTS = {
     r'\times': '×', r'\div': '÷', r'\pm': '±', r'\cdot': '·',
     r'\leq': '≤', r'\geq': '≥', r'\neq': '≠', r'\approx': '≈',
     r'\infty': '∞', r'\therefore': '∴', r'\because': '∵',
     r'\cup': '∪', r'\cap': '∩', r'\in': '∈', r'\notin': '∉',
     r'\subset': '⊂', r'\emptyset': '∅', r'\forall': '∀', r'\exists': '∃',
-    r'\rightarrow': '→', r'\Rightarrow': '⇒', r'\to': '→',
+    r'\rightarrow': '->', r'\Rightarrow': '=>', r'\to': '->',
     r'\alpha': 'α', r'\beta': 'β', r'\gamma': 'γ', r'\delta': 'δ',
     r'\theta': 'θ', r'\pi': 'π', r'\sigma': 'σ', r'\phi': 'φ',
     r'\omega': 'ω', r'\lambda': 'λ', r'\mu': 'μ', r'\epsilon': 'ε',
     r'\left': '', r'\right': '',
-    r'\bigl': '', r'\bigr': '',
-    r'\Bigl': '', r'\Bigr': '',
+    r'\bigl': '', r'\bigr': '', r'\Bigl': '', r'\Bigr': '',
     r'\sin': 'sin', r'\cos': 'cos', r'\tan': 'tan',
     r'\log': 'log', r'\ln': 'ln', r'\lim': 'lim',
     r'\sec': 'sec', r'\csc': 'csc', r'\cot': 'cot',
@@ -1560,39 +1245,25 @@ UNICODE_REPLACEMENTS = {
 
 
 def _clean_gemini_text(text: str) -> str:
-    """
-    Clean Gemini output: replace LaTeX with Unicode, fix modifier letters, etc.
-    IMPORTANT: This function PRESERVES newlines and pipe characters so that
-    inline markdown tables (used in Statistics questions) survive intact.
-    """
     if not text:
         return text
-
     result = text
     result = result.replace('₹', 'Rs.')
-
-    # v13: Fix Unicode modifier letters (15ᵗʰ → 15th)
     result = _fix_modifier_letters(result)
-
     result = re.sub(r'\$([^$]+)\$', r'\1', result)
-
     for latex, uni in sorted(UNICODE_REPLACEMENTS.items(), key=lambda x: -len(x[0])):
         result = result.replace(latex, uni)
-
     for _ in range(3):
         result = re.sub(r'\\frac\{([^{}]*)\}\{([^{}]*)\}', r'(\1/\2)', result)
     for _ in range(3):
         result = re.sub(r'(?<![a-zA-Z])frac\{([^{}]*)\}\{([^{}]*)\}', r'(\1/\2)', result)
-
     result = re.sub(r'\\sqrt\[([^]]*)\]\{([^}]*)\}', r'\1√(\2)', result)
     result = re.sub(r'\\sqrt\{([^}]*)\}', r'√(\1)', result)
-
     mathbb_map = {'R': 'ℝ', 'Z': 'ℤ', 'N': 'ℕ', 'Q': 'ℚ', 'C': 'ℂ'}
     for letter, symbol in mathbb_map.items():
         result = result.replace(f'\\mathbb{{{letter}}}', symbol)
         result = result.replace(f'mathbb{{{letter}}}', symbol)
         result = re.sub(rf'(?<![a-zA-Z])mathbb\s*{letter}(?![a-zA-Z])', symbol, result)
-
     result = re.sub(r'\\(?:text|mathrm|mathbf|textbf)\{([^}]*)\}', r'\1', result)
     result = result.replace('\\setminus', ' \\ ')
     result = result.replace('setminus', ' \\ ')
@@ -1601,41 +1272,29 @@ def _clean_gemini_text(text: str) -> str:
     result = re.sub(r'\\([a-zA-Z]+)\{([^}]*)\}', r'\2', result)
     result = re.sub(r'\\([a-zA-Z]+)', '', result)
     result = result.replace('{', '').replace('}', '')
-
-    # Preserve newlines (critical for markdown tables) — only collapse spaces within lines
     lines = result.split('\n')
     result = '\n'.join(re.sub(r' +', ' ', line).strip() for line in lines).strip()
-
     return result
 
 
-# ---------------------------------------------------------------------------
-# v14: Question Table Parser
-# ---------------------------------------------------------------------------
 def _parse_question_table(raw_table: dict) -> Optional[QuestionTable]:
-    """Safely parse a question_table dict from Gemini into QuestionTable model."""
     if not raw_table or not isinstance(raw_table, dict):
         return None
-
     try:
         table_type = raw_table.get("type", "frequency_distribution")
         headers = raw_table.get("headers", [])
         rows = raw_table.get("rows", [])
         caption = raw_table.get("caption")
-
         if not headers or not rows:
             return None
-
         expected_cols = len(headers)
         clean_rows = []
         for row in rows:
             if isinstance(row, list):
                 padded = (row + [""] * expected_cols)[:expected_cols]
                 clean_rows.append([str(cell) for cell in padded])
-
         if not clean_rows:
             return None
-
         return QuestionTable(
             type=str(table_type),
             headers=[str(h) for h in headers],
@@ -1647,28 +1306,18 @@ def _parse_question_table(raw_table: dict) -> Optional[QuestionTable]:
         return None
 
 
-# ---------------------------------------------------------------------------
-# Question Parser (with answer_table + question_table + OR support + validation)
-# ---------------------------------------------------------------------------
-def _parse_batch(raw: str, chapter: ChapterSection, request: TestGenerationRequest,
-                 section_key: str = None) -> List[GeneratedQuestion]:
+def _parse_batch(raw, chapter, request, section_key=None):
     try:
         data = _extract_json(raw)
     except (ValueError, AttributeError) as e:
         logger.error(f"Parse failed ({chapter.chapter}): {e}")
         return []
 
-    # Normalize: accept both {"questions": [...]} and direct [...]
     if isinstance(data, dict):
         raw_qs = data.get("questions", [])
     elif isinstance(data, list):
         raw_qs = data
     else:
-        logger.error(f"Parse failed ({chapter.chapter}): unexpected type {type(data).__name__}")
-        return []
-
-    if not isinstance(raw_qs, list):
-        logger.error(f"Parse failed ({chapter.chapter}): questions field not a list")
         return []
 
     if not isinstance(raw_qs, list):
@@ -1679,8 +1328,9 @@ def _parse_batch(raw: str, chapter: ChapterSection, request: TestGenerationReque
     dropped = 0
     dropped_table_missing = 0
     diff_val = chapter.difficulty.value if hasattr(chapter.difficulty, 'value') else str(chapter.difficulty)
-    is_accountancy = request.subject.lower() in ACCOUNTANCY_SUBJECTS
     is_stats = _is_statistics_question(chapter.chapter, getattr(chapter, 'topic', None))
+    is_english_writing = (request.subject or "").lower() == "english" and "writing" in chapter.chapter.lower()
+    is_english_grammar = (request.subject or "").lower() == "english" and "grammar" in chapter.chapter.lower()
     last_main_id = None
 
     for idx, q in enumerate(raw_qs):
@@ -1717,14 +1367,15 @@ def _parse_batch(raw: str, chapter: ChapterSection, request: TestGenerationReque
         correct = _clean_gemini_text((q.get("correct_answer") or "").strip())
         explanation = _clean_gemini_text((q.get("explanation") or "").strip())
 
-        if not explanation or len(explanation) < 10:
+        # For writing questions, be more lenient on explanation length
+        min_explanation = 10 if not is_english_writing else 5
+        if not explanation or len(explanation) < min_explanation:
             dropped += 1
             continue
 
         if isinstance(options, list):
             options = [_clean_gemini_text(o) for o in options]
 
-        # Parse answer_table for Accountancy
         answer_table = None
         raw_table = q.get("answer_table")
         if raw_table and isinstance(raw_table, dict):
@@ -1733,7 +1384,6 @@ def _parse_batch(raw: str, chapter: ChapterSection, request: TestGenerationReque
                 headers = raw_table.get("headers", [])
                 rows = raw_table.get("rows", [])
                 total_row = raw_table.get("total_row")
-
                 if headers and rows and table_type:
                     expected_cols = len(headers)
                     clean_rows = []
@@ -1741,56 +1391,21 @@ def _parse_batch(raw: str, chapter: ChapterSection, request: TestGenerationReque
                         if isinstance(row, list):
                             padded = (row + [""] * expected_cols)[:expected_cols]
                             clean_rows.append([str(cell) for cell in padded])
-
                     clean_total = None
                     if total_row and isinstance(total_row, list):
                         clean_total = ([str(c) for c in total_row] + [""] * expected_cols)[:expected_cols]
-
-                    answer_table = AnswerTable(
-                        type=table_type,
-                        headers=[str(h) for h in headers],
-                        rows=clean_rows,
-                        total_row=clean_total,
-                    )
-                    logger.info(f"  Parsed {table_type} table: {len(clean_rows)} rows")
+                    answer_table = AnswerTable(type=table_type, headers=[str(h) for h in headers], rows=clean_rows, total_row=clean_total)
             except Exception as e:
                 logger.warning(f"  answer_table parse failed: {e}")
-                answer_table = None
 
-        # v14: Parse question_table for Statistics
         question_table = _parse_question_table(q.get("question_table"))
 
-        # ═══════════════════════════════════════════════════════════════
-        # v16: STRICT VALIDATION GATE WITH RECOVERY
-        #
-        # For Statistics chapters:
-        #   1. If structured question_table present → ACCEPT
-        #   2. If text has inline data leak → try RECOVERY (extract to structured)
-        #      - If recovery succeeds → strip inline data from text, use recovered table
-        #      - If recovery fails → DROP
-        #   3. If references table but no data anywhere → DROP
-        #
-        # For non-Stats chapters: lenient — accept inline markdown OR structured.
-        # ═══════════════════════════════════════════════════════════════
-        stats_chapter = _is_statistics_question(
-            chapter.chapter, getattr(chapter, 'topic', None)
-        )
-
-        if stats_chapter:
-            # CASE 1: Already has structured table — verify text doesn't leak data
+        if is_stats:
             if question_table is not None:
                 if _has_inline_data_leak(text):
-                    # Sometimes Gemini sends BOTH structured AND inline data.
-                    # Strip the inline portion, keep the structured table.
-                    cleaned_text = _strip_inline_data_from_text(text, {
-                        "headers": question_table.headers,
-                        "rows": question_table.rows,
-                    })
+                    cleaned_text = _strip_inline_data_from_text(text, {"headers": question_table.headers, "rows": question_table.rows})
                     if cleaned_text and cleaned_text != text:
                         text = cleaned_text
-                        logger.info(f"  ✓ Cleaned inline data leak from text (structured table preserved)")
-
-            # CASE 2: No structured table — try to recover from inline data
             elif _has_inline_data_leak(text) or _references_table(text):
                 recovered = _extract_inline_data(text)
                 if recovered:
@@ -1804,56 +1419,42 @@ def _parse_batch(raw: str, chapter: ChapterSection, request: TestGenerationReque
                         cleaned_text = _strip_inline_data_from_text(text, recovered)
                         if cleaned_text:
                             text = cleaned_text
-                        logger.info(f"  ✓ Recovered inline data into structured table ({len(recovered['rows'])} rows)")
-                    except Exception as e:
-                        logger.warning(f"  ⚠ Recovery failed: {e}")
+                    except Exception:
                         question_table = None
-
-                # Still no table after recovery attempt → DROP
                 if question_table is None:
-                    logger.warning(
-                        f"  ⚠ Dropped Stats Q (no usable table data): {text[:80]}..."
-                    )
                     dropped_table_missing += 1
                     dropped += 1
                     continue
-        else:
-            # Non-Stats: lenient mode (accept inline markdown OR structured)
+        elif not is_english_writing and not is_english_grammar:
             if _references_table(text):
                 has_inline = _has_inline_table(text)
                 if not has_inline and question_table is None:
-                    logger.warning(
-                        f"  ⚠ Dropped Q (table referenced but data missing): {text[:80]}..."
-                    )
                     dropped_table_missing += 1
                     dropped += 1
                     continue
 
-        # Format-specific validation
         if fmt == "assertion_reason":
             if not options or len(options) != 4:
                 options = ASSERTION_REASON_OPTIONS.copy()
             if not correct or correct not in options:
                 matched = [o for o in options if len(correct) >= 2 and o[:2].upper() == correct[:2].upper()]
                 correct = matched[0] if matched else options[0]
-
         elif fmt in ("short_answer", "long_answer"):
             options = None
-            if not correct or len(correct) < 10:
+            # Writing questions: be lenient on correct_answer length
+            min_correct_len = 10 if not is_english_writing else 5
+            if not correct or len(correct) < min_correct_len:
                 dropped += 1
                 continue
-
         elif fmt in ACCOUNTANCY_TABLE_FORMATS:
             options = None
             if not answer_table and (not correct or len(correct) < 10):
                 dropped += 1
                 continue
-
         elif fmt == "case_based":
             if not correct or len(correct) < 15:
                 dropped += 1
                 continue
-
         elif fmt == "mcq":
             if not isinstance(options, list) or len(options) != 4:
                 dropped += 1
@@ -1866,9 +1467,8 @@ def _parse_batch(raw: str, chapter: ChapterSection, request: TestGenerationReque
                     dropped += 1
                     continue
 
-        marks = q.get("marks", chapter.marks_per_question)
-        if not isinstance(marks, (int, float)) or marks < 1:
-            marks = chapter.marks_per_question
+        # Always use teacher's selected marks, ignore Gemini's marks field
+        marks = chapter.marks_per_question
 
         q_section = q.get("section") or section_key
         is_or = q.get("is_or", False)
@@ -1888,34 +1488,25 @@ def _parse_batch(raw: str, chapter: ChapterSection, request: TestGenerationReque
                 format=QuestionFormat(fmt),
                 validation_status="verified",
                 answer_table=answer_table,
-                question_table=question_table,  # v14
+                question_table=question_table,
             )
             gq._section = q_section
             gq._is_or = is_or
             gq._or_of = last_main_id if is_or else None
-
             if not is_or:
                 last_main_id = gq.id
-
             questions.append(gq)
         except Exception as e:
             logger.warning(f"Q{idx} ({chapter.chapter}): {e}")
             dropped += 1
 
     if dropped:
-        extra = f" (incl. {dropped_table_missing} with missing table data)" if dropped_table_missing else ""
+        extra = f" (incl. {dropped_table_missing} missing table)" if dropped_table_missing else ""
         logger.info(f"  {chapter.chapter}: dropped {dropped}{extra}, kept {len(questions)}")
-
-    if is_stats and questions:
-        with_table = sum(1 for q in questions if q.question_table is not None)
-        logger.info(f"  {chapter.chapter}: {with_table}/{len(questions)} questions have structured question_table")
 
     return questions
 
 
-# ---------------------------------------------------------------------------
-# Gemini Call with Retry
-# ---------------------------------------------------------------------------
 def _is_retryable(error_str: str) -> bool:
     return any(kw in error_str.upper() for kw in (k.upper() for k in RETRYABLE_KEYWORDS))
 
@@ -1946,35 +1537,35 @@ def _call_gemini(client, prompt, model):
             last_exc = e
             if _is_retryable(str(e)) and attempt < MAX_RETRIES - 1:
                 wait = min(BASE_BACKOFF_SECONDS ** (attempt + 1), MAX_BACKOFF_SECONDS) * random.uniform(*JITTER_RANGE)
-                logger.warning(f"[{model}] Retry {attempt + 1}/{MAX_RETRIES}: {str(e)[:80]}... {wait:.1f}s")
+                logger.warning(f"[{model}] Retry {attempt + 1}: {wait:.1f}s")
                 time.sleep(wait)
             else:
                 break
-    raise GenerationError(f"Failed after {MAX_RETRIES} retries: {str(last_exc)[:150]}", 500)
+    raise GenerationError(f"Failed after retries: {str(last_exc)[:150]}", 500)
 
 
-# ---------------------------------------------------------------------------
-# Generate for ONE chapter — v14: routes Statistics questions
-# ---------------------------------------------------------------------------
-def _generate_for_chapter(client, chapter, request, context_chunks, models,
-                          section_key=None, section_info=None):
+def _generate_for_chapter(client, chapter, request, context_chunks, models, section_key=None, section_info=None):
     target = chapter.quantity
     ask = target + settings.OVERSHOOT_PER_CHAPTER
     batch_size = settings.BATCH_SIZE
     is_accountancy = request.subject.lower() in ACCOUNTANCY_SUBJECTS
     is_stats = _is_statistics_question(chapter.chapter, getattr(chapter, 'topic', None))
+    is_english = (request.subject or "").lower() == "english"
+    is_writing = is_english and "writing" in chapter.chapter.lower()
+    is_grammar = is_english and "grammar" in chapter.chapter.lower()
     fmt_val = chapter.format.value if hasattr(chapter.format, 'value') else str(chapter.format)
 
     routing_tag = ""
     if is_accountancy and fmt_val in ACCOUNTANCY_TABLE_FORMATS:
-        routing_tag = " [ACCOUNTANCY TABLE]"
+        routing_tag = " [ACCOUNTANCY]"
     elif is_stats:
         routing_tag = " [STATISTICS]"
+    elif is_writing:
+        routing_tag = " [ENG-WRITING]"
+    elif is_grammar:
+        routing_tag = " [ENG-GRAMMAR]"
 
-    logger.info(f"  '{chapter.chapter}': target={target}, fmt={fmt_val}, "
-                f"diff={chapter.difficulty}, marks={chapter.marks_per_question}"
-                + (f", section={section_key}" if section_key else "")
-                + routing_tag)
+    logger.info(f"  '{chapter.chapter}': target={target}, fmt={fmt_val}, diff={chapter.difficulty}, marks={chapter.marks_per_question}" + (f", section={section_key}" if section_key else "") + routing_tag)
 
     all_qs = []
     remaining = ask
@@ -1984,7 +1575,6 @@ def _generate_for_chapter(client, chapter, request, context_chunks, models,
         bc = min(remaining, batch_size)
         batch_num += 1
 
-        # v14: Routing logic — Stats > Accountancy table > Generic
         if is_accountancy and fmt_val in ACCOUNTANCY_TABLE_FORMATS:
             prompt = _build_accountancy_prompt(
                 chapter, request, context_chunks, bc,
@@ -1994,6 +1584,14 @@ def _generate_for_chapter(client, chapter, request, context_chunks, models,
             prompt = _build_statistics_prompt(
                 chapter, request, context_chunks, bc,
                 section_key, section_info
+            )
+        elif is_writing:
+            prompt = _build_english_writing_prompt(
+                chapter, request, bc, section_key, section_info
+            )
+        elif is_grammar:
+            prompt = _build_english_grammar_prompt(
+                chapter, request, bc, section_key, section_info
             )
         else:
             prompt = _build_chapter_prompt(
@@ -2011,32 +1609,25 @@ def _generate_for_chapter(client, chapter, request, context_chunks, models,
                     break
             except GenerationError as e:
                 if m != models[-1]:
-                    logger.warning(f"    {m} failed, fallback...")
                     continue
                 logger.error(f"    '{chapter.chapter}' batch {batch_num} failed: {e}")
                 break
 
         all_qs.extend(batch_qs)
         remaining -= bc
-
         if remaining > 0 and len(all_qs) < target:
             time.sleep(settings.BATCH_DELAY)
 
     if len(all_qs) > target:
         all_qs = all_qs[:target]
-
     logger.info(f"  '{chapter.chapter}': {len(all_qs)}/{target}")
     return all_qs
 
 
-# ---------------------------------------------------------------------------
-# CBSE Section-based Paper Generation (Generic)
-# ---------------------------------------------------------------------------
-def _distribute_chapters_to_sections(chapters: List[ChapterSection]) -> Dict[str, List[dict]]:
+def _distribute_chapters_to_sections(chapters):
     ch_names = [ch.chapter for ch in chapters]
     num_chapters = len(ch_names)
     distribution = {}
-
     for sec_key, sec_info in CBSE_SECTIONS.items():
         total_q = sec_info["count"]
         base = total_q // num_chapters
@@ -2047,13 +1638,12 @@ def _distribute_chapters_to_sections(chapters: List[ChapterSection]) -> Dict[str
             if count > 0:
                 sec_dist.append({"chapter": ch_name, "count": count})
         distribution[sec_key] = sec_dist
-
     return distribution
 
 
 def generate_cbse_paper(request, context_chunks, feedback=None):
     if not context_chunks:
-        raise GenerationError("No NCERT content found. Verify chapters.", 404)
+        raise GenerationError("No NCERT content found.", 404)
 
     client = _get_gemini_client()
     model = settings.GEMINI_GEN_MODEL
@@ -2064,15 +1654,14 @@ def generate_cbse_paper(request, context_chunks, feedback=None):
 
     distribution = _distribute_chapters_to_sections(request.chapters)
     total_expected = sum(sec["count"] for sec in CBSE_SECTIONS.values())
-    logger.info(f"CBSE Paper: {len(request.chapters)} chapters, {total_expected} questions, model={model}")
+    logger.info(f"CBSE Paper: {len(request.chapters)} chapters, {total_expected} questions")
 
     all_questions = []
     t0 = time.time()
 
     for sec_key, sec_info in CBSE_SECTIONS.items():
         sec_chapters = distribution.get(sec_key, [])
-        logger.info(f"\n{'='*50}")
-        logger.info(f"{sec_info['title']}: {sec_info['count']} questions × {sec_info['marks_per_q']} marks")
+        logger.info(f"\n{sec_info['title']}: {sec_info['count']} × {sec_info['marks_per_q']}m")
 
         for ch_entry in sec_chapters:
             ch_name = ch_entry["chapter"]
@@ -2090,112 +1679,73 @@ def generate_cbse_paper(request, context_chunks, feedback=None):
                 ch_ar = count - ch_mcq
 
                 if ch_mcq > 0:
-                    mcq_chapter = ChapterSection(
-                        chapter=ch_name,
-                        difficulty=DifficultyLevel(sec_info["difficulty"]),
-                        format=QuestionFormat("mcq"),
-                        marks_per_question=sec_info["marks_per_q"],
-                        quantity=ch_mcq,
-                        topic=orig_ch.topic if hasattr(orig_ch, 'topic') else None,
-                    )
+                    mcq_chapter = ChapterSection(chapter=ch_name, difficulty=DifficultyLevel(sec_info["difficulty"]), format=QuestionFormat("mcq"), marks_per_question=sec_info["marks_per_q"], quantity=ch_mcq, topic=getattr(orig_ch, 'topic', None))
                     qs = _generate_for_chapter(client, mcq_chapter, request, context_chunks, models, sec_key, sec_info)
                     all_questions.extend(qs)
                     time.sleep(settings.BATCH_DELAY)
 
                 if ch_ar > 0:
-                    ar_chapter = ChapterSection(
-                        chapter=ch_name,
-                        difficulty=DifficultyLevel(sec_info["difficulty"]),
-                        format=QuestionFormat("assertion_reason"),
-                        marks_per_question=sec_info["marks_per_q"],
-                        quantity=ch_ar,
-                        topic=orig_ch.topic if hasattr(orig_ch, 'topic') else None,
-                    )
+                    ar_chapter = ChapterSection(chapter=ch_name, difficulty=DifficultyLevel(sec_info["difficulty"]), format=QuestionFormat("assertion_reason"), marks_per_question=sec_info["marks_per_q"], quantity=ch_ar, topic=getattr(orig_ch, 'topic', None))
                     qs = _generate_for_chapter(client, ar_chapter, request, context_chunks, models, sec_key, sec_info)
                     all_questions.extend(qs)
                     time.sleep(settings.BATCH_DELAY)
             else:
                 fmt = formats[0]
-                sec_chapter = ChapterSection(
-                    chapter=ch_name,
-                    difficulty=DifficultyLevel(sec_info["difficulty"]),
-                    format=QuestionFormat(fmt),
-                    marks_per_question=sec_info["marks_per_q"],
-                    quantity=count,
-                    topic=orig_ch.topic if hasattr(orig_ch, 'topic') else None,
-                )
+                sec_chapter = ChapterSection(chapter=ch_name, difficulty=DifficultyLevel(sec_info["difficulty"]), format=QuestionFormat(fmt), marks_per_question=sec_info["marks_per_q"], quantity=count, topic=getattr(orig_ch, 'topic', None))
                 qs = _generate_for_chapter(client, sec_chapter, request, context_chunks, models, sec_key, sec_info)
                 all_questions.extend(qs)
                 time.sleep(settings.BATCH_DELAY)
 
     elapsed = time.time() - t0
     logger.info(f"CBSE Paper Done: {len(all_questions)}/{total_expected} in {elapsed:.1f}s")
-
     if not all_questions:
         raise GenerationError("All sections failed.", 500)
-
     return all_questions
 
 
-# ---------------------------------------------------------------------------
-# CBSE Accountancy Paper Generation (34q, 80 marks, Part A + Part B)
-# ---------------------------------------------------------------------------
 def _distribute_accountancy_chapters(chapters, pattern):
     part_a_chapters = []
     part_b_chapters = []
-
     for ch in chapters:
         part = _classify_chapter_part(ch.chapter)
         if part == "B1":
             part_b_chapters.append(ch)
         else:
             part_a_chapters.append(ch)
-
     if not part_a_chapters and part_b_chapters:
         part_a_chapters = part_b_chapters
         part_b_chapters = []
 
     distribution = {}
-
     for part_key, part_info in pattern["parts"].items():
         ch_list = part_a_chapters if part_key == "A" else part_b_chapters
         if not ch_list:
             distribution[part_key] = {}
             continue
-
         part_dist = {}
         num_chapters = len(ch_list)
-
         for group in part_info["groups"]:
             group_id = group["id"]
             total_q = group["count"]
             or_count = group.get("or_count", 0)
-
             base = total_q // num_chapters
             remainder = total_q % num_chapters
             or_base = or_count // num_chapters
             or_remainder = or_count % num_chapters
-
             group_dist = []
             for i, ch in enumerate(ch_list):
                 count = base + (1 if i < remainder else 0)
                 ch_or = or_base + (1 if i < or_remainder else 0)
                 if count > 0:
-                    group_dist.append({
-                        "chapter": ch.chapter,
-                        "count": count,
-                        "or_count": min(ch_or, count),
-                    })
-
+                    group_dist.append({"chapter": ch.chapter, "count": count, "or_count": min(ch_or, count)})
             part_dist[group_id] = group_dist
         distribution[part_key] = part_dist
-
     return distribution
 
 
 def generate_cbse_accountancy_paper(request, context_chunks, feedback=None):
     if not context_chunks:
-        raise GenerationError("No NCERT content found for Accountancy.", 404)
+        raise GenerationError("No NCERT content for Accountancy.", 404)
 
     client = _get_gemini_client()
     model = settings.GEMINI_GEN_MODEL
@@ -2206,9 +1756,7 @@ def generate_cbse_accountancy_paper(request, context_chunks, feedback=None):
 
     pattern = CBSE_ACCOUNTANCY_PATTERN
     distribution = _distribute_accountancy_chapters(request.chapters, pattern)
-
-    logger.info(f"CBSE Accountancy Paper: {len(request.chapters)} chapters, "
-                f"target={pattern['total_questions']} questions, {pattern['total_marks']} marks")
+    logger.info(f"CBSE Accountancy: {len(request.chapters)} chapters, target={pattern['total_questions']}")
 
     all_questions = []
     t0 = time.time()
@@ -2216,29 +1764,23 @@ def generate_cbse_accountancy_paper(request, context_chunks, feedback=None):
     for part_key, part_info in pattern["parts"].items():
         part_groups = distribution.get(part_key, {})
         if not part_groups:
-            logger.info(f"Skipping {part_info['title']} — no chapters selected")
             continue
-
-        logger.info(f"\n{'='*60}")
-        logger.info(f"{part_info['title']}: {part_info['subtitle']}")
+        logger.info(f"\n{part_info['title']}: {part_info['subtitle']}")
 
         for group in part_info["groups"]:
             group_id = group["id"]
             group_chapters = part_groups.get(group_id, [])
             if not group_chapters:
                 continue
-
             marks = group["marks_per_q"]
             formats = group["formats"]
             difficulty = group["difficulty"]
-
-            logger.info(f"\n  Group {group_id}: {group['count']} × {marks}m (or={group.get('or_count', 0)})")
+            logger.info(f"  Group {group_id}: {group['count']} × {marks}m")
 
             for ch_entry in group_chapters:
                 ch_name = ch_entry["chapter"]
                 count = ch_entry["count"]
                 or_count = ch_entry.get("or_count", 0)
-
                 orig_ch = next((c for c in request.chapters if c.chapter == ch_name), None)
                 if not orig_ch:
                     continue
@@ -2251,18 +1793,8 @@ def generate_cbse_accountancy_paper(request, context_chunks, feedback=None):
                     ch_ar = count - ch_mcq
 
                     if ch_mcq > 0:
-                        mcq_chapter = ChapterSection(
-                            chapter=ch_name,
-                            difficulty=DifficultyLevel(difficulty),
-                            format=QuestionFormat("mcq"),
-                            marks_per_question=marks,
-                            quantity=ch_mcq + min(or_count, ch_mcq),
-                        )
-                        prompt = _build_accountancy_cbse_prompt(
-                            mcq_chapter, request, context_chunks,
-                            ch_mcq + min(or_count, ch_mcq), group, part_key,
-                            generate_or=(or_count > 0),
-                        )
+                        mcq_chapter = ChapterSection(chapter=ch_name, difficulty=DifficultyLevel(difficulty), format=QuestionFormat("mcq"), marks_per_question=marks, quantity=ch_mcq + min(or_count, ch_mcq))
+                        prompt = _build_accountancy_cbse_prompt(mcq_chapter, request, context_chunks, ch_mcq + min(or_count, ch_mcq), group, part_key, generate_or=(or_count > 0))
                         for m in models:
                             try:
                                 raw = _call_gemini(client, prompt, m)
@@ -2272,28 +1804,16 @@ def generate_cbse_accountancy_paper(request, context_chunks, feedback=None):
                                     or_qs = [q for q in batch_qs if getattr(q, '_is_or', False)]
                                     all_questions.extend(main_qs[:ch_mcq])
                                     all_questions.extend(or_qs[:min(or_count, ch_mcq)])
-                                    logger.info(f"    MCQ {ch_name}: {len(main_qs[:ch_mcq])} + {len(or_qs[:min(or_count, ch_mcq)])} OR")
                                     break
-                            except GenerationError as e:
+                            except GenerationError:
                                 if m != models[-1]:
                                     continue
-                                logger.error(f"    MCQ {ch_name} failed: {e}")
                         time.sleep(settings.BATCH_DELAY)
 
                     if ch_ar > 0:
                         ar_or = max(0, or_count - min(or_count, ch_mcq))
-                        ar_chapter = ChapterSection(
-                            chapter=ch_name,
-                            difficulty=DifficultyLevel(difficulty),
-                            format=QuestionFormat("assertion_reason"),
-                            marks_per_question=marks,
-                            quantity=ch_ar + ar_or,
-                        )
-                        prompt = _build_accountancy_cbse_prompt(
-                            ar_chapter, request, context_chunks,
-                            ch_ar + ar_or, group, part_key,
-                            generate_or=(ar_or > 0),
-                        )
+                        ar_chapter = ChapterSection(chapter=ch_name, difficulty=DifficultyLevel(difficulty), format=QuestionFormat("assertion_reason"), marks_per_question=marks, quantity=ch_ar + ar_or)
+                        prompt = _build_accountancy_cbse_prompt(ar_chapter, request, context_chunks, ch_ar + ar_or, group, part_key, generate_or=(ar_or > 0))
                         for m in models:
                             try:
                                 raw = _call_gemini(client, prompt, m)
@@ -2303,33 +1823,19 @@ def generate_cbse_accountancy_paper(request, context_chunks, feedback=None):
                                     or_qs = [q for q in batch_qs if getattr(q, '_is_or', False)]
                                     all_questions.extend(main_qs[:ch_ar])
                                     all_questions.extend(or_qs[:ar_or])
-                                    logger.info(f"    AR {ch_name}: {len(main_qs[:ch_ar])} + {len(or_qs[:ar_or])} OR")
                                     break
-                            except GenerationError as e:
+                            except GenerationError:
                                 if m != models[-1]:
                                     continue
-                                logger.error(f"    AR {ch_name} failed: {e}")
                         time.sleep(settings.BATCH_DELAY)
-
                 else:
                     fmt = formats[0]
                     if marks >= 4 and "journal_entry" in formats:
                         fmt = "journal_entry"
                     elif marks >= 6 and "long_answer" in formats:
                         fmt = "long_answer"
-
-                    sec_chapter = ChapterSection(
-                        chapter=ch_name,
-                        difficulty=DifficultyLevel(difficulty),
-                        format=QuestionFormat(fmt),
-                        marks_per_question=marks,
-                        quantity=count + or_count,
-                    )
-                    prompt = _build_accountancy_cbse_prompt(
-                        sec_chapter, request, context_chunks,
-                        count + or_count, group, part_key,
-                        generate_or=(or_count > 0),
-                    )
+                    sec_chapter = ChapterSection(chapter=ch_name, difficulty=DifficultyLevel(difficulty), format=QuestionFormat(fmt), marks_per_question=marks, quantity=count + or_count)
+                    prompt = _build_accountancy_cbse_prompt(sec_chapter, request, context_chunks, count + or_count, group, part_key, generate_or=(or_count > 0))
                     for m in models:
                         try:
                             raw = _call_gemini(client, prompt, m)
@@ -2339,41 +1845,31 @@ def generate_cbse_accountancy_paper(request, context_chunks, feedback=None):
                                 or_qs = [q for q in batch_qs if getattr(q, '_is_or', False)]
                                 all_questions.extend(main_qs[:count])
                                 all_questions.extend(or_qs[:or_count])
-                                logger.info(f"    {fmt} {ch_name}: {len(main_qs[:count])} + {len(or_qs[:or_count])} OR")
                                 break
-                        except GenerationError as e:
+                        except GenerationError:
                             if m != models[-1]:
                                 continue
-                            logger.error(f"    {fmt} {ch_name} failed: {e}")
                     time.sleep(settings.BATCH_DELAY)
 
     elapsed = time.time() - t0
     main_count = len([q for q in all_questions if not getattr(q, '_is_or', False)])
-    or_count_total = len([q for q in all_questions if getattr(q, '_is_or', False)])
-    logger.info(f"\nCBSE Accountancy Done: {main_count} main + {or_count_total} OR = {len(all_questions)} in {elapsed:.1f}s")
-
+    logger.info(f"\nCBSE Accountancy: {main_count} main + {len(all_questions) - main_count} OR = {len(all_questions)} in {elapsed:.1f}s")
     if not all_questions:
         raise GenerationError("All Accountancy generation failed.", 500)
-
     return all_questions
 
 
-# ---------------------------------------------------------------------------
-# Main Entry — routes by subject + pattern
-# ---------------------------------------------------------------------------
 def generate_questions(request, context_chunks, feedback=None, cbse_pattern: bool = False):
     subject_lower = (request.subject or "").lower()
     is_accountancy = subject_lower in ACCOUNTANCY_SUBJECTS
 
     if cbse_pattern and is_accountancy:
         return generate_cbse_accountancy_paper(request, context_chunks, feedback)
-
     if cbse_pattern:
         return generate_cbse_paper(request, context_chunks, feedback)
 
-    # Original per-chapter mode
     if not context_chunks:
-        raise GenerationError("No NCERT content found. Verify chapters.", 404)
+        raise GenerationError("No NCERT content found.", 404)
 
     client = _get_gemini_client()
     model = settings.GEMINI_GEN_MODEL
@@ -2383,7 +1879,7 @@ def generate_questions(request, context_chunks, feedback=None, cbse_pattern: boo
         models.append(fallback)
 
     total = sum(s.quantity for s in request.chapters)
-    logger.info(f"Generation: {len(request.chapters)} chapters, {total} questions, model={model}")
+    logger.info(f"Generation: {len(request.chapters)} chapters, {total} questions")
 
     all_questions = []
     t0 = time.time()
@@ -2400,18 +1896,12 @@ def generate_questions(request, context_chunks, feedback=None, cbse_pattern: boo
             time.sleep(settings.BATCH_DELAY)
 
     elapsed = time.time() - t0
-    summary = " | ".join([f"{ch}: {r}" for ch, r in results.items()])
-    logger.info(f"Done: {len(all_questions)}/{total} in {elapsed:.1f}s | {summary}")
-
+    logger.info(f"Done: {len(all_questions)}/{total} in {elapsed:.1f}s")
     if not all_questions:
         raise GenerationError("All chapters failed.", 500)
-
     return all_questions
 
 
-# ---------------------------------------------------------------------------
-# Aliases for backward compatibility
-# ---------------------------------------------------------------------------
 generate_test = generate_questions
 
 

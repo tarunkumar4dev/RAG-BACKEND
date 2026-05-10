@@ -2,17 +2,30 @@
 NCERT PDF Ingestion Script — Production Grade (Local Embeddings)
 
 Usage:
+  # Existing flat-folder usage (unchanged):
   python ingest_ncert.py --folder pdfs/Class10_Science --subject Science --class_grade 10
   python ingest_ncert.py --folder pdfs/Class10_Maths --subject Mathematics --class_grade 10
-  python ingest_ncert.py --folder pdfs/Class9_Science --subject Science --class_grade 9
-  python ingest_ncert.py --folder pdfs/Class9_Maths --subject Mathematics --class_grade 9
+
+  # New: book + chapter_type for English (run 3 times for Class 10):
+  python ingest_ncert.py --folder pdfs/Class10_English/First_Flight_Prose \
+      --subject English --class_grade 10 \
+      --book first_flight --chapter_type prose
+
+  python ingest_ncert.py --folder pdfs/Class10_English/First_Flight_Poems \
+      --subject English --class_grade 10 \
+      --book first_flight --chapter_type poem
+
+  python ingest_ncert.py --folder pdfs/Class10_English/Footprints_Without_Feet \
+      --subject English --class_grade 10 \
+      --book footprints_without_feet --chapter_type prose
 
 What it does:
   1. Reads all PDFs from a folder
   2. Extracts text with proper cleaning
   3. Chunks text into ~500-word overlapping segments
   4. Generates embeddings using all-MiniLM-L6-v2 (384-dim, LOCAL, FREE)
-  5. Uploads to Supabase ncert_chunks table
+  5. Uploads to Supabase ncert_chunks table (with book / chapter_type / chapter_order
+     when --book and --chapter_type are provided)
   6. Verifies upload
 
 Prerequisites:
@@ -75,6 +88,69 @@ DB_NAME = "postgres"
 
 # Global embedding model (loaded once)
 _embed_model: Optional[SentenceTransformer] = None
+
+
+# ===========================================================================
+# Chapter Order Mapping
+# ===========================================================================
+# Hardcoded syllabus order for English. Keys must match PDF filenames exactly
+# (without .pdf extension). If a chapter name is not in the map, falls back to
+# alphabetical index of the file in the folder.
+CHAPTER_ORDER_MAP: Dict[Tuple[str, str], Dict[str, int]] = {
+    ("first_flight", "prose"): {
+        "A Letter to God": 1,
+        "Nelson Mandela - Long Walk to Freedom": 2,
+        "Stories About Flying": 3,
+        "From the Diary of Anne Frank": 4,
+        "Glimpses of India": 5,
+        "Mijbil the Otter": 6,
+        "Madam Rides the Bus": 7,
+        "The Sermon at Benares": 8,
+        "The Proposal (Play)": 9,
+    },
+    ("first_flight", "poem"): {
+        "Dust of Snow": 1,
+        "Fire and Ice": 2,
+        "A Tiger in the Zoo": 3,
+        "How to Tell Wild Animals": 4,
+        "The Ball Poem": 5,
+        "Amanda": 6,
+        "The Trees": 7,
+        "Fog": 8,
+        "The Tale of Custard Dragon": 9,
+        "For Anne Gregory": 10,
+    },
+    ("footprints_without_feet", "prose"): {
+        "A Triumph of Surgery": 1,
+        "The Thief's Story": 2,
+        "The Midnight Visitor": 3,
+        "A Question of Trust": 4,
+        "Footprints Without Feet": 5,
+        "The Making of a Scientist": 6,
+        "The Necklace": 7,
+        "Bholi": 8,
+        "The Book that Saved the Earth": 9,
+    },
+}
+
+
+def get_chapter_order(
+    book: Optional[str],
+    chapter_type: Optional[str],
+    chapter_name: str,
+    fallback_idx: int,
+) -> int:
+    """Resolve chapter_order from map; fall back to alphabetical index."""
+    if book and chapter_type:
+        order_map = CHAPTER_ORDER_MAP.get((book, chapter_type), {})
+        if chapter_name in order_map:
+            return order_map[chapter_name]
+        if order_map:
+            logger.warning(
+                f"  ⚠ '{chapter_name}' not in CHAPTER_ORDER_MAP for "
+                f"({book}, {chapter_type}); using fallback order={fallback_idx}"
+            )
+    return fallback_idx
 
 
 def get_embed_model() -> SentenceTransformer:
@@ -204,16 +280,40 @@ class DatabaseManager:
             await self.conn.close()
             logger.info("Database connection closed")
 
-    async def delete_all_for_class(self, subject: str, class_grade: str) -> int:
-        """Delete ALL chunks for a subject + class."""
-        result = await self.conn.execute(
-            """
-            DELETE FROM ncert_chunks
-            WHERE subject ILIKE $1 AND class_grade = $2
-            """,
-            f"%{subject}%",
-            str(class_grade),
-        )
+    async def delete_all_for_class(
+        self,
+        subject: str,
+        class_grade: str,
+        book: Optional[str] = None,
+        chapter_type: Optional[str] = None,
+    ) -> int:
+        """
+        Delete chunks for a subject + class.
+        If `book` AND `chapter_type` are both provided, only delete that slice
+        (so re-running for First_Flight_Poems doesn't wipe First_Flight_Prose).
+        Otherwise (default), delete the whole subject+class — original behavior.
+        """
+        if book and chapter_type:
+            result = await self.conn.execute(
+                """
+                DELETE FROM ncert_chunks
+                WHERE subject ILIKE $1 AND class_grade = $2
+                  AND book = $3 AND chapter_type = $4
+                """,
+                f"%{subject}%",
+                str(class_grade),
+                book,
+                chapter_type,
+            )
+        else:
+            result = await self.conn.execute(
+                """
+                DELETE FROM ncert_chunks
+                WHERE subject ILIKE $1 AND class_grade = $2
+                """,
+                f"%{subject}%",
+                str(class_grade),
+            )
         return int(result.split()[-1]) if result else 0
 
     async def insert_chunks_batch(
@@ -223,6 +323,9 @@ class DatabaseManager:
         chapter: str,
         chunks: List[str],
         embeddings: List[List[float]],
+        book: Optional[str] = None,
+        chapter_type: Optional[str] = None,
+        chapter_order: Optional[int] = None,
     ) -> Tuple[int, int]:
         """Insert multiple chunks at once. Returns (success, failed)."""
         success = 0
@@ -234,8 +337,9 @@ class DatabaseManager:
                 await self.conn.execute(
                     """
                     INSERT INTO ncert_chunks
-                    (class_grade, subject, chapter, content, embedding, created_at)
-                    VALUES ($1, $2, $3, $4, $5::vector, $6)
+                    (class_grade, subject, chapter, content, embedding, created_at,
+                     book, chapter_type, chapter_order)
+                    VALUES ($1, $2, $3, $4, $5::vector, $6, $7, $8, $9)
                     """,
                     str(class_grade),
                     subject,
@@ -243,6 +347,9 @@ class DatabaseManager:
                     content,
                     embedding_str,
                     datetime.now(),
+                    book,
+                    chapter_type,
+                    chapter_order,
                 )
                 success += 1
             except Exception as e:
@@ -251,20 +358,44 @@ class DatabaseManager:
 
         return success, failed
 
-    async def get_chapter_stats(self, subject: str, class_grade: str) -> List[Dict]:
-        rows = await self.conn.fetch(
-            """
-            SELECT chapter, COUNT(*) as chunks,
-                   LENGTH(MIN(content)) as min_len,
-                   LENGTH(MAX(content)) as max_len
-            FROM ncert_chunks
-            WHERE subject ILIKE $1 AND class_grade = $2
-            GROUP BY chapter
-            ORDER BY chapter
-            """,
-            f"%{subject}%",
-            str(class_grade),
-        )
+    async def get_chapter_stats(
+        self,
+        subject: str,
+        class_grade: str,
+        book: Optional[str] = None,
+        chapter_type: Optional[str] = None,
+    ) -> List[Dict]:
+        if book and chapter_type:
+            rows = await self.conn.fetch(
+                """
+                SELECT chapter, chapter_order, COUNT(*) as chunks,
+                       LENGTH(MIN(content)) as min_len,
+                       LENGTH(MAX(content)) as max_len
+                FROM ncert_chunks
+                WHERE subject ILIKE $1 AND class_grade = $2
+                  AND book = $3 AND chapter_type = $4
+                GROUP BY chapter, chapter_order
+                ORDER BY chapter_order NULLS LAST, chapter
+                """,
+                f"%{subject}%",
+                str(class_grade),
+                book,
+                chapter_type,
+            )
+        else:
+            rows = await self.conn.fetch(
+                """
+                SELECT chapter, COUNT(*) as chunks,
+                       LENGTH(MIN(content)) as min_len,
+                       LENGTH(MAX(content)) as max_len
+                FROM ncert_chunks
+                WHERE subject ILIKE $1 AND class_grade = $2
+                GROUP BY chapter
+                ORDER BY chapter
+                """,
+                f"%{subject}%",
+                str(class_grade),
+            )
         return [dict(r) for r in rows]
 
 
@@ -276,6 +407,8 @@ async def ingest_folder(
     subject: str,
     class_grade: str,
     clean_first: bool = True,
+    book: Optional[str] = None,
+    chapter_type: Optional[str] = None,
 ):
     folder = Path(folder_path)
     if not folder.exists():
@@ -307,8 +440,15 @@ async def ingest_folder(
 
     try:
         if clean_first:
-            deleted = await db.delete_all_for_class(subject, class_grade)
-            logger.info(f"Deleted {deleted} existing chunks for {subject} class {class_grade}")
+            deleted = await db.delete_all_for_class(
+                subject, class_grade, book=book, chapter_type=chapter_type
+            )
+            scope = (
+                f"{subject} class {class_grade} ({book}/{chapter_type})"
+                if (book and chapter_type)
+                else f"{subject} class {class_grade}"
+            )
+            logger.info(f"Deleted {deleted} existing chunks for {scope}")
 
         total_chunks = 0
         total_uploaded = 0
@@ -316,10 +456,12 @@ async def ingest_folder(
         chapter_stats: List[Dict] = []
         overall_start = time.time()
 
-        for pdf_file in pdf_files:
+        for idx, pdf_file in enumerate(pdf_files, start=1):
             chapter_name = pdf_file.stem
+            chapter_order = get_chapter_order(book, chapter_type, chapter_name, idx)
+
             logger.info(f"\n{'='*60}")
-            logger.info(f"Processing: {chapter_name}")
+            logger.info(f"Processing: {chapter_name} (order={chapter_order})")
             logger.info(f"{'='*60}")
 
             chapter_start = time.time()
@@ -353,6 +495,9 @@ async def ingest_folder(
                 chapter=chapter_name,
                 chunks=chunks,
                 embeddings=embeddings,
+                book=book,
+                chapter_type=chapter_type,
+                chapter_order=chapter_order,
             )
 
             total_uploaded += uploaded
@@ -361,6 +506,7 @@ async def ingest_folder(
 
             chapter_stats.append({
                 "chapter": chapter_name,
+                "order": chapter_order,
                 "chunks": len(chunks),
                 "uploaded": uploaded,
                 "failed": failed,
@@ -374,6 +520,8 @@ async def ingest_folder(
         logger.info("INGESTION SUMMARY")
         logger.info(f"{'='*60}")
         logger.info(f"Subject: {subject} | Class: {class_grade}")
+        if book or chapter_type:
+            logger.info(f"Book: {book} | Type: {chapter_type}")
         logger.info(f"PDFs processed: {len(pdf_files)}")
         logger.info(f"Total chunks: {total_chunks}")
         logger.info(f"Uploaded: {total_uploaded}")
@@ -384,16 +532,19 @@ async def ingest_folder(
         for stat in chapter_stats:
             status = "OK" if stat["failed"] == 0 else "WARN"
             logger.info(
-                f"  [{status}] {stat['chapter']}: "
+                f"  [{status}] #{stat['order']} {stat['chapter']}: "
                 f"{stat['uploaded']}/{stat['chunks']} chunks ({stat['time']}s)"
             )
 
         # Verify from DB
         logger.info(f"\nVerifying in database...")
-        db_stats = await db.get_chapter_stats(subject, class_grade)
+        db_stats = await db.get_chapter_stats(
+            subject, class_grade, book=book, chapter_type=chapter_type
+        )
         for row in db_stats:
+            order_str = f"#{row['chapter_order']} " if row.get("chapter_order") else ""
             logger.info(
-                f"  {row['chapter']}: {row['chunks']} chunks "
+                f"  {order_str}{row['chapter']}: {row['chunks']} chunks "
                 f"(content: {row['min_len']}-{row['max_len']} chars)"
             )
 
@@ -418,23 +569,39 @@ def main():
     parser.add_argument("--subject", required=True, help="Subject name")
     parser.add_argument("--class_grade", required=True, help="Class grade")
     parser.add_argument("--no-clean", action="store_true", help="Don't delete existing data")
+    parser.add_argument(
+        "--book",
+        default=None,
+        help="Book name (e.g., first_flight, footprints_without_feet). "
+             "Optional — only used for English currently.",
+    )
+    parser.add_argument(
+        "--chapter_type",
+        default=None,
+        help="Chapter type: prose, poem, play. Optional.",
+    )
 
     args = parser.parse_args()
 
     print(f"\n{'='*60}")
     print("NCERT PDF INGESTION (Local Embeddings)")
     print(f"{'='*60}")
-    print(f"Folder:     {args.folder}")
-    print(f"Subject:    {args.subject}")
-    print(f"Class:      {args.class_grade}")
-    print(f"Embeddings: {EMBEDDING_MODEL_NAME} (384-dim, local)")
-    print(f"Clean:      {'No' if args.no_clean else 'Yes'}")
+    print(f"Folder:       {args.folder}")
+    print(f"Subject:      {args.subject}")
+    print(f"Class:        {args.class_grade}")
+    print(f"Book:         {args.book or '(none)'}")
+    print(f"Chapter type: {args.chapter_type or '(none)'}")
+    print(f"Embeddings:   {EMBEDDING_MODEL_NAME} (384-dim, local)")
+    print(f"Clean:        {'No' if args.no_clean else 'Yes'}")
     print(f"{'='*60}\n")
 
     if not args.no_clean:
+        if args.book and args.chapter_type:
+            scope = f"{args.subject} class {args.class_grade} (book={args.book}, type={args.chapter_type})"
+        else:
+            scope = f"ALL {args.subject} class {args.class_grade}"
         confirm = input(
-            f"This will DELETE all existing {args.subject} class {args.class_grade} "
-            f"data and re-ingest. Continue? (y/N): "
+            f"This will DELETE existing data for {scope} and re-ingest. Continue? (y/N): "
         )
         if confirm.lower() != "y":
             print("Cancelled.")
@@ -446,6 +613,8 @@ def main():
             subject=args.subject,
             class_grade=args.class_grade,
             clean_first=not args.no_clean,
+            book=args.book,
+            chapter_type=args.chapter_type,
         )
     )
 

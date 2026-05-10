@@ -1,5 +1,15 @@
 """
-Test Generator API Endpoints — v2.6
+Test Generator API Endpoints — v2.8
+
+v2.8 changes:
+  - English pseudo-chapter support (Writing Skills, Grammar bypass RAG)
+  - _is_english_pseudo() helper skips NCERT lookup for these chapters
+  - Error handler filters pseudo-chapters from error messages
+
+v2.7 changes:
+  - /chapters endpoint now returns book, chapter_type, chapter_order
+  - Adds `groups` field for grouped dropdown UI (English Class 10)
+  - Backward compatible: flat `chapters` list still returned
 
 v2.6 changes (additive only):
   - FrontendQuestionResponse: added questionTable field for Statistics questions
@@ -107,6 +117,40 @@ SUBJECT_ALIASES = {
 
 def _resolve_subject(subject: str) -> str:
     return SUBJECT_ALIASES.get(subject, subject)
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# ENGLISH PSEUDO-CHAPTER SUPPORT (v2.8)
+# ═══════════════════════════════════════════════════════════════════════
+
+# English pseudo-chapters (no NCERT lookup needed)
+ENGLISH_PSEUDO_CHAPTERS = {"writing skills", "grammar"}
+
+
+def _is_english_pseudo(subject: str, chapter: str) -> bool:
+    """Check if chapter is a Writing/Grammar pseudo-chapter for English."""
+    if (subject or "").lower() != "english":
+        return False
+    return chapter.lower().strip() in ENGLISH_PSEUDO_CHAPTERS
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# BOOK / CHAPTER_TYPE LABELS (for /chapters response)
+# ═══════════════════════════════════════════════════════════════════════
+
+# Display labels shown in the frontend optgroup
+BOOK_LABELS = {
+    ("first_flight", "prose"): "First Flight — Prose",
+    ("first_flight", "poem"): "First Flight — Poems",
+    ("footprints_without_feet", "prose"): "Footprints Without Feet",
+}
+
+# Order in which groups appear in the dropdown
+BOOK_GROUP_ORDER = {
+    ("first_flight", "prose"): 1,
+    ("first_flight", "poem"): 2,
+    ("footprints_without_feet", "prose"): 3,
+}
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -405,12 +449,24 @@ async def generate_from_frontend(req: FrontendGenerateRequest):
         total_q = sum(c.quantity for c in backend_request.chapters)
         logger.info(f"Transformed: {len(backend_request.chapters)} chapters, {total_q} questions")
 
-        chapters = [ch.chapter for ch in backend_request.chapters]
+        # v2.8: Filter out English pseudo-chapters (Writing/Grammar) from RAG lookup
+        real_chapters = [
+            ch.chapter for ch in backend_request.chapters
+            if not _is_english_pseudo(backend_request.subject, ch.chapter)
+        ]
         topics = [ch.topic for ch in backend_request.chapters if ch.topic]
         if not topics:
-            topics = chapters
-        context_chunks = retrieve_context(chapters, topics, backend_request.subject, backend_request.class_grade)
-        logger.info(f"Retrieved {len(context_chunks)} context chunks")
+            topics = real_chapters
+
+        if real_chapters:
+            context_chunks = retrieve_context(
+                real_chapters, topics,
+                backend_request.subject, backend_request.class_grade,
+            )
+            logger.info(f"Retrieved {len(context_chunks)} context chunks (skipped pseudo-chapters)")
+        else:
+            context_chunks = []
+            logger.info("All chapters are English pseudo-chapters — skipping RAG entirely")
 
         resolved_subject = _resolve_subject(req.subject)
         is_accountancy = resolved_subject.lower() in ("accountancy", "accounts", "accounting")
@@ -442,11 +498,24 @@ async def generate_from_frontend(req: FrontendGenerateRequest):
     except Exception as e:
         error_str = str(e)
         if "No NCERT content found" in error_str:
-            chapter_names = [ch.chapter for ch in backend_request.chapters] if 'backend_request' in locals() else []
-            raise HTTPException(
-                status_code=404,
-                detail=f"Content not available for selected chapters: {', '.join(chapter_names)}. Try different chapters or contact support."
-            )
+            # v2.8: Filter out pseudo-chapters from error message
+            if 'backend_request' in locals():
+                real_names = [
+                    ch.chapter for ch in backend_request.chapters
+                    if not _is_english_pseudo(backend_request.subject, ch.chapter)
+                ]
+            else:
+                real_names = []
+            
+            # Only raise if there are real chapters that failed
+            if real_names:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Content not available for selected chapters: {', '.join(real_names)}. Try different chapters or contact support."
+                )
+            else:
+                # Silent fallback: all chapters were pseudo, service will handle it
+                logger.warning("No NCERT content found, but all chapters are pseudo-chapters. Proceeding.")
         logger.error(f"Frontend generate error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Generation failed: {str(e)}")
 
@@ -528,25 +597,103 @@ async def export_test(req: ExportRequest):
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# ENDPOINT: Chapters
+# ENDPOINT: Chapters (v2.7 — grouped by book + chapter_type)
 # ═══════════════════════════════════════════════════════════════════════
 
 @router.get("/chapters")
 async def get_chapters(subject: str = "Science", class_grade: str = "10"):
+    """
+    Returns:
+      - `chapters`: flat sorted list of chapter names (backward compat)
+      - `groups`: structured groups by (book, chapter_type) — populated only
+                  when chunks have `book` and `chapter_type` set (currently
+                  Class 10 English). For other subjects this is null and the
+                  frontend falls back to the flat list.
+    """
     subject = _resolve_subject(subject)
     try:
         supabase = get_supabase()
         result = supabase.table("ncert_chunks") \
-            .select("chapter") \
+            .select("chapter, book, chapter_type, chapter_order") \
             .ilike("subject", f"%{subject}%") \
             .eq("class_grade", class_grade) \
             .execute()
 
-        chapters = sorted(set(row["chapter"] for row in (result.data or [])))
-        return {"ok": True, "subject": subject, "classGrade": class_grade, "chapters": chapters, "count": len(chapters)}
+        rows = result.data or []
+
+        # Flat list (backward compat)
+        chapters = sorted({row["chapter"] for row in rows if row.get("chapter")})
+
+        # Build group dict keyed by (book, chapter_type)
+        # We dedupe on (chapter, book, chapter_type) so each chapter shows once per group
+        seen_chapters = {}  # (chapter, book, ctype) -> {name, order}
+        for row in rows:
+            chapter = row.get("chapter")
+            book = row.get("book")
+            ctype = row.get("chapter_type")
+            order = row.get("chapter_order")
+
+            if not chapter:
+                continue
+            # Skip chunks without book/chapter_type (non-English subjects)
+            if not book or not ctype:
+                continue
+
+            key = (chapter, book, ctype)
+            if key not in seen_chapters:
+                seen_chapters[key] = {"name": chapter, "order": order}
+
+        # Now group by (book, ctype)
+        groups_dict = {}
+        for (chapter, book, ctype), data in seen_chapters.items():
+            gkey = (book, ctype)
+            if gkey not in groups_dict:
+                groups_dict[gkey] = []
+            groups_dict[gkey].append(data)
+
+        # Build sorted output
+        groups = []
+        for (book, ctype), chs in groups_dict.items():
+            chs_sorted = sorted(
+                chs,
+                key=lambda x: (x["order"] if x["order"] is not None else 9999, x["name"])
+            )
+            label = BOOK_LABELS.get(
+                (book, ctype),
+                f"{(book or 'Other').replace('_', ' ').title()} — {(ctype or 'Other').title()}"
+            )
+            groups.append({
+                "book": book,
+                "chapter_type": ctype,
+                "label": label,
+                "_sort_order": BOOK_GROUP_ORDER.get((book, ctype), 99),
+                "chapters": chs_sorted,
+            })
+
+        # Sort groups by predefined order, strip the sort key from output
+        groups.sort(key=lambda g: g["_sort_order"])
+        for g in groups:
+            g.pop("_sort_order", None)
+
+        return {
+            "ok": True,
+            "subject": subject,
+            "classGrade": class_grade,
+            "chapters": chapters,
+            "groups": groups if groups else None,
+            "count": len(chapters),
+        }
     except Exception as e:
         logger.error(f"Chapters error: {e}")
-        return {"ok": False, "subject": subject, "classGrade": class_grade, "chapters": [], "count": 0, "error": str(e)}
+        return {
+            "ok": False,
+            "subject": subject,
+            "classGrade": class_grade,
+            "chapters": [],
+            "groups": None,
+            "count": 0,
+            "error": str(e),
+        }
 
 
 # ═══════════════════════════════════════════════════════════════════════
