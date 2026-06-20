@@ -1,0 +1,23 @@
+```json
+{
+  "questions": [
+    {
+      "text": "Evaluate `lim (sqrt(x + 1) - 2) / (x - 3)` as `x` approaches `3`.",
+      "format": "mcq",
+      "options": [
+        "A) 1/2",
+        "B) 1/4",
+        "C) 1/8",
+        "D) 0"
+      ],
+      "correct_answer": "B) 1/4",
+      "explanation": "To evaluate the limit, we multiply the numerator and denominator by the conjugate of the numerator: `(sqrt(x+1) + 2)`. \n`lim (sqrt(x+1) - 2) / (x-3) * (sqrt(x+1) + 2) / (sqrt(x+1) + 2)`\n`= lim ((x+1) - 4) / ((x-3)(sqrt(x+1) + 2))`\n`= lim (x-3) / ((x-3)(sqrt(x+1) + 2))`\n`= lim 1 / (sqrt(x+1) + 2)`\nSubstitute `x = 3`: `1 / (sqrt(3+1) + 2) = 1 / (sqrt(4) + 2) = 1 / (2 + 2) = 1/4`.",
+      "marks": 1,
+      "difficulty": "DifficultyLevel.HARD",
+      "bloom_level": "apply",
+      "chapter": "LIMITS AND DERIVATIVES",
+      "topic": "Evaluation of limits by rationalization"
+    },
+    {
+      "text": "Using the first principle, determine the derivative of the function `f(x) = 1/(2x + 1)`.",
+      "fo

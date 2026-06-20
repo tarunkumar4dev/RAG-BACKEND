@@ -1,0 +1,31 @@
+```json
+{
+  "questions": [
+    {
+      "text": "Using the first principle of differentiation, determine the derivative of the function `f(x) = (x+1)/(x-1)`. Which of the following options represents the correct derivative?",
+      "format": "mcq",
+      "options": [
+        "A) `2/(x-1)^2`",
+        "B) `-2/(x-1)^2`",
+        "C) `1/(x-1)^2`",
+        "D) `-1/(x-1)^2`"
+      ],
+      "correct_answer": "B) `-2/(x-1)^2`",
+      "marks": 1,
+      "difficulty": "DifficultyLevel.HARD",
+      "bloom_level": "apply",
+      "chapter": "LIMITS AND DERIVATIVES",
+      "topic": "Derivative from First Principle (Quotient)"
+    },
+    {
+      "text": "Evaluate the limit of the function `f(x) = (sqrt(1+x) - 1) / x` as `x` approaches 0. Which of the following is the correct value?",
+      "format": "mcq",
+      "options": [
+        "A) 0",
+        "B) 1/2",
+        "C) 1",
+        "D) Does not exist"
+      ],
+      "correct_answer": "B) 1/2",
+      "marks": 1,
+      "difficulty": "DifficultyLevel.HAR

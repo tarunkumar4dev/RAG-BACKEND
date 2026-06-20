@@ -1,0 +1,32 @@
+```json
+{
+  "questions": [
+    {
+      "text": "Evaluate the limit: `lim (x->0) (sqrt(1+x) - sqrt(1-x)) / x`. This limit requires careful algebraic manipulation or application of L'Hopital's rule.",
+      "format": "mcq",
+      "options": [
+        "A) 0",
+        "B) 1",
+        "C) 2",
+        "D) 1/2"
+      ],
+      "correct_answer": "B) 1",
+      "explanation": "",
+      "marks": 1,
+      "difficulty": "DifficultyLevel.HARD",
+      "bloom_level": "apply",
+      "chapter": "LIMITS AND DERIVATIVES",
+      "topic": "Limits of Algebraic Functions"
+    },
+    {
+      "text": "Determine the value of `lim (x->0) (sin(ax) / sin(bx))` where `a` and `b` are non-zero constants. This limit tests understanding of standard trigonometric limits.",
+      "format": "mcq",
+      "options": [
+        "A) 1",
+        "B) a/b",
+        "C) b/a",
+        "D) ab"
+      ],
+      "correct_answer": "B) a/b",
+      "explanation": "",
+      "marks": 1,

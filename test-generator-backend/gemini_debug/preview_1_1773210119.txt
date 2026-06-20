@@ -1,0 +1,23 @@
+```json
+{
+  "questions": [
+    {
+      "text": "Evaluate the limit: lim (x→0) [(√(1+x) - √(1-x)) / x]. This limit requires rationalization and subsequent algebraic simplification to resolve the indeterminate form 0/0.",
+      "format": "mcq",
+      "options": [
+        "A) 1",
+        "B) 0",
+        "C) 2",
+        "D) 1/2"
+      ],
+      "correct_answer": "A) 1",
+      "explanation": "Multiply numerator and denominator by the conjugate (√(1+x) + √(1-x)). This simplifies the numerator to (1+x) - (1-x) = 2x. The expression becomes lim (x→0) [2x / (x(√(1+x) + √(1-x)))]. Cancel x and substitute x=0 to get 2 / (1+1) = 1.",
+      "marks": 1,
+      "difficulty": "DifficultyLevel.HARD",
+      "bloom_level": "apply",
+      "chapter": "LIMITS AND DERIVATIVES",
+      "topic": "Evaluation of Limits by Rationalization"
+    },
+    {
+      "text": "If f(x) = |x-1| + |x-2|, find the derivative f'(x) at x = 1.5. Consider the piecewise definition of the absolute value function for differentiation.",
+ 
