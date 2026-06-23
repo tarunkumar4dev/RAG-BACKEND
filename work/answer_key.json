@@ -1,0 +1,329 @@
+{
+  "subject": "Science",
+  "class": "10",
+  "exam_year": "2024",
+  "paper_code": "31/5/1",
+  "total_marks": 80,
+  "sections": {
+    "A": {"questions": "1-20", "type": "MCQ", "marks_per_question": 1},
+    "B": {"questions": "21-26", "type": "Very Short Answer", "marks_per_question": 2},
+    "C": {"questions": "27-33", "type": "Short Answer", "marks_per_question": 3},
+    "D": {"questions": "34-36", "type": "Long Answer", "marks_per_question": 5},
+    "E": {"questions": "37-38", "type": "Very Long Answer", "marks_per_question": 6}
+  },
+  "questions": [
+    {
+      "q_no": 1,
+      "type": "MCQ",
+      "correct_option": "C",
+      "correct_answer": "2,2,4",
+      "max_marks": 1,
+      "marking_scheme": "1 mark for correct option"
+    },
+    {
+      "q_no": 2,
+      "type": "MCQ",
+      "correct_option": "D",
+      "correct_answer": "Fe2O3 + 3CO → 2Fe + 3CO2",
+      "max_marks": 1,
+      "marking_scheme": "1 mark for correct option"
+    },
+    {
+      "q_no": 3,
+      "type": "MCQ",
+      "correct_option": "A",
+      "correct_answer": "Calcium Phosphate",
+      "max_marks": 1,
+      "marking_scheme": "1 mark for correct option"
+    },
+    {
+      "q_no": 4,
+      "type": "MCQ",
+      "correct_option": "C",
+      "correct_answer": "7",
+      "max_marks": 1,
+      "marking_scheme": "1 mark for correct option"
+    },
+    {
+      "q_no": 5,
+      "type": "MCQ",
+      "correct_option": "B",
+      "correct_answer": "Al, Al2O3",
+      "max_marks": 1,
+      "marking_scheme": "1 mark for correct option"
+    },
+    {
+      "q_no": 6,
+      "type": "MCQ",
+      "correct_option": "D",
+      "correct_answer": "Translocation",
+      "max_marks": 1,
+      "marking_scheme": "1 mark for correct option"
+    },
+    {
+      "q_no": 7,
+      "type": "MCQ",
+      "correct_option": "C",
+      "correct_answer": "Receptors in skin → Sensory neuron → Relay neuron → Motor neuron → Effector muscle in arm",
+      "max_marks": 1,
+      "marking_scheme": "1 mark for correct option"
+    },
+    {
+      "q_no": 8,
+      "type": "MCQ",
+      "correct_option": "A",
+      "correct_answer": "Nose",
+      "max_marks": 1,
+      "marking_scheme": "1 mark for correct option"
+    },
+    {
+      "q_no": 9,
+      "type": "MCQ",
+      "correct_option": "C",
+      "correct_answer": "It has a very small area for glucose and oxygen to pass from mother to the embryo",
+      "max_marks": 1,
+      "marking_scheme": "1 mark for correct option"
+    },
+    {
+      "q_no": 10,
+      "type": "MCQ",
+      "correct_option": "A",
+      "correct_answer": "(i) and (ii)",
+      "max_marks": 1,
+      "marking_scheme": "1 mark for correct option"
+    },
+    {
+      "q_no": 11,
+      "type": "MCQ",
+      "correct_option": "C",
+      "correct_answer": "The brightness of the image will reduce",
+      "max_marks": 1,
+      "marking_scheme": "1 mark for correct option"
+    },
+    {
+      "q_no": 12,
+      "type": "MCQ",
+      "correct_option": "B",
+      "correct_answer": "Refraction, Dispersion and internal reflection",
+      "max_marks": 1,
+      "marking_scheme": "1 mark for correct option"
+    },
+    {
+      "q_no": 13,
+      "type": "MCQ",
+      "correct_option": "A",
+      "correct_answer": "Red",
+      "max_marks": 1,
+      "marking_scheme": "1 mark for correct option"
+    },
+    {
+      "q_no": 14,
+      "type": "MCQ",
+      "correct_option": "C",
+      "correct_answer": "A solenoid",
+      "max_marks": 1,
+      "marking_scheme": "1 mark for correct option"
+    },
+    {
+      "q_no": 15,
+      "type": "MCQ",
+      "correct_option": "A",
+      "correct_answer": "both pointing into the plane of the paper",
+      "max_marks": 1,
+      "marking_scheme": "1 mark for correct option"
+    },
+    {
+      "q_no": 16,
+      "type": "MCQ",
+      "correct_option": "D",
+      "correct_answer": "Crop land ecosystem",
+      "max_marks": 1,
+      "marking_scheme": "1 mark for correct option"
+    },
+    {
+      "q_no": 17,
+      "type": "Assertion-Reason",
+      "correct_option": "A",
+      "correct_answer": "Both Assertion (A) and Reason (R) are true and Reason (R) is a correct explanation of Assertion (A)",
+      "max_marks": 1,
+      "marking_scheme": "1 mark for correct option"
+    },
+    {
+      "q_no": 18,
+      "type": "Assertion-Reason",
+      "correct_option": "D",
+      "correct_answer": "Assertion (A) is false, but Reason (R) is true",
+      "max_marks": 1,
+      "marking_scheme": "1 mark for correct option"
+    },
+    {
+      "q_no": 19,
+      "type": "Assertion-Reason",
+      "correct_option": "B",
+      "correct_answer": "Both Assertion (A) and Reason (R) are true, but Reason (R) is not a correct explanation of Assertion (A)",
+      "max_marks": 1,
+      "marking_scheme": "1 mark for correct option"
+    },
+    {
+      "q_no": 20,
+      "type": "Assertion-Reason",
+      "correct_option": "B",
+      "correct_answer": "Both Assertion (A) and Reason (R) are true, but Reason (R) is not a correct explanation of Assertion (A)",
+      "max_marks": 1,
+      "marking_scheme": "1 mark for correct option"
+    },
+    {
+      "q_no": 21,
+      "type": "Very Short Answer",
+      "part": "a",
+      "correct_answer": "Copper Oxide, Black, 2Cu + O2 → Heat → 2CuO",
+      "max_marks": 2,
+      "keywords": ["Copper Oxide", "Black", "2Cu", "O2", "2CuO"],
+      "marking_scheme": "½ mark for Copper Oxide, ½ for Black, 1 for correct equation"
+    },
+    {
+      "q_no": 22,
+      "type": "Very Short Answer",
+      "correct_answer": "Low melting/boiling points due to weak intermolecular forces. Non-conductors because covalent bonding does not form ions/charged particles.",
+      "max_marks": 2,
+      "keywords": ["weak intermolecular forces", "no ions", "covalent bonds", "no charged particles"],
+      "marking_scheme": "1 mark each for correct explanation"
+    },
+    {
+      "q_no": 23,
+      "type": "Very Short Answer",
+      "part": "a",
+      "correct_answer": "Formation of lactic acid in muscles causes cramps. Aerobic respiration requires oxygen, anaerobic (lack of oxygen) produces lactic acid.",
+      "max_marks": 2,
+      "keywords": ["lactic acid", "cramps", "lack of oxygen", "anaerobic"],
+      "marking_scheme": "1 mark each point"
+    },
+    {
+      "q_no": 24,
+      "type": "Very Short Answer",
+      "correct_answer": "Plasmodium: Multiple fission (single cell divides into many). Leishmania: Binary fission (splits into two in definite orientation).",
+      "max_marks": 2,
+      "keywords": ["Plasmodium", "multiple fission", "Leishmania", "binary fission"],
+      "marking_scheme": "1 mark each (½ for name + ½ for type)"
+    },
+    {
+      "q_no": 25,
+      "type": "Very Short Answer",
+      "part": "a",
+      "correct_answer": "Sunlight is converged at a point by convex lens generating heat causing paper to burn.",
+      "max_marks": 2,
+      "keywords": ["converged", "convex lens", "heat", "burn"],
+      "marking_scheme": "1 mark each"
+    },
+    {
+      "q_no": 26,
+      "type": "Very Short Answer",
+      "correct_answer": "t = Q/I = 500C / (25/1000 A) = 20000 seconds",
+      "max_marks": 2,
+      "keywords": ["Q=It", "t=Q/I", "20000 s"],
+      "marking_scheme": "½ for formula, ½ for substitution, 1 for answer"
+    },
+    {
+      "q_no": 27,
+      "type": "Short Answer",
+      "correct_answer": "Fe(s) + CuSO4(aq) → FeSO4(aq) + Cu(s). Displacement reaction - more reactive metal displaces less reactive metal from salt solution. Examples: Zinc, Aluminium, Calcium, Magnesium",
+      "max_marks": 3,
+      "keywords": ["Fe + CuSO4", "displacement reaction", "more reactive", "displaces", "Zn", "Al", "Ca", "Mg"],
+      "marking_scheme": "1 for equation, 1 for definition, 1 for two examples"
+    },
+    {
+      "q_no": 28,
+      "type": "Short Answer",
+      "correct_answer": "Cinnabar - Sulphide ore. 2HgS + 3O2 → 2HgO + 2SO2. 2HgO → Heat → 2Hg + O2",
+      "max_marks": 3,
+      "keywords": ["cinnabar", "sulphide ore", "HgS", "HgO", "extraction"],
+      "marking_scheme": "1 for name, 1 for each equation"
+    },
+    {
+      "q_no": 29,
+      "type": "Short Answer",
+      "parts": ["i", "ii"],
+      "correct_answer": "(i) Growth hormone - Pituitary gland - stimulates growth in all organs. (ii) Thyroxin - Thyroid gland - regulates carbohydrate, protein and fat metabolism.",
+      "max_marks": 3,
+      "keywords": ["growth hormone", "pituitary", "thyroxin", "thyroid", "metabolism"],
+      "marking_scheme": "1.5 marks each (½ gland + ½ function + ½ location)"
+    },
+    {
+      "q_no": 30,
+      "type": "Short Answer",
+      "parts": ["a", "b", "c"],
+      "correct_answer": "All plants Tall with Tt. Short is recessive trait. Tall:Short = 3:1 - Tall dominant, Short recessive.",
+      "max_marks": 3,
+      "keywords": ["Tt", "recessive", "dominant", "3:1"],
+      "marking_scheme": "1 mark each part"
+    },
+    {
+      "q_no": 31,
+      "type": "Short Answer",
+      "parts": ["a", "b", "c"],
+      "correct_answer": "(a) Hypermetropia, Ciliary muscles/eye lens. (b) Focal length too long or eyeball too small. (c) Converging lenses/convex lens to provide additional focussing power.",
+      "max_marks": 3,
+      "keywords": ["hypermetropia", "focal length too long", "eyeball too small", "convex lens"],
+      "marking_scheme": "1 mark each part"
+    },
+    {
+      "q_no": 32,
+      "type": "Short Answer",
+      "correct_answer": "It gets magnetised - Electromagnet. Magnetic field lines are parallel and equally spaced showing uniform magnetic field.",
+      "max_marks": 3,
+      "keywords": ["magnetised", "electromagnet", "uniform magnetic field", "parallel lines"],
+      "marking_scheme": "½+1 for part a, ½ for pattern, ½ for uniform field"
+    },
+    {
+      "q_no": 33,
+      "type": "Short Answer",
+      "correct_answer": "Food chain: series of organisms feeding on one another. Food web: network of interconnected food chains. Grass population increases. Tiger population decreases.",
+      "max_marks": 3,
+      "keywords": ["food chain", "food web", "grass increases", "tiger decreases"],
+      "marking_scheme": "1+1 for definitions, ½ each for population effects"
+    },
+    {
+      "q_no": 34,
+      "type": "Long Answer",
+      "parts": ["a", "b", "c", "d"],
+      "correct_answer": "(i) Water of crystallisation evaporates. (ii) Green to White. (iii) Seven (FeSO4·7H2O). Examples: CuSO4·5H2O, Na2CO3·10H2O. (iv) Gypsum heated to 373K gives Plaster of Paris. Uses: making toys, supporting fractured bones.",
+      "max_marks": 5,
+      "keywords": ["water of crystallisation", "green to white", "FeSO4·7H2O", "gypsum", "plaster of Paris", "373K"],
+      "marking_scheme": "1+½+½+½+½+1+½+½"
+    },
+    {
+      "q_no": 35,
+      "type": "Long Answer",
+      "correct_answer": "Destarch plants by keeping in darkness. Place KOH near plant A to absorb CO2. Cover with bell jars, keep in sunlight. Test leaves with iodine. Leaf with KOH shows no starch (no blue-black), other leaf shows starch. Conclusion: CO2 needed for photosynthesis.",
+      "max_marks": 5,
+      "keywords": ["destarch", "darkness", "KOH", "CO2", "bell jar", "iodine test", "starch", "photosynthesis"],
+      "marking_scheme": "½×6 for steps, 1 for observation, 1 for conclusion"
+    },
+    {
+      "q_no": 36,
+      "type": "Long Answer",
+      "correct_answer": "Current becomes one-third. Ohm's Law: V ∝ I at constant temperature. Total V = 4×1.5 = 6V. Total R = 5+10+15 = 30Ω. I = V/R = 6/30 = 0.2A. Voltage across 10Ω = IR = 0.2×10 = 2V.",
+      "max_marks": 5,
+      "keywords": ["one-third", "Ohm's Law", "V=IR", "6V", "30Ω", "0.2A", "2V"],
+      "marking_scheme": "1+1+1+1+1"
+    },
+    {
+      "q_no": 37,
+      "type": "Very Long Answer",
+      "parts": ["a", "b", "c"],
+      "correct_answer": "(a) Self-pollination vs Cross-pollination differences. (b) Petals dry and fall off. (c)(i) Fusion of male and female gametes forms zygote. Ovule → Seed, Ovary → Fruit. OR (c)(ii) Plumule → future shoot, Radicle → future root, Cotyledon stores food.",
+      "max_marks": 6,
+      "keywords": ["self-pollination", "cross-pollination", "petals", "zygote", "ovule to seed", "ovary to fruit", "plumule", "radicle", "cotyledon"],
+      "marking_scheme": "1+1+1+1+2"
+    },
+    {
+      "q_no": 38,
+      "type": "Very Long Answer",
+      "parts": ["a", "b", "c"],
+      "correct_answer": "(a) Principal axis - straight line through pole and centre of curvature. (b) R = 20cm. (c)(i) u = -10cm, f = +15cm, 1/f = 1/v + 1/u → 1/v = 1/15 - 1/(-10) = 1/6 → v = +6cm. OR (c)(ii) Convex mirror/Diverging mirror.",
+      "max_marks": 6,
+      "keywords": ["principal axis", "radius of curvature", "20cm", "mirror formula", "convex mirror"],
+      "marking_scheme": "1+1+4 (or 1+1+2+2)"
+    }
+  ]
+}

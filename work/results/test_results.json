@@ -1,0 +1,1473 @@
+{
+  "question_paper_easy": {
+    "sheet": "question_paper",
+    "difficulty": "easy",
+    "time_seconds": 27.59664487838745,
+    "result": {
+      "student_answers": [],
+      "total_marks": 0,
+      "max_marks": 80,
+      "overall_remarks": "Student answer sheet PDF was not provided. Only the question paper PDF was received. Therefore, no answers could be extracted or evaluated.",
+      "readability_score": "N/A"
+    }
+  },
+  "topper_sheet_easy": {
+    "sheet": "topper_sheet",
+    "difficulty": "easy",
+    "time_seconds": 68.381582736969,
+    "result": {
+      "student_answers": [
+        {
+          "q_no": 1,
+          "extracted_answer": "(C) 2,2,4.",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option and answer.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 2,
+          "extracted_answer": "(D) Fe2O3 + 300 → 2Fe + 3002",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option and equation.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 3,
+          "extracted_answer": "(4) calcium phosphate",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option and answer.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 4,
+          "extracted_answer": "(C) 7",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option and answer.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 5,
+          "extracted_answer": "(B) Al, Al2O3",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option and answer.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 6,
+          "extracted_answer": "(D) Translocation",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option and answer.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 7,
+          "extracted_answer": "(C) Receptors in skin → Sensory neuron → Relay neuron → Motor neuron → Effector muscle in arm",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option and sequence.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 8,
+          "extracted_answer": "(A) Nose",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option and answer.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 9,
+          "extracted_answer": "(c) It has a veery small surface area for glucose and oxygen to pass fecam mother to embryo.",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option and explanation.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 10,
+          "extracted_answer": "(A) (i) & (ⅱ)",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 11,
+          "extracted_answer": "(C) The Brightness of the image will be reduce",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option and answer.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 12,
+          "extracted_answer": "(B) Refraction, dispersion, and internal reflection",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option and answer.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 13,
+          "extracted_answer": "(4) Red",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option and answer.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 14,
+          "extracted_answer": "(C) A solenoid",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option and answer.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 15,
+          "extracted_answer": "(A) both pointing into the plane of paper",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option and answer.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 16,
+          "extracted_answer": "(D) cropland ecosystem",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option and answer.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 17,
+          "extracted_answer": "(A) Both (A) Assertion. & (R) Reagen are teve and Ris correct explanation of A.",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 18,
+          "extracted_answer": "(D) A is false but R is true",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 19,
+          "extracted_answer": "(B) Both Assertion (A) and Peason (R) is correct, but Reason (R) is NOT correct explanation of Assertion(A).",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 20,
+          "extracted_answer": "(B) Both Afsortion (A) and Reason (P) are teme, but Reason (R) is NOT correct explanation of Assertion (A).",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 21,
+          "extracted_answer": "* Copped oxide is formed. Its colour is Black. * 2Cu + O2 Heat → 2CuO",
+          "marks_awarded": 2,
+          "max_marks": 2,
+          "confidence": "high",
+          "feedback": "Correctly identified copper oxide, its color, and provided the balanced chemical equation.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 22,
+          "extracted_answer": "(1) The intermolecular forces of attraction between carbon compounds is weaks. Due to this, they have low melting & boiling point (2) The carbon compounds do not contain ions and they form covalent bende. As they don't conduct electricity,",
+          "marks_awarded": 2,
+          "max_marks": 2,
+          "confidence": "high",
+          "feedback": "Correctly explained low melting/boiling points due to weak intermolecular forces and non-conductivity due to absence of ions in covalent compounds.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 23,
+          "extracted_answer": "(a) (1) cramps are caused due to formation of lactic Acid in muscle cells. (2) Due to lack of oxygen, another pathway for breakdoven of glucose is chosen. This is angerobic respiration as performed in absence of oxygen. The products are different from aerobic respiration i-e. Lactic Acid.",
+          "marks_awarded": 2,
+          "max_marks": 2,
+          "confidence": "high",
+          "feedback": "Correctly explained the cause of cramps and the process of anaerobic respiration leading to lactic acid formation.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 24,
+          "extracted_answer": "(1) Plasmodium reproduce by multiple fission. In this process a single cell of plasmodium forms a protective coating (cyst) during unfavourable condition. The cell divides multiple times at once producing several daughter cells. (2) Leishmania reproduce by binary fission. In this priocers, the unicellular organism Leishmania divides into two daughter cells. This happens by division of nucleus and cytoplasm of the cell. longitudinally.",
+          "marks_awarded": 2,
+          "max_marks": 2,
+          "confidence": "high",
+          "feedback": "Correctly described reproduction in Plasmodium (multiple fission) and Leishmania (binary fission).",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 25,
+          "extracted_answer": "(a) The convex lens converges the sunlight by refracting (bending) the rays of sunlight & beinging it to one point. Thus, the ray's come together to produce heat & burn paper. (b) Principal focus. Bright spot represents the image of sun.",
+          "marks_awarded": 2,
+          "max_marks": 2,
+          "confidence": "high",
+          "feedback": "Correctly explained the converging action of a convex lens and the significance of the bright spot.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 26,
+          "extracted_answer": "Q = SOOC I= 25mA = 25 A 1000 t=? I=욘⇒ t = t = 5000 A 1000 = 20 500 xtoo 500 x 1000 25 = 200003 04 333m208",
+          "marks_awarded": 2,
+          "max_marks": 2,
+          "confidence": "high",
+          "feedback": "Correctly applied the formula Q=It and calculated the time.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 27,
+          "extracted_answer": "(1) Fe (s) + Cu Soy(aq) → Fesoy (aq) + Culs) (2.) Displacement reaction. In this reaction, a more reactive element displaces a less reactive element from its compound (Solution) (3) Zinc (zn) & Aluminium (Al).",
+          "marks_awarded": 3,
+          "max_marks": 3,
+          "confidence": "high",
+          "feedback": "Correct equation, definition of displacement reaction, and examples.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 28,
+          "extracted_answer": "(1) cinnabar. & Mercury is found in its sulphide ore in nature. (2) 2HgS +3O2 → 2HgO + 2SO2 2HgO → 2Hg + O2 The condition sxequired is heat. In fiast reaction presence of oxygen is also needed to oxidise mercury.",
+          "marks_awarded": 3,
+          "max_marks": 3,
+          "confidence": "high",
+          "feedback": "Correctly identified cinnabar as sulphide ore and provided the correct extraction equations with conditions.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 29,
+          "extracted_answer": "(1) Growth Hormone is secreted by pituitary gland. This helps in growth and development of bones and muscles in our body. Hence, the it promotes the growth of height. (11) Thyroxine Hormone is secreted by Thyroid gland. It regulates the metabolism of carbohydrates, protin and bo fats in the body.",
+          "marks_awarded": 3,
+          "max_marks": 3,
+          "confidence": "high",
+          "feedback": "Correctly identified the glands and functions of both growth hormone and thyroxine.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 30,
+          "extracted_answer": "(a) Fi progeny plants were all talt. Their. gene combination is (Tt.) (b) Gene for shortners was repressed in plants of Fi progeny because they were recessive gone. Recessive gene & show appearance of a trait only in peresence of another identical gene. In this case, a dominant gene for tallness was present. Hence, gene for shortners could not be expected. (c) 3:1 for tall plants: short plants. The conclusion of experiment is th traits are controlled by two Ropies of gene, each acquired & fream one pavent. The Bust only one copy shows its appearance in the progeny, other is repressed. The Hence, theire are two types of genes, one dominant and other recessive. However the repressed copy of gene may show in its appearance in next generation, if another. identical copy is present.",
+          "marks_awarded": 3,
+          "max_marks": 3,
+          "confidence": "high",
+          "feedback": "Correctly explained the F1 generation, the concept of recessive genes, and the 3:1 ratio with underlying genetic principles.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 31,
+          "extracted_answer": "((b) (1) Di The splitting of white light into its component colours due to dependence of wavelength refractive index on wavelength of light, is called dispersion. (2) & Dispersion of white light is caused by refraction. The white-light bas is mixture of seven colours je VIBGYOR. Since, to refractive index of a medium is different for different wavelengths of light-the other components of white light bends at different angles on ano entering another medium. As a result, they Separate out and appear as distinct colowy. (3) [Diagram]",
+          "marks_awarded": 0,
+          "max_marks": 3,
+          "confidence": "high",
+          "feedback": "The student answered a question about 'Dispersion of light' which is not the topic for Q31 in the provided answer key (Hypermetropia). Marks cannot be awarded as per the key.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 32,
+          "extracted_answer": "( When bundle of soft iron is placed inside a coil of a Solenoid carrginty ewrent, then the bundle of soft icon is magnetised due to magnetic field peroduced by the steedy cworent. The device obtained is electromagnet It is called so because the magnet is obtained by magnetic field due to an electric corrents. (b) [Diagram] The magnetic field lines pure & ly straight and parallel to each other indicating that there is a uniform magnetic field inside solenoid.",
+          "marks_awarded": 3,
+          "max_marks": 3,
+          "confidence": "high",
+          "feedback": "Correctly explained the working of an electromagnet and the nature of the magnetic field inside a solenoid.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 33,
+          "extracted_answer": "Fored chain is a straight series of organisms that feeds on one another. It is generally depicted by a straight line. However, one organism is fed by several other kinds of organisть which in twin by are fed by many more organisms. So, A branched chain of food chain A food chain with several branches showing the flow of energy to diferent organisms from one is called food web. (2) It population of deer decreates, then the population of organisms in 3rd trophic level will (Tigers) will decrease as they'll have less food to eat and hence, they, I die. In contrast, the population geess of organisms in first trophic level / will increase dramatically. as thesete there will be left organisme to feed on them.",
+          "marks_awarded": 3,
+          "max_marks": 3,
+          "confidence": "high",
+          "feedback": "Correctly defined food chain and food web, and accurately described the impact on populations.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 34,
+          "extracted_answer": "(a) (i) crystals of ferrous sulphate has 1 water of crystallisation. These are present as an essential part of crystal in fixed numbers per unit formula of the compound. On heating ferrous sulphate crystals, these moleculer of water comes out of the crystals and becomes free water which can be seen in the test tube. Fesoy. 7H2O → FeSoy + H₂O, (ii) Green colour of Fesoy crystal will fade and the buystod will become white in colour. (iii) seven molecules. (1) Cusoy 5H20 (Ⅱ) Na2CO3.10H2O (N) When gypsum is heated at 100% (373K), then it lofes 1½ molecule of water of crystallisation to become plaster of paris with only 1/½ molecule of water of crystallisation, Casoy. 2H20 100°C → Ca soy 20 + ½ 20",
+          "marks_awarded": 5,
+          "max_marks": 5,
+          "confidence": "high",
+          "feedback": "Comprehensive answer covering water of crystallization, color change, number of molecules, examples, and the gypsum to Plaster of Paris conversion.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 35,
+          "extracted_answer": "(b) (ⅰ) Lime water toms milky due to formation of a cakium carbonate, white precipitate in it.\" Ca(OH)2 + CO2 → CaCO3 + H₂O Now, In diagram (1), the aist atmospheric air is passed into the solution. Since, atmospheric air containt a very small percentage of cos, the solution trans millky a slowly and takes a long time. while, air exhaled from mouth [ diagram (Ⅱ)) has a large percentage of cos and hence it toms the lime coated milky faster (comparatively) (ii) [Diagram of stomata with labels]",
+          "marks_awarded": 0,
+          "max_marks": 5,
+          "confidence": "high",
+          "feedback": "The student answered a question about 'Lime water test for CO2 and stomata diagram' which is not the topic for Q35 in the provided answer key (experiment for CO2 in photosynthesis). Marks cannot be awarded as per the key.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 36,
+          "extracted_answer": "Functions of stomata. (ⅰ). It helps in gaseous exchange of oxygen and carbon dioxide. for photosynthosis and respiration, (ii) It helps to remove excek water from plant, during transpiration, 36. (a) (1) V = IR when Ris constant, VCI.. So, if, voltage is devreated to one-third, then current will also became one-thired of its initial. value. * Ohm's Law. The voltage across the two terminals of a metallic conductor wire is proportional to the current flowing through it provided the temperature remains same (2) Req = R1 + R2 + Rs = S+ 10+ 15 = 30Ω V= 6V I=V/R = 6/30 = 0.2A (Ⅱ) V₂ = IR₂ = 0.2×10 = 2V",
+          "marks_awarded": 5,
+          "max_marks": 5,
+          "confidence": "high",
+          "feedback": "Correctly explained the effect of voltage change on current based on Ohm's Law and performed all calculations accurately for the circuit.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 37,
+          "extracted_answer": "Section-E 37. (a) Hydrocarbons are the organic compounds which contain anly hydrogen and carbon in it. (b) (1) Catenation or self combination (2) Tetravalency. (c)(i) (1) Aldehyde - C-H (2) Ketone → -C- (c)(ii) CH3COOH + C2H5OH conc. Ho504 CH3COOC2H5 + H₂O",
+          "marks_awarded": 0,
+          "max_marks": 6,
+          "confidence": "high",
+          "feedback": "The student answered a 'Chemistry' question (Hydrocarbons, Catenation, Functional groups, Esterification) which is not the topic for Q37 in the provided answer key (Biology question on pollination/fertilization). Marks cannot be awarded as per the key.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 38,
+          "extracted_answer": "39. Rx (a) principal axis is a straight line passing from and normal to the pole of concave mirrer and its centre of curvature. (b) focal length (f) = 10cm. R=2f. R = 2x10 [R=20cm (C) Convex mirung. [Diagram]",
+          "marks_awarded": 6,
+          "max_marks": 6,
+          "confidence": "high",
+          "feedback": "The student's answer for Q39 matches the content of Q38 in the provided answer key. All parts (principal axis definition, calculation of R, and identification of convex mirror with diagram) are correct.",
+          "legibility_issue": false
+        }
+      ],
+      "total_marks": 66,
+      "max_marks": 80,
+      "overall_remarks": "The student has demonstrated a good understanding of the topics covered in the questions where the numbering matched the answer key. However, there were significant discrepancies in question numbers for Q31, Q35, Q37, and Q38, where the student answered different topics than expected by the key. This suggests a mismatch between the student's question paper and the provided answer key. For the questions attempted as per the key, the performance is excellent.",
+      "readability_score": "good"
+    }
+  },
+  "question_paper_medium": {
+    "sheet": "question_paper",
+    "difficulty": "medium",
+    "time_seconds": 46.10592293739319,
+    "result": {
+      "student_answers": [
+        {
+          "q_no": 1,
+          "extracted_answer": "No student answer found in the provided document (question paper).",
+          "marks_awarded": 0,
+          "max_marks": 1,
+          "confidence": "low",
+          "feedback": "Cannot evaluate as no answer sheet was provided.",
+          "legibility_issue": true
+        },
+        {
+          "q_no": 2,
+          "extracted_answer": "No student answer found in the provided document (question paper).",
+          "marks_awarded": 0,
+          "max_marks": 1,
+          "confidence": "low",
+          "feedback": "Cannot evaluate as no answer sheet was provided.",
+          "legibility_issue": true
+        },
+        {
+          "q_no": 3,
+          "extracted_answer": "No student answer found in the provided document (question paper).",
+          "marks_awarded": 0,
+          "max_marks": 1,
+          "confidence": "low",
+          "feedback": "Cannot evaluate as no answer sheet was provided.",
+          "legibility_issue": true
+        },
+        {
+          "q_no": 4,
+          "extracted_answer": "No student answer found in the provided document (question paper).",
+          "marks_awarded": 0,
+          "max_marks": 1,
+          "confidence": "low",
+          "feedback": "Cannot evaluate as no answer sheet was provided.",
+          "legibility_issue": true
+        },
+        {
+          "q_no": 5,
+          "extracted_answer": "No student answer found in the provided document (question paper).",
+          "marks_awarded": 0,
+          "max_marks": 1,
+          "confidence": "low",
+          "feedback": "Cannot evaluate as no answer sheet was provided.",
+          "legibility_issue": true
+        },
+        {
+          "q_no": 6,
+          "extracted_answer": "No student answer found in the provided document (question paper).",
+          "marks_awarded": 0,
+          "max_marks": 1,
+          "confidence": "low",
+          "feedback": "Cannot evaluate as no answer sheet was provided.",
+          "legibility_issue": true
+        },
+        {
+          "q_no": 7,
+          "extracted_answer": "No student answer found in the provided document (question paper).",
+          "marks_awarded": 0,
+          "max_marks": 1,
+          "confidence": "low",
+          "feedback": "Cannot evaluate as no answer sheet was provided.",
+          "legibility_issue": true
+        },
+        {
+          "q_no": 8,
+          "extracted_answer": "No student answer found in the provided document (question paper).",
+          "marks_awarded": 0,
+          "max_marks": 1,
+          "confidence": "low",
+          "feedback": "Cannot evaluate as no answer sheet was provided.",
+          "legibility_issue": true
+        },
+        {
+          "q_no": 9,
+          "extracted_answer": "No student answer found in the provided document (question paper).",
+          "marks_awarded": 0,
+          "max_marks": 1,
+          "confidence": "low",
+          "feedback": "Cannot evaluate as no answer sheet was provided.",
+          "legibility_issue": true
+        },
+        {
+          "q_no": 10,
+          "extracted_answer": "No student answer found in the provided document (question paper).",
+          "marks_awarded": 0,
+          "max_marks": 1,
+          "confidence": "low",
+          "feedback": "Cannot evaluate as no answer sheet was provided.",
+          "legibility_issue": true
+        },
+        {
+          "q_no": 11,
+          "extracted_answer": "No student answer found in the provided document (question paper).",
+          "marks_awarded": 0,
+          "max_marks": 1,
+          "confidence": "low",
+          "feedback": "Cannot evaluate as no answer sheet was provided.",
+          "legibility_issue": true
+        },
+        {
+          "q_no": 12,
+          "extracted_answer": "No student answer found in the provided document (question paper).",
+          "marks_awarded": 0,
+          "max_marks": 1,
+          "confidence": "low",
+          "feedback": "Cannot evaluate as no answer sheet was provided.",
+          "legibility_issue": true
+        },
+        {
+          "q_no": 13,
+          "extracted_answer": "No student answer found in the provided document (question paper).",
+          "marks_awarded": 0,
+          "max_marks": 1,
+          "confidence": "low",
+          "feedback": "Cannot evaluate as no answer sheet was provided.",
+          "legibility_issue": true
+        },
+        {
+          "q_no": 14,
+          "extracted_answer": "No student answer found in the provided document (question paper).",
+          "marks_awarded": 0,
+          "max_marks": 1,
+          "confidence": "low",
+          "feedback": "Cannot evaluate as no answer sheet was provided.",
+          "legibility_issue": true
+        },
+        {
+          "q_no": 15,
+          "extracted_answer": "No student answer found in the provided document (question paper).",
+          "marks_awarded": 0,
+          "max_marks": 1,
+          "confidence": "low",
+          "feedback": "Cannot evaluate as no answer sheet was provided.",
+          "legibility_issue": true
+        },
+        {
+          "q_no": 16,
+          "extracted_answer": "No student answer found in the provided document (question paper).",
+          "marks_awarded": 0,
+          "max_marks": 1,
+          "confidence": "low",
+          "feedback": "Cannot evaluate as no answer sheet was provided.",
+          "legibility_issue": true
+        },
+        {
+          "q_no": 17,
+          "extracted_answer": "No student answer found in the provided document (question paper).",
+          "marks_awarded": 0,
+          "max_marks": 1,
+          "confidence": "low",
+          "feedback": "Cannot evaluate as no answer sheet was provided.",
+          "legibility_issue": true
+        },
+        {
+          "q_no": 18,
+          "extracted_answer": "No student answer found in the provided document (question paper).",
+          "marks_awarded": 0,
+          "max_marks": 1,
+          "confidence": "low",
+          "feedback": "Cannot evaluate as no answer sheet was provided.",
+          "legibility_issue": true
+        },
+        {
+          "q_no": 19,
+          "extracted_answer": "No student answer found in the provided document (question paper).",
+          "marks_awarded": 0,
+          "max_marks": 1,
+          "confidence": "low",
+          "feedback": "Cannot evaluate as no answer sheet was provided.",
+          "legibility_issue": true
+        },
+        {
+          "q_no": 20,
+          "extracted_answer": "No student answer found in the provided document (question paper).",
+          "marks_awarded": 0,
+          "max_marks": 1,
+          "confidence": "low",
+          "feedback": "Cannot evaluate as no answer sheet was provided.",
+          "legibility_issue": true
+        },
+        {
+          "q_no": 21,
+          "extracted_answer": "No student answer found in the provided document (question paper).",
+          "marks_awarded": 0,
+          "max_marks": 2,
+          "confidence": "low",
+          "feedback": "Cannot evaluate as no answer sheet was provided.",
+          "legibility_issue": true
+        },
+        {
+          "q_no": 22,
+          "extracted_answer": "No student answer found in the provided document (question paper).",
+          "marks_awarded": 0,
+          "max_marks": 2,
+          "confidence": "low",
+          "feedback": "Cannot evaluate as no answer sheet was provided.",
+          "legibility_issue": true
+        },
+        {
+          "q_no": 23,
+          "extracted_answer": "No student answer found in the provided document (question paper).",
+          "marks_awarded": 0,
+          "max_marks": 2,
+          "confidence": "low",
+          "feedback": "Cannot evaluate as no answer sheet was provided.",
+          "legibility_issue": true
+        },
+        {
+          "q_no": 24,
+          "extracted_answer": "No student answer found in the provided document (question paper).",
+          "marks_awarded": 0,
+          "max_marks": 2,
+          "confidence": "low",
+          "feedback": "Cannot evaluate as no answer sheet was provided.",
+          "legibility_issue": true
+        },
+        {
+          "q_no": 25,
+          "extracted_answer": "No student answer found in the provided document (question paper).",
+          "marks_awarded": 0,
+          "max_marks": 2,
+          "confidence": "low",
+          "feedback": "Cannot evaluate as no answer sheet was provided.",
+          "legibility_issue": true
+        },
+        {
+          "q_no": 26,
+          "extracted_answer": "No student answer found in the provided document (question paper).",
+          "marks_awarded": 0,
+          "max_marks": 2,
+          "confidence": "low",
+          "feedback": "Cannot evaluate as no answer sheet was provided.",
+          "legibility_issue": true
+        },
+        {
+          "q_no": 27,
+          "extracted_answer": "No student answer found in the provided document (question paper).",
+          "marks_awarded": 0,
+          "max_marks": 3,
+          "confidence": "low",
+          "feedback": "Cannot evaluate as no answer sheet was provided.",
+          "legibility_issue": true
+        },
+        {
+          "q_no": 28,
+          "extracted_answer": "No student answer found in the provided document (question paper).",
+          "marks_awarded": 0,
+          "max_marks": 3,
+          "confidence": "low",
+          "feedback": "Cannot evaluate as no answer sheet was provided.",
+          "legibility_issue": true
+        },
+        {
+          "q_no": 29,
+          "extracted_answer": "No student answer found in the provided document (question paper).",
+          "marks_awarded": 0,
+          "max_marks": 3,
+          "confidence": "low",
+          "feedback": "Cannot evaluate as no answer sheet was provided.",
+          "legibility_issue": true
+        },
+        {
+          "q_no": 30,
+          "extracted_answer": "No student answer found in the provided document (question paper).",
+          "marks_awarded": 0,
+          "max_marks": 3,
+          "confidence": "low",
+          "feedback": "Cannot evaluate as no answer sheet was provided.",
+          "legibility_issue": true
+        },
+        {
+          "q_no": 31,
+          "extracted_answer": "No student answer found in the provided document (question paper).",
+          "marks_awarded": 0,
+          "max_marks": 3,
+          "confidence": "low",
+          "feedback": "Cannot evaluate as no answer sheet was provided.",
+          "legibility_issue": true
+        },
+        {
+          "q_no": 32,
+          "extracted_answer": "No student answer found in the provided document (question paper).",
+          "marks_awarded": 0,
+          "max_marks": 3,
+          "confidence": "low",
+          "feedback": "Cannot evaluate as no answer sheet was provided.",
+          "legibility_issue": true
+        },
+        {
+          "q_no": 33,
+          "extracted_answer": "No student answer found in the provided document (question paper).",
+          "marks_awarded": 0,
+          "max_marks": 3,
+          "confidence": "low",
+          "feedback": "Cannot evaluate as no answer sheet was provided.",
+          "legibility_issue": true
+        },
+        {
+          "q_no": 34,
+          "extracted_answer": "No student answer found in the provided document (question paper).",
+          "marks_awarded": 0,
+          "max_marks": 5,
+          "confidence": "low",
+          "feedback": "Cannot evaluate as no answer sheet was provided.",
+          "legibility_issue": true
+        },
+        {
+          "q_no": 35,
+          "extracted_answer": "No student answer found in the provided document (question paper).",
+          "marks_awarded": 0,
+          "max_marks": 5,
+          "confidence": "low",
+          "feedback": "Cannot evaluate as no answer sheet was provided.",
+          "legibility_issue": true
+        },
+        {
+          "q_no": 36,
+          "extracted_answer": "No student answer found in the provided document (question paper).",
+          "marks_awarded": 0,
+          "max_marks": 5,
+          "confidence": "low",
+          "feedback": "Cannot evaluate as no answer sheet was provided.",
+          "legibility_issue": true
+        },
+        {
+          "q_no": 37,
+          "extracted_answer": "No student answer found in the provided document (question paper).",
+          "marks_awarded": 0,
+          "max_marks": 4,
+          "confidence": "low",
+          "feedback": "Cannot evaluate as no answer sheet was provided.",
+          "legibility_issue": true
+        },
+        {
+          "q_no": 38,
+          "extracted_answer": "No student answer found in the provided document (question paper).",
+          "marks_awarded": 0,
+          "max_marks": 4,
+          "confidence": "low",
+          "feedback": "Cannot evaluate as no answer sheet was provided.",
+          "legibility_issue": true
+        },
+        {
+          "q_no": 39,
+          "extracted_answer": "No student answer found in the provided document (question paper).",
+          "marks_awarded": 0,
+          "max_marks": 4,
+          "confidence": "low",
+          "feedback": "Cannot evaluate as no answer sheet was provided.",
+          "legibility_issue": true
+        }
+      ],
+      "total_marks": 0,
+      "max_marks": 80,
+      "overall_remarks": "No student answers could be extracted as the provided PDF is a question paper, not an answer sheet. Therefore, no evaluation could be performed.",
+      "readability_score": "poor"
+    }
+  },
+  "topper_sheet_medium": {
+    "sheet": "topper_sheet",
+    "difficulty": "medium",
+    "time_seconds": 61.065348386764526,
+    "result": {
+      "student_answers": [
+        {
+          "q_no": 1,
+          "extracted_answer": "(C) 2,2,4.",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option and answer.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 2,
+          "extracted_answer": "(D) Fe2O3 + 300 → 2Fe + 3002",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option and balanced equation.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 3,
+          "extracted_answer": "(4) calcium phosphate",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option and answer.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 4,
+          "extracted_answer": "(C) 7",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option and answer.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 5,
+          "extracted_answer": "(B) Al, Al2O3",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option and answer.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 6,
+          "extracted_answer": "(D) Translocation",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option and answer.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 7,
+          "extracted_answer": "(C) Receptors in skin → Sensory neuron → Relay neuron → Motor neuron → Effector muscle in arm",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option and sequence.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 8,
+          "extracted_answer": "(A) Nose",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option and answer.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 9,
+          "extracted_answer": "(c) It has a veery small surface area for glucose and oxygen to pass fecam mother to embryo.",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option and explanation.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 10,
+          "extracted_answer": "(A) (i) & (ii)",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 11,
+          "extracted_answer": "(C) The Brightness of the image will be reduce",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 12,
+          "extracted_answer": "(B) Refraction, dispersion, and internal reflection",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 13,
+          "extracted_answer": "(4) Red",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option and answer.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 14,
+          "extracted_answer": "(C) A solenoid",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 15,
+          "extracted_answer": "(A) both pointing into the plane of paper",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 16,
+          "extracted_answer": "(D) cropland ecosystem",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 17,
+          "extracted_answer": "(A) Both (A) Assertion. & (R) Reagen are teve and Ris correct explanation of A.",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 18,
+          "extracted_answer": "(D) A is false but R is true",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 19,
+          "extracted_answer": "(B) Both Assertion (A) and Peason (R) is correct, but Reason (R) is NOT correct explanation of Assertion(A).",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 20,
+          "extracted_answer": "(B) Both Afsortion (A) and Reason (P) are teme, but Reason (R) is NOT correct explanation of Assertion (A).",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 21,
+          "extracted_answer": "* Copped onide is formed. Its colour is Black. * 2Cu + O2 Heat → 2C40/",
+          "marks_awarded": 2,
+          "max_marks": 2,
+          "confidence": "high",
+          "feedback": "Correctly identified copper oxide, its color, and provided the balanced chemical equation.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 22,
+          "extracted_answer": "(1) The intermolecular forces of attraction between carbon compounds is weaks. Due to this, they have low melting & boiling point (2) The carbon compounds do not contain ions and they form covalent bende. As they don't conduct electricity,",
+          "marks_awarded": 2,
+          "max_marks": 2,
+          "confidence": "high",
+          "feedback": "Correctly explained low melting/boiling points due to weak intermolecular forces and non-conductivity due to covalent bonding and absence of ions.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 23,
+          "extracted_answer": "(a) (1) cramps are caused due to formation of lactic Acid in muscle cells. (2) Due to lack of oxygen, another pathway for breakdoven of glucose is chosen. This is angerobic respiration as performed in absence of oxygen. The products are different from aerobic respiration i-e. Lactic Acid.",
+          "marks_awarded": 2,
+          "max_marks": 2,
+          "confidence": "high",
+          "feedback": "Correctly explained the cause of cramps and the process of anaerobic respiration leading to lactic acid formation.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 24,
+          "extracted_answer": "(1) Plasmodium reproduce by multiple fission. In this process a single cell of plasmodium forms a protective coating (cyst) during unfavourable condition. The cell divides multiple times at once producing several daughter cells. (2) Leishmania reproduce by binary fission. In this priocers, the unicellular organism Leishmania divides into two daughter cells. This happens by division of nucleus and cytoplasm of the cell. longitudinally.",
+          "marks_awarded": 2,
+          "max_marks": 2,
+          "confidence": "high",
+          "feedback": "Correctly described reproduction in Plasmodium (multiple fission) and Leishmania (binary fission).",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 25,
+          "extracted_answer": "(a) The convex lens converges the sunlight by refracting (bending) the rays of sunlight & beinging it to one point. Thus, the ray's s come together to produce heat & burn paper. (b) Principal focus. Bright spot represents the image of sun.",
+          "marks_awarded": 2,
+          "max_marks": 2,
+          "confidence": "high",
+          "feedback": "Correctly explained the action of a convex lens on sunlight and the significance of the bright spot.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 26,
+          "extracted_answer": "Q = SOOC I= 25mA = 25 A 1000 t=? I=욘⇒ t = t = 5000 A 1000 = 20 500 xtoo 500 x 1000 25 = 200003 04 333m208",
+          "marks_awarded": 2,
+          "max_marks": 2,
+          "confidence": "high",
+          "feedback": "Correct application of formula Q=It and calculation of time.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 27,
+          "extracted_answer": "(1) Fe (s) + Cu Soy(aq) → Fesoy (aq) + Culs) (2.) Displacement reaction. In this reaction, a more reactive element displaces a less reactive element from its compound (Solution) (3) Zinc (zn) & Aluminium (Al).",
+          "marks_awarded": 3,
+          "max_marks": 3,
+          "confidence": "high",
+          "feedback": "Correct equation, definition of displacement reaction, and examples of more reactive metals.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 28,
+          "extracted_answer": "(1) cinnabar. & Mercury is found in its sulphide ore in nature. (2) 2HgS +302 → 2HgO + 2502 2HgO → 2Hg + O2 The condition sxequired is heat. In fiast reaction presence of oxygen is also needed to oxidise mercury.",
+          "marks_awarded": 3,
+          "max_marks": 3,
+          "confidence": "high",
+          "feedback": "Correctly identified cinnabar as sulphide ore and provided the correct extraction equations with conditions.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 29,
+          "extracted_answer": "(1) Growth Hormone is secreted by pituitary gland. This helps in growth and development of bones and muscles in our body. Hence, the it promotes the growth of height. (11) Thyroxine Hormone is secreted by Thyroid gland. It regulates the metabolism of carbohydrates, protin and bo fats in the body.",
+          "marks_awarded": 3,
+          "max_marks": 3,
+          "confidence": "high",
+          "feedback": "Correctly identified glands and functions for Growth Hormone and Thyroxine.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 30,
+          "extracted_answer": "(a) Fi progeny plants were all talt. Their. gene combination is (Tt.) (b) Gene for shortners was repressed in plants of Fi progeny because they were recessive gone. Recessive gene & show appearance of a trait only in peresence of another identical gene. In this case, a dominant gene for tallness was present. Hence, gene for shortners could not be expected. (c) 3:1 for tall plants: short plants. The conclusion of experiment is th traits are controlled by two Ropies of gene, each acquired & fream one pavent. The But only one copy shows its appearance in the progeny, other is repressed. The Hence, theire are two types of genes, one dominant and other recessive. However the repressed copy of gene may show in its appearance in next generation, if another. identical copy is present.",
+          "marks_awarded": 3,
+          "max_marks": 3,
+          "confidence": "high",
+          "feedback": "Correctly explained F1 generation, recessive gene expression, and the 3:1 ratio with underlying genetic principles.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 31,
+          "extracted_answer": "(1) Di The splitting of white light into its component colours due to dependence of wavelength refractive index on wavelength of light, is called dispersion. (2) & Dispersion of white light is caused by refraction. The white-light bas is mixture of seven colours je VIBGYOR. Since, to refractive index of a medium is different for different wavelengths of light-the other components of white light bends at different angles on ano entering another medium. As a result, they Separate out and appear as distinct colowy. (3) Diagram.",
+          "marks_awarded": 3,
+          "max_marks": 3,
+          "confidence": "high",
+          "feedback": "Although the topic differs from the key, the explanation of dispersion of light, its cause, and the diagram are accurate and well-explained.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 32,
+          "extracted_answer": "( When bundle of soft iron is placed inside a coil of a Solenoid carrginty ewrent, then the bundle of soft icon is magnetised due to magnetic field peroduced by the steedy cworent. The device obtained is electromagnet It is called so because the magnet is obtained by magnetic field due to an electric corrents. (b) Diagram. The magnetic field lines pure & ly straight and parallel to each other indicating that there is a uniform magnetic field inside solenoid.",
+          "marks_awarded": 3,
+          "max_marks": 3,
+          "confidence": "high",
+          "feedback": "Correctly defined electromagnet and described the magnetic field inside a solenoid with a relevant diagram.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 33,
+          "extracted_answer": "Fored chain is a straight series of organisms that feeds. on one another. It is generally depicted by a straight line. However, one organism is fed by several other kinds of organisть which in twin by are fed by many more organisms. So, A branched chain of food chain A food chain with several branches showing the flow of energy to diferent organisms from one is called food web. (2) It population of deer decreates, then the population of organisms in 3rd trophic level will (Tigers) will decrease as they'll have less food to eat and hence, they, I die. In contrast, the population geess of organisms in first trophic level / will increase dramatically. as thesete there will be left organisme to feed on them.",
+          "marks_awarded": 3,
+          "max_marks": 3,
+          "confidence": "high",
+          "feedback": "Clear definitions of food chain and food web, and correct analysis of population changes.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 34,
+          "extracted_answer": "(a) (i) crystals of ferrous sulphate has 1 water of crystallisation. These are present as an essential part of crystal in fixed numbers per unit formula of the compound. On heating ferrous sulphate crystals, these moleculer of water comes out of the crystals and becomes free water which can be seen in the test tube. Fesoy. 7H2O → FeSoy + H₂O, (iⅱ) Green colour of Fesoy crystal will fade and the buystod will become white in colour. (iii) seven molecules. (1) Cusoy 5H20 (Ⅱ) Na2CO3.10H2O (N) When gypsum is heated at 100% (373K), then it lofes 1½ molecule of water of crystallisation to become plaster of paris with only 1/½ molecule of water of crystallisation, 100°C. Casoy. 2H20 → Ca soy 20 + ½ 20",
+          "marks_awarded": 5,
+          "max_marks": 5,
+          "confidence": "high",
+          "feedback": "Comprehensive answer covering water of crystallisation, color change, number of molecules, examples, and the reaction of gypsum to Plaster of Paris.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 35,
+          "extracted_answer": "user of P.O.P:- ① for setting fractured bones in right position. ② for making decoration items & toys. (b) (ⅰ) Lime water toms milky due to formation of a cakium carbonate, white precipitate in it.\" Ca(OH)2 + CO2 → CaCO3 + H₂O Now, In diagram (1), the aist atmospheric air is passed into the solution. Since, atmospheric air containt a very small percentage of cos, the solution trans millky a slowly and takes a long time. while, air exhaled from mouth [ diagram (Ⅱ)) has a large percentage of cos and hence it toms the lime coated milky faster (comparatively) (ii) Diagram with labels: (I) guard celts: open stomatal pore. (Ⅱ) chloroplast",
+          "marks_awarded": 5,
+          "max_marks": 5,
+          "confidence": "high",
+          "feedback": "Although the topic differs from the key, the uses of POP, the lime water experiment with CO2, and the stomata diagram with labels are all correctly explained.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 36,
+          "extracted_answer": "Functions of stomata. (ⅰ). It helps in gaseous exchange of oxygen and carbon dioxide. for photosynthosis and respiration, (ii) It helps to remove excek water from plant, during transpiration, (a) (1) V = IR when Ris constant, VCI.. So, if, voltage is devreated to one-third, then current will also became one-thired of its initial. value. * Ohm's Law. The voltage across the two terminals of a metallic conductor wire is proportional to the current flowing through it provided the temperature remains same (ii) Req = R1 + R2 + Rs = S+ 10+ 15 = 30Ω V= 6V I=/=/ $1 = 0.2A R 305 (Ⅱ) V₂ = IR₂ V2= 0.2×10 V2=2V",
+          "marks_awarded": 5,
+          "max_marks": 5,
+          "confidence": "high",
+          "feedback": "Correctly stated the relationship between V and I, defined Ohm's Law, and accurately calculated equivalent resistance, total current, and voltage across the 10Ω resistor.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 37,
+          "extracted_answer": "(a) Hydrocarbons are the organic compounds which contain anly hydrogen and carbon in it. (b) (1) Catenation or self combination (2) Tetravalency. ((ⅰ) (1) Aldehyde - C-H (2) Ketone → -C- CH3COOH + C2H5OH conc. Ho504 CH3COOC2H5 + H₂O -",
+          "marks_awarded": 6,
+          "max_marks": 6,
+          "confidence": "high",
+          "feedback": "Although the topic differs from the key, the definitions of hydrocarbons, catenation, tetravalency, functional groups of aldehyde and ketone, and the esterification reaction are all correct.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 38,
+          "extracted_answer": "(a)*self pollination occurs when the pollen grain is transferred frem anther to stigma of the same flower. * cross pollination takes place when the pollen grain is transferred from anther of one flower to stigma of another flower of same species. (b) Corolla made of colourful petals attracts insects for pollination. * All the petals fall off and detaches fecam plant after fertilisation. (c) (ii) Plumule is known as future shoot. and radile is known as future root. * Cotyledon has stored food inside it. This is necessary for germination of seed and keeping seed alive in dormant state.",
+          "marks_awarded": 6,
+          "max_marks": 6,
+          "confidence": "high",
+          "feedback": "Although the topic differs from the key, the definitions of self and cross-pollination, the role of petals, and the functions of plumule, radicle, and cotyledon are all correctly explained.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 39,
+          "extracted_answer": "(a) principal axis is a straight line passing from and normal to the pole of concave mirrer and its centre of curvature. (b) focal length (f) = 10cm. R=2f. R = 2x10 [R=20cm (c) Convex mirung. Diagram.",
+          "marks_awarded": 4,
+          "max_marks": 4,
+          "confidence": "high",
+          "feedback": "Correct definition of principal axis, calculation of radius of curvature, and a correct diagram for a convex mirror.",
+          "legibility_issue": false
+        }
+      ],
+      "total_marks": 84,
+      "max_marks": 84,
+      "overall_remarks": "Excellent performance! The student has answered all questions accurately and demonstrated a strong understanding of the concepts. Even for questions where the topic diverged from the provided key, the student's answers were factually correct and well-explained for the concepts addressed. Keep up the great work!",
+      "readability_score": "good"
+    }
+  },
+  "question_paper_hard": {
+    "sheet": "question_paper",
+    "difficulty": "hard",
+    "time_seconds": 22.779808521270752,
+    "result": {
+      "student_answers": [],
+      "total_marks": 0,
+      "max_marks": 80,
+      "overall_remarks": "Student answer sheet PDF was not provided. The provided PDF is the question paper. Therefore, evaluation of student answers cannot be performed.",
+      "readability_score": "not applicable"
+    }
+  },
+  "topper_sheet_hard": {
+    "sheet": "topper_sheet",
+    "difficulty": "hard",
+    "time_seconds": 76.49897289276123,
+    "result": {
+      "student_answers": [
+        {
+          "q_no": 1,
+          "extracted_answer": "(C) 2,2,4.",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option selected.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 2,
+          "extracted_answer": "(D) Fe2O3 + 300 → 2Fe + 3002",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option selected.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 3,
+          "extracted_answer": "(4) calcium phosphate",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option selected (assuming '4' is 'A').",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 4,
+          "extracted_answer": "(C) 7",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option selected.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 5,
+          "extracted_answer": "(B) Al, Al2O3",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option selected.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 6,
+          "extracted_answer": "(D) Translocation",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option selected.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 7,
+          "extracted_answer": "(C) Receptors in skin → Sensory neuron → Relay neuron → Motor neuron → Effector muscle in arm",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option selected.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 8,
+          "extracted_answer": "(A) Nose",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option selected.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 9,
+          "extracted_answer": "(c) It has a veery small surface area for glucose and oxygen to pass fecam mother to embryo.",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option selected.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 10,
+          "extracted_answer": "(A) (i) & (ii)",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option selected.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 11,
+          "extracted_answer": "(C) The Brightness of the image will be reduce",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option selected.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 12,
+          "extracted_answer": "(B) Refraction, dispersion, and internal reflection",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option selected.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 13,
+          "extracted_answer": "(A) Red",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option selected.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 14,
+          "extracted_answer": "(C) A solenoid",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option selected.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 15,
+          "extracted_answer": "(A) both pointing into the plane of paper",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option selected.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 16,
+          "extracted_answer": "(D) cropland ecosystem",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option selected.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 17,
+          "extracted_answer": "(A) Both (A) Assertion. & (R) Reagen are teve and R is correct explanation of A.",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option selected.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 18,
+          "extracted_answer": "(D) A is false but R is true",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option selected.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 19,
+          "extracted_answer": "(B) Both Assertion (A) and Peason (R) is correct, but Reason (R) is NOT correct explanation of Assertion(A).",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option selected.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 20,
+          "extracted_answer": "(B) Both Afsortion (A) and Reason (P) are teme, but Reason (R) is NOT correct explanation of Assertion (A).",
+          "marks_awarded": 1,
+          "max_marks": 1,
+          "confidence": "high",
+          "feedback": "Correct option selected.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 21,
+          "extracted_answer": "* Copped onide is formed. Its colour is Black. *2Cu + O2 Heat 2C40/",
+          "marks_awarded": 1,
+          "max_marks": 2,
+          "confidence": "high",
+          "feedback": "Correctly identified Copper Oxide and Black color (1 mark). Equation is incorrect (2C40 instead of 2CuO) (0 marks).",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 22,
+          "extracted_answer": "(1) The intermolecular forces of attraction between carbon compounds is weaks. Due to this, they have low melting & boiling point. (2) The carbon compounds do not contain ions and they form covalent bende. As they don't conduct electricity,",
+          "marks_awarded": 2,
+          "max_marks": 2,
+          "confidence": "high",
+          "feedback": "Correctly explained low melting/boiling point due to weak intermolecular forces and non-conductivity due to covalent bonds/no ions.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 23,
+          "extracted_answer": "(a) (1) cramps are caused due to formation of lactic Acid in muscle cells. (2) Due to lack of oxygen, another pathway for breakdoven of glucose is chosen. This is angerobic respiration as performed in absence of oxygen. The products are different from aerobic respiration i-e. Lactic Acid.",
+          "marks_awarded": 2,
+          "max_marks": 2,
+          "confidence": "high",
+          "feedback": "Correctly explained the cause of cramps and the role of anaerobic respiration.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 24,
+          "extracted_answer": "(1) Plasmodium reproduce by multiple fission. In this process a single cell of plasmodium forms a protective coating (cyst) during unfavourable condition. The cell divides multiple times at once producing several daughter cells. (2) Leishmania reproduce by binary fission. In this priocers, the unicellular organism Leishmania divides into two daughter cells. This happens by division of nucleus and cytoplasm of the cell. longitudinally.",
+          "marks_awarded": 2,
+          "max_marks": 2,
+          "confidence": "high",
+          "feedback": "Correctly described reproduction in Plasmodium (multiple fission) and Leishmania (binary fission).",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 25,
+          "extracted_answer": "(a) The convex lens converges the sunlight by refracting (bending) the rays of sunlight & beinging it to one point. Thus, the ray's come together to produce heat & burn paper. (b) Principal focus. Bright spot represents the image of sun.",
+          "marks_awarded": 2,
+          "max_marks": 2,
+          "confidence": "high",
+          "feedback": "Correctly explained the function of a convex lens in converging sunlight and identifying the bright spot as the image at the principal focus.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 26,
+          "extracted_answer": "Q = SOOC, I= 25mA = 25 A / 1000, t=?, I=Q/t => t = Q/I = 500C / (25/1000 A) = 20000s.",
+          "marks_awarded": 2,
+          "max_marks": 2,
+          "confidence": "high",
+          "feedback": "Correct formula, unit conversion, substitution, and calculation.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 27,
+          "extracted_answer": "(1) Fe (s) + Cu Soy(aq) → Fesoy (aq) + Culs). (2.) Displacement reaction. In this reaction, a more reactive element displaces a less reactive element from its compound (Solution). (3) Zinc (zn) & Aluminium (Al).",
+          "marks_awarded": 3,
+          "max_marks": 3,
+          "confidence": "high",
+          "feedback": "Correct equation, definition of displacement reaction, and examples.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 28,
+          "extracted_answer": "(1) cinnabar. & Mercury is found in its sulphide ore in nature. (2) 2HgS +3O2 → 2HgO + 2SO2. 2HgO → 2Hg + O2. The condition sxequired is heat. In fiast reaction presence of oxygen is also needed to oxidise mercury.",
+          "marks_awarded": 3,
+          "max_marks": 3,
+          "confidence": "high",
+          "feedback": "Correctly identified cinnabar as sulphide ore and provided correct extraction equations with conditions.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 29,
+          "extracted_answer": "(1) Growth Hormone is secreted by pituitary gland. This helps in growth and development of bones and muscles in our body. Hence, the it promotes the growth of height. (11) Thyroxine Hormone is secreted by Thyroid gland. It regulates the metabolism of carbohydrates, protin and bo fats in the body.",
+          "marks_awarded": 3,
+          "max_marks": 3,
+          "confidence": "high",
+          "feedback": "Correctly identified glands and functions for both hormones.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 30,
+          "extracted_answer": "(a) Fi progeny plants were all talt. Their gene combination is (Tt.) (b) Gene for shortners was repressed in plants of Fi progeny because they were recessive gone. Recessive gene & show appearance of a trait only in peresence of another identical gene. In this case, a dominant gene for tallness was present. Hence, gene for shortners could not be expected. (c) 3:1 for tall plants: short plants. The conclusion of experiment is th traits are controlled by two Ropies of gene, each acquired & fream one pavent. The Bust only one copy shows its appearance in the progeny, other is repressed. The Hence, theire are two types of genes, one dominant and other recessive. However the repressed copy of gene may show in its appearance in next generation, if another. identical copy is present.",
+          "marks_awarded": 3,
+          "max_marks": 3,
+          "confidence": "high",
+          "feedback": "Correctly explained F1 generation, recessive trait, and F2 ratio with genetic principles.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 31,
+          "extracted_answer": "(b) (1) Di The splitting of white light into its component colours due to dependence of wavelength refractive index on wavelength of light, is called dispersion. (2) & Dispersion of white light is caused by refraction. The white-light bas is mixture of seven colours je VIBGYOR. Since, to refractive index of a medium is different for different wavelengths of light-the other components of white light bends at different angles on ano entering another medium. As a result, they Separate out and appear as distinct colowy. (3) [Diagram of prism showing dispersion]",
+          "marks_awarded": 0,
+          "max_marks": 3,
+          "confidence": "high",
+          "feedback": "Answered question on dispersion of light instead of hypermetropia as per the answer key.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 32,
+          "extracted_answer": "(a) When bundle of soft iron is placed inside a coil of a Solenoid carrginty ewrent, then the bundle of soft icon is magnetised due to magnetic field peroduced by the steedy cworent. The device obtained is electromagnet. It is called so because the magnet is obtained by magnetic field due to an electric corrents. (b) [Diagram of solenoid with magnetic field lines] The magnetic field lines pure & ly straight and parallel to each other indicating that there is a uniform magnetic field inside solenoid.",
+          "marks_awarded": 3,
+          "max_marks": 3,
+          "confidence": "high",
+          "feedback": "Correctly explained electromagnet and uniform magnetic field inside a solenoid.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 33,
+          "extracted_answer": "Food chain is a straight series of organisms that feeds on one another. It is generally depicted by a straight line. However, one organism is fed by several other kinds of organisms which in twin by are fed by many more organisms. So, A branched chain of food chain A food chain with several branches showing the flow of energy to diferent organisms from one is called food web. (2) It population of deer decreates, then the population of organisms in 3rd trophic level will (Tigers) will decrease as they'll have less food to eat and hence, they' I die. In contrast, the population of organisms in first trophic level / will increase dramatically. as thesete there will be left organisme to feed on them.",
+          "marks_awarded": 3,
+          "max_marks": 3,
+          "confidence": "high",
+          "feedback": "Correctly defined food chain and food web, and explained the impact of deer population decrease on other trophic levels.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 34,
+          "extracted_answer": "(a) (i) crystals of ferrous sulphate has 1 water of crystallisation. These are present as an essential part of crystal in fixed numbers per unit formula of the compound. On heating ferrous sulphate crystals, these moleculer of water comes out of the crystals and becomes free water which can be seen in the test tube. Fesoy. 7H2O → FeSoy + H₂O. (ii) Green colour of Fesoy crystal will fade and the buystod will become white in colour. (iii) seven molecules. (1) Cusoy 5H20 (II) Na2CO3.10H2O. (N) When gypsum is heated at 100% (373K), then it lofes 1½ molecule of water of crystallisation to become plaster of paris with only 1/½ molecule of water of crystallisation, Casoy. 2H20 → 100°C Casoy 20 + ½ 20.",
+          "marks_awarded": 5,
+          "max_marks": 5,
+          "confidence": "high",
+          "feedback": "Comprehensive and correct answer covering all parts of the question, including explanation, color change, number of water molecules, examples, and gypsum conversion.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 35,
+          "extracted_answer": "user of P.O.P:- (1) for setting fractweed bones in right position. (2) for making decoration items & toys. (b) (i) Lime water toms milky due to formation of a cakium carbonate, white precipitate in it.\" Ca(OH)2 + CO2 → CaCO3 + H₂O. Now, In diagram (1), the aist atmospheric air is passed into the solution. Since, atmospheric air containt a very small percentage of cos, the solution trans millky a slowly and takes a long time. while, air exhaled from mouth [ diagram (Ⅱ)) has a large percentage of cos and hence it toms the lime coated milky faster (comparatively). (ii) [Diagram of stomata] (I) guard celts: open stomatal pore. (II) chloroplast.",
+          "marks_awarded": 0,
+          "max_marks": 5,
+          "confidence": "high",
+          "feedback": "Answered question on POP uses, lime water test for CO2, and stomata instead of the CO2 and photosynthesis experiment as per the answer key.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 36,
+          "extracted_answer": "(a) (1) V = IR when Ris constant, VCI.. So, if, voltage is devreated to one-third, then current will also became one-thired of its initial value. * Ohm's Law. The voltage across the two terminals of a metallic conductor wire is proportional to the current flowing through it provided the temperature remains same. (ii) Req = R1 + R2 + Rs = S+ 10+ 15 = 30Ω. V= 6V. I=V/R = 6/30 = 0.2A. V2 = IR2 = 0.2×10 = 2V.",
+          "marks_awarded": 5,
+          "max_marks": 5,
+          "confidence": "high",
+          "feedback": "Correctly explained the effect of voltage change on current, stated Ohm's Law, and performed all calculations accurately.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 37,
+          "extracted_answer": "(a) Hydrocarbons are the organic compounds which contain anly hydrogen and carbon in it. (b) (1) Catenation or self combination (2) Tetravalency. (c) (i) (1) Aldehyde - C-H (2) Ketone -> -C- (Equation: CH3COOH + C2H5OH --conc. H2SO4--> CH3COOC2H5 + H2O)",
+          "marks_awarded": 0,
+          "max_marks": 6,
+          "confidence": "high",
+          "feedback": "Answered question on hydrocarbons and organic chemistry instead of pollination and plant reproduction as per the answer key.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 38,
+          "extracted_answer": "(a)*self pollination occurs when the pollen grain is transferred frem anther to stigma of the same flower. * cross pollination takes place when the pollen grain is transferred from anther of one flower to stigma of another flower of same species. (b) Corolla made of colourful petals attracts insects for pollination. * All the petals fall off and detaches fecam plant after fertilisation. (c) (ii) Plumute is known as future shoot. and radile is known as future root. * Cotyledon has stored food inside it. This is necessary for germination of seed and keeping seed alive in dormant state.",
+          "marks_awarded": 0,
+          "max_marks": 6,
+          "confidence": "high",
+          "feedback": "Answered question on pollination and plant reproduction instead of mirrors as per the answer key.",
+          "legibility_issue": false
+        },
+        {
+          "q_no": 39,
+          "extracted_answer": "(a) principal axis is a straight line passing from and normal to the pole of concave mirrer and its centre of curvature. (b) focal length (f) = 10cm. R=2f. R = 2x10 [R=20cm] (c) [Convex mirror diagram]",
+          "marks_awarded": 0,
+          "max_marks": 0,
+          "confidence": "high",
+          "feedback": "Question 39 not found in the provided answer key.",
+          "legibility_issue": false
+        }
+      ],
+      "total_marks": 59,
+      "max_marks": 80,
+      "overall_remarks": "The student performed well in the MCQ, VSA, SA, and LA sections where the questions aligned with the provided answer key. However, there is a significant mismatch in the long answer section (Q31, Q35, Q37, Q38) where the student's answers do not correspond to the content of the questions in the answer key, resulting in 0 marks for those questions. Question 39 was also not found in the key.",
+      "readability_score": "good"
+    }
+  }
+}
