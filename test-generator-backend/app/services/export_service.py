@@ -10,7 +10,9 @@ v11 features retained:
   - Blue-toned question_table styling (Statistics)
   - Manual question + image support (badge hidden in PDF/DOCX)
   - Accountancy answer_table rendering (emerald)
-  - CBSE section grouping (5-section + Accountancy Part A/B)
+  - CBSE section grouping (5-section + Accountancy Part A/B
+  
+  )
   - Paper date support, card-style question boxes
 """
 
@@ -224,7 +226,6 @@ BARE_COMMANDS = {
     'textbf': '', 'textit': '', 'overline': '', 'underline': '',
 }
 
-
 def _process_latex(text: str, use_tags: bool = False) -> str:
     if not text:
         return ""
@@ -284,7 +285,12 @@ def _process_latex(text: str, use_tags: bool = False) -> str:
 
     result = result.replace('{', '').replace('}', '')
     result = _fix_unicode_scripts(result, use_tags)
-    result = re.sub(r'\s+', ' ', result).strip()
+    # 🚩 FIX: Don't collapse newlines — only collapse spaces/tabs within each line
+    # Old: result = re.sub(r'\s+', ' ', result).strip()
+    result = re.sub(r'[ \t]+', ' ', result)              # collapse spaces/tabs only
+    result = re.sub(r' *\n *', '\n', result)             # trim spaces around newlines
+    result = re.sub(r'\n{3,}', '\n\n', result)           # max 2 consecutive newlines
+    result = result.strip()
 
     # v12: Convert matrix brackets AFTER whitespace cleanup, so the box chars survive
     result = _convert_matrix_brackets(result, use_tags)
@@ -293,7 +299,18 @@ def _process_latex(text: str, use_tags: bool = False) -> str:
 
 
 def _latex_to_paragraph(text: str) -> str:
+    # 🚩 FIX: Preserve newlines BEFORE _process_latex
+    # Mark double newlines (paragraph break) and single newlines separately
+    text = text.replace('\r\n', '\n').replace('\r', '\n')
+    text = re.sub(r'\n\s*\n', '__PARABREAK__', text)
+    text = text.replace('\n', '__LINEBREAK__')
+
     result = _process_latex(text, use_tags=True)
+
+    # 🚩 FIX: Convert markers back to <br/> tags AFTER processing
+    result = result.replace('__PARABREAK__', '<br/><br/>')
+    result = result.replace('__LINEBREAK__', '<br/>')
+
     tags = {}
     # Include <br/> in the tag list so it survives HTML escaping
     for i, tag in enumerate(re.findall(r'</?(?:super|sub|b|i)>|<br\s*/?>', result)):
