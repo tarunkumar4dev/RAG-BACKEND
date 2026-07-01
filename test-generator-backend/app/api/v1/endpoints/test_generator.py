@@ -1,5 +1,11 @@
 """
-Test Generator API Endpoints — v2.8
+Test Generator API Endpoints — v2.9
+
+v2.9 changes:
+  - ExportRequest now accepts `template` field (default "modern")
+  - /export passes template through to generate_pdf() / generate_docx()
+  - New GET /templates endpoint — returns available export templates for
+    a frontend dropdown (Modern / Classic / Compact / Colorful)
 
 v2.8 changes:
   - English pseudo-chapter support (Writing Skills, Grammar bypass RAG)
@@ -219,6 +225,7 @@ class FrontendGenerateResponse(BaseModel):
 
 
 # v2.5: Export accepts paperDate + manual flags
+# v2.9: Export accepts template (Modern / Classic / Compact / Colorful)
 class ExportRequest(BaseModel):
     examTitle: str = "Test Paper"
     paperDate: Optional[str] = None
@@ -230,6 +237,7 @@ class ExportRequest(BaseModel):
     includeExplanations: bool = False
     format: str = "pdf"
     logoBase64: Optional[str] = None
+    template: str = "modern"  # v2.9: "modern" | "classic" | "compact" | "colorful"
 
 
 # v2.5: Save accepts questions array
@@ -521,13 +529,16 @@ async def generate_from_frontend(req: FrontendGenerateRequest):
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# ENDPOINT: Export PDF / DOCX (v2.5 — paperDate + manual questions)
+# ENDPOINT: Export PDF / DOCX (v2.9 — template support added)
 # ═══════════════════════════════════════════════════════════════════════
 
 @router.post("/export")
 async def export_test(req: ExportRequest):
     try:
         class_num = _extract_class_number(req.classGrade)
+
+        # v2.9: normalize template value (frontend may send "" or None)
+        template = (req.template or "modern").strip().lower()
 
         # Normalize questions: ensure section field exists, mark manual
         normalized_questions = []
@@ -552,6 +563,8 @@ async def export_test(req: ExportRequest):
         if manual_count:
             logger.info(f"Export includes {manual_count} manual question(s)")
 
+        logger.info(f"Export: format={req.format}, template={template}, questions={len(normalized_questions)}")
+
         if req.format.lower() == "docx":
             from app.services.export_service import generate_docx
             file_bytes = generate_docx(
@@ -564,6 +577,7 @@ async def export_test(req: ExportRequest):
                 include_explanations=req.includeExplanations,
                 logo_base64=req.logoBase64,
                 paper_date=req.paperDate,
+                template=template,  # v2.9
             )
             filename = f"{req.examTitle.replace(' ', '_')}.docx"
             return Response(
@@ -583,6 +597,7 @@ async def export_test(req: ExportRequest):
                 include_explanations=req.includeExplanations,
                 logo_base64=req.logoBase64,
                 paper_date=req.paperDate,
+                template=template,  # v2.9
             )
             filename = f"{req.examTitle.replace(' ', '_')}.pdf"
             return Response(
@@ -594,6 +609,34 @@ async def export_test(req: ExportRequest):
     except Exception as e:
         logger.error(f"Export error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Export failed: {str(e)}")
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# ENDPOINT: Available Export Templates (v2.9 — for frontend dropdown)
+# ═══════════════════════════════════════════════════════════════════════
+
+@router.get("/templates")
+async def get_templates():
+    """
+    Returns available PDF/DOCX export templates for a frontend dropdown.
+    Each item: { id, label, description }
+    """
+    try:
+        from app.services.export_service import get_available_templates
+        return {"ok": True, "templates": get_available_templates()}
+    except Exception as e:
+        logger.error(f"Templates fetch error: {e}")
+        # Safe fallback so the frontend dropdown never breaks
+        return {
+            "ok": False,
+            "templates": [
+                {"id": "modern", "label": "Modern", "description": "Clean card-style layout."},
+                {"id": "classic", "label": "Classic", "description": "Traditional serif exam-paper look."},
+                {"id": "compact", "label": "Compact", "description": "Dense layout, saves paper."},
+                {"id": "colorful", "label": "Colorful", "description": "Section-wise accent colors."},
+            ],
+            "error": str(e),
+        }
 
 
 # ═══════════════════════════════════════════════════════════════════════
