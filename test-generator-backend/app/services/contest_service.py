@@ -2,8 +2,21 @@
 # ──────────────────────────────────────────────────────────
 # Business logic for Contest CRUD + Submission + Scoring
 # Uses Supabase Python client (not asyncpg)
+#
+# SCORING (final):
+#   Student sends bare labels ("B", "C") while correct_answer is stored as
+#   "C) Silver" (label + text). The matcher parses BOTH sides into (label, text)
+#   and matches on either — so it works regardless of which format each side uses.
+#   It does NOT depend on the options array at all.
+#
+#   HARDENED (v2):
+#   - re.DOTALL so multiline correct_answer text ("B) Because...\n...") still
+#     parses into (label, text) instead of falling through to plain text.
+#   - All whitespace (newlines, tabs, double spaces) collapsed to single
+#     spaces before text comparison, on BOTH sides.
 # ──────────────────────────────────────────────────────────
 
+import re
 import string
 import random
 import json
@@ -40,38 +53,92 @@ def _generate_short_code(length: int = 8) -> str:
     return ''.join(random.choices(chars, k=length))
 
 
+# ── scoring helpers ────────────────────────────────────────
+
+def _norm(s) -> str:
+    """Lowercase + collapse ALL whitespace (newlines/tabs/doubles) to single spaces."""
+    if s is None:
+        return ""
+    return " ".join(str(s).split()).lower()
+
+
+def _parse_choice(value):
+    """
+    Parse an answer value into (label, text). Both lowercased,
+    text whitespace-normalized.
+    Handles:
+      "C"                    -> ("c", "")            bare label
+      "C) Silver"            -> ("c", "silver")      label + text
+      "C. Silver"            -> ("c", "silver")
+      "(C) Silver"           -> ("c", "silver")
+      "C - Silver"           -> ("c", "silver")
+      "B) line one\nline 2"  -> ("b", "line one line 2")   multiline (DOTALL)
+      "Silver"               -> (None, "silver")     plain text, no label
+    """
+    if value is None:
+        return (None, "")
+    s = str(value).strip()
+    if s == "":
+        return (None, "")
+    # bare single letter, e.g. "C"
+    if len(s) == 1 and s.isalpha():
+        return (s.lower(), "")
+    # "C) text" / "C. text" / "(C) text" / "C - text" — DOTALL so text can span lines
+    m = re.match(r'^[\(\[]?\s*([A-Za-z])\s*[\)\].:\-]\s*(.+)$', s, re.DOTALL)
+    if m:
+        return (m.group(1).lower(), _norm(m.group(2)))
+    # plain text without a label
+    return (None, _norm(s))
+
+
+def _answers_match(selected, correct) -> bool:
+    """True if the student's `selected` matches the stored `correct` answer."""
+    sl, st = _parse_choice(selected)
+    cl, ct = _parse_choice(correct)
+    if sl and cl and sl == cl:          # label match: "C" vs "C) Silver"
+        return True
+    if st and ct and st == ct:          # text match: "Silver" vs "C) Silver"
+        return True
+    if _norm(selected) and _norm(selected) == _norm(correct):  # exact fallback
+        return True
+    return False
+
+
 def _calculate_score(
     answers: List[dict],
     questions: List[dict],
 ) -> tuple:
     """
     Calculate score from student answers vs correct answers.
-    Returns (score, total_marks)
+    total_marks counts only questions that have a correct_answer (auto-gradable).
+    Returns (score, total_marks).
     """
     q_map = {}
     for q in questions:
         q_map[str(q["id"])] = {
             "correct": q.get("correct_answer"),
-            "marks": q.get("marks", 1),
-            "type": q.get("question_type", "MCQ"),
+            "marks": q.get("marks", 1) or 1,
         }
 
-    score = 0
-    total = sum(q.get("marks", 1) for q in questions)
+    total = sum(info["marks"] for info in q_map.values() if _norm(info["correct"]))
 
+    score = 0
     for ans in answers:
         qid = ans.get("questionId") or ans.get("question_id")
-        selected = ans.get("selected") or ans.get("selectedOption")
-        if not qid or not selected:
+        selected = (
+            ans.get("selected")
+            or ans.get("selectedOption")
+            or ans.get("textAnswer")
+        )
+        if not qid or selected is None or _norm(selected) == "":
             continue
 
-        q_info = q_map.get(str(qid))
-        if not q_info:
+        info = q_map.get(str(qid))
+        if not info or not _norm(info["correct"]):
             continue
 
-        if q_info["type"] == "MCQ":
-            if selected.strip().upper() == (q_info["correct"] or "").strip().upper():
-                score += q_info["marks"]
+        if _answers_match(selected, info["correct"]):
+            score += info["marks"]
 
     return score, total
 
@@ -90,7 +157,6 @@ def create_contest(
 
     short_code = _generate_short_code()
 
-    # Ensure uniqueness (retry if collision)
     for _ in range(5):
         existing = db.table("contests").select("id").eq("short_code", short_code).execute()
         if not existing.data:
@@ -99,7 +165,6 @@ def create_contest(
 
     total_marks = sum(q.marks for q in request.questions)
 
-    # 1. Insert contest
     contest_data = {
         "teacher_id": teacher_id,
         "title": request.title,
@@ -130,7 +195,6 @@ def create_contest(
 
     contest_id = result.data[0]["id"]
 
-    # 2. Insert questions
     questions_to_insert = []
     for idx, q in enumerate(request.questions, start=1):
         questions_to_insert.append({
@@ -183,7 +247,6 @@ def get_contest_info(short_code: str) -> Optional[ContestInfoResponse]:
 
     row = result.data[0]
 
-    # Check expiry
     if row.get("expires_at"):
         expires = datetime.fromisoformat(row["expires_at"].replace("Z", "+00:00"))
         if expires < datetime.now(timezone.utc):
@@ -220,7 +283,6 @@ def start_attempt(
 
     db = get_supabase()
 
-    # 1. Get contest
     contest_result = db.table("contests").select("*").eq(
         "short_code", short_code
     ).eq("status", "active").execute()
@@ -230,7 +292,6 @@ def start_attempt(
 
     contest = contest_result.data[0]
 
-    # 2. Check max attempts
     if student_id:
         attempts_result = db.table("contest_attempts").select(
             "id", count="exact"
@@ -240,7 +301,6 @@ def start_attempt(
         if attempt_count >= contest["max_attempts"]:
             raise ValueError(f"Maximum attempts ({contest['max_attempts']}) reached")
 
-    # 3. Create attempt record
     attempt_data = {
         "contest_id": contest["id"],
         "student_id": student_id,
@@ -256,7 +316,6 @@ def start_attempt(
 
     attempt_id = attempt_result.data[0]["id"]
 
-    # 4. Fetch questions (WITHOUT correct_answer and explanation)
     questions_result = db.table("contest_questions").select(
         "id, question_number, question_text, question_type, "
         "options, marks, difficulty, chapter"
@@ -281,9 +340,8 @@ def start_attempt(
             )
         )
 
-    # 5. Increment total_attempts
     db.table("contests").update({
-        "total_attempts": contest["total_attempts"] + 1
+        "total_attempts": (contest.get("total_attempts") or 0) + 1
     }).eq("id", contest["id"]).execute()
 
     return ContestDataResponse(
@@ -316,7 +374,6 @@ def submit_attempt(
 
     db = get_supabase()
 
-    # 1. Verify attempt exists and is in_progress
     attempt_result = db.table("contest_attempts").select("*").eq(
         "id", attempt_id
     ).eq("contest_id", contest_id).execute()
@@ -328,14 +385,12 @@ def submit_attempt(
     if attempt["status"] not in ("in_progress",):
         raise ValueError("Attempt already submitted")
 
-    # 2. Get contest settings
     contest_result = db.table("contests").select("*").eq("id", contest_id).execute()
     if not contest_result.data:
         raise ValueError("Contest not found")
 
     contest = contest_result.data[0]
 
-    # 3. Get all questions WITH correct answers
     questions_result = db.table("contest_questions").select("*").eq(
         "contest_id", contest_id
     ).order("question_number").execute()
@@ -359,22 +414,18 @@ def submit_attempt(
             "chapter": q.get("chapter"),
         })
 
-    # 4. Calculate score
     score, total_marks = _calculate_score(request.answers, questions_data)
-    percentage = round((score / total_marks * 100), 2) if total_marks > 0 else 0
+    percentage = round((score / total_marks * 100), 2) if total_marks > 0 else 0.0
 
-    # Determine status
     status = "submitted"
     if request.warning_count >= contest["max_warnings"]:
         status = "auto_submitted"
 
-    # Count answered
     answered_count = sum(
         1 for a in request.answers
         if a.get("selected") or a.get("selectedOption") or a.get("textAnswer")
     )
 
-    # 5. Update attempt
     update_data = {
         "status": status,
         "submitted_at": datetime.now(timezone.utc).isoformat(),
@@ -394,7 +445,6 @@ def submit_attempt(
         f"score={score}/{total_marks} ({percentage}%) warnings={request.warning_count}"
     )
 
-    # 6. Build response
     questions_with_answers = None
     if contest["answer_mode"] == "after_test":
         questions_with_answers = [
@@ -437,7 +487,6 @@ def get_leaderboard(
 
     db = get_supabase()
 
-    # Verify contest exists
     query = db.table("contests").select("id, title").eq("id", contest_id)
     if teacher_id:
         query = query.eq("teacher_id", teacher_id)
@@ -448,7 +497,6 @@ def get_leaderboard(
 
     contest = contest_result.data[0]
 
-    # Get all attempts ordered by percentage desc
     attempts_result = db.table("contest_attempts").select(
         "id, student_name, student_email, status, score, "
         "total_marks, percentage, time_taken_seconds, "
