@@ -55,8 +55,26 @@ def _generate_short_code(length: int = 8) -> str:
 
 # ── scoring helpers ────────────────────────────────────────
 
+def _canon(s) -> str:
+    """
+    Canonical text for comparison:
+    - lowercase
+    - curly quotes/dashes -> straight
+    - ALL punctuation stripped (trailing periods, commas, etc.)
+    - whitespace (newlines/tabs/doubles) collapsed to single spaces
+    """
+    if s is None:
+        return ""
+    s = str(s)
+    s = (s.replace("\u2019", "'").replace("\u2018", "'")
+          .replace("\u201c", '"').replace("\u201d", '"')
+          .replace("\u2013", "-").replace("\u2014", "-"))
+    s = re.sub(r'[^a-z0-9\s]', ' ', s.lower())
+    return " ".join(s.split())
+
+
 def _norm(s) -> str:
-    """Lowercase + collapse ALL whitespace (newlines/tabs/doubles) to single spaces."""
+    """Lowercase + collapse all whitespace to single spaces (no punctuation strip)."""
     if s is None:
         return ""
     return " ".join(str(s).split()).lower()
@@ -64,43 +82,67 @@ def _norm(s) -> str:
 
 def _parse_choice(value):
     """
-    Parse an answer value into (label, text). Both lowercased,
-    text whitespace-normalized.
+    Parse an answer value into (label, canonical_text). Both lowercased.
     Handles:
-      "C"                    -> ("c", "")            bare label
-      "C) Silver"            -> ("c", "silver")      label + text
-      "C. Silver"            -> ("c", "silver")
-      "(C) Silver"           -> ("c", "silver")
-      "C - Silver"           -> ("c", "silver")
-      "B) line one\nline 2"  -> ("b", "line one line 2")   multiline (DOTALL)
-      "Silver"               -> (None, "silver")     plain text, no label
+      "C"                    -> ("c", "")
+      "C) Silver"            -> ("c", "silver")
+      "C. Silver" / "(C) Silver" / "C - Silver"
+      "B) multi\nline text"  -> ("b", "multi line text")   (DOTALL)
+      "Silver."              -> (None, "silver")            (punctuation-insensitive)
     """
     if value is None:
         return (None, "")
     s = str(value).strip()
     if s == "":
         return (None, "")
-    # bare single letter, e.g. "C"
     if len(s) == 1 and s.isalpha():
         return (s.lower(), "")
-    # "C) text" / "C. text" / "(C) text" / "C - text" — DOTALL so text can span lines
     m = re.match(r'^[\(\[]?\s*([A-Za-z])\s*[\)\].:\-]\s*(.+)$', s, re.DOTALL)
     if m:
-        return (m.group(1).lower(), _norm(m.group(2)))
-    # plain text without a label
-    return (None, _norm(s))
+        return (m.group(1).lower(), _canon(m.group(2)))
+    return (None, _canon(s))
 
 
-def _answers_match(selected, correct) -> bool:
-    """True if the student's `selected` matches the stored `correct` answer."""
+def _resolve_label(label, text, raw, options):
+    """Resolve an answer to its option label using the question's options array."""
+    if label:
+        return label
+    c = text or _canon(raw)
+    if not c or not options:
+        return None
+    for o in options:
+        if isinstance(o, dict):
+            ol = str(o.get("label", "")).strip().lower() or None
+            ot = _canon(o.get("text", ""))
+        else:
+            ol, ot = None, _canon(o)
+        if c == ot:
+            return ol
+    return None
+
+
+def _answers_match(selected, correct, options=None) -> bool:
+    """
+    True if the student's `selected` matches the stored `correct` answer.
+    Match order:
+      1. label vs label            ("B" vs "B) 60 C")
+      2. canonical text vs text    ("60 C" vs "B) 60 C." — punctuation-safe)
+      3. canonical exact fallback
+      4. options-resolved labels   (full text on one side, bare label on other)
+    """
     sl, st = _parse_choice(selected)
     cl, ct = _parse_choice(correct)
-    if sl and cl and sl == cl:          # label match: "C" vs "C) Silver"
+    if sl and cl and sl == cl:
         return True
-    if st and ct and st == ct:          # text match: "Silver" vs "C) Silver"
+    if st and ct and st == ct:
         return True
-    if _norm(selected) and _norm(selected) == _norm(correct):  # exact fallback
+    if _canon(selected) and _canon(selected) == _canon(correct):
         return True
+    if options:
+        rl = _resolve_label(sl, st, selected, options)
+        rcl = _resolve_label(cl, ct, correct, options)
+        if rl and rcl and rl == rcl:
+            return True
     return False
 
 
@@ -118,6 +160,7 @@ def _calculate_score(
         q_map[str(q["id"])] = {
             "correct": q.get("correct_answer"),
             "marks": q.get("marks", 1) or 1,
+            "options": q.get("options"),
         }
 
     total = sum(info["marks"] for info in q_map.values() if _norm(info["correct"]))
@@ -137,7 +180,7 @@ def _calculate_score(
         if not info or not _norm(info["correct"]):
             continue
 
-        if _answers_match(selected, info["correct"]):
+        if _answers_match(selected, info["correct"], info.get("options")):
             score += info["marks"]
 
     return score, total

@@ -1,13 +1,12 @@
 """
-Generation Service v13 — PRODUCTION + ACCOUNTANCY + CBSE ACCOUNTANCY PATTERN
+Generation Service v14 — PRODUCTION + ACCOUNTANCY + CBSE ACCOUNTANCY PATTERN
 
-Changes from v12:
-  - REMOVED dead FORMAT_MAP (lives in test_generator.py only)
-  - ADDED Unicode modifier letter cleanup in _clean_gemini_text (■■ fix)
-  - ADDED generate_cbse_accountancy_paper() for CBSE Accountancy pattern
-  - ADDED Accountancy topic classification (Part A / Part B)
-  - UPDATED generate_questions() to route Accountancy subject
-  - All v12 features retained (Accountancy tables, CBSE sections, etc.)
+Changes from v13:
+  - FIX #13-1: _call_gemini now fails fast on non-retryable errors with accurate message
+  - FIX #13-2: Real errors bubble up to top level via errors accumulator
+  - FIX #12-A: Fuzzy chapter matching for context chunks (substring match)
+  - FIX #12-B: Partial failure detection in CBSE papers (completeness check)
+  - All v13 features retained (Accountancy tables, CBSE sections, modifier fix, etc.)
 """
 
 import json
@@ -16,7 +15,7 @@ import random
 import re
 import time
 import uuid
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
 import math
 
 from google import genai
@@ -377,6 +376,20 @@ def _classify_chapter_part(chapter_name: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# FIX #12-A: Fuzzy chapter matching helper
+# ---------------------------------------------------------------------------
+def _ch_match(chunk_ch: str, target: str) -> bool:
+    """Check if a chunk's chapter name matches the target chapter name.
+    Uses normalized case-insensitive substring matching.
+    """
+    a = (chunk_ch or "").upper().strip()
+    b = (target or "").upper().strip()
+    if not a or not b:
+        return False
+    return a == b or (a in b) or (b in a)
+
+
+# ---------------------------------------------------------------------------
 # Exception + Client
 # ---------------------------------------------------------------------------
 class GenerationError(Exception):
@@ -456,8 +469,8 @@ def _build_chapter_prompt(
     section_key: str = None,
     section_info: dict = None,
 ) -> str:
-    ch_name = chapter.chapter.upper()
-    ch_chunks = [c for c in context_chunks if c.get("chapter", "").upper() == ch_name]
+    # FIX #12-A: Use fuzzy matching instead of exact match
+    ch_chunks = [c for c in context_chunks if _ch_match(c.get("chapter", ""), chapter.chapter)]
     if not ch_chunks:
         ch_chunks = context_chunks[:settings.MAX_CONTEXT_CHUNKS]
 
@@ -546,8 +559,8 @@ def _build_accountancy_prompt(
     chapter, request, context_chunks, count,
     table_format, section_key=None, section_info=None,
 ):
-    ch_name = chapter.chapter.upper()
-    ch_chunks = [c for c in context_chunks if c.get("chapter", "").upper() == ch_name]
+    # FIX #12-A: Use fuzzy matching
+    ch_chunks = [c for c in context_chunks if _ch_match(c.get("chapter", ""), chapter.chapter)]
     if not ch_chunks:
         ch_chunks = context_chunks[:8]
 
@@ -618,8 +631,8 @@ def _build_accountancy_cbse_prompt(
     chapter, request, context_chunks, count,
     group_info, part_key, generate_or=False,
 ):
-    ch_name = chapter.chapter.upper()
-    ch_chunks = [c for c in context_chunks if c.get("chapter", "").upper() == ch_name]
+    # FIX #12-A: Use fuzzy matching
+    ch_chunks = [c for c in context_chunks if _ch_match(c.get("chapter", ""), chapter.chapter)]
     if not ch_chunks:
         ch_chunks = context_chunks[:settings.MAX_CONTEXT_CHUNKS]
 
@@ -1000,7 +1013,7 @@ def _parse_batch(raw: str, chapter: ChapterSection, request: TestGenerationReque
 
 
 # ---------------------------------------------------------------------------
-# Gemini Call with Retry
+# Gemini Call with Retry — FIX #13-1
 # ---------------------------------------------------------------------------
 def _is_retryable(error_str: str) -> bool:
     return any(kw in error_str.upper() for kw in (k.upper() for k in RETRYABLE_KEYWORDS))
@@ -1008,7 +1021,9 @@ def _is_retryable(error_str: str) -> bool:
 
 def _call_gemini(client, prompt, model):
     last_exc = None
+    attempts = 0
     for attempt in range(MAX_RETRIES):
+        attempts += 1
         try:
             t0 = time.time()
             resp = client.models.generate_content(
@@ -1023,27 +1038,30 @@ def _call_gemini(client, prompt, model):
             )
             raw = (resp.text or "").strip()
             if not raw:
-                raise GenerationError("Empty response", 502)
+                raise GenerationError(f"{model}: empty response from API", 502)
             logger.info(f"[{model}] {time.time() - t0:.1f}s ({len(raw)} chars)")
             return raw
         except GenerationError:
+            # Our own errors — re-raise immediately (non-retryable)
             raise
         except Exception as e:
             last_exc = e
-            if _is_retryable(str(e)) and attempt < MAX_RETRIES - 1:
+            err = str(e)
+            # Non-retryable (404 model-not-found, invalid key, bad request) → fail fast with REAL reason
+            if not _is_retryable(err):
+                raise GenerationError(f"{model}: {err[:200]}", 502)
+            if attempt < MAX_RETRIES - 1:
                 wait = min(BASE_BACKOFF_SECONDS ** (attempt + 1), MAX_BACKOFF_SECONDS) * random.uniform(*JITTER_RANGE)
-                logger.warning(f"[{model}] Retry {attempt + 1}/{MAX_RETRIES}: {str(e)[:80]}... {wait:.1f}s")
+                logger.warning(f"[{model}] Retry {attempt + 1}/{MAX_RETRIES}: {err[:80]}... {wait:.1f}s")
                 time.sleep(wait)
-            else:
-                break
-    raise GenerationError(f"Failed after {MAX_RETRIES} retries: {str(last_exc)[:150]}", 500)
+    raise GenerationError(f"{model}: failed after {attempts} attempt(s): {str(last_exc)[:200]}", 503)
 
 
 # ---------------------------------------------------------------------------
-# Generate for ONE chapter
+# Generate for ONE chapter — FIX #13-2 with errors accumulator
 # ---------------------------------------------------------------------------
 def _generate_for_chapter(client, chapter, request, context_chunks, models,
-                          section_key=None, section_info=None):
+                          section_key=None, section_info=None, errors=None):
     target = chapter.quantity
     ask = target + settings.OVERSHOOT_PER_CHAPTER
     batch_size = settings.BATCH_SIZE
@@ -1075,19 +1093,27 @@ def _generate_for_chapter(client, chapter, request, context_chunks, models,
             )
 
         batch_qs = []
+        got_response = False
         for m in models:
             try:
                 raw = _call_gemini(client, prompt, m)
+                got_response = True
                 batch_qs = _parse_batch(raw, chapter, request, section_key)
                 if batch_qs:
                     logger.info(f"    Batch {batch_num}: {len(batch_qs)}/{bc} [{m}]")
                     break
             except GenerationError as e:
+                if errors is not None:
+                    errors.append(str(e))
                 if m != models[-1]:
                     logger.warning(f"    {m} failed, fallback...")
                     continue
                 logger.error(f"    '{chapter.chapter}' batch {batch_num} failed: {e}")
                 break
+
+        # Response aaya par 0 questions bane = JSON/validation problem, API problem NAHI
+        if got_response and not batch_qs and errors is not None:
+            errors.append(f"{chapter.chapter}: API responded but 0 questions parsed (JSON/validation issue)")
 
         all_qs.extend(batch_qs)
         remaining -= bc
@@ -1103,7 +1129,88 @@ def _generate_for_chapter(client, chapter, request, context_chunks, models,
 
 
 # ---------------------------------------------------------------------------
-# CBSE Section-based Paper Generation (Generic)
+# FIX #12-B: Completeness Validator for CBSE Papers
+# ---------------------------------------------------------------------------
+def _validate_cbse_completeness(questions: List[GeneratedQuestion], 
+                                 pattern_sections: Dict) -> List[str]:
+    """Check each section has enough questions. Returns list of warnings."""
+    warnings = []
+    
+    # Count by section
+    section_counts = {}
+    for q in questions:
+        sec = getattr(q, '_section', None)
+        if sec:
+            section_counts[sec] = section_counts.get(sec, 0) + 1
+    
+    for sec_key, sec_info in pattern_sections.items():
+        expected = sec_info["count"]
+        actual = section_counts.get(sec_key, 0)
+        if actual < expected:
+            warnings.append(
+                f"{sec_info['title']}: {actual}/{expected} questions generated "
+                f"(missing {expected - actual} × {sec_info['marks_per_q']} marks)"
+            )
+    
+    return warnings
+
+
+def _validate_accountancy_cbse_completeness(questions: List[GeneratedQuestion],
+                                              pattern: Dict) -> Tuple[List[str], int, int]:
+    """Validate Accountancy CBSE pattern completeness. Returns (warnings, main_count, total_marks)."""
+    warnings = []
+    
+    # Separate main and OR questions
+    main_qs = [q for q in questions if not getattr(q, '_is_or', False)]
+    or_qs = [q for q in questions if getattr(q, '_is_or', False)]
+    
+    # Count main questions by section_tag (e.g., "A_1m", "A_3m", "B1_6m")
+    section_counts = {}
+    for q in main_qs:
+        sec = getattr(q, '_section', None)
+        if sec:
+            section_counts[sec] = section_counts.get(sec, 0) + 1
+    
+    # Count OR questions by section
+    or_counts = {}
+    for q in or_qs:
+        sec = getattr(q, '_section', None)
+        if sec:
+            or_counts[sec] = or_counts.get(sec, 0) + 1
+    
+    total_main = 0
+    total_marks = 0
+    
+    for part_key, part_info in pattern["parts"].items():
+        for group in part_info["groups"]:
+            group_id = group["id"]
+            marks = group["marks_per_q"]
+            expected = group["count"]
+            expected_or = group.get("or_count", 0)
+            
+            sec_tag = f"{part_key}_{marks}m"
+            actual = section_counts.get(sec_tag, 0)
+            actual_or = or_counts.get(sec_tag, 0)
+            
+            total_main += actual
+            total_marks += actual * marks
+            
+            if actual < expected:
+                warnings.append(
+                    f"{part_info['title']} ({marks}m): {actual}/{expected} main questions "
+                    f"(missing {expected - actual} × {marks} marks)"
+                )
+            if actual_or < expected_or:
+                warnings.append(
+                    f"{part_info['title']} ({marks}m) OR: {actual_or}/{expected_or} alternatives"
+                )
+    
+    total_questions = total_main + len(or_qs)
+    return warnings, total_questions, total_marks
+
+
+# ---------------------------------------------------------------------------
+# CBSE Section-based Paper Generation (Generic) — FIX #12-B applied
 # ---------------------------------------------------------------------------
 def _distribute_chapters_to_sections(chapters: List[ChapterSection]) -> Dict[str, List[dict]]:
     ch_names = [ch.chapter for ch in chapters]
@@ -1140,6 +1247,7 @@ def generate_cbse_paper(request, context_chunks, feedback=None):
     logger.info(f"CBSE Paper: {len(request.chapters)} chapters, {total_expected} questions, model={model}")
 
     all_questions = []
+    errors = []  # FIX #13-2: error accumulator
     t0 = time.time()
 
     for sec_key, sec_info in CBSE_SECTIONS.items():
@@ -1171,7 +1279,7 @@ def generate_cbse_paper(request, context_chunks, feedback=None):
                         quantity=ch_mcq,
                         topics=orig_ch.topics if hasattr(orig_ch, 'topics') else None,
                     )
-                    qs = _generate_for_chapter(client, mcq_chapter, request, context_chunks, models, sec_key, sec_info)
+                    qs = _generate_for_chapter(client, mcq_chapter, request, context_chunks, models, sec_key, sec_info, errors=errors)
                     all_questions.extend(qs)
                     time.sleep(settings.BATCH_DELAY)
 
@@ -1184,7 +1292,7 @@ def generate_cbse_paper(request, context_chunks, feedback=None):
                         quantity=ch_ar,
                         topics=orig_ch.topics if hasattr(orig_ch, 'topics') else None,
                     )
-                    qs = _generate_for_chapter(client, ar_chapter, request, context_chunks, models, sec_key, sec_info)
+                    qs = _generate_for_chapter(client, ar_chapter, request, context_chunks, models, sec_key, sec_info, errors=errors)
                     all_questions.extend(qs)
                     time.sleep(settings.BATCH_DELAY)
             else:
@@ -1197,21 +1305,31 @@ def generate_cbse_paper(request, context_chunks, feedback=None):
                     quantity=count,
                     topics=orig_ch.topics if hasattr(orig_ch, 'topics') else None,
                 )
-                qs = _generate_for_chapter(client, sec_chapter, request, context_chunks, models, sec_key, sec_info)
+                qs = _generate_for_chapter(client, sec_chapter, request, context_chunks, models, sec_key, sec_info, errors=errors)
                 all_questions.extend(qs)
                 time.sleep(settings.BATCH_DELAY)
 
     elapsed = time.time() - t0
     logger.info(f"CBSE Paper Done: {len(all_questions)}/{total_expected} in {elapsed:.1f}s")
 
+    # FIX #12-B: Completeness check
+    if all_questions:
+        completeness_warnings = _validate_cbse_completeness(all_questions, CBSE_SECTIONS)
+        if completeness_warnings:
+            logger.warning(f"CBSE Paper INCOMPLETE:")
+            for w in completeness_warnings:
+                logger.warning(f"  ⚠ {w}")
+
+    # FIX #13-2: Proper error message
     if not all_questions:
-        raise GenerationError("All sections failed.", 500)
+        detail = errors[0] if errors else "unknown cause — check logs"
+        raise GenerationError(f"CBSE paper generation failed — {detail}", 500)
 
     return all_questions
 
 
 # ---------------------------------------------------------------------------
-# CBSE Accountancy Paper Generation (34q, 80 marks, Part A + Part B)
+# CBSE Accountancy Paper Generation (34q, 80 marks, Part A + Part B) — FIX #12-B applied
 # ---------------------------------------------------------------------------
 def _distribute_accountancy_chapters(chapters, pattern):
     part_a_chapters = []
@@ -1284,6 +1402,7 @@ def generate_cbse_accountancy_paper(request, context_chunks, feedback=None):
                 f"target={pattern['total_questions']} questions, {pattern['total_marks']} marks")
 
     all_questions = []
+    errors = []  # FIX #13-2: error accumulator
     t0 = time.time()
 
     for part_key, part_info in pattern["parts"].items():
@@ -1349,6 +1468,7 @@ def generate_cbse_accountancy_paper(request, context_chunks, feedback=None):
                                     logger.info(f"    MCQ {ch_name}: {len(main_qs[:ch_mcq])} + {len(or_qs[:min(or_count, ch_mcq)])} OR")
                                     break
                             except GenerationError as e:
+                                errors.append(str(e))
                                 if m != models[-1]:
                                     continue
                                 logger.error(f"    MCQ {ch_name} failed: {e}")
@@ -1380,6 +1500,7 @@ def generate_cbse_accountancy_paper(request, context_chunks, feedback=None):
                                     logger.info(f"    AR {ch_name}: {len(main_qs[:ch_ar])} + {len(or_qs[:ar_or])} OR")
                                     break
                             except GenerationError as e:
+                                errors.append(str(e))
                                 if m != models[-1]:
                                     continue
                                 logger.error(f"    AR {ch_name} failed: {e}")
@@ -1417,6 +1538,7 @@ def generate_cbse_accountancy_paper(request, context_chunks, feedback=None):
                                 logger.info(f"    {fmt} {ch_name}: {len(main_qs[:count])} + {len(or_qs[:or_count])} OR")
                                 break
                         except GenerationError as e:
+                            errors.append(str(e))
                             if m != models[-1]:
                                 continue
                             logger.error(f"    {fmt} {ch_name} failed: {e}")
@@ -1427,14 +1549,25 @@ def generate_cbse_accountancy_paper(request, context_chunks, feedback=None):
     or_count_total = len([q for q in all_questions if getattr(q, '_is_or', False)])
     logger.info(f"\nCBSE Accountancy Done: {main_count} main + {or_count_total} OR = {len(all_questions)} in {elapsed:.1f}s")
 
+    # FIX #12-B: Completeness check
+    if all_questions:
+        warnings, total_qs, total_marks = _validate_accountancy_cbse_completeness(all_questions, pattern)
+        if warnings:
+            logger.warning(f"CBSE Accountancy Paper INCOMPLETE: {total_qs} questions, {total_marks}/80 marks")
+            for w in warnings:
+                logger.warning(f"  ⚠ {w}")
+                        # Completeness warnings logged above — frontend can be enhanced to receive this via a wrapper
+
+    # FIX #13-2: Proper error message
     if not all_questions:
-        raise GenerationError("All Accountancy generation failed.", 500)
+        detail = errors[0] if errors else "unknown cause — check logs"
+        raise GenerationError(f"CBSE Accountancy paper generation failed — {detail}", 500)
 
     return all_questions
 
 
 # ---------------------------------------------------------------------------
-# Main Entry — routes by subject + pattern
+# Main Entry — routes by subject + pattern — FIX #13-2 applied
 # ---------------------------------------------------------------------------
 def generate_questions(request, context_chunks, feedback=None, cbse_pattern: bool = False):
     subject_lower = (request.subject or "").lower()
@@ -1461,6 +1594,7 @@ def generate_questions(request, context_chunks, feedback=None, cbse_pattern: boo
     logger.info(f"Generation: {len(request.chapters)} chapters, {total} questions, model={model}")
 
     all_questions = []
+    errors = []  # FIX #13-2: error accumulator
     t0 = time.time()
     results = {}
 
@@ -1468,7 +1602,7 @@ def generate_questions(request, context_chunks, feedback=None, cbse_pattern: boo
         if chapter.quantity <= 0:
             continue
         logger.info(f"Chapter {ch_idx}/{len(request.chapters)}: {chapter.chapter}")
-        ch_qs = _generate_for_chapter(client, chapter, request, context_chunks, models)
+        ch_qs = _generate_for_chapter(client, chapter, request, context_chunks, models, errors=errors)
         all_questions.extend(ch_qs)
         results[chapter.chapter] = f"{len(ch_qs)}/{chapter.quantity}"
         if ch_idx < len(request.chapters):
@@ -1478,8 +1612,10 @@ def generate_questions(request, context_chunks, feedback=None, cbse_pattern: boo
     summary = " | ".join([f"{ch}: {r}" for ch, r in results.items()])
     logger.info(f"Done: {len(all_questions)}/{total} in {elapsed:.1f}s | {summary}")
 
+    # FIX #13-2: Proper error message with real cause
     if not all_questions:
-        raise GenerationError("All chapters failed.", 500)
+        detail = errors[0] if errors else "unknown cause — check logs"
+        raise GenerationError(f"Generation failed — {detail}", 500)
 
     return all_questions
 

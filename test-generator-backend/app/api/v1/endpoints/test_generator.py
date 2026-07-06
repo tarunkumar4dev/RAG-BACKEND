@@ -6,6 +6,10 @@ v2.9 changes:
   - /export passes template through to generate_pdf() / generate_docx()
   - New GET /templates endpoint — returns available export templates for
     a frontend dropdown (Modern / Classic / Compact / Colorful)
+  - Split usage check into check_usage (read-only, before generation) + record_usage (increment, after success)
+  - check_usage: fail-closed (error = block), null-UUID blocked (401), only checks count
+  - record_usage: called only after successful generation
+  - check_and_record_usage kept for backward compat, now calls split internally
 
 v2.8 changes:
   - English pseudo-chapter support (Writing Skills, Grammar bypass RAG)
@@ -17,20 +21,10 @@ v2.7 changes:
   - Adds `groups` field for grouped dropdown UI (English Class 10)
   - Backward compatible: flat `chapters` list still returned
 
-v2.6 changes (additive only):
+v2.6 changes:
   - FrontendQuestionResponse: added questionTable field for Statistics questions
   - _transform_backend_to_frontend: extracts question_table similar to answer_table
   - /save: persists question_table along with answer_table (forward compat)
-
-v2.5 changes:
-  - /save now accepts a full questions list (including manual additions) and persists them
-  - /export now supports paperDate and manual_questions fields
-  - ExportRequest validates manual questions + images
-  - Added /tests/{test_id}/add-manual-question endpoint (optional per-question persist)
-
-v2.4 changes:
-  - Fixed: FORMAT_MAP includes all format variants
-  - Fixed: Accountancy import path → test_generator_service
 """
 
 from fastapi import APIRouter, HTTPException
@@ -48,7 +42,7 @@ from app.models.test_generator import (
     ChapterSection,
     DifficultyLevel,
     QuestionFormat,
-    ManualQuestionPayload,  # v2.5
+    ManualQuestionPayload,
 )
 from app.services.test_generator_service import generate_test, handle_feedback
 from app.services.rag_service import retrieve_context
@@ -63,24 +57,43 @@ router = APIRouter(prefix="/test-generator", tags=["Test Generator"])
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# USAGE CHECK HELPER
+# USAGE CHECK HELPERS (v2.9 — split check/increment + fail-closed + no null-UUID bypass)
 # ═══════════════════════════════════════════════════════════════════════
 
-def check_and_record_usage(user_id: str) -> dict:
+def check_usage(user_id: str) -> dict:
+    """
+    Read-only check: does user have remaining quota?
+    Does NOT increment the counter.
+    
+    Rules:
+      - No valid user_id → 401 (block, not unlimited)
+      - DB error → 503 (fail-closed, not unlimited)
+    """
     if not user_id or user_id == "00000000-0000-0000-0000-000000000000":
-        logger.warning("Usage check skipped: no valid user_id")
-        return {"allowed": True, "used": 0, "limit": -1, "remaining": -1}
+        logger.warning("Usage check blocked: no valid user_id provided")
+        raise HTTPException(
+            status_code=401,
+            detail={
+                "error": "unauthorized",
+                "message": "Login required. Please sign in to generate tests.",
+            },
+        )
 
     try:
         supabase = get_supabase()
-        result = supabase.rpc("increment_usage", {
+        result = supabase.rpc("check_usage", {
             "p_user_id": user_id,
-            "p_action": "test_generated",
         }).execute()
 
         if not result.data:
-            logger.warning(f"Usage check returned no data for user {user_id}")
-            return {"allowed": True, "used": 0, "limit": -1, "remaining": -1}
+            logger.error(f"Usage check returned no data for user {user_id} — blocking (fail-closed)")
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "error": "service_error",
+                    "message": "Unable to verify usage. Please try again later.",
+                },
+            )
 
         usage = result.data
 
@@ -103,8 +116,57 @@ def check_and_record_usage(user_id: str) -> dict:
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Usage check error (non-blocking): {e}")
-        return {"allowed": True, "used": 0, "limit": -1, "remaining": -1}
+        logger.error(f"Usage check error — blocking (fail-closed): {e}")
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": "service_error",
+                "message": "Unable to verify usage. Please try again later.",
+            },
+        )
+
+
+def record_usage(user_id: str) -> dict:
+    """
+    Increment usage counter AFTER successful generation.
+    Non-fatal — if this fails, generation still succeeds (user gets paper).
+    """
+    try:
+        supabase = get_supabase()
+        result = supabase.rpc("record_usage", {
+            "p_user_id": user_id,
+            "p_action": "test_generated",
+        }).execute()
+
+        if result.data:
+            logger.info(f"Usage recorded: user={user_id}, used={result.data.get('used')}")
+        return result.data or {}
+
+    except Exception as e:
+        logger.error(f"Record usage failed (non-fatal): {e}")
+        return {"recorded": False, "error": str(e)}
+
+
+def check_and_record_usage(user_id: str) -> dict:
+    """
+    Backward-compatible wrapper: check + increment in one call.
+    Used by legacy endpoints. New endpoints should use check_usage + record_usage separately.
+    """
+    usage = check_usage(user_id)
+    
+    # If check passed, immediately record
+    try:
+        supabase = get_supabase()
+        result = supabase.rpc("record_usage", {
+            "p_user_id": user_id,
+            "p_action": "test_generated",
+        }).execute()
+        if result.data:
+            usage.update(result.data)
+    except Exception as e:
+        logger.error(f"Record usage failed in combined call (non-fatal): {e}")
+    
+    return usage
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -129,7 +191,6 @@ def _resolve_subject(subject: str) -> str:
 # ENGLISH PSEUDO-CHAPTER SUPPORT (v2.8)
 # ═══════════════════════════════════════════════════════════════════════
 
-# English pseudo-chapters (no NCERT lookup needed)
 ENGLISH_PSEUDO_CHAPTERS = {"writing skills", "grammar"}
 
 
@@ -144,14 +205,12 @@ def _is_english_pseudo(subject: str, chapter: str) -> bool:
 # BOOK / CHAPTER_TYPE LABELS (for /chapters response)
 # ═══════════════════════════════════════════════════════════════════════
 
-# Display labels shown in the frontend optgroup
 BOOK_LABELS = {
     ("first_flight", "prose"): "First Flight — Prose",
     ("first_flight", "poem"): "First Flight — Poems",
     ("footprints_without_feet", "prose"): "Footprints Without Feet",
 }
 
-# Order in which groups appear in the dropdown
 BOOK_GROUP_ORDER = {
     ("first_flight", "prose"): 1,
     ("first_flight", "poem"): 2,
@@ -174,7 +233,7 @@ class FrontendChapterRow(BaseModel):
 
 class FrontendGenerateRequest(BaseModel):
     examTitle: str = "Untitled Test"
-    paperDate: Optional[str] = None  # ISO date string
+    paperDate: Optional[str] = None
     board: str = "CBSE"
     classGrade: str = "Class 10"
     subject: str = "Science"
@@ -205,9 +264,7 @@ class FrontendQuestionResponse(BaseModel):
     validationStatus: str
     section: Optional[str] = None
     answerTable: Optional[dict] = None
-    # v2.6: structured table embedded in the QUESTION (Statistics, etc.)
     questionTable: Optional[dict] = None
-    # v2.5: manual question fields
     isManual: bool = False
     imageUrl: Optional[str] = None
 
@@ -232,7 +289,7 @@ class ExportRequest(BaseModel):
     board: str = "CBSE"
     classGrade: str = "Class 10"
     subject: str = "Science"
-    questions: list  # array of question dicts (can contain manual ones)
+    questions: list
     includeAnswers: bool = False
     includeExplanations: bool = False
     format: str = "pdf"
@@ -240,14 +297,12 @@ class ExportRequest(BaseModel):
     template: str = "modern"  # v2.9: "modern" | "classic" | "compact" | "colorful"
 
 
-# v2.5: Save accepts questions array
 class FrontendSaveRequest(BaseModel):
     test_id: str
     teacher_id: str
-    questions: Optional[List[dict]] = None  # full final question list incl. manual
+    questions: Optional[List[dict]] = None
 
 
-# v2.5: Standalone manual question add endpoint payload
 class AddManualQuestionRequest(BaseModel):
     teacher_id: str
     question: ManualQuestionPayload
@@ -350,10 +405,7 @@ def _transform_frontend_to_backend(req: FrontendGenerateRequest) -> TestGenerati
 
 
 def _serialize_table_field(table_obj):
-    """
-    Safely convert a Pydantic table model (AnswerTable / QuestionTable) or dict
-    to a plain dict for the frontend response.
-    """
+    """Safely convert a Pydantic table model or dict to a plain dict for frontend."""
     if table_obj is None:
         return None
     try:
@@ -391,11 +443,7 @@ def _transform_backend_to_frontend(resp, req: FrontendGenerateRequest) -> Fronte
     questions = []
     for q in questions_list:
         section = getattr(q, '_section', None) or getattr(q, 'section', None)
-
-        # v2.5: answer_table (Accountancy) — table IS the answer
         answer_table_data = _serialize_table_field(getattr(q, 'answer_table', None))
-
-        # v2.6: question_table (Statistics) — table is part of the question
         question_table_data = _serialize_table_field(getattr(q, 'question_table', None))
 
         questions.append(FrontendQuestionResponse(
@@ -413,7 +461,7 @@ def _transform_backend_to_frontend(resp, req: FrontendGenerateRequest) -> Fronte
             validationStatus=q.validation_status,
             section=section,
             answerTable=answer_table_data,
-            questionTable=question_table_data,  # v2.6
+            questionTable=question_table_data,
             isManual=getattr(q, 'is_manual', False),
             imageUrl=getattr(q, 'image_url', None),
         ))
@@ -441,7 +489,7 @@ def _transform_backend_to_frontend(resp, req: FrontendGenerateRequest) -> Fronte
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# ENDPOINT: Generate from Frontend
+# ENDPOINT: Generate from Frontend (v2.9 — split check/increment)
 # ═══════════════════════════════════════════════════════════════════════
 
 @router.post("/generate-frontend", response_model=FrontendGenerateResponse)
@@ -451,13 +499,16 @@ async def generate_from_frontend(req: FrontendGenerateRequest):
                 f"{len(req.simpleData)} chapters, cbsePattern={req.cbsePattern}, paperDate={req.paperDate}")
 
     try:
-        usage = check_and_record_usage(req.userId)
+        # ── Step 1: Check usage (read-only, BEFORE generation) ──
+        # Fail-closed: error here = block (401/403/503)
+        # Null UUID: blocked with 401 (not unlimited)
+        usage = check_usage(req.userId)
 
         backend_request = _transform_frontend_to_backend(req)
         total_q = sum(c.quantity for c in backend_request.chapters)
         logger.info(f"Transformed: {len(backend_request.chapters)} chapters, {total_q} questions")
 
-        # v2.8: Filter out English pseudo-chapters (Writing/Grammar) from RAG lookup
+        # Filter out English pseudo-chapters from RAG lookup
         real_chapters = [
             ch.chapter for ch in backend_request.chapters
             if not _is_english_pseudo(backend_request.subject, ch.chapter)
@@ -479,11 +530,20 @@ async def generate_from_frontend(req: FrontendGenerateRequest):
         resolved_subject = _resolve_subject(req.subject)
         is_accountancy = resolved_subject.lower() in ("accountancy", "accounts", "accounting")
 
+        # ── Step 2: Generate paper ──
         if req.cbsePattern and is_accountancy:
             from app.services.test_generator_service import generate_cbse_accountancy_paper
             backend_response = generate_cbse_accountancy_paper(backend_request, context_chunks)
         else:
             backend_response = generate_test(backend_request, context_chunks, cbse_pattern=req.cbsePattern)
+
+        # ── Step 3: Increment usage (AFTER successful generation) ──
+        # Non-fatal: if this fails, paper is still returned
+        recorded = record_usage(req.userId)
+        if recorded.get("recorded") is False:
+            logger.warning(f"Usage not recorded for {req.userId}: {recorded.get('error')}")
+        else:
+            usage.update(recorded)
 
         frontend_response = _transform_backend_to_frontend(backend_response, req)
 
@@ -506,7 +566,6 @@ async def generate_from_frontend(req: FrontendGenerateRequest):
     except Exception as e:
         error_str = str(e)
         if "No NCERT content found" in error_str:
-            # v2.8: Filter out pseudo-chapters from error message
             if 'backend_request' in locals():
                 real_names = [
                     ch.chapter for ch in backend_request.chapters
@@ -515,14 +574,12 @@ async def generate_from_frontend(req: FrontendGenerateRequest):
             else:
                 real_names = []
             
-            # Only raise if there are real chapters that failed
             if real_names:
                 raise HTTPException(
                     status_code=404,
                     detail=f"Content not available for selected chapters: {', '.join(real_names)}. Try different chapters or contact support."
                 )
             else:
-                # Silent fallback: all chapters were pseudo, service will handle it
                 logger.warning("No NCERT content found, but all chapters are pseudo-chapters. Proceeding.")
         logger.error(f"Frontend generate error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Generation failed: {str(e)}")
@@ -547,7 +604,6 @@ async def export_test(req: ExportRequest):
                 continue
             if 'section' not in q:
                 q['section'] = None
-            # Detect manual question from multiple possible flag names
             is_manual = bool(
                 q.get('isManual')
                 or q.get('is_manual')
@@ -645,14 +701,6 @@ async def get_templates():
 
 @router.get("/chapters")
 async def get_chapters(subject: str = "Science", class_grade: str = "10"):
-    """
-    Returns:
-      - `chapters`: flat sorted list of chapter names (backward compat)
-      - `groups`: structured groups by (book, chapter_type) — populated only
-                  when chunks have `book` and `chapter_type` set (currently
-                  Class 10 English). For other subjects this is null and the
-                  frontend falls back to the flat list.
-    """
     subject = _resolve_subject(subject)
     try:
         supabase = get_supabase()
@@ -664,12 +712,9 @@ async def get_chapters(subject: str = "Science", class_grade: str = "10"):
 
         rows = result.data or []
 
-        # Flat list (backward compat)
         chapters = sorted({row["chapter"] for row in rows if row.get("chapter")})
 
-        # Build group dict keyed by (book, chapter_type)
-        # We dedupe on (chapter, book, chapter_type) so each chapter shows once per group
-        seen_chapters = {}  # (chapter, book, ctype) -> {name, order}
+        seen_chapters = {}
         for row in rows:
             chapter = row.get("chapter")
             book = row.get("book")
@@ -678,7 +723,6 @@ async def get_chapters(subject: str = "Science", class_grade: str = "10"):
 
             if not chapter:
                 continue
-            # Skip chunks without book/chapter_type (non-English subjects)
             if not book or not ctype:
                 continue
 
@@ -686,7 +730,6 @@ async def get_chapters(subject: str = "Science", class_grade: str = "10"):
             if key not in seen_chapters:
                 seen_chapters[key] = {"name": chapter, "order": order}
 
-        # Now group by (book, ctype)
         groups_dict = {}
         for (chapter, book, ctype), data in seen_chapters.items():
             gkey = (book, ctype)
@@ -694,7 +737,6 @@ async def get_chapters(subject: str = "Science", class_grade: str = "10"):
                 groups_dict[gkey] = []
             groups_dict[gkey].append(data)
 
-        # Build sorted output
         groups = []
         for (book, ctype), chs in groups_dict.items():
             chs_sorted = sorted(
@@ -713,7 +755,6 @@ async def get_chapters(subject: str = "Science", class_grade: str = "10"):
                 "chapters": chs_sorted,
             })
 
-        # Sort groups by predefined order, strip the sort key from output
         groups.sort(key=lambda g: g["_sort_order"])
         for g in groups:
             g.pop("_sort_order", None)
@@ -816,32 +857,23 @@ async def feedback(request: TestFeedbackRequest):
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# ENDPOINT: Save Test (v2.6 — accepts full question list incl. manual + tables)
+# ENDPOINT: Save Test
 # ═══════════════════════════════════════════════════════════════════════
 
 @router.post("/save")
 async def save_test(request: FrontendSaveRequest):
-    """
-    Save the final test to DB.
-    If `questions` is provided, overwrites the questions table for this test
-    (used when teacher has added manual questions or edited existing ones).
-    """
     supabase = get_supabase()
     try:
-        # Always update test status
         supabase.table("tests").update({"status": "saved"}).eq("id", request.test_id).execute()
 
-        # v2.5: Persist final question list if provided (includes manual questions)
         if request.questions:
             logger.info(f"Saving {len(request.questions)} questions for test {request.test_id}")
 
-            # Delete old questions for this test (manual questions may have been added)
             try:
                 supabase.table("questions").delete().eq("test_id", request.test_id).execute()
             except Exception as del_err:
-                logger.warning(f"Could not delete old questions (table may not exist): {del_err}")
+                logger.warning(f"Could not delete old questions: {del_err}")
 
-            # Insert all questions fresh
             rows_to_insert = []
             for idx, q in enumerate(request.questions):
                 if not isinstance(q, dict):
@@ -871,7 +903,6 @@ async def save_test(request: FrontendSaveRequest):
                     "is_manual": is_manual,
                     "image_url": q.get("imageUrl") or q.get("image_url"),
                     "answer_table": q.get("answerTable") or q.get("answer_table"),
-                    # v2.6: Statistics question table
                     "question_table": q.get("questionTable") or q.get("question_table"),
                 }
                 rows_to_insert.append(row)
@@ -881,8 +912,6 @@ async def save_test(request: FrontendSaveRequest):
                     supabase.table("questions").insert(rows_to_insert).execute()
                     logger.info(f"Inserted {len(rows_to_insert)} questions")
                 except Exception as ins_err:
-                    # Non-fatal: the test row itself is still saved
-                    # If question_table column doesn't exist, retry without it
                     err_str = str(ins_err).lower()
                     if "question_table" in err_str and ("column" in err_str or "schema" in err_str):
                         logger.warning("question_table column missing in DB, retrying without it")
@@ -903,21 +932,15 @@ async def save_test(request: FrontendSaveRequest):
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# ENDPOINT: Add Manual Question (v2.5 — optional per-question persist)
+# ENDPOINT: Add Manual Question
 # ═══════════════════════════════════════════════════════════════════════
 
 @router.post("/tests/{test_id}/add-manual-question")
 async def add_manual_question(test_id: str, req: AddManualQuestionRequest):
-    """
-    Add a single manual question to an existing test.
-    Returns the stored question. Used if teacher wants to persist immediately
-    (not wait for 'Save & Finish').
-    """
     supabase = get_supabase()
     try:
         gq = req.question.to_generated_question()
 
-        # Determine position
         try:
             existing = supabase.table("questions").select("position").eq("test_id", test_id).execute()
             max_pos = max((r.get("position", 0) for r in (existing.data or [])), default=0)

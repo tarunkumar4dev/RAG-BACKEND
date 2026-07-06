@@ -27,8 +27,14 @@ class Settings:
     OVERSHOOT_PER_CHAPTER: int = int(os.getenv("OVERSHOOT_PER_CHAPTER", "1"))
     GENERATION_TEMPERATURE: float = 0.55
     MAX_OUTPUT_TOKENS: int = int(os.getenv("MAX_OUTPUT_TOKENS", "16384"))
-    CONTEXT_CHARS_PER_CHUNK: int = int(os.getenv("CONTEXT_CHARS_PER_CHUNK", "300"))
-    MAX_CONTEXT_CHUNKS: int = int(os.getenv("MAX_CONTEXT_CHUNKS", "3"))
+    
+    # ── CONTEXT OPTIMIZATION (FIXED) ──────────────────────────────
+    # Each chunk now carries ~600-800 characters of NCERT content
+    # 8 chunks = 4800-6400 characters = Complete chapter coverage
+    CONTEXT_CHARS_PER_CHUNK: int = int(os.getenv("CONTEXT_CHARS_PER_CHUNK", "750"))  # Increased from 300
+    MAX_CONTEXT_CHUNKS: int = int(os.getenv("MAX_CONTEXT_CHUNKS", "8"))  # Increased from 3
+    
+    # Total context = 750 × 8 = 6000 characters (~800-1000 tokens)
 
     # ── RAG ─────────────────────────────────────────────────────────
     MAX_CHUNKS: int = int(os.getenv("MAX_CHUNKS", "10"))
