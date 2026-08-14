@@ -144,7 +144,7 @@ def run_full_test():
     # ============================================
     # STEP 1: Convert any PDFs to images first
     # ============================================
-    pdf_files = list(sheets_dir.glob("*.pdf"))
+    pdf_files = list(sheets_dir.glob("*"))
     if pdf_files:
         print(f"Found {len(pdf_files)} PDF file(s) — converting to images...\n")
         for pdf_file in pdf_files:

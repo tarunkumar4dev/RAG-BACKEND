@@ -1,30 +1,30 @@
 """
-Test Generator API Endpoints — v2.9
+Test Generator API Endpoints — v3.1
 
-v2.9 changes:
-  - ExportRequest now accepts `template` field (default "modern")
+v3.1 changes (DIAGNOSTIC):
+  - INSERT tests table: added 🔍 debug log to inspect raw response.data
+  - save_test: added pre-flight SELECT to verify row exists BEFORE update
+    (fixes silent PATCH 200 OK when row is actually missing)
+  - Removed created_at manual timestamp (let DB default NOW() handle it)
+
+v3.0 changes:
+  - FIX: generate_from_frontend now INSERTs into tests table
+  - FIX: save_test now uses UPSERT-safe update with teacher_id check
+  - ExportRequest accepts `template` field (default "modern")
   - /export passes template through to generate_pdf() / generate_docx()
-  - New GET /templates endpoint — returns available export templates for
-    a frontend dropdown (Modern / Classic / Compact / Colorful)
-  - Split usage check into check_usage (read-only, before generation) + record_usage (increment, after success)
-  - check_usage: fail-closed (error = block), null-UUID blocked (401), only checks count
+  - New GET /templates endpoint
+  - Split usage check into check_usage + record_usage
+  - check_usage: fail-closed, null-UUID blocked (401)
   - record_usage: called only after successful generation
-  - check_and_record_usage kept for backward compat, now calls split internally
 
 v2.8 changes:
   - English pseudo-chapter support (Writing Skills, Grammar bypass RAG)
-  - _is_english_pseudo() helper skips NCERT lookup for these chapters
-  - Error handler filters pseudo-chapters from error messages
 
 v2.7 changes:
-  - /chapters endpoint now returns book, chapter_type, chapter_order
-  - Adds `groups` field for grouped dropdown UI (English Class 10)
-  - Backward compatible: flat `chapters` list still returned
+  - /chapters endpoint returns book, chapter_type, chapter_order
 
 v2.6 changes:
-  - FrontendQuestionResponse: added questionTable field for Statistics questions
-  - _transform_backend_to_frontend: extracts question_table similar to answer_table
-  - /save: persists question_table along with answer_table (forward compat)
+  - questionTable field for Statistics questions
 """
 
 from fastapi import APIRouter, HTTPException
@@ -32,6 +32,9 @@ from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from typing import List, Optional
 import re
+import uuid
+import time
+import logging
 
 from app.models.test_generator import (
     TestGenerationRequest,
@@ -48,27 +51,16 @@ from app.services.test_generator_service import generate_test, handle_feedback
 from app.services.rag_service import retrieve_context
 from app.core.database import get_supabase
 from app.core.config import settings
-import logging
-import uuid
-import time
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/test-generator", tags=["Test Generator"])
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# USAGE CHECK HELPERS (v2.9 — split check/increment + fail-closed + no null-UUID bypass)
+# USAGE CHECK HELPERS
 # ═══════════════════════════════════════════════════════════════════════
 
 def check_usage(user_id: str) -> dict:
-    """
-    Read-only check: does user have remaining quota?
-    Does NOT increment the counter.
-    
-    Rules:
-      - No valid user_id → 401 (block, not unlimited)
-      - DB error → 503 (fail-closed, not unlimited)
-    """
     if not user_id or user_id == "00000000-0000-0000-0000-000000000000":
         logger.warning("Usage check blocked: no valid user_id provided")
         raise HTTPException(
@@ -127,10 +119,6 @@ def check_usage(user_id: str) -> dict:
 
 
 def record_usage(user_id: str) -> dict:
-    """
-    Increment usage counter AFTER successful generation.
-    Non-fatal — if this fails, generation still succeeds (user gets paper).
-    """
     try:
         supabase = get_supabase()
         result = supabase.rpc("record_usage", {
@@ -148,13 +136,7 @@ def record_usage(user_id: str) -> dict:
 
 
 def check_and_record_usage(user_id: str) -> dict:
-    """
-    Backward-compatible wrapper: check + increment in one call.
-    Used by legacy endpoints. New endpoints should use check_usage + record_usage separately.
-    """
     usage = check_usage(user_id)
-    
-    # If check passed, immediately record
     try:
         supabase = get_supabase()
         result = supabase.rpc("record_usage", {
@@ -165,7 +147,6 @@ def check_and_record_usage(user_id: str) -> dict:
             usage.update(result.data)
     except Exception as e:
         logger.error(f"Record usage failed in combined call (non-fatal): {e}")
-    
     return usage
 
 
@@ -188,21 +169,20 @@ def _resolve_subject(subject: str) -> str:
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# ENGLISH PSEUDO-CHAPTER SUPPORT (v2.8)
+# ENGLISH PSEUDO-CHAPTER SUPPORT
 # ═══════════════════════════════════════════════════════════════════════
 
 ENGLISH_PSEUDO_CHAPTERS = {"writing skills", "grammar"}
 
 
 def _is_english_pseudo(subject: str, chapter: str) -> bool:
-    """Check if chapter is a Writing/Grammar pseudo-chapter for English."""
     if (subject or "").lower() != "english":
         return False
     return chapter.lower().strip() in ENGLISH_PSEUDO_CHAPTERS
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# BOOK / CHAPTER_TYPE LABELS (for /chapters response)
+# BOOK / CHAPTER_TYPE LABELS
 # ═══════════════════════════════════════════════════════════════════════
 
 BOOK_LABELS = {
@@ -281,8 +261,6 @@ class FrontendGenerateResponse(BaseModel):
     meta: dict = {}
 
 
-# v2.5: Export accepts paperDate + manual flags
-# v2.9: Export accepts template (Modern / Classic / Compact / Colorful)
 class ExportRequest(BaseModel):
     examTitle: str = "Test Paper"
     paperDate: Optional[str] = None
@@ -294,7 +272,10 @@ class ExportRequest(BaseModel):
     includeExplanations: bool = False
     format: str = "pdf"
     logoBase64: Optional[str] = None
-    template: str = "modern"  # v2.9: "modern" | "classic" | "compact" | "colorful"
+    template: str = "modern"
+    teacher_name: Optional[str] = None
+    duration: Optional[str] = None
+    institute_name: Optional[str] = None
 
 
 class FrontendSaveRequest(BaseModel):
@@ -405,7 +386,6 @@ def _transform_frontend_to_backend(req: FrontendGenerateRequest) -> TestGenerati
 
 
 def _serialize_table_field(table_obj):
-    """Safely convert a Pydantic table model or dict to a plain dict for frontend."""
     if table_obj is None:
         return None
     try:
@@ -489,7 +469,7 @@ def _transform_backend_to_frontend(resp, req: FrontendGenerateRequest) -> Fronte
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# ENDPOINT: Generate from Frontend (v2.9 — split check/increment)
+# ENDPOINT: Generate from Frontend (v3.1 — DIAGNOSTIC LOGS)
 # ═══════════════════════════════════════════════════════════════════════
 
 @router.post("/generate-frontend", response_model=FrontendGenerateResponse)
@@ -500,8 +480,6 @@ async def generate_from_frontend(req: FrontendGenerateRequest):
 
     try:
         # ── Step 1: Check usage (read-only, BEFORE generation) ──
-        # Fail-closed: error here = block (401/403/503)
-        # Null UUID: blocked with 401 (not unlimited)
         usage = check_usage(req.userId)
 
         backend_request = _transform_frontend_to_backend(req)
@@ -537,19 +515,75 @@ async def generate_from_frontend(req: FrontendGenerateRequest):
         else:
             backend_response = generate_test(backend_request, context_chunks, cbse_pattern=req.cbsePattern)
 
-        # ── Step 3: Increment usage (AFTER successful generation) ──
-        # Non-fatal: if this fails, paper is still returned
+        # ── Step 3: Transform to frontend response ──
+        frontend_response = _transform_backend_to_frontend(backend_response, req)
+
+        elapsed = round(time.time() - start, 2)
+        frontend_response.generationTime = elapsed
+
+        # ── Step 4: Increment usage ──
         recorded = record_usage(req.userId)
         if recorded.get("recorded") is False:
             logger.warning(f"Usage not recorded for {req.userId}: {recorded.get('error')}")
         else:
             usage.update(recorded)
 
-        frontend_response = _transform_backend_to_frontend(backend_response, req)
+        # ═══════════════════════════════════════════════════════════
+        # 🆕 FIX v3.1: INSERT into tests table (with heavy diagnostics)
+        # ═══════════════════════════════════════════════════════════
+        try:
+            class_num_for_db = _extract_class_number(req.classGrade)
+            total_marks = frontend_response.totalMarks
+            total_questions = frontend_response.totalQuestions
 
-        elapsed = round(time.time() - start, 2)
-        frontend_response.generationTime = elapsed
+            tests_row = {
+                "id": frontend_response.testId,
+                "teacher_id": req.userId,
+                "exam_title": frontend_response.examTitle,
+                "board": req.board,
+                "class_grade": class_num_for_db,
+                "subject": resolved_subject,
+                "status": "draft",
+                "total_questions": total_questions,
+                "total_marks": total_marks,
+                "paper_date": req.paperDate,
+                "cbse_pattern": req.cbsePattern,
+            }
 
+            logger.info(f"🔍 About to INSERT tests_row: {tests_row}")
+
+            supabase = get_supabase()
+            insert_result = supabase.table("tests").insert(tests_row).execute()
+
+            # 🔍 DIAGNOSTIC: log everything about the response
+            logger.info(
+                f"🔍 INSERT response: "
+                f"data={insert_result.data!r}, "
+                f"count={getattr(insert_result, 'count', 'N/A')!r}"
+            )
+
+            if not insert_result.data:
+                logger.error(
+                    f"❌ tests INSERT returned no data for test_id={frontend_response.testId}. "
+                    f"Row may NOT be created!"
+                )
+            else:
+                logger.info(f"✅ tests row inserted: id={frontend_response.testId}, teacher={req.userId}")
+
+            # 🔍 EXTRA DIAGNOSTIC: verify row actually exists after insert
+            verify = supabase.table("tests").select("id, status").eq("id", frontend_response.testId).execute()
+            if verify.data:
+                logger.info(f"✅ VERIFIED row exists in DB: {verify.data}")
+            else:
+                logger.error(f"❌ VERIFIED row DOES NOT exist in DB despite INSERT!")
+
+        except Exception as insert_err:
+            logger.error(
+                f"❌ Failed to INSERT tests row for {frontend_response.testId}: {insert_err}",
+                exc_info=True
+            )
+
+        # ── Step 5: Add usage info to response ──
         frontend_response.meta["usage"] = {
             "used": usage.get("used", 0),
             "limit": usage.get("limit", -1),
@@ -573,7 +607,7 @@ async def generate_from_frontend(req: FrontendGenerateRequest):
                 ]
             else:
                 real_names = []
-            
+
             if real_names:
                 raise HTTPException(
                     status_code=404,
@@ -586,18 +620,15 @@ async def generate_from_frontend(req: FrontendGenerateRequest):
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# ENDPOINT: Export PDF / DOCX (v2.9 — template support added)
+# ENDPOINT: Export PDF / DOCX
 # ═══════════════════════════════════════════════════════════════════════
 
 @router.post("/export")
 async def export_test(req: ExportRequest):
     try:
         class_num = _extract_class_number(req.classGrade)
-
-        # v2.9: normalize template value (frontend may send "" or None)
         template = (req.template or "modern").strip().lower()
 
-        # Normalize questions: ensure section field exists, mark manual
         normalized_questions = []
         for q in req.questions:
             if not isinstance(q, dict):
@@ -633,7 +664,10 @@ async def export_test(req: ExportRequest):
                 include_explanations=req.includeExplanations,
                 logo_base64=req.logoBase64,
                 paper_date=req.paperDate,
-                template=template,  # v2.9
+                template=template,
+                teacher_name=req.teacher_name,
+                duration=req.duration,
+                institute_name=req.institute_name,
             )
             filename = f"{req.examTitle.replace(' ', '_')}.docx"
             return Response(
@@ -653,7 +687,10 @@ async def export_test(req: ExportRequest):
                 include_explanations=req.includeExplanations,
                 logo_base64=req.logoBase64,
                 paper_date=req.paperDate,
-                template=template,  # v2.9
+                template=template,
+                teacher_name=req.teacher_name,
+                duration=req.duration,
+                institute_name=req.institute_name,
             )
             filename = f"{req.examTitle.replace(' ', '_')}.pdf"
             return Response(
@@ -668,21 +705,16 @@ async def export_test(req: ExportRequest):
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# ENDPOINT: Available Export Templates (v2.9 — for frontend dropdown)
+# ENDPOINT: Available Export Templates
 # ═══════════════════════════════════════════════════════════════════════
 
 @router.get("/templates")
 async def get_templates():
-    """
-    Returns available PDF/DOCX export templates for a frontend dropdown.
-    Each item: { id, label, description }
-    """
     try:
         from app.services.export_service import get_available_templates
         return {"ok": True, "templates": get_available_templates()}
     except Exception as e:
         logger.error(f"Templates fetch error: {e}")
-        # Safe fallback so the frontend dropdown never breaks
         return {
             "ok": False,
             "templates": [
@@ -690,13 +722,14 @@ async def get_templates():
                 {"id": "classic", "label": "Classic", "description": "Traditional serif exam-paper look."},
                 {"id": "compact", "label": "Compact", "description": "Dense layout, saves paper."},
                 {"id": "colorful", "label": "Colorful", "description": "Section-wise accent colors."},
+                {"id": "exam_paper", "label": "Exam Paper", "description": "Traditional CBSE-style exam paper."},
             ],
             "error": str(e),
         }
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# ENDPOINT: Chapters (v2.7 — grouped by book + chapter_type)
+# ENDPOINT: Chapters
 # ═══════════════════════════════════════════════════════════════════════
 
 @router.get("/chapters")
@@ -711,7 +744,6 @@ async def get_chapters(subject: str = "Science", class_grade: str = "10"):
             .execute()
 
         rows = result.data or []
-
         chapters = sorted({row["chapter"] for row in rows if row.get("chapter")})
 
         seen_chapters = {}
@@ -857,15 +889,69 @@ async def feedback(request: TestFeedbackRequest):
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# ENDPOINT: Save Test
+# ENDPOINT: Save Test (v3.1 — pre-flight SELECT + upsert fallback)
 # ═══════════════════════════════════════════════════════════════════════
 
 @router.post("/save")
 async def save_test(request: FrontendSaveRequest):
     supabase = get_supabase()
     try:
-        supabase.table("tests").update({"status": "saved"}).eq("id", request.test_id).execute()
+        # 🆕 v3.1: PRE-FLIGHT SELECT — verify row actually exists before UPDATE
+        check_result = supabase.table("tests").select("id, teacher_id, exam_title").eq(
+            "id", request.test_id
+        ).eq(
+            "teacher_id", request.teacher_id
+        ).execute()
 
+        logger.info(
+            f"🔍 Pre-save check: found {len(check_result.data or [])} rows "
+            f"for test_id={request.test_id}, teacher_id={request.teacher_id}"
+        )
+
+        if not check_result.data:
+            # Row missing — try to UPSERT it (recovery path)
+            logger.warning(
+                f"⚠️ tests row missing for test_id={request.test_id}. "
+                f"Attempting upsert recovery from questions payload."
+            )
+
+            # Best-effort: reconstruct minimal tests row from questions
+            if request.questions:
+                first_q = request.questions[0] if request.questions else {}
+                total_marks = sum(q.get("marks", 1) for q in request.questions if isinstance(q, dict))
+                recovery_row = {
+                    "id": request.test_id,
+                    "teacher_id": request.teacher_id,
+                    "exam_title": "Untitled Test (recovered)",
+                    "board": "CBSE",
+                    "class_grade": "10",
+                    "subject": first_q.get("chapter", "General") if isinstance(first_q, dict) else "General",
+                    "status": "saved",
+                    "total_questions": len(request.questions),
+                    "total_marks": total_marks,
+                }
+                try:
+                    supabase.table("tests").insert(recovery_row).execute()
+                    logger.info(f"✅ Recovery INSERT succeeded for {request.test_id}")
+                except Exception as rec_err:
+                    logger.error(f"❌ Recovery INSERT failed: {rec_err}")
+                    raise HTTPException(
+                        status_code=404,
+                        detail="Test not found. Please generate a new test."
+                    )
+            else:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Test not found or you don't have permission to save it."
+                )
+        else:
+            # Row exists — update status to saved
+            supabase.table("tests").update({
+                "status": "saved"
+            }).eq("id", request.test_id).eq("teacher_id", request.teacher_id).execute()
+            logger.info(f"✅ tests row updated to saved: {request.test_id}")
+
+        # ── Save questions ──
         if request.questions:
             logger.info(f"Saving {len(request.questions)} questions for test {request.test_id}")
 
@@ -910,7 +996,7 @@ async def save_test(request: FrontendSaveRequest):
             if rows_to_insert:
                 try:
                     supabase.table("questions").insert(rows_to_insert).execute()
-                    logger.info(f"Inserted {len(rows_to_insert)} questions")
+                    logger.info(f"✅ Inserted {len(rows_to_insert)} questions")
                 except Exception as ins_err:
                     err_str = str(ins_err).lower()
                     if "question_table" in err_str and ("column" in err_str or "schema" in err_str):
@@ -919,13 +1005,15 @@ async def save_test(request: FrontendSaveRequest):
                             r.pop("question_table", None)
                         try:
                             supabase.table("questions").insert(rows_to_insert).execute()
-                            logger.info(f"Inserted {len(rows_to_insert)} questions (without question_table)")
+                            logger.info(f"✅ Inserted {len(rows_to_insert)} questions (without question_table)")
                         except Exception as retry_err:
-                            logger.error(f"Insert retry also failed: {retry_err}")
+                            logger.error(f"❌ Insert retry also failed: {retry_err}")
                     else:
-                        logger.error(f"Failed to insert questions: {ins_err}")
+                        logger.error(f"❌ Failed to insert questions: {ins_err}")
 
         return {"success": True, "test_id": request.test_id, "message": "Test saved."}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Save error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Save failed.")

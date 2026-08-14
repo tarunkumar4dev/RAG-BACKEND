@@ -8,7 +8,7 @@ v18 changes (only one function changed):
     "Rise of Nationalism Europe" all match correctly
 
 v18.1 additions:
-  - English Writing Skills prompt builder
+  - English Writing Skills prompt builderr
   - English Grammar prompt builder
   - Routing in _generate_for_chapter for writing/grammar pseudo-chapters
 """
@@ -1367,8 +1367,10 @@ def _parse_batch(raw, chapter, request, section_key=None):
         correct = _clean_gemini_text((q.get("correct_answer") or "").strip())
         explanation = _clean_gemini_text((q.get("explanation") or "").strip())
 
-        # For writing questions, be more lenient on explanation length
-        min_explanation = 10 if not is_english_writing else 5
+        # For writing/grammar questions, be more lenient on explanation length
+        min_explanation = 10
+        if is_english_writing or is_english_grammar:
+            min_explanation = 5
         if not explanation or len(explanation) < min_explanation:
             dropped += 1
             continue
@@ -1400,6 +1402,7 @@ def _parse_batch(raw, chapter, request, section_key=None):
 
         question_table = _parse_question_table(q.get("question_table"))
 
+        # Statistics: require question_table
         if is_stats:
             if question_table is not None:
                 if _has_inline_data_leak(text):
@@ -1433,6 +1436,7 @@ def _parse_batch(raw, chapter, request, section_key=None):
                     dropped += 1
                     continue
 
+        # ── Format-specific validation ──
         if fmt == "assertion_reason":
             if not options or len(options) != 4:
                 options = ASSERTION_REASON_OPTIONS.copy()
@@ -1441,8 +1445,10 @@ def _parse_batch(raw, chapter, request, section_key=None):
                 correct = matched[0] if matched else options[0]
         elif fmt in ("short_answer", "long_answer"):
             options = None
-            # Writing questions: be lenient on correct_answer length
-            min_correct_len = 10 if not is_english_writing else 5
+            # Writing + Grammar: be lenient on correct_answer length
+            min_correct_len = 10
+            if is_english_writing or is_english_grammar:
+                min_correct_len = 3  # "goes", "an", "was" etc.
             if not correct or len(correct) < min_correct_len:
                 dropped += 1
                 continue
@@ -1505,7 +1511,6 @@ def _parse_batch(raw, chapter, request, section_key=None):
         logger.info(f"  {chapter.chapter}: dropped {dropped}{extra}, kept {len(questions)}")
 
     return questions
-
 
 def _is_retryable(error_str: str) -> bool:
     return any(kw in error_str.upper() for kw in (k.upper() for k in RETRYABLE_KEYWORDS))
