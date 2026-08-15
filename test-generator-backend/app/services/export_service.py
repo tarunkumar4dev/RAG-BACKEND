@@ -1,35 +1,31 @@
 """
-Export Service v13 — Multi-Template Support (Classic / Modern / Compact / Colorful)
+Export Service v14 — Multi-Template Support (Classic / Modern / Compact / Colorful)
 
-v13 changes:
+v14 changes:
+  - "colorful" template now uses a distinct INSTITUTE-PAPER layout
+    (layout_style="institute_paper") matching a reference institute exam
+    format: Institute name header, "CLASS X — SUBJECT" line, optional
+    Topic line, Teacher / Subject + Max Marks / Date / Time meta row, a
+    signature multi-color section rule, inline "[marks]" per question (no
+    separate column), MCQ options rendered as (a)/(b) two-column pairs,
+    plain "SECTION A (desc)" headings, and a "— All the Best —" footer.
+  - generate_pdf() / generate_docx() gain new optional params:
+    teacher_name, institute_name, duration, topic — only rendered by the
+    institute_paper layout; other templates ignore them (still accepted,
+    so callers never break).
+  - modern / classic / compact keep the original card-based layout
+    (layout_style="card_based") — completely unaffected.
+
+v13 features retained:
   - TEMPLATE_PRESETS: 4 selectable visual templates for PDF + DOCX export
-      * "modern"   (DEFAULT — identical to v12's current look, so existing
-                     callers get zero visual change unless they opt in)
-      * "classic"  — serif, formal exam-paper look, no card boxes
-      * "compact"  — dense layout, smaller fonts, tighter spacing (saves paper)
-      * "colorful" — each CBSE section (A–E) gets its own accent color/stripe
-  - generate_pdf(..., template="modern") and generate_docx(..., template="modern")
-  - get_available_templates() — metadata list for a frontend dropdown
-  - Semantic colors (Accountancy emerald tables, Statistics blue question
-    tables) are intentionally NOT template-driven — they carry meaning
-    (which table type it is), not brand styling.
+  - get_available_templates() metadata endpoint
+  - Semantic colors (Accountancy emerald, Statistics blue) are NOT
+    template-driven — they carry meaning, not brand styling.
 
-<<<<<<< HEAD
-v11 features retained:
-  - Added _render_question_table_pdf() / _render_question_table_docx()
-  - Blue-toned question_table styling (Statistics)
-  - Manual question + image support (badge hidden in PDF/DOCX)
-  - Accountancy answer_table rendering (emerald)
-  - CBSE section grouping (5-section + Accountancy Part A/B
-  
-  )
-  - Paper date support, card-style question boxes
-=======
-v12 features retained:
+v12 / v11 features retained:
   - Matrix bracket rendering, question tables (Statistics), Accountancy
     answer tables, CBSE section grouping, manual question images, LaTeX/
-    Unicode cleanup, paper date support.
->>>>>>> 272fdfa (updated pdf code)
+    Unicode cleanup, paper date support, card-style question boxes.
 """
 
 import io
@@ -72,27 +68,23 @@ ACCOUNTANCY_SECTION_ORDER = ["A_1m", "A_3m", "A_4m", "A_6m", "B1_1m", "B1_3m", "
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# v13 NEW: Template Presets
+# Template Presets  (v14: each preset now carries a "layout_style")
 # ═══════════════════════════════════════════════════════════════════════
 #
-# Every visual knob (font, colors, card style, spacing, margins) for both
-# PDF and DOCX export lives here. Add a new template by adding a new key —
-# nothing else in the file needs to change.
+# layout_style:
+#   "card_based"       → modern / classic / compact — existing renderer
+#   "institute_paper"  → colorful — institute exam-paper renderer (v14)
 #
 # card_style:
-#   "card"   → rounded/bordered box around each question (current look)
-#   "flat"   → no box, just spacing (traditional exam-paper feel)
+#   "card"   → rounded/bordered box around each question
+#   "flat"   → no box, just spacing
 #   "stripe" → bordered box with a colored left accent stripe per section
-#
-# header_style:
-#   "formal"  → logo/title/meta 3-col header + double rule (current look)
-#   "banner"  → same header wrapped in a soft-tinted background bar
-#   "minimal" → same header, thinner rule, tighter spacing (for compact)
 
 TEMPLATE_PRESETS = {
     "modern": {
         "label": "Modern",
         "description": "Clean sans-serif with card-style questions. Our signature look.",
+        "layout_style": "card_based",
         "font_body": "Helvetica",
         "font_bold": "Helvetica-Bold",
         "docx_font": "Calibri",
@@ -115,6 +107,7 @@ TEMPLATE_PRESETS = {
     "classic": {
         "label": "Classic",
         "description": "Traditional serif exam-paper look — formal, no boxes.",
+        "layout_style": "card_based",
         "font_body": "Times-Roman",
         "font_bold": "Times-Bold",
         "docx_font": "Times New Roman",
@@ -137,6 +130,7 @@ TEMPLATE_PRESETS = {
     "compact": {
         "label": "Compact",
         "description": "Dense layout, smaller fonts — fits more on fewer pages.",
+        "layout_style": "card_based",
         "font_body": "Helvetica",
         "font_bold": "Helvetica-Bold",
         "docx_font": "Arial",
@@ -158,7 +152,8 @@ TEMPLATE_PRESETS = {
     },
     "colorful": {
         "label": "Colorful",
-        "description": "Each section gets its own accent color — engaging for students.",
+        "description": "Institute-style paper — inline marks, 2-column MCQ options, colorful section accents.",
+        "layout_style": "institute_paper",
         "font_body": "Helvetica",
         "font_bold": "Helvetica-Bold",
         "docx_font": "Arial",
@@ -176,12 +171,12 @@ TEMPLATE_PRESETS = {
         "header_style": "banner",
         "banner_bg": "#EEF2FF",
         "section_colors": {
-            "A": "#2563eb",  # blue
-            "B": "#7c3aed",  # purple
-            "C": "#ea580c",  # orange
-            "D": "#db2777",  # pink
-            "E": "#0d9488",  # teal
-            "F": "#65a30d",  # olive (extra sections / accountancy Part B)
+            "A": "#2563eb",
+            "B": "#7c3aed",
+            "C": "#ea580c",
+            "D": "#db2777",
+            "E": "#0d9488",
+            "F": "#65a30d",
         },
         "spacing_scale": 1.0,
         "margins_cm": (1.0, 1.0, 1.5, 1.5),
@@ -203,6 +198,8 @@ def _get_template(name: Optional[str]) -> dict:
     if not name:
         return TEMPLATE_PRESETS[DEFAULT_TEMPLATE]
     key = str(name).strip().lower()
+    if key not in TEMPLATE_PRESETS:
+        logger.warning(f"Unknown template '{key}', falling back to '{DEFAULT_TEMPLATE}'")
     return TEMPLATE_PRESETS.get(key, TEMPLATE_PRESETS[DEFAULT_TEMPLATE])
 
 
@@ -300,9 +297,7 @@ def _fix_chemical_formulas(text: str, use_tags: bool = True) -> str:
 # ═══════════════════════════════════════════════════════════════════════
 
 def _convert_matrix_brackets(text: str, use_tags: bool = False) -> str:
-    """
-    Convert [[a,b],[c,d]] notation to proper matrix box format.
-    """
+    """Convert [[a,b],[c,d]] notation to proper matrix box format."""
     if not text:
         return text
 
@@ -355,6 +350,7 @@ def _convert_matrix_brackets(text: str, use_tags: bool = False) -> str:
         logger.warning(f"MATRIX_OUT: {result[:150]!r}")
 
     return result
+
 
 # ═══════════════════════════════════════════════════════════════════════
 # LaTeX → Clean Text
@@ -459,11 +455,9 @@ def _process_latex(text: str, use_tags: bool = False) -> str:
 
     result = result.replace('{', '').replace('}', '')
     result = _fix_unicode_scripts(result, use_tags)
-    # 🚩 FIX: Don't collapse newlines — only collapse spaces/tabs within each line
-    # Old: result = re.sub(r'\s+', ' ', result).strip()
-    result = re.sub(r'[ \t]+', ' ', result)              # collapse spaces/tabs only
-    result = re.sub(r' *\n *', '\n', result)             # trim spaces around newlines
-    result = re.sub(r'\n{3,}', '\n\n', result)           # max 2 consecutive newlines
+    result = re.sub(r'[ \t]+', ' ', result)
+    result = re.sub(r' *\n *', '\n', result)
+    result = re.sub(r'\n{3,}', '\n\n', result)
     result = result.strip()
 
     result = _convert_matrix_brackets(result, use_tags)
@@ -472,15 +466,12 @@ def _process_latex(text: str, use_tags: bool = False) -> str:
 
 
 def _latex_to_paragraph(text: str) -> str:
-    # 🚩 FIX: Preserve newlines BEFORE _process_latex
-    # Mark double newlines (paragraph break) and single newlines separately
     text = text.replace('\r\n', '\n').replace('\r', '\n')
     text = re.sub(r'\n\s*\n', '__PARABREAK__', text)
     text = text.replace('\n', '__LINEBREAK__')
 
     result = _process_latex(text, use_tags=True)
 
-    # 🚩 FIX: Convert markers back to <br/> tags AFTER processing
     result = result.replace('__PARABREAK__', '<br/><br/>')
     result = result.replace('__LINEBREAK__', '<br/>')
 
@@ -1214,7 +1205,7 @@ def _render_inline_table_docx(container, headers: List[str], rows: List[List[str
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# v13: Question Card Wrapper (PDF) — template-aware
+# Question Card Wrapper (PDF) — card_based layout, template-aware
 # ═══════════════════════════════════════════════════════════════════════
 
 def _wrap_question_card(elements, W, tpl: dict, section_label: Optional[str] = None):
@@ -1279,7 +1270,7 @@ def _render_or_separator(styles, W, tpl: dict):
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# PDF Generation
+# PDF Generation  (entry point — routes to card_based or institute_paper)
 # ═══════════════════════════════════════════════════════════════════════
 
 def generate_pdf(
@@ -1293,7 +1284,24 @@ def generate_pdf(
     logo_base64: Optional[str] = None,
     paper_date: Optional[str] = None,
     template: str = DEFAULT_TEMPLATE,
+    teacher_name: Optional[str] = None,
+    institute_name: Optional[str] = None,
+    duration: Optional[str] = None,
+    topic: Optional[str] = None,
 ) -> bytes:
+    tpl = _get_template(template)
+
+    # v14: colorful -> institute-paper layout
+    if tpl.get("layout_style") == "institute_paper":
+        return _generate_pdf_institute(
+            questions=questions, exam_title=exam_title, board=board,
+            class_grade=class_grade, subject=subject,
+            include_answers=include_answers, include_explanations=include_explanations,
+            logo_base64=logo_base64, paper_date=paper_date, tpl=tpl,
+            teacher_name=teacher_name, institute_name=institute_name,
+            duration=duration, topic=topic,
+        )
+
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.units import cm
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -1303,8 +1311,6 @@ def generate_pdf(
         SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
         PageBreak, HRFlowable, Image as RLImage,
     )
-
-    tpl = _get_template(template)
 
     buffer = io.BytesIO()
 
@@ -1651,7 +1657,7 @@ def generate_pdf(
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# DOCX Generation
+# DOCX Generation  (entry point — routes to card_based or institute_paper)
 # ═══════════════════════════════════════════════════════════════════════
 
 def generate_docx(
@@ -1665,6 +1671,10 @@ def generate_docx(
     logo_base64: Optional[str] = None,
     paper_date: Optional[str] = None,
     template: str = DEFAULT_TEMPLATE,
+    teacher_name: Optional[str] = None,
+    institute_name: Optional[str] = None,
+    duration: Optional[str] = None,
+    topic: Optional[str] = None,
 ) -> bytes:
     from docx import Document
     from docx.shared import Pt, Cm, RGBColor
@@ -1672,6 +1682,17 @@ def generate_docx(
     from docx.oxml.ns import qn
 
     tpl = _get_template(template)
+
+    # v14: colorful -> institute-paper layout
+    if tpl.get("layout_style") == "institute_paper":
+        return _generate_docx_institute(
+            questions=questions, exam_title=exam_title, board=board,
+            class_grade=class_grade, subject=subject,
+            include_answers=include_answers, include_explanations=include_explanations,
+            logo_base64=logo_base64, paper_date=paper_date, tpl=tpl,
+            teacher_name=teacher_name, institute_name=institute_name,
+            duration=duration, topic=topic,
+        )
 
     doc = Document()
 
@@ -1701,7 +1722,6 @@ def generate_docx(
 
     header_container = doc
     if tpl['header_style'] == 'banner':
-        # single-cell "banner" table with tinted background behind title block
         banner_table = doc.add_table(rows=1, cols=1)
         banner_cell = banner_table.rows[0].cells[0]
         tcPr = banner_cell._element.get_or_add_tcPr()
@@ -1801,8 +1821,6 @@ def generate_docx(
         r.bold = True
 
     def _start_question_container(section_letter=None):
-        """Returns a container to render a question into: either `doc`
-        directly (flat style) or a bordered/shaded table cell (card/stripe)."""
         style = tpl.get('card_style', 'card')
         if style == 'flat':
             return doc, None
@@ -1819,7 +1837,7 @@ def generate_docx(
             accent = _hexnc(_section_color(tpl, section_letter))
             left = tcBorders.makeelement(qn('w:left'), {qn('w:val'): 'single', qn('w:sz'): '24', qn('w:color'): accent})
             tcBorders.append(left)
-        else:  # "card"
+        else:
             border_hex = _hexnc(tpl['card_border'])
             for side in ('top', 'left', 'bottom', 'right'):
                 b = tcBorders.makeelement(qn(f'w:{side}'), {qn('w:val'): 'single', qn('w:sz'): '6', qn('w:color'): border_hex})
@@ -2056,6 +2074,771 @@ def generate_docx(
     r.font.size = Pt(8)
     r.font.color.rgb = _rgb(tpl['light_muted'])
     r.font.name = tpl['docx_font']
+
+    buffer = io.BytesIO()
+    doc.save(buffer)
+    buffer.seek(0)
+    return buffer.getvalue()
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# v14 — INSTITUTE-PAPER LAYOUT  (used by "colorful" template)
+# ═══════════════════════════════════════════════════════════════════════
+#
+# Reference institute exam-paper format:
+#   • Institute name header  →  "Class X — Subject"  →  optional Topic line
+#   • Teacher / Max-Marks / Time / Date meta row
+#   • Signature multi-color section rule
+#   • Inline "[marks]" at end of each question (NOT a separate column)
+#   • MCQ options rendered as (a)/(b) two-column pairs
+#   • Plain "SECTION A (description)" headings
+#   • "— All the Best —" footer
+#
+# Shared LaTeX/table/image helpers are reused; only the layout differs.
+
+
+def _institute_section_heading(sec_key: str, meta_dict: dict) -> tuple:
+    """Return (title, description) for an institute-style section heading."""
+    meta = meta_dict.get(sec_key, {}) if meta_dict else {}
+    title = meta.get("title", f"Section {sec_key}")
+    subtitle = (meta.get("subtitle", "") or "").strip()
+    # normalise "(1 mark each — MCQ / Assertion-Reason)" -> clean parenthetical
+    desc = subtitle.strip("() ")
+    return title.upper(), desc
+
+
+def _institute_multicolor_rule_pdf(W: float, tpl: dict, thickness: float = 3.5):
+    """A thin horizontal rule split into the template's section accent colors."""
+    from reportlab.lib.colors import HexColor
+    from reportlab.platypus import Table, TableStyle
+
+    sc = tpl.get("section_colors") or {}
+    order = ["A", "B", "C", "D", "E", "F"]
+    colors = [sc.get(k, tpl["primary"]) for k in order if sc.get(k)]
+    if not colors:
+        colors = [tpl["primary"]]
+
+    n = len(colors)
+    seg_w = W / n
+    t = Table([[""] * n], colWidths=[seg_w] * n, rowHeights=[thickness])
+    cmds = [
+        ("TOPPADDING", (0, 0), (-1, -1), 0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+    ]
+    for i, c in enumerate(colors):
+        cmds.append(("BACKGROUND", (i, 0), (i, 0), HexColor(c)))
+    t.setStyle(TableStyle(cmds))
+    return t
+
+
+def _generate_pdf_institute(
+    questions, exam_title, board, class_grade, subject,
+    include_answers, include_explanations, logo_base64, paper_date, tpl,
+    teacher_name=None, institute_name=None, duration=None, topic=None,
+) -> bytes:
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.units import cm
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+    from reportlab.lib.colors import HexColor
+    from reportlab.platypus import (
+        SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
+        PageBreak, HRFlowable, Image as RLImage, KeepTogether,
+    )
+
+    buffer = io.BytesIO()
+    top_m, bottom_m, left_m, right_m = tpl["margins_cm"]
+    doc = SimpleDocTemplate(
+        buffer, pagesize=A4,
+        topMargin=top_m * cm, bottomMargin=bottom_m * cm,
+        leftMargin=left_m * cm, rightMargin=right_m * cm,
+    )
+
+    styles = getSampleStyleSheet()
+    W = A4[0] - (left_m + right_m) * cm
+    fb, fbd = tpl["font_body"], tpl["font_bold"]
+
+    ist_styles = {
+        "InstName":   dict(parent=styles["Title"], fontSize=18, leading=21, spaceAfter=1, alignment=TA_CENTER, textColor=HexColor(tpl["primary"]), fontName=fbd),
+        "InstExam":   dict(parent=styles["Normal"], fontSize=12.5, leading=15, spaceAfter=1, alignment=TA_CENTER, textColor=HexColor(tpl["primary"]), fontName=fbd),
+        "InstClass":  dict(parent=styles["Normal"], fontSize=11, leading=13, spaceAfter=1, alignment=TA_CENTER, textColor=HexColor(tpl["secondary"]), fontName=fb),
+        "InstTopic":  dict(parent=styles["Normal"], fontSize=10, leading=12, spaceAfter=1, alignment=TA_CENTER, textColor=HexColor(tpl["muted"]), fontName=fb),
+        "MetaL":      dict(parent=styles["Normal"], fontSize=10, leading=14, alignment=TA_LEFT, textColor=HexColor(tpl["secondary"]), fontName=fb),
+        "MetaR":      dict(parent=styles["Normal"], fontSize=10, leading=14, alignment=TA_RIGHT, textColor=HexColor(tpl["secondary"]), fontName=fb),
+        "GenInst":    dict(parent=styles["Normal"], fontSize=9, leading=12, alignment=TA_LEFT, textColor=HexColor(tpl["muted"]), fontName=fb),
+        "SecHead":    dict(parent=styles["Heading2"], fontSize=11.5, leading=14, spaceBefore=12, spaceAfter=1, alignment=TA_LEFT, fontName=fbd),
+        "QText":      dict(parent=styles["Normal"], fontSize=10.5, leading=13.5, spaceBefore=5, spaceAfter=2, alignment=TA_LEFT, textColor=HexColor("#1f1f3a"), fontName=fb),
+        "Opt":        dict(parent=styles["Normal"], fontSize=10, leading=13, alignment=TA_LEFT, textColor=HexColor("#2b2b45"), fontName=fb),
+        "OptCorrect": dict(parent=styles["Normal"], fontSize=10, leading=13, alignment=TA_LEFT, textColor=HexColor(tpl["correct"]), fontName=fbd),
+        "Ans":        dict(parent=styles["Normal"], fontSize=9.5, leading=12, alignment=TA_LEFT, textColor=HexColor(tpl["correct"]), fontName=fbd),
+        "Expl":       dict(parent=styles["Normal"], fontSize=9, leading=11.5, alignment=TA_LEFT, textColor=HexColor(tpl["muted"]), fontName=fb),
+        "OrText":     dict(parent=styles["Normal"], fontSize=10, leading=13, alignment=TA_CENTER, textColor=HexColor(tpl["secondary"]), fontName=fbd, spaceBefore=3, spaceAfter=3),
+        "Footer":     dict(parent=styles["Normal"], fontSize=8, alignment=TA_CENTER, textColor=HexColor(tpl["light_muted"]), fontName=fb),
+        "AllBest":    dict(parent=styles["Normal"], fontSize=11, leading=14, alignment=TA_CENTER, textColor=HexColor(tpl["primary"]), fontName=fbd, spaceBefore=10),
+    }
+    # reportlab needs 'Option'/'AnswerLine' keys for shared table helpers
+    for name, props in ist_styles.items():
+        try:
+            styles.add(ParagraphStyle(name=name, **props))
+        except KeyError:
+            pass
+    # alias styles that shared table renderers look up by name
+    for shared_name, src in (("Option", "Opt"), ("AnswerLine", "Ans"), ("QText", "QText")):
+        if shared_name not in styles:
+            try:
+                styles.add(ParagraphStyle(name=shared_name, parent=styles[src]))
+            except Exception:
+                pass
+
+    story = []
+    display_date = _format_date_for_display(paper_date)
+    total_marks = sum(q.get("marks", 1) for q in questions)
+
+    # ── Header ──────────────────────────────────────────────────────
+    if logo_base64:
+        try:
+            lb = logo_base64.split(",", 1)[1] if "," in logo_base64 else logo_base64
+            logo_img = RLImage(io.BytesIO(base64.b64decode(lb)), width=1.6 * cm, height=1.6 * cm)
+            logo_img.hAlign = "CENTER"
+            story.append(logo_img)
+            story.append(Spacer(1, 2))
+        except Exception as e:
+            logger.warning(f"Institute logo failed: {e}")
+
+    header_name = (institute_name or "").strip() or (exam_title or "Test Paper")
+    story.append(Paragraph(header_name, styles["InstName"]))
+
+    # If both institute + exam title given and they differ, show exam title too
+    if institute_name and exam_title and exam_title.strip() and exam_title.strip().lower() != header_name.strip().lower():
+        story.append(Paragraph(exam_title.strip(), styles["InstExam"]))
+
+    story.append(Paragraph(f"Class {class_grade} &nbsp;•&nbsp; {subject} &nbsp;•&nbsp; {board}", styles["InstClass"]))
+    if topic and str(topic).strip():
+        story.append(Paragraph(f"<i>Topic: {str(topic).strip()}</i>", styles["InstTopic"]))
+
+    story.append(Spacer(1, 5))
+    story.append(_institute_multicolor_rule_pdf(W, tpl))
+    story.append(Spacer(1, 5))
+
+    # ── Meta row (Teacher | Max Marks / Time / Date) ────────────────
+    teacher_disp = (teacher_name or "").strip() or "______________"
+    left_lines = [f"<b>Teacher:</b> {teacher_disp}"]
+    right_lines = [f"<b>Max Marks:</b> {total_marks}"]
+    if duration and str(duration).strip():
+        right_lines.append(f"<b>Time:</b> {str(duration).strip()}")
+    right_lines.append(f"<b>Date:</b> {display_date}")
+
+    meta_left = Paragraph("<br/>".join(left_lines), styles["MetaL"])
+    meta_right = Paragraph("<br/>".join(right_lines), styles["MetaR"])
+    meta_tbl = Table([[meta_left, meta_right]], colWidths=[W * 0.55, W * 0.45])
+    meta_tbl.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("TOPPADDING", (0, 0), (-1, -1), 0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+    ]))
+    story.append(meta_tbl)
+    story.append(Spacer(1, 4))
+    story.append(HRFlowable(width="100%", thickness=0.75, color=HexColor(tpl["border"]), spaceAfter=5))
+
+    # ── Compact general instructions (single line, institute style) ─
+    story.append(Paragraph(
+        "<b>General Instructions:</b> All questions are compulsory. "
+        "Marks for each question are indicated against it. "
+        "Write answers neatly in the space provided.",
+        styles["GenInst"],
+    ))
+    story.append(Spacer(1, 4))
+
+    labels_lower = ["a", "b", "c", "d", "e", "f"]
+
+    def _mcq_two_column(options, correct_answer):
+        """Render MCQ options as (a)/(b) two-column pairs."""
+        cells = []
+        for idx, opt in enumerate(options):
+            letter = labels_lower[idx] if idx < len(labels_lower) else str(idx + 1)
+            opt_clean = re.sub(r'^[A-Fa-f][).\s]+\s*', '', _latex_to_paragraph(opt)).strip()
+            is_correct = False
+            if include_answers and correct_answer:
+                ca = correct_answer.strip()
+                if ca.upper().startswith(letter.upper()) or opt.strip() == ca.strip():
+                    is_correct = True
+            style = styles["OptCorrect"] if is_correct else styles["Opt"]
+            cells.append(Paragraph(f"({letter}) {opt_clean}", style))
+
+        # pack into 2-column rows
+        rows = []
+        for i in range(0, len(cells), 2):
+            left = cells[i]
+            right = cells[i + 1] if i + 1 < len(cells) else ""
+            rows.append([left, right])
+        if not rows:
+            return []
+        t = Table(rows, colWidths=[W * 0.5, W * 0.5])
+        t.setStyle(TableStyle([
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("TOPPADDING", (0, 0), (-1, -1), 1),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 1),
+            ("LEFTPADDING", (0, 0), (-1, -1), 14),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+        ]))
+        return [Spacer(1, 1), t]
+
+    def _render_question_institute(q, q_num):
+        elements = []
+        raw_text = q.get("text", "")
+        marks = q.get("marks", 1)
+        marks_tag = f'<font color="{tpl["muted"]}"><b>[{marks}]</b></font>'
+
+        question_table = _get_question_table(q)
+        if question_table:
+            raw_text = _strip_markdown_table_from_text(raw_text)
+
+        segments = _split_text_and_tables(raw_text)
+        first_text = ""
+        for seg in segments:
+            if seg["type"] == "text" and seg["content"]:
+                first_text = _latex_to_paragraph(seg["content"])
+                break
+        if not first_text:
+            first_text = _latex_to_paragraph(raw_text)
+
+        # inline marks at end of question line (no separate column)
+        elements.append(Paragraph(f"<b>{q_num}.</b> {first_text} &nbsp;{marks_tag}", styles["QText"]))
+
+        if question_table:
+            elements.extend(_render_question_table_pdf(question_table, styles, W))
+
+        image_url = _get_image_url(q)
+        if image_url:
+            elements.extend(_render_manual_question_image_pdf(image_url, W))
+
+        first_skipped = False
+        for seg in segments:
+            if seg["type"] == "text":
+                if not first_skipped:
+                    first_skipped = True
+                    continue
+                content = _latex_to_paragraph(seg["content"])
+                if content:
+                    elements.append(Paragraph(content, styles["QText"]))
+            elif seg["type"] == "table":
+                if question_table:
+                    continue
+                hdrs, rws = seg["content"]
+                elements.extend(_render_inline_table_pdf(hdrs, rws, styles, W, tpl))
+
+        options = q.get("options", [])
+        correct_answer = q.get("correctAnswer", q.get("correct_answer", ""))
+
+        if options:
+            elements.extend(_mcq_two_column(options, correct_answer))
+        else:
+            fmt = q.get("format", "mcq")
+            if not include_answers:
+                gap = {"short_answer": 20, "long_answer": 44,
+                       "journal_entry": 52, "ledger": 52, "trial_balance": 52,
+                       "image": 22}.get(fmt, 0)
+                if gap:
+                    elements.append(Spacer(1, gap))
+
+        if include_answers and include_explanations:
+            raw_table = q.get("answer_table") or q.get("answerTable")
+            if raw_table and isinstance(raw_table, dict):
+                elements.extend(_render_answer_table_pdf(raw_table, styles, W))
+            elif not options:
+                ans = _latex_to_paragraph(correct_answer)
+                elements.append(Paragraph(f"<b>Ans:</b> {ans}", styles["Ans"]))
+        elif include_answers and not options:
+            ans = _latex_to_paragraph(correct_answer)
+            elements.append(Paragraph(f"<b>Ans:</b> {ans}", styles["Ans"]))
+
+        if include_explanations:
+            exp = _latex_to_paragraph(q.get("explanation", ""))
+            if exp:
+                elements.append(Paragraph(f"<b>Explanation:</b> {exp}", styles["Expl"]))
+
+        return elements
+
+    def _section_heading_flowables(sec_key, meta_dict):
+        title, desc = _institute_section_heading(sec_key, meta_dict)
+        accent = _section_color(tpl, sec_key[:1])
+        head = f'<font color="{accent}">{title}</font>'
+        if desc:
+            head += f'  <font color="{tpl["muted"]}" size="9">({desc})</font>'
+        return [
+            Spacer(1, 6),
+            Paragraph(head, styles["SecHead"]),
+            HRFlowable(width="100%", thickness=1.2, color=HexColor(accent), spaceAfter=4),
+        ]
+
+    # ── Body ────────────────────────────────────────────────────────
+    sec_order, sec_meta_dict = _get_section_order(questions)
+    has_sec = sec_order is not None
+    q_num = 0
+
+    if has_sec:
+        grouped = _group_by_section(questions)
+        last_title = None
+        for sec_key in sec_order:
+            sec_qs = grouped.get(sec_key, [])
+            if not sec_qs:
+                continue
+            meta = sec_meta_dict.get(sec_key, {})
+            current_title = meta.get("title", sec_key)
+            if current_title != last_title:
+                story.extend(_section_heading_flowables(sec_key, sec_meta_dict))
+                last_title = current_title
+
+            main_qs = [q for q in sec_qs if not q.get("_is_or", False)]
+            or_qs = [q for q in sec_qs if q.get("_is_or", False)]
+            or_queue = list(or_qs)
+
+            for q in main_qs:
+                q_num += 1
+                story.append(KeepTogether(_render_question_institute(q, q_num)))
+                if or_queue:
+                    or_q = or_queue.pop(0)
+                    story.append(Paragraph("OR", styles["OrText"]))
+                    story.append(KeepTogether(_render_question_institute(or_q, q_num)))
+
+            for or_q in or_queue:
+                q_num += 1
+                story.append(Paragraph("OR", styles["OrText"]))
+                story.append(KeepTogether(_render_question_institute(or_q, q_num)))
+
+        unsectioned = grouped.get("NONE", [])
+        if unsectioned:
+            accent = _section_color(tpl, "F")
+            story.append(Spacer(1, 6))
+            story.append(Paragraph(f'<font color="{accent}">ADDITIONAL QUESTIONS</font>', styles["SecHead"]))
+            story.append(HRFlowable(width="100%", thickness=1.2, color=HexColor(accent), spaceAfter=4))
+            for q in unsectioned:
+                q_num += 1
+                story.append(KeepTogether(_render_question_institute(q, q_num)))
+    else:
+        for q in questions:
+            q_num += 1
+            story.append(KeepTogether(_render_question_institute(q, q_num)))
+
+    # ── Answer key (answers-only mode) ──────────────────────────────
+    if include_answers and not include_explanations:
+        story.append(PageBreak())
+        story.append(Paragraph("Answer Key", styles["InstName"]))
+        story.append(Spacer(1, 4))
+        story.append(_institute_multicolor_rule_pdf(W, tpl))
+        story.append(Spacer(1, 6))
+
+        all_qs = []
+        if has_sec:
+            grouped = _group_by_section(questions)
+            for sec_key in sec_order:
+                all_qs.extend(grouped.get(sec_key, []))
+            all_qs.extend(grouped.get("NONE", []))
+        else:
+            all_qs = questions
+
+        for i, q in enumerate(all_qs, 1):
+            raw_table = q.get("answer_table") or q.get("answerTable")
+            if raw_table and isinstance(raw_table, dict):
+                story.append(Paragraph(f"<b>{i}.</b>", styles["QText"]))
+                story.extend(_render_answer_table_pdf(raw_table, styles, W))
+            else:
+                correct = _latex_to_paragraph(q.get("correctAnswer", q.get("correct_answer", "")))
+                story.append(Paragraph(f"<b>{i}.</b> {correct}", styles["QText"]))
+
+    # ── Footer ──────────────────────────────────────────────────────
+    story.append(Paragraph("— All the Best —", styles["AllBest"]))
+    story.append(Spacer(1, 6))
+    story.append(HRFlowable(width="100%", thickness=0.5, color=HexColor(tpl["border"]), spaceAfter=4))
+    story.append(Paragraph(f"Generated by a4ai · {board} {subject} Class {class_grade} · {display_date}", styles["Footer"]))
+
+    doc.build(story)
+    buffer.seek(0)
+    return buffer.getvalue()
+
+
+def _institute_multicolor_rule_docx(doc, tpl: dict):
+    """A thin horizontal rule split into the template's section accent colors (DOCX)."""
+    from docx.shared import Pt
+    from docx.enum.table import WD_TABLE_ALIGNMENT, WD_ROW_HEIGHT_RULE
+    from docx.oxml.ns import qn
+
+    sc = tpl.get("section_colors") or {}
+    order = ["A", "B", "C", "D", "E", "F"]
+    colors = [sc.get(k) for k in order if sc.get(k)]
+    if not colors:
+        colors = [tpl["primary"]]
+
+    n = len(colors)
+    table = doc.add_table(rows=1, cols=n)
+    table.alignment = WD_TABLE_ALIGNMENT.CENTER
+    row = table.rows[0]
+    row.height = Pt(4)
+    row.height_rule = WD_ROW_HEIGHT_RULE.EXACTLY
+
+    for i, c in enumerate(colors):
+        cell = row.cells[i]
+        cell.text = ""
+        p = cell.paragraphs[0]
+        p.paragraph_format.space_before = Pt(0)
+        p.paragraph_format.space_after = Pt(0)
+        run = p.add_run(" ")
+        run.font.size = Pt(1)
+        tcPr = cell._element.get_or_add_tcPr()
+        shd = tcPr.makeelement(qn('w:shd'), {qn('w:fill'): _hexnc(c), qn('w:val'): 'clear'})
+        tcPr.append(shd)
+        # zero cell margins
+        tcMar = tcPr.makeelement(qn('w:tcMar'), {})
+        for side in ('top', 'bottom', 'start', 'end'):
+            m = tcMar.makeelement(qn(f'w:{side}'), {qn('w:w'): '0', qn('w:type'): 'dxa'})
+            tcMar.append(m)
+        tcPr.append(tcMar)
+
+
+def _generate_docx_institute(
+    questions, exam_title, board, class_grade, subject,
+    include_answers, include_explanations, logo_base64, paper_date, tpl,
+    teacher_name=None, institute_name=None, duration=None, topic=None,
+) -> bytes:
+    from docx import Document
+    from docx.shared import Pt, Cm, RGBColor
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.enum.table import WD_TABLE_ALIGNMENT
+    from docx.oxml.ns import qn
+
+    doc = Document()
+    font_name = tpl["docx_font"]
+
+    try:
+        normal_style = doc.styles["Normal"]
+        normal_style.font.name = font_name
+        rpr = normal_style.element.get_or_add_rPr()
+        rFonts = rpr.find(qn('w:rFonts'))
+        if rFonts is None:
+            rFonts = rpr.makeelement(qn('w:rFonts'), {})
+            rpr.append(rFonts)
+        rFonts.set(qn('w:eastAsia'), font_name)
+    except Exception as e:
+        logger.warning(f"Institute docx font set failed: {e}")
+
+    top_m, bottom_m, left_m, right_m = tpl["margins_cm"]
+    for section in doc.sections:
+        section.top_margin = Cm(top_m)
+        section.bottom_margin = Cm(bottom_m)
+        section.left_margin = Cm(left_m)
+        section.right_margin = Cm(right_m)
+
+    display_date = _format_date_for_display(paper_date)
+    total_marks = sum(q.get("marks", 1) for q in questions)
+    labels_lower = ["a", "b", "c", "d", "e", "f"]
+
+    def _center_run(text, size, color_hex, bold=True, italic=False):
+        p = doc.add_paragraph()
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p.paragraph_format.space_after = Pt(1)
+        r = p.add_run(text)
+        r.bold = bold
+        r.italic = italic
+        r.font.size = Pt(size)
+        r.font.color.rgb = _rgb(color_hex)
+        r.font.name = font_name
+        return p
+
+    # ── Header ──────────────────────────────────────────────────────
+    if logo_base64:
+        try:
+            lb = logo_base64.split(",", 1)[1] if "," in logo_base64 else logo_base64
+            p = doc.add_paragraph()
+            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            p.add_run().add_picture(io.BytesIO(base64.b64decode(lb)), width=Cm(1.8))
+        except Exception as e:
+            logger.warning(f"Institute docx logo failed: {e}")
+
+    header_name = (institute_name or "").strip() or (exam_title or "Test Paper")
+    _center_run(header_name, 18, tpl["primary"], bold=True)
+
+    if institute_name and exam_title and exam_title.strip() and exam_title.strip().lower() != header_name.strip().lower():
+        _center_run(exam_title.strip(), 12.5, tpl["primary"], bold=True)
+
+    _center_run(f"Class {class_grade}  •  {subject}  •  {board}", 11, tpl["secondary"], bold=False)
+    if topic and str(topic).strip():
+        _center_run(f"Topic: {str(topic).strip()}", 10, tpl["muted"], bold=False, italic=True)
+
+    _institute_multicolor_rule_docx(doc, tpl)
+
+    # ── Meta row ────────────────────────────────────────────────────
+    teacher_disp = (teacher_name or "").strip() or "______________"
+    meta_tbl = doc.add_table(rows=1, cols=2)
+    meta_tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
+
+    lc = meta_tbl.rows[0].cells[0]
+    lc.text = ""
+    lp = lc.paragraphs[0]
+    lr = lp.add_run("Teacher: ")
+    lr.bold = True; lr.font.size = Pt(10); lr.font.name = font_name
+    lr2 = lp.add_run(teacher_disp)
+    lr2.font.size = Pt(10); lr2.font.name = font_name
+
+    rc = meta_tbl.rows[0].cells[1]
+    rc.text = ""
+    rp = rc.paragraphs[0]
+    rp.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    right_bits = [("Max Marks: ", str(total_marks))]
+    if duration and str(duration).strip():
+        right_bits.append(("Time: ", str(duration).strip()))
+    right_bits.append(("Date: ", display_date))
+    for k, (lbl, val) in enumerate(right_bits):
+        rb = rp.add_run(lbl); rb.bold = True; rb.font.size = Pt(10); rb.font.name = font_name
+        rv = rp.add_run(val); rv.font.size = Pt(10); rv.font.name = font_name
+        if k < len(right_bits) - 1:
+            sep = rp.add_run("    "); sep.font.size = Pt(10)
+
+    # thin separator line
+    sep_p = doc.add_paragraph()
+    sep_r = sep_p.add_run("─" * 60)
+    sep_r.font.size = Pt(7)
+    sep_r.font.color.rgb = _rgb(tpl["border"])
+
+    # ── General instructions (single line) ──────────────────────────
+    gi = doc.add_paragraph()
+    gir = gi.add_run("General Instructions: ")
+    gir.bold = True; gir.font.size = Pt(9); gir.font.name = font_name
+    gir.font.color.rgb = _rgb(tpl["muted"])
+    giv = gi.add_run("All questions are compulsory. Marks for each question are indicated against it. "
+                     "Write answers neatly in the space provided.")
+    giv.font.size = Pt(9); giv.font.name = font_name
+    giv.font.color.rgb = _rgb(tpl["muted"])
+
+    def _mcq_two_column_docx(options, correct_answer):
+        n = len(options)
+        if n == 0:
+            return
+        nrows = (n + 1) // 2
+        table = doc.add_table(rows=nrows, cols=2)
+        table.alignment = WD_TABLE_ALIGNMENT.LEFT
+        for idx, opt in enumerate(options):
+            letter = labels_lower[idx] if idx < len(labels_lower) else str(idx + 1)
+            opt_clean = re.sub(r'^[A-Fa-f][).\s]+\s*', '', _latex_to_plain(opt)).strip()
+            is_correct = bool(include_answers and correct_answer
+                              and correct_answer.strip().upper().startswith(letter.upper()))
+            row_i, col_i = idx // 2, idx % 2
+            cell = table.rows[row_i].cells[col_i]
+            cell.text = ""
+            p = cell.paragraphs[0]
+            p.paragraph_format.left_indent = Pt(14)
+            r = p.add_run(f"({letter}) {opt_clean}")
+            r.font.size = Pt(10)
+            r.font.name = font_name
+            if is_correct:
+                r.bold = True
+                r.font.color.rgb = _rgb(tpl["correct"])
+
+    def _render_q_docx_institute(q, q_num):
+        raw_text = q.get("text", "")
+        marks = q.get("marks", 1)
+
+        question_table = _get_question_table(q)
+        if question_table:
+            raw_text = _strip_markdown_table_from_text(raw_text)
+
+        segments = _split_text_and_tables(raw_text)
+        first_text = ""
+        for seg in segments:
+            if seg["type"] == "text" and seg["content"]:
+                first_text = _latex_to_plain(seg["content"])
+                break
+        if not first_text:
+            first_text = _latex_to_plain(raw_text)
+
+        p = doc.add_paragraph()
+        p.paragraph_format.space_before = Pt(5)
+        p.paragraph_format.space_after = Pt(2)
+        rq = p.add_run(f"{q_num}. ")
+        rq.bold = True; rq.font.size = Pt(10.5); rq.font.name = font_name
+        rt = p.add_run(first_text)
+        rt.font.size = Pt(10.5); rt.font.name = font_name
+        rm = p.add_run(f"   [{marks}]")
+        rm.bold = True; rm.font.size = Pt(9); rm.font.name = font_name
+        rm.font.color.rgb = _rgb(tpl["muted"])
+
+        if question_table:
+            _render_question_table_docx(doc, question_table)
+
+        image_url = _get_image_url(q)
+        if image_url:
+            _render_manual_question_image_docx(doc, image_url)
+
+        first_skipped = False
+        for seg in segments:
+            if seg["type"] == "text":
+                if not first_skipped:
+                    first_skipped = True
+                    continue
+                content = _latex_to_plain(seg["content"])
+                if content:
+                    cp = doc.add_paragraph()
+                    cr = cp.add_run(content)
+                    cr.font.size = Pt(10.5); cr.font.name = font_name
+            elif seg["type"] == "table":
+                if question_table:
+                    continue
+                hdrs, rws = seg["content"]
+                _render_inline_table_docx(doc, hdrs, rws)
+
+        options = q.get("options", [])
+        correct_answer = q.get("correctAnswer", q.get("correct_answer", ""))
+
+        if options:
+            _mcq_two_column_docx(options, correct_answer)
+        else:
+            fmt = q.get("format", "mcq")
+            if not include_answers:
+                blanks = {"short_answer": 2, "long_answer": 4,
+                          "journal_entry": 5, "ledger": 5, "trial_balance": 5,
+                          "image": 2}.get(fmt, 0)
+                for _ in range(blanks):
+                    doc.add_paragraph()
+
+        if include_answers and include_explanations:
+            raw_table = q.get("answer_table") or q.get("answerTable")
+            if raw_table and isinstance(raw_table, dict):
+                _render_answer_table_docx(doc, raw_table)
+            elif not options:
+                ap = doc.add_paragraph()
+                ar = ap.add_run("Ans: "); ar.bold = True
+                ar.font.size = Pt(10); ar.font.color.rgb = _rgb(tpl["correct"]); ar.font.name = font_name
+                av = ap.add_run(_latex_to_plain(correct_answer))
+                av.font.size = Pt(10); av.font.color.rgb = _rgb(tpl["correct"]); av.font.name = font_name
+        elif include_answers and not options:
+            ap = doc.add_paragraph()
+            ar = ap.add_run("Ans: "); ar.bold = True
+            ar.font.size = Pt(10); ar.font.color.rgb = _rgb(tpl["correct"]); ar.font.name = font_name
+            av = ap.add_run(_latex_to_plain(correct_answer))
+            av.font.size = Pt(10); av.font.color.rgb = _rgb(tpl["correct"]); av.font.name = font_name
+
+        if include_explanations:
+            exp = _latex_to_plain(q.get("explanation", ""))
+            if exp:
+                ep = doc.add_paragraph()
+                er = ep.add_run("Explanation: "); er.bold = True
+                er.font.size = Pt(8.5); er.font.color.rgb = _rgb(tpl["muted"]); er.font.name = font_name
+                ev = ep.add_run(exp)
+                ev.font.size = Pt(8.5); ev.font.color.rgb = _rgb(tpl["muted"]); ev.font.name = font_name
+
+    def _section_heading_docx(sec_key, meta_dict):
+        title, desc = _institute_section_heading(sec_key, meta_dict)
+        accent = _section_color(tpl, sec_key[:1])
+        p = doc.add_paragraph()
+        p.paragraph_format.space_before = Pt(10)
+        p.paragraph_format.space_after = Pt(1)
+        r = p.add_run(title)
+        r.bold = True; r.font.size = Pt(11.5); r.font.name = font_name
+        r.font.color.rgb = _rgb(accent)
+        if desc:
+            rd = p.add_run(f"  ({desc})")
+            rd.font.size = Pt(9); rd.font.name = font_name
+            rd.font.color.rgb = _rgb(tpl["muted"])
+        line = doc.add_paragraph()
+        lr = line.add_run("─" * 60)
+        lr.font.size = Pt(7); lr.font.color.rgb = _rgb(accent)
+
+    def _or_docx():
+        op = doc.add_paragraph()
+        op.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        orr = op.add_run("OR")
+        orr.bold = True; orr.font.size = Pt(10); orr.font.name = font_name
+        orr.font.color.rgb = _rgb(tpl["secondary"])
+
+    # ── Body ────────────────────────────────────────────────────────
+    sec_order, sec_meta_dict = _get_section_order(questions)
+    has_sec = sec_order is not None
+    q_num = 0
+
+    if has_sec:
+        grouped = _group_by_section(questions)
+        last_title = None
+        for sec_key in sec_order:
+            sec_qs = grouped.get(sec_key, [])
+            if not sec_qs:
+                continue
+            meta = sec_meta_dict.get(sec_key, {})
+            current_title = meta.get("title", sec_key)
+            if current_title != last_title:
+                _section_heading_docx(sec_key, sec_meta_dict)
+                last_title = current_title
+
+            main_qs = [q for q in sec_qs if not q.get("_is_or", False)]
+            or_qs = [q for q in sec_qs if q.get("_is_or", False)]
+            or_queue = list(or_qs)
+
+            for q in main_qs:
+                q_num += 1
+                _render_q_docx_institute(q, q_num)
+                if or_queue:
+                    or_q = or_queue.pop(0)
+                    _or_docx()
+                    _render_q_docx_institute(or_q, q_num)
+
+            for or_q in or_queue:
+                q_num += 1
+                _or_docx()
+                _render_q_docx_institute(or_q, q_num)
+
+        unsectioned = grouped.get("NONE", [])
+        if unsectioned:
+            accent = _section_color(tpl, "F")
+            p = doc.add_paragraph()
+            p.paragraph_format.space_before = Pt(10)
+            r = p.add_run("ADDITIONAL QUESTIONS")
+            r.bold = True; r.font.size = Pt(11.5); r.font.name = font_name
+            r.font.color.rgb = _rgb(accent)
+            line = doc.add_paragraph()
+            lr = line.add_run("─" * 60); lr.font.size = Pt(7); lr.font.color.rgb = _rgb(accent)
+            for q in unsectioned:
+                q_num += 1
+                _render_q_docx_institute(q, q_num)
+    else:
+        for q in questions:
+            q_num += 1
+            _render_q_docx_institute(q, q_num)
+
+    # ── Answer key (answers-only mode) ──────────────────────────────
+    if include_answers and not include_explanations:
+        doc.add_page_break()
+        _center_run("Answer Key", 18, tpl["primary"], bold=True)
+        _institute_multicolor_rule_docx(doc, tpl)
+
+        all_qs = []
+        if has_sec:
+            grouped = _group_by_section(questions)
+            for sec_key in sec_order:
+                all_qs.extend(grouped.get(sec_key, []))
+            all_qs.extend(grouped.get("NONE", []))
+        else:
+            all_qs = questions
+
+        for i, q in enumerate(all_qs, 1):
+            raw_table = q.get("answer_table") or q.get("answerTable")
+            if raw_table and isinstance(raw_table, dict):
+                p = doc.add_paragraph()
+                p.add_run(f"{i}. ").bold = True
+                _render_answer_table_docx(doc, raw_table)
+            else:
+                correct = _latex_to_plain(q.get("correctAnswer", q.get("correct_answer", "")))
+                p = doc.add_paragraph()
+                p.add_run(f"{i}. ").bold = True
+                p.add_run(correct)
+
+    # ── Footer ──────────────────────────────────────────────────────
+    _center_run("— All the Best —", 11, tpl["primary"], bold=True)
+    ft = doc.add_paragraph()
+    ft.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    r = ft.add_run(f"Generated by a4ai · {board} {subject} Class {class_grade} · {display_date}")
+    r.font.size = Pt(8); r.font.color.rgb = _rgb(tpl["light_muted"]); r.font.name = font_name
 
     buffer = io.BytesIO()
     doc.save(buffer)
