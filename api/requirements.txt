@@ -9,3 +9,5 @@ httpx==0.27.2
 reportlab
 python-docx
 razorpay
+psycopg2-binary
+PyMuPDF
