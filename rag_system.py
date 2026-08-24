@@ -14,6 +14,7 @@ import random
 from typing import List, Dict, Optional, Any, Tuple
 from datetime import datetime
 from collections import OrderedDict, defaultdict
+from module_service import ModuleService
 import traceback
 
 # ========== THIRD-PARTY IMPORTS ==========

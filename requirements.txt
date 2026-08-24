@@ -8,3 +8,5 @@ uvicorn
 razorpay
 supabase
 pydantic
+PyMuPDF
+python-docx
