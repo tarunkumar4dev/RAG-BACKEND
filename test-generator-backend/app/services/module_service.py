@@ -177,6 +177,16 @@ class ModuleService:
                 """, (full_text, page_count, is_scanned, token_count, module_id))
 
                 # ── STEP 2c: Summarize with Gemini ──
+                extracted_images = []
+                if suffix == ".pdf":
+                    try:
+                        extracted_images = ModuleService._extract_and_upload_images(tmp_path, module_id, teacher_id)
+                        if extracted_images:
+                            import json as _json
+                            cur.execute("UPDATE modules SET images=%s WHERE id=%s", (_json.dumps(extracted_images), module_id))
+                    except Exception as img_err:
+                        logger.warning(f"Image extraction failed: {img_err}")
+
                 ModuleService._update_status(conn, module_id, "summarizing")
                 summary = ModuleService._generate_summary(full_text, subject, class_level, page_count)
 
@@ -295,59 +305,168 @@ class ModuleService:
     # ────────────────────────────────────────────────────────
     # SUMMARY GENERATION
     # ────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _extract_and_upload_images(filepath, module_id, teacher_id):
+        fitz = get_fitz()
+        sb = get_supabase()
+        if not sb:
+            return []
+        doc = fitz.open(filepath)
+        extracted_images = []
+        image_index = 0
+        for page_num in range(len(doc)):
+            page = doc[page_num]
+            image_list = page.get_images(full=True)
+            for img_info in image_list:
+                xref = img_info[0]
+                try:
+                    base_image = doc.extract_image(xref)
+                    if not base_image:
+                        continue
+                    image_bytes = base_image["image"]
+                    image_ext = base_image.get("ext", "png")
+                    width = base_image.get("width", 0)
+                    height = base_image.get("height", 0)
+                    if len(image_bytes) < 5000 or width < 80 or height < 80:
+                        continue
+                    image_filename = f"img_{page_num+1}_{image_index}.{image_ext}"
+                    storage_path = f"{teacher_id}/{module_id}/images/{image_filename}"
+                    mime_map = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg"}
+                    mime_type = mime_map.get(image_ext.lower(), "image/png")
+                    sb.storage.from_("Modules").upload(storage_path, image_bytes, file_options={"content-type": mime_type, "upsert": "true"})
+                    signed_data = sb.storage.from_("Modules").create_signed_url(storage_path, 3600)
+                    public_url = signed_data.get("signedURL", "") if isinstance(signed_data, dict) else ""
+                    extracted_images.append({"index": image_index, "page": page_num + 1, "url": public_url, "width": width, "height": height})
+                    image_index += 1
+                except Exception as e:
+                    logger.warning(f"Image extract failed: {e}")
+                    continue
+        doc.close()
+        logger.info(f"Extracted {len(extracted_images)} images for module {module_id}")
+        return extracted_images
+
+
     @staticmethod
     def _generate_summary(full_text, subject, class_level, page_count):
-        """Generate structured module summary using Gemini."""
+        """Generate comprehensive, detailed module summary using Gemini."""
         genai = get_genai()
         model = genai.GenerativeModel(GEMINI_MODEL)
 
-        # Truncate if very large (Gemini 2.5 Flash handles 1M tokens but let's be safe)
         text_for_prompt = full_text[:800000]
 
-        prompt = f"""You are an expert Indian education content analyzer.
-Analyze this {subject} document for Class {class_level} and create a structured module summary.
+        prompt = f"""You are an expert Indian education content creator and NCERT/CBSE curriculum specialist.
+Analyze this {subject} document for Class {class_level} and create a COMPREHENSIVE, DETAILED study module.
 
 DOCUMENT ({page_count} pages):
 {text_for_prompt}
 
-Create a JSON summary with this EXACT structure:
+Create a DETAILED JSON module with this EXACT structure:
 {{
     "title": "descriptive title for this module",
     "subject": "{subject}",
     "class": "{class_level}",
-    "overview": "2-3 sentence summary of what this document covers",
+    "overview": "3-5 sentence detailed summary of what this document covers, its importance, and what students will learn",
     "topics": [
         {{
             "name": "Topic/Chapter name",
-            "key_points": ["point 1", "point 2", "point 3"],
-            "subtopics": ["subtopic 1", "subtopic 2"]
+            "explanation": "Detailed 4-8 sentence explanation of this topic in simple student-friendly language. Explain the concept thoroughly as if teaching a student. Include WHY this topic matters.",
+            "key_points": [
+                "Detailed point 1 - not just a phrase, but a complete sentence explaining the concept",
+                "Detailed point 2 with specific facts, numbers, or examples",
+                "Detailed point 3"
+            ],
+            "subtopics": ["subtopic 1", "subtopic 2"],
+            "formulas": [
+                {{
+                    "formula": "The actual formula (e.g., F = ma, E = mc2, 2H2 + O2 -> 2H2O)",
+                    "meaning": "What each symbol represents and when to use this formula",
+                    "example": "A quick numerical example showing how to apply it"
+                }}
+            ],
+            "diagrams_description": [
+                "Description of diagram 1: what it shows, labels, and what student should understand from it"
+            ],
+            "tables": [
+                {{
+                    "title": "Table title (e.g., Comparison of Metals and Non-metals)",
+                    "headers": ["Column 1", "Column 2", "Column 3"],
+                    "rows": [
+                        ["Row 1 Col 1", "Row 1 Col 2", "Row 1 Col 3"],
+                        ["Row 2 Col 1", "Row 2 Col 2", "Row 2 Col 3"]
+                    ]
+                }}
+            ],
+            "real_life_applications": [
+                "Real world example 1: How this concept is used in daily life or industry",
+                "Real world example 2"
+            ],
+            "misconceptions": [
+                {{
+                    "wrong": "Common wrong belief students have",
+                    "correct": "The correct understanding with explanation"
+                }}
+            ]
         }}
     ],
     "important_terms": [
-        {{"term": "term name", "definition": "brief definition"}}
+        {{
+            "term": "Technical term",
+            "definition": "Clear 2-3 sentence definition that a student can understand. Include an example if helpful.",
+            "example": "Optional: A specific example of this term in action"
+        }}
     ],
-    "learning_objectives": ["objective 1", "objective 2"],
-    "formulas_or_rules": ["formula 1", "rule 1"],
+    "mind_map": {{
+        "central_topic": "Main subject/chapter name",
+        "branches": [
+            {{
+                "branch": "Major topic 1",
+                "sub_branches": ["Sub-concept A", "Sub-concept B", "Sub-concept C"]
+            }},
+            {{
+                "branch": "Major topic 2",
+                "sub_branches": ["Sub-concept D", "Sub-concept E"]
+            }}
+        ]
+    }},
+    "learning_objectives": [
+        "After studying this module, student will be able to: objective 1",
+        "objective 2",
+        "objective 3"
+    ],
+    "formulas_or_rules": [
+        "Complete formula/rule 1 with brief meaning",
+        "Complete formula/rule 2 with brief meaning"
+    ],
+    "quick_revision_notes": [
+        "One-liner revision point 1",
+        "One-liner revision point 2",
+        "One-liner revision point 3"
+    ],
     "difficulty_level": "easy or medium or hard",
     "estimated_study_time": "X hours",
-    "question_types_possible": ["MCQ", "Short Answer", "Long Answer", "Fill in the Blanks", "True/False"],
+    "question_types_possible": ["MCQ", "Short Answer", "Long Answer", "Fill in the Blanks", "True/False", "Diagram Based", "Numerical"],
     "total_pages": {page_count}
 }}
 
-RULES:
-- Identify ALL distinct topics/chapters in the document
-- key_points: most important facts/concepts a student must know
-- important_terms: terms a teacher would want to test
-- formulas_or_rules: formulas, theorems, rules, dates worth memorizing
+CRITICAL RULES:
+- EXPLAIN every topic in detail - not just list names. Write as if you are TEACHING a student
+- Include ALL formulas, equations, reactions found in the document with their meanings
+- Create comparison tables wherever two or more things are compared in the document
+- Identify common misconceptions students have about these topics
+- Give real-life applications for every major concept
+- important_terms: give DETAILED definitions (2-3 sentences), not one-word meanings
 - If content is in Hindi, keep Hindi text as-is
-- Be thorough — this summary will be used to generate test papers
+- Be EXHAUSTIVE - cover every concept, every formula, every definition in the document
+- The mind_map should show how all topics connect to each other
+- quick_revision_notes: crisp one-liners for last-minute revision
 - Output ONLY valid JSON, no markdown, no backticks, no explanation"""
 
         response = model.generate_content(
             prompt,
             generation_config=genai.GenerationConfig(
                 temperature=0.2,
-                max_output_tokens=8000,
+                max_output_tokens=65000,
                 response_mime_type="application/json",
             ),
         )
@@ -355,7 +474,6 @@ RULES:
         try:
             return json.loads(response.text)
         except json.JSONDecodeError:
-            # Try to extract JSON from response
             text = response.text.strip()
             if text.startswith("```"):
                 text = text.split("```")[1]
@@ -487,7 +605,7 @@ RULES:
             cur = conn.cursor()
             cur.execute("""
                 SELECT id, title, subject, class, status, page_count, original_filename,
-                       is_scanned, summary, error_message, token_count, created_at
+                       is_scanned, summary, error_message, token_count, created_at, images
                 FROM modules
                 WHERE id = %s AND teacher_id = %s
             """, (module_id, teacher_id))
@@ -517,6 +635,7 @@ RULES:
                 "error_message": r[9],
                 "token_count": r[10],
                 "created_at": r[11].isoformat() if r[11] else None,
+                "images": json.loads(r[12]) if r[12] and isinstance(r[12], str) else (r[12] or []),
             }
 
         except Exception as e:
