@@ -56,9 +56,9 @@ def get_db_connection():
     import psycopg2
     try:
         conn = psycopg2.connect(
-            host=os.getenv("DB_HOST", "db.dcmnzvjftmdbywrjkust.supabase.co"),
+            host=os.getenv("DB_HOST", "aws-0-ap-south-1.pooler.supabase.com"),
             database=os.getenv("DB_NAME", "postgres"),
-            user=os.getenv("DB_USER", "postgres"),
+            user=os.getenv("DB_USER", "postgres.dcmnzvjftmdbywrjkust"),
             password=os.getenv("DB_PASSWORD", ""),
             port=int(os.getenv("DB_PORT", "5432")),
             sslmode="require",
