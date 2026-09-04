@@ -1,21 +1,22 @@
 """
-Test Generator API Endpoints — v3.1
+Test Generator API Endpoints — v3.2
+
+v3.2 changes:
+  - NEW: /ncert-questions endpoint (browse extracted NCERT questions)
+  - NEW: /ncert-question-stats endpoint (chapter/section/type counts)
 
 v3.1 changes (DIAGNOSTIC):
-  - INSERT tests table: added 🔍 debug log to inspect raw response.data
+  - INSERT tests table: added debug log to inspect raw response.data
   - save_test: added pre-flight SELECT to verify row exists BEFORE update
-    (fixes silent PATCH 200 OK when row is actually missing)
   - Removed created_at manual timestamp (let DB default NOW() handle it)
 
 v3.0 changes:
   - FIX: generate_from_frontend now INSERTs into tests table
   - FIX: save_test now uses UPSERT-safe update with teacher_id check
-  - ExportRequest accepts `template` field (default "modern")
+  - ExportRequest accepts template field (default "modern")
   - /export passes template through to generate_pdf() / generate_docx()
   - New GET /templates endpoint
   - Split usage check into check_usage + record_usage
-  - check_usage: fail-closed, null-UUID blocked (401)
-  - record_usage: called only after successful generation
 
 v2.8 changes:
   - English pseudo-chapter support (Writing Skills, Grammar bypass RAG)
@@ -35,6 +36,7 @@ import re
 import uuid
 import time
 import logging
+import json
 
 from app.models.test_generator import (
     TestGenerationRequest,
@@ -469,7 +471,7 @@ def _transform_backend_to_frontend(resp, req: FrontendGenerateRequest) -> Fronte
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# ENDPOINT: Generate from Frontend (v3.1 — DIAGNOSTIC LOGS)
+# ENDPOINT: Generate from Frontend (v3.1)
 # ═══════════════════════════════════════════════════════════════════════
 
 @router.post("/generate-frontend", response_model=FrontendGenerateResponse)
@@ -479,14 +481,12 @@ async def generate_from_frontend(req: FrontendGenerateRequest):
                 f"{len(req.simpleData)} chapters, cbsePattern={req.cbsePattern}, paperDate={req.paperDate}")
 
     try:
-        # ── Step 1: Check usage (read-only, BEFORE generation) ──
         usage = check_usage(req.userId)
 
         backend_request = _transform_frontend_to_backend(req)
         total_q = sum(c.quantity for c in backend_request.chapters)
         logger.info(f"Transformed: {len(backend_request.chapters)} chapters, {total_q} questions")
 
-        # Filter out English pseudo-chapters from RAG lookup
         real_chapters = [
             ch.chapter for ch in backend_request.chapters
             if not _is_english_pseudo(backend_request.subject, ch.chapter)
@@ -508,29 +508,23 @@ async def generate_from_frontend(req: FrontendGenerateRequest):
         resolved_subject = _resolve_subject(req.subject)
         is_accountancy = resolved_subject.lower() in ("accountancy", "accounts", "accounting")
 
-        # ── Step 2: Generate paper ──
         if req.cbsePattern and is_accountancy:
             from app.services.test_generator_service import generate_cbse_accountancy_paper
             backend_response = generate_cbse_accountancy_paper(backend_request, context_chunks)
         else:
             backend_response = generate_test(backend_request, context_chunks, cbse_pattern=req.cbsePattern)
 
-        # ── Step 3: Transform to frontend response ──
         frontend_response = _transform_backend_to_frontend(backend_response, req)
 
         elapsed = round(time.time() - start, 2)
         frontend_response.generationTime = elapsed
 
-        # ── Step 4: Increment usage ──
         recorded = record_usage(req.userId)
         if recorded.get("recorded") is False:
             logger.warning(f"Usage not recorded for {req.userId}: {recorded.get('error')}")
         else:
             usage.update(recorded)
 
-        # ═══════════════════════════════════════════════════════════
-        # 🆕 FIX v3.1: INSERT into tests table (with heavy diagnostics)
-        # ═══════════════════════════════════════════════════════════
         try:
             class_num_for_db = _extract_class_number(req.classGrade)
             total_marks = frontend_response.totalMarks
@@ -550,40 +544,37 @@ async def generate_from_frontend(req: FrontendGenerateRequest):
                 "cbse_pattern": req.cbsePattern,
             }
 
-            logger.info(f"🔍 About to INSERT tests_row: {tests_row}")
+            logger.info(f"About to INSERT tests_row: {tests_row}")
 
             supabase = get_supabase()
             insert_result = supabase.table("tests").insert(tests_row).execute()
 
-            # 🔍 DIAGNOSTIC: log everything about the response
             logger.info(
-                f"🔍 INSERT response: "
+                f"INSERT response: "
                 f"data={insert_result.data!r}, "
                 f"count={getattr(insert_result, 'count', 'N/A')!r}"
             )
 
             if not insert_result.data:
                 logger.error(
-                    f"❌ tests INSERT returned no data for test_id={frontend_response.testId}. "
+                    f"tests INSERT returned no data for test_id={frontend_response.testId}. "
                     f"Row may NOT be created!"
                 )
             else:
-                logger.info(f"✅ tests row inserted: id={frontend_response.testId}, teacher={req.userId}")
+                logger.info(f"tests row inserted: id={frontend_response.testId}, teacher={req.userId}")
 
-            # 🔍 EXTRA DIAGNOSTIC: verify row actually exists after insert
             verify = supabase.table("tests").select("id, status").eq("id", frontend_response.testId).execute()
             if verify.data:
-                logger.info(f"✅ VERIFIED row exists in DB: {verify.data}")
+                logger.info(f"VERIFIED row exists in DB: {verify.data}")
             else:
-                logger.error(f"❌ VERIFIED row DOES NOT exist in DB despite INSERT!")
+                logger.error(f"VERIFIED row DOES NOT exist in DB despite INSERT!")
 
         except Exception as insert_err:
             logger.error(
-                f"❌ Failed to INSERT tests row for {frontend_response.testId}: {insert_err}",
+                f"Failed to INSERT tests row for {frontend_response.testId}: {insert_err}",
                 exc_info=True
             )
 
-        # ── Step 5: Add usage info to response ──
         frontend_response.meta["usage"] = {
             "used": usage.get("used", 0),
             "limit": usage.get("limit", -1),
@@ -858,6 +849,105 @@ async def health_detail():
 
 
 # ═══════════════════════════════════════════════════════════════════════
+# ENDPOINT: Browse NCERT Questions (for Test Builder — v3.2 NEW)
+# ═══════════════════════════════════════════════════════════════════════
+
+@router.get("/ncert-questions")
+async def get_ncert_questions(
+    subject: str = "Science",
+    class_grade: str = "10",
+    chapter: Optional[str] = None,
+    question_type: Optional[str] = None,
+    section: Optional[str] = None,
+    search: Optional[str] = None,
+    limit: int = 50,
+    offset: int = 0,
+):
+    subject = _resolve_subject(subject)
+    try:
+        supabase = get_supabase()
+        query = supabase.table("ncert_questions").select("*").eq("class_grade", class_grade).ilike("subject", f"%{subject}%")
+        if chapter:
+            query = query.ilike("chapter", f"%{chapter}%")
+        if question_type and question_type.lower() != "all":
+            query = query.eq("question_type", question_type.lower())
+        if section:
+            query = query.ilike("section", f"%{section}%")
+        if search:
+            query = query.ilike("question_text", f"%{search}%")
+
+        count_query = supabase.table("ncert_questions").select("id", count="exact").eq("class_grade", class_grade).ilike("subject", f"%{subject}%")
+        if chapter:
+            count_query = count_query.ilike("chapter", f"%{chapter}%")
+        if question_type and question_type.lower() != "all":
+            count_query = count_query.eq("question_type", question_type.lower())
+        if section:
+            count_query = count_query.ilike("section", f"%{section}%")
+        if search:
+            count_query = count_query.ilike("question_text", f"%{search}%")
+
+        count_result = count_query.execute()
+        total_count = len(count_result.data) if count_result.data else 0
+
+        result = query.order("section", desc=False).order("question_number", desc=False).range(offset, offset + limit - 1).execute()
+        questions = result.data or []
+
+        for q in questions:
+            if isinstance(q.get("options"), str):
+                try:
+                    q["options"] = json.loads(q["options"])
+                except:
+                    q["options"] = []
+
+        return {
+            "ok": True, "subject": subject, "classGrade": class_grade, "chapter": chapter,
+            "questions": questions, "total": total_count, "limit": limit, "offset": offset,
+            "hasMore": (offset + limit) < total_count,
+        }
+    except Exception as e:
+        logger.error(f"NCERT questions fetch error: {e}", exc_info=True)
+        return {"ok": False, "questions": [], "total": 0, "error": str(e)}
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# ENDPOINT: NCERT Question Stats (for Test Builder sidebar — v3.2 NEW)
+# ═══════════════════════════════════════════════════════════════════════
+
+@router.get("/ncert-question-stats")
+async def get_ncert_question_stats(subject: str = "Science", class_grade: str = "10"):
+    subject = _resolve_subject(subject)
+    try:
+        supabase = get_supabase()
+        result = supabase.table("ncert_questions").select("chapter, section, question_type").eq("class_grade", class_grade).ilike("subject", f"%{subject}%").execute()
+        rows = result.data or []
+
+        chapter_stats = {}
+        for row in rows:
+            ch = row["chapter"]
+            sec = row.get("section") or "Uncategorized"
+            qtype = row.get("question_type") or "exercise"
+            if ch not in chapter_stats:
+                chapter_stats[ch] = {"chapter": ch, "total": 0, "sections": {}, "types": {}}
+            chapter_stats[ch]["total"] += 1
+            chapter_stats[ch]["sections"][sec] = chapter_stats[ch]["sections"].get(sec, 0) + 1
+            chapter_stats[ch]["types"][qtype] = chapter_stats[ch]["types"].get(qtype, 0) + 1
+
+        stats_list = sorted(chapter_stats.values(), key=lambda x: x["chapter"])
+        for stat in stats_list:
+            stat["sections"] = [{"name": k, "count": v} for k, v in sorted(stat["sections"].items())]
+            stat["types"] = [{"name": k, "count": v} for k, v in sorted(stat["types"].items())]
+
+        total_questions = sum(s["total"] for s in stats_list)
+        return {
+            "ok": True, "subject": subject, "classGrade": class_grade,
+            "chapters": stats_list, "totalQuestions": total_questions, "totalChapters": len(stats_list),
+        }
+    except Exception as e:
+        logger.error(f"NCERT question stats error: {e}", exc_info=True)
+        return {"ok": False, "chapters": [], "totalQuestions": 0, "error": str(e)}
+
+
+# ═══════════════════════════════════════════════════════════════════════
 # OTHER ENDPOINTS
 # ═══════════════════════════════════════════════════════════════════════
 
@@ -889,14 +979,13 @@ async def feedback(request: TestFeedbackRequest):
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# ENDPOINT: Save Test (v3.1 — pre-flight SELECT + upsert fallback)
+# ENDPOINT: Save Test (v3.1)
 # ═══════════════════════════════════════════════════════════════════════
 
 @router.post("/save")
 async def save_test(request: FrontendSaveRequest):
     supabase = get_supabase()
     try:
-        # 🆕 v3.1: PRE-FLIGHT SELECT — verify row actually exists before UPDATE
         check_result = supabase.table("tests").select("id, teacher_id, exam_title").eq(
             "id", request.test_id
         ).eq(
@@ -904,18 +993,16 @@ async def save_test(request: FrontendSaveRequest):
         ).execute()
 
         logger.info(
-            f"🔍 Pre-save check: found {len(check_result.data or [])} rows "
+            f"Pre-save check: found {len(check_result.data or [])} rows "
             f"for test_id={request.test_id}, teacher_id={request.teacher_id}"
         )
 
         if not check_result.data:
-            # Row missing — try to UPSERT it (recovery path)
             logger.warning(
-                f"⚠️ tests row missing for test_id={request.test_id}. "
+                f"tests row missing for test_id={request.test_id}. "
                 f"Attempting upsert recovery from questions payload."
             )
 
-            # Best-effort: reconstruct minimal tests row from questions
             if request.questions:
                 first_q = request.questions[0] if request.questions else {}
                 total_marks = sum(q.get("marks", 1) for q in request.questions if isinstance(q, dict))
@@ -932,9 +1019,9 @@ async def save_test(request: FrontendSaveRequest):
                 }
                 try:
                     supabase.table("tests").insert(recovery_row).execute()
-                    logger.info(f"✅ Recovery INSERT succeeded for {request.test_id}")
+                    logger.info(f"Recovery INSERT succeeded for {request.test_id}")
                 except Exception as rec_err:
-                    logger.error(f"❌ Recovery INSERT failed: {rec_err}")
+                    logger.error(f"Recovery INSERT failed: {rec_err}")
                     raise HTTPException(
                         status_code=404,
                         detail="Test not found. Please generate a new test."
@@ -945,13 +1032,11 @@ async def save_test(request: FrontendSaveRequest):
                     detail="Test not found or you don't have permission to save it."
                 )
         else:
-            # Row exists — update status to saved
             supabase.table("tests").update({
                 "status": "saved"
             }).eq("id", request.test_id).eq("teacher_id", request.teacher_id).execute()
-            logger.info(f"✅ tests row updated to saved: {request.test_id}")
+            logger.info(f"tests row updated to saved: {request.test_id}")
 
-        # ── Save questions ──
         if request.questions:
             logger.info(f"Saving {len(request.questions)} questions for test {request.test_id}")
 
@@ -996,7 +1081,7 @@ async def save_test(request: FrontendSaveRequest):
             if rows_to_insert:
                 try:
                     supabase.table("questions").insert(rows_to_insert).execute()
-                    logger.info(f"✅ Inserted {len(rows_to_insert)} questions")
+                    logger.info(f"Inserted {len(rows_to_insert)} questions")
                 except Exception as ins_err:
                     err_str = str(ins_err).lower()
                     if "question_table" in err_str and ("column" in err_str or "schema" in err_str):
@@ -1005,11 +1090,11 @@ async def save_test(request: FrontendSaveRequest):
                             r.pop("question_table", None)
                         try:
                             supabase.table("questions").insert(rows_to_insert).execute()
-                            logger.info(f"✅ Inserted {len(rows_to_insert)} questions (without question_table)")
+                            logger.info(f"Inserted {len(rows_to_insert)} questions (without question_table)")
                         except Exception as retry_err:
-                            logger.error(f"❌ Insert retry also failed: {retry_err}")
+                            logger.error(f"Insert retry also failed: {retry_err}")
                     else:
-                        logger.error(f"❌ Failed to insert questions: {ins_err}")
+                        logger.error(f"Failed to insert questions: {ins_err}")
 
         return {"success": True, "test_id": request.test_id, "message": "Test saved."}
     except HTTPException:
