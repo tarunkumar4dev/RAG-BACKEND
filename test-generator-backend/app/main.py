@@ -8,7 +8,12 @@ from app.api.v1.endpoints.test_generator import router as test_router
 from app.api.v1.endpoints.contest import router as contest_router
 from app.api.v1.endpoints.payment import router as payment_router
 from app.api.v1.endpoints.community_quiz import router as community_quiz_router
+<<<<<<< HEAD
 from app.api.v1.endpoints.modules import router as module_router
+=======
+from app.routers.test_checker_router import router as test_checker_router
+
+>>>>>>> aa67aca (update files)
 import logging
 
 
@@ -37,7 +42,11 @@ app.include_router(test_router, prefix="/api/v1")
 app.include_router(contest_router, prefix="/api/v1")
 app.include_router(payment_router, prefix="/api/v1")
 app.include_router(community_quiz_router, prefix="/api/v1")
+<<<<<<< HEAD
 app.include_router(module_router, prefix="/api/v1")
+=======
+app.include_router(test_checker_router, prefix="/api/v1")
+>>>>>>> aa67aca (update files)
 
 @app.get("/health")
 def health():
