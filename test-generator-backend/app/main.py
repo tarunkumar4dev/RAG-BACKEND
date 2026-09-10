@@ -8,6 +8,7 @@ from app.api.v1.endpoints.contest import router as contest_router
 from app.api.v1.endpoints.payment import router as payment_router
 from app.api.v1.endpoints.community_quiz import router as community_quiz_router
 from app.api.v1.endpoints.modules import router as module_router
+from app.routers.test_checker_router import router as test_checker_router
 from app.api.v1.endpoints.chat import router as chat_router
 import logging
 
@@ -37,6 +38,7 @@ app.include_router(contest_router, prefix="/api/v1")
 app.include_router(payment_router, prefix="/api/v1")
 app.include_router(community_quiz_router, prefix="/api/v1")
 app.include_router(module_router, prefix="/api/v1")
+app.include_router(test_checker_router, prefix="/api/v1")
 app.include_router(chat_router, prefix="/api/v1")
 
 @app.get("/health")

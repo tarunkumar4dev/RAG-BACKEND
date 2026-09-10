@@ -49,9 +49,13 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "") or os.environ.get("GEMINI_
 # Best model for accuracy — change if needed
 DEFAULT_MODEL = "gemini-3.6-flash"
 
-# Rate limiting
-REQUESTS_PER_MINUTE = 10  # conservative for Pro model
-DELAY_BETWEEN_CALLS = 60 / REQUESTS_PER_MINUTE  # 6 seconds
+# ── RATE LIMIT FIX ──
+# Free tier: 20 requests per day (RPD)
+# Use conservative settings to avoid hitting the limit
+REQUESTS_PER_MINUTE = 1
+DELAY_BETWEEN_CALLS = 300  # 5 minutes between calls (safety margin)
+MAX_REQUESTS_PER_DAY = 18  # safety margin (limit is 20, use 18 to be safe)
+daily_request_count = 0
 
 # Chunk grouping
 MAX_CHARS_PER_BATCH = 15000  # ~3-4 chunks per Gemini call (within context limits)
@@ -133,7 +137,15 @@ def get_gemini_client():
 
 
 def call_gemini(client, model: str, prompt: str, max_retries: int = 3) -> Optional[Dict]:
-    """Call Gemini with retries and JSON parsing."""
+    """Call Gemini with retries and JSON parsing. Respects daily rate limit."""
+    global daily_request_count
+    
+    # ── DAILY LIMIT CHECK ──
+    if daily_request_count >= MAX_REQUESTS_PER_DAY:
+        logger.warning(f"⚠️ Daily limit reached! {MAX_REQUESTS_PER_DAY} requests used. Stopping for today.")
+        logger.warning(f"   Wait 24 hours or upgrade to paid tier (1000+ RPD)")
+        return None
+    
     for attempt in range(max_retries):
         try:
             response = client.models.generate_content(
@@ -142,8 +154,8 @@ def call_gemini(client, model: str, prompt: str, max_retries: int = 3) -> Option
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json",
                     max_output_tokens=8192,
-    ),
-)
+                ),
+            )
 
             if not response or not response.text:
                 logger.warning(f"Empty response from Gemini (attempt {attempt + 1})")
@@ -162,6 +174,12 @@ def call_gemini(client, model: str, prompt: str, max_retries: int = 3) -> Option
                 text = text[4:].strip()
 
             parsed = json.loads(text)
+            
+            # ── INCREMENT COUNTER ON SUCCESS ──
+            daily_request_count += 1
+            remaining = MAX_REQUESTS_PER_DAY - daily_request_count
+            logger.info(f"   📊 Daily usage: {daily_request_count}/{MAX_REQUESTS_PER_DAY} ({remaining} remaining)")
+            
             return parsed
 
         except json.JSONDecodeError as e:
@@ -171,11 +189,11 @@ def call_gemini(client, model: str, prompt: str, max_retries: int = 3) -> Option
         except Exception as e:
             error_str = str(e).lower()
             if "rate" in error_str or "quota" in error_str or "429" in error_str:
-                wait_time = 30 * (attempt + 1)
+                wait_time = 60 * (attempt + 1)
                 logger.warning(f"Rate limited, waiting {wait_time}s...")
                 time.sleep(wait_time)
             elif "500" in error_str or "503" in error_str:
-                wait_time = 10 * (attempt + 1)
+                wait_time = 30 * (attempt + 1)
                 logger.warning(f"Server error, retrying in {wait_time}s...")
                 time.sleep(wait_time)
             else:
@@ -345,6 +363,7 @@ def main():
     logger.info(f"Model: {args.model}")
     logger.info(f"Filters: subject={args.subject}, class={args.class_grade}, chapter={args.chapter}")
     logger.info(f"Dry run: {args.dry_run}, Resume: {args.resume}")
+    logger.info(f"Daily limit: {MAX_REQUESTS_PER_DAY} requests/day (free tier)")
     logger.info("=" * 60)
 
     # Init clients
@@ -375,6 +394,11 @@ def main():
     total_skipped = 0
 
     for (class_grade, subject, chapter), chapter_chunks in sorted(groups.items()):
+        # Check daily limit before processing
+        if daily_request_count >= MAX_REQUESTS_PER_DAY:
+            logger.warning(f"⚠️ Daily limit reached! Stopping early.")
+            break
+        
         # Skip if already done (resume mode)
         if (str(class_grade), subject, chapter) in skip_combos:
             total_skipped += 1
@@ -383,6 +407,7 @@ def main():
 
         logger.info(f"\n{'─' * 50}")
         logger.info(f"📖 Processing: {subject} Class {class_grade} — {chapter} ({len(chapter_chunks)} chunks)")
+        logger.info(f"   Remaining daily quota: {MAX_REQUESTS_PER_DAY - daily_request_count}")
 
         # Batch chunks
         batches = batch_chunks(chapter_chunks)
@@ -391,6 +416,11 @@ def main():
         chapter_questions = 0
 
         for batch_idx, batch in enumerate(batches):
+            # Check daily limit before each batch
+            if daily_request_count >= MAX_REQUESTS_PER_DAY:
+                logger.warning(f"⚠️ Daily limit reached! Stopping mid-chapter.")
+                break
+            
             # Build combined content
             combined_content = ""
             chunk_ids = []
@@ -437,8 +467,10 @@ def main():
                 chapter_questions += inserted
                 logger.info(f"   💾 Inserted {inserted} questions into DB")
 
-            # Rate limit
-            time.sleep(DELAY_BETWEEN_CALLS)
+            # Rate limit delay (only if we have quota left)
+            if daily_request_count < MAX_REQUESTS_PER_DAY:
+                logger.info(f"   ⏳ Waiting {DELAY_BETWEEN_CALLS}s before next request...")
+                time.sleep(DELAY_BETWEEN_CALLS)
 
         total_questions += chapter_questions
         if chapter_questions > 0:
@@ -451,7 +483,10 @@ def main():
     logger.info(f"   Total batches processed:   {total_batches}")
     logger.info(f"   Errors:                    {total_errors}")
     logger.info(f"   Skipped (resume):          {total_skipped}")
-    logger.info(f"{'=' * 60}")
+    logger.info(f"   Daily requests used:       {daily_request_count}/{MAX_REQUESTS_PER_DAY}")
+    if daily_request_count >= MAX_REQUESTS_PER_DAY:
+        logger.info(f"   ⚠️ Daily limit reached! Run again tomorrow.")
+    logger.info("=" * 60)
 
 
 if __name__ == "__main__":
