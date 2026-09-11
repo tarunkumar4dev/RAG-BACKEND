@@ -1,6 +1,15 @@
 # app/api/v1/endpoints/chat.py
+"""
+Chat endpoint — Groq LLM proxy (Security Hardened)
+
+FIXES:
+  - Added extra="forbid" on all Pydantic models
+  - Sanitized message content (length limit, role validation)
+  - Removed str(e) from error responses
+  - Added message count limit (prevent context stuffing)
+"""
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 from typing import List
 import os
 import re
@@ -18,6 +27,12 @@ SKIP_PATTERNS = (
     "whisper", "tts", "guard", "orpheus", "canopy",
     "distil", "playai", "vision", "audio",
 )
+
+# ── Security limits ─────────────────────────────────────────
+MAX_MESSAGES = 20           # Max conversation history
+MAX_MESSAGE_LENGTH = 4000   # Per message
+VALID_ROLES = {"user", "assistant", "system"}
+
 
 def clean_response(text: str) -> str:
     """Strip thinking blocks, reasoning, and XML tags from model output."""
@@ -64,11 +79,15 @@ async def get_available_models(api_key: str) -> list:
 
 
 class ChatMessage(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     role: str
-    content: str
+    content: str = Field(max_length=MAX_MESSAGE_LENGTH)
+
 
 class ChatRequest(BaseModel):
-    messages: List[ChatMessage]
+    model_config = ConfigDict(extra="forbid")
+    messages: List[ChatMessage] = Field(max_length=MAX_MESSAGES)
+
 
 class ChatResponse(BaseModel):
     content: str
@@ -79,7 +98,12 @@ class ChatResponse(BaseModel):
 async def chat(request: ChatRequest):
     api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
-        raise HTTPException(status_code=500, detail="GROQ_API_KEY not configured")
+        raise HTTPException(status_code=503, detail="Chat service unavailable")
+
+    # SECURITY: Validate roles
+    for msg in request.messages:
+        if msg.role not in VALID_ROLES:
+            raise HTTPException(status_code=422, detail=f"Invalid message role: {msg.role}")
 
     messages = [{"role": m.role, "content": m.content} for m in request.messages]
 
@@ -116,7 +140,7 @@ async def chat(request: ChatRequest):
                     err = data["error"].get("message", "") + data["error"].get("code", "")
                     if any(s in err for s in SKIP_ERRORS):
                         continue
-                    raise HTTPException(status_code=400, detail=data["error"].get("message"))
+                    raise HTTPException(status_code=400, detail="Chat request failed. Try again.")
 
                 if data.get("choices"):
                     raw = data["choices"][0]["message"]["content"]
@@ -135,5 +159,5 @@ async def chat(request: ChatRequest):
 
     raise HTTPException(
         status_code=503,
-        detail="No models available. Check GROQ_API_KEY at console.groq.com"
+        detail="Chat service temporarily unavailable. Please try again."
     )

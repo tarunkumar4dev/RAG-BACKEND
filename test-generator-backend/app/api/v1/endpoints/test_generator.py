@@ -1,36 +1,20 @@
 """
-Test Generator API Endpoints — v3.2
+Test Generator API Endpoints — v3.3 (Security Hardened)
 
-v3.2 changes:
-  - NEW: /ncert-questions endpoint (browse extracted NCERT questions)
-  - NEW: /ncert-question-stats endpoint (chapter/section/type counts)
-
-v3.1 changes (DIAGNOSTIC):
-  - INSERT tests table: added debug log to inspect raw response.data
-  - save_test: added pre-flight SELECT to verify row exists BEFORE update
-  - Removed created_at manual timestamp (let DB default NOW() handle it)
-
-v3.0 changes:
-  - FIX: generate_from_frontend now INSERTs into tests table
-  - FIX: save_test now uses UPSERT-safe update with teacher_id check
-  - ExportRequest accepts template field (default "modern")
-  - /export passes template through to generate_pdf() / generate_docx()
-  - New GET /templates endpoint
-  - Split usage check into check_usage + record_usage
-
-v2.8 changes:
-  - English pseudo-chapter support (Writing Skills, Grammar bypass RAG)
-
-v2.7 changes:
-  - /chapters endpoint returns book, chapter_type, chapter_order
-
-v2.6 changes:
-  - questionTable field for Statistics questions
+v3.3 changes (SECURITY):
+  - extra="forbid" on ALL Pydantic models (blocks field injection)
+  - Input sanitization on all .ilike() queries (prevents SQL pattern injection)
+  - UUID validation on all user_id / test_id fields
+  - Removed str(e) from ALL error responses (prevents internal leak)
+  - /health-detail removed from public access
+  - Length limits on all string inputs
+  - limit/offset capped on query endpoints
+  - Removed debug INSERT logs that printed full row data
 """
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from typing import List, Optional
 import re
 import uuid
@@ -53,6 +37,7 @@ from app.services.test_generator_service import generate_test, handle_feedback
 from app.services.rag_service import retrieve_context
 from app.core.database import get_supabase
 from app.core.config import settings
+from app.core.sanitize import sanitize_like, sanitize_text, sanitize_uuid, validate_class_grade
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/test-generator", tags=["Test Generator"])
@@ -73,6 +58,12 @@ def check_usage(user_id: str) -> dict:
             },
         )
 
+    # SECURITY: Validate UUID format
+    try:
+        sanitize_uuid(user_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid user ID format")
+
     try:
         supabase = get_supabase()
         result = supabase.rpc("check_usage", {
@@ -80,7 +71,7 @@ def check_usage(user_id: str) -> dict:
         }).execute()
 
         if not result.data:
-            logger.error(f"Usage check returned no data for user {user_id} — blocking (fail-closed)")
+            logger.error(f"Usage check returned no data for user {user_id}")
             raise HTTPException(
                 status_code=503,
                 detail={
@@ -92,7 +83,7 @@ def check_usage(user_id: str) -> dict:
         usage = result.data
 
         if not usage.get("allowed"):
-            logger.info(f"Usage limit reached: user={user_id}, used={usage.get('used')}, limit={usage.get('limit')}")
+            logger.info(f"Usage limit reached: user={user_id}")
             raise HTTPException(
                 status_code=403,
                 detail={
@@ -104,13 +95,12 @@ def check_usage(user_id: str) -> dict:
                 },
             )
 
-        logger.info(f"Usage OK: user={user_id}, used={usage.get('used')}, remaining={usage.get('remaining')}")
         return usage
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Usage check error — blocking (fail-closed): {e}")
+        logger.error(f"Usage check error: {e}")
         raise HTTPException(
             status_code=503,
             detail={
@@ -129,27 +119,12 @@ def record_usage(user_id: str) -> dict:
         }).execute()
 
         if result.data:
-            logger.info(f"Usage recorded: user={user_id}, used={result.data.get('used')}")
+            logger.info(f"Usage recorded: user={user_id}")
         return result.data or {}
 
     except Exception as e:
         logger.error(f"Record usage failed (non-fatal): {e}")
-        return {"recorded": False, "error": str(e)}
-
-
-def check_and_record_usage(user_id: str) -> dict:
-    usage = check_usage(user_id)
-    try:
-        supabase = get_supabase()
-        result = supabase.rpc("record_usage", {
-            "p_user_id": user_id,
-            "p_action": "test_generated",
-        }).execute()
-        if result.data:
-            usage.update(result.data)
-    except Exception as e:
-        logger.error(f"Record usage failed in combined call (non-fatal): {e}")
-    return usage
+        return {"recorded": False}
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -201,33 +176,37 @@ BOOK_GROUP_ORDER = {
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# FRONTEND MODELS
+# FRONTEND MODELS (all with extra="forbid")
 # ═══════════════════════════════════════════════════════════════════════
 
 class FrontendChapterRow(BaseModel):
-    topic: str
-    subtopic: Optional[str] = None
+    model_config = ConfigDict(extra="forbid")
+
+    topic: str = Field(max_length=200)
+    subtopic: Optional[str] = Field(default=None, max_length=200)
     quantity: int = Field(default=5, ge=1, le=50)
     marks: int = Field(default=1, ge=1, le=10)
-    difficulty: str = "Medium"
-    format: str = "MCQ"
+    difficulty: str = Field(default="Medium", max_length=20)
+    format: str = Field(default="MCQ", max_length=30)
 
 
 class FrontendGenerateRequest(BaseModel):
-    examTitle: str = "Untitled Test"
-    paperDate: Optional[str] = None
-    board: str = "CBSE"
-    classGrade: str = "Class 10"
-    subject: str = "Science"
-    simpleData: List[FrontendChapterRow] = []
-    mode: str = "Simple"
+    model_config = ConfigDict(extra="forbid")
+
+    examTitle: str = Field(default="Untitled Test", max_length=200)
+    paperDate: Optional[str] = Field(default=None, max_length=20)
+    board: str = Field(default="CBSE", max_length=30)
+    classGrade: str = Field(default="Class 10", max_length=20)
+    subject: str = Field(default="Science", max_length=50)
+    simpleData: List[FrontendChapterRow] = Field(default=[], max_length=20)  # Max 20 chapters
+    mode: str = Field(default="Simple", max_length=20)
     enableWatermark: bool = True
     shuffleQuestions: bool = False
     useNCERT: bool = True
-    ncertClass: Optional[str] = None
-    ncertSubject: Optional[str] = None
-    ncertChapters: List[str] = []
-    userId: Optional[str] = None
+    ncertClass: Optional[str] = Field(default=None, max_length=10)
+    ncertSubject: Optional[str] = Field(default=None, max_length=50)
+    ncertChapters: List[str] = Field(default=[], max_length=20)
+    userId: Optional[str] = Field(default=None, max_length=50)
     cbsePattern: bool = True
 
 
@@ -264,30 +243,36 @@ class FrontendGenerateResponse(BaseModel):
 
 
 class ExportRequest(BaseModel):
-    examTitle: str = "Test Paper"
-    paperDate: Optional[str] = None
-    board: str = "CBSE"
-    classGrade: str = "Class 10"
-    subject: str = "Science"
-    questions: list
+    model_config = ConfigDict(extra="forbid")
+
+    examTitle: str = Field(default="Test Paper", max_length=200)
+    paperDate: Optional[str] = Field(default=None, max_length=20)
+    board: str = Field(default="CBSE", max_length=30)
+    classGrade: str = Field(default="Class 10", max_length=20)
+    subject: str = Field(default="Science", max_length=50)
+    questions: list = Field(max_length=200)  # Max 200 questions
     includeAnswers: bool = False
     includeExplanations: bool = False
-    format: str = "pdf"
-    logoBase64: Optional[str] = None
-    template: str = "modern"
-    teacher_name: Optional[str] = None
-    duration: Optional[str] = None
-    institute_name: Optional[str] = None
+    format: str = Field(default="pdf", max_length=10)
+    logoBase64: Optional[str] = Field(default=None, max_length=500_000)  # ~375KB image
+    template: str = Field(default="modern", max_length=30)
+    teacher_name: Optional[str] = Field(default=None, max_length=100)
+    duration: Optional[str] = Field(default=None, max_length=20)
+    institute_name: Optional[str] = Field(default=None, max_length=200)
 
 
 class FrontendSaveRequest(BaseModel):
-    test_id: str
-    teacher_id: str
-    questions: Optional[List[dict]] = None
+    model_config = ConfigDict(extra="forbid")
+
+    test_id: str = Field(max_length=50)
+    teacher_id: str = Field(max_length=50)
+    questions: Optional[List[dict]] = Field(default=None, max_length=200)
 
 
 class AddManualQuestionRequest(BaseModel):
-    teacher_id: str
+    model_config = ConfigDict(extra="forbid")
+
+    teacher_id: str = Field(max_length=50)
     question: ManualQuestionPayload
 
 
@@ -336,6 +321,10 @@ MARKS_MAP = {
     QuestionFormat.TRIAL_BALANCE: 6,
 }
 
+# SECURITY: Allowed export templates (whitelist)
+VALID_TEMPLATES = {"modern", "classic", "compact", "colorful", "exam_paper", "institute_paper"}
+VALID_EXPORT_FORMATS = {"pdf", "docx"}
+
 
 def _extract_class_number(class_grade: str) -> str:
     match = re.search(r'\d+', class_grade)
@@ -354,8 +343,6 @@ def _transform_frontend_to_backend(req: FrontendGenerateRequest) -> TestGenerati
         question_format = FORMAT_MAP.get(row.format, QuestionFormat.MCQ)
         marks = row.marks if row.marks and row.marks > 0 else MARKS_MAP.get(question_format, 1)
 
-        logger.info(f"Row: topic={row.topic}, format='{row.format}' -> {question_format.value}, marks={marks}")
-
         chapter = ChapterSection(
             chapter=row.topic,
             topic=row.subtopic if row.subtopic else None,
@@ -372,7 +359,7 @@ def _transform_frontend_to_backend(req: FrontendGenerateRequest) -> TestGenerati
 
     total_q = sum(c.quantity for c in chapters)
     if total_q > settings.MAX_QUESTIONS_PER_REQUEST:
-        raise ValueError(f"Too many questions ({total_q}). Max {settings.MAX_QUESTIONS_PER_REQUEST}.")
+        raise ValueError(f"Too many questions ({total_q}). Maximum is {settings.MAX_QUESTIONS_PER_REQUEST}.")
 
     return TestGenerationRequest(
         exam_title=req.examTitle,
@@ -471,14 +458,13 @@ def _transform_backend_to_frontend(resp, req: FrontendGenerateRequest) -> Fronte
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# ENDPOINT: Generate from Frontend (v3.1)
+# ENDPOINT: Generate from Frontend (v3.3 — hardened)
 # ═══════════════════════════════════════════════════════════════════════
 
 @router.post("/generate-frontend", response_model=FrontendGenerateResponse)
 async def generate_from_frontend(req: FrontendGenerateRequest):
     start = time.time()
-    logger.info(f"Frontend generate: {req.subject} {req.classGrade}, "
-                f"{len(req.simpleData)} chapters, cbsePattern={req.cbsePattern}, paperDate={req.paperDate}")
+    logger.info(f"Frontend generate: {req.subject} {req.classGrade}, {len(req.simpleData)} chapters")
 
     try:
         usage = check_usage(req.userId)
@@ -500,10 +486,8 @@ async def generate_from_frontend(req: FrontendGenerateRequest):
                 real_chapters, topics,
                 backend_request.subject, backend_request.class_grade,
             )
-            logger.info(f"Retrieved {len(context_chunks)} context chunks (skipped pseudo-chapters)")
         else:
             context_chunks = []
-            logger.info("All chapters are English pseudo-chapters — skipping RAG entirely")
 
         resolved_subject = _resolve_subject(req.subject)
         is_accountancy = resolved_subject.lower() in ("accountancy", "accounts", "accounting")
@@ -520,16 +504,11 @@ async def generate_from_frontend(req: FrontendGenerateRequest):
         frontend_response.generationTime = elapsed
 
         recorded = record_usage(req.userId)
-        if recorded.get("recorded") is False:
-            logger.warning(f"Usage not recorded for {req.userId}: {recorded.get('error')}")
-        else:
-            usage.update(recorded)
+        usage.update(recorded)
 
+        # Insert test row
         try:
             class_num_for_db = _extract_class_number(req.classGrade)
-            total_marks = frontend_response.totalMarks
-            total_questions = frontend_response.totalQuestions
-
             tests_row = {
                 "id": frontend_response.testId,
                 "teacher_id": req.userId,
@@ -538,42 +517,17 @@ async def generate_from_frontend(req: FrontendGenerateRequest):
                 "class_grade": class_num_for_db,
                 "subject": resolved_subject,
                 "status": "draft",
-                "total_questions": total_questions,
-                "total_marks": total_marks,
+                "total_questions": frontend_response.totalQuestions,
+                "total_marks": frontend_response.totalMarks,
                 "paper_date": req.paperDate,
                 "cbse_pattern": req.cbsePattern,
             }
-
-            logger.info(f"About to INSERT tests_row: {tests_row}")
-
             supabase = get_supabase()
             insert_result = supabase.table("tests").insert(tests_row).execute()
-
-            logger.info(
-                f"INSERT response: "
-                f"data={insert_result.data!r}, "
-                f"count={getattr(insert_result, 'count', 'N/A')!r}"
-            )
-
             if not insert_result.data:
-                logger.error(
-                    f"tests INSERT returned no data for test_id={frontend_response.testId}. "
-                    f"Row may NOT be created!"
-                )
-            else:
-                logger.info(f"tests row inserted: id={frontend_response.testId}, teacher={req.userId}")
-
-            verify = supabase.table("tests").select("id, status").eq("id", frontend_response.testId).execute()
-            if verify.data:
-                logger.info(f"VERIFIED row exists in DB: {verify.data}")
-            else:
-                logger.error(f"VERIFIED row DOES NOT exist in DB despite INSERT!")
-
+                logger.error(f"tests INSERT returned no data for test_id={frontend_response.testId}")
         except Exception as insert_err:
-            logger.error(
-                f"Failed to INSERT tests row for {frontend_response.testId}: {insert_err}",
-                exc_info=True
-            )
+            logger.error(f"Failed to INSERT tests row: {insert_err}", exc_info=True)
 
         frontend_response.meta["usage"] = {
             "used": usage.get("used", 0),
@@ -602,23 +556,30 @@ async def generate_from_frontend(req: FrontendGenerateRequest):
             if real_names:
                 raise HTTPException(
                     status_code=404,
-                    detail=f"Content not available for selected chapters: {', '.join(real_names)}. Try different chapters or contact support."
+                    detail=f"Content not available for selected chapters. Try different chapters or contact support."
                 )
-            else:
-                logger.warning("No NCERT content found, but all chapters are pseudo-chapters. Proceeding.")
         logger.error(f"Frontend generate error: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Generation failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Generation failed. Please try again.")
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# ENDPOINT: Export PDF / DOCX
+# ENDPOINT: Export PDF / DOCX (hardened)
 # ═══════════════════════════════════════════════════════════════════════
 
 @router.post("/export")
 async def export_test(req: ExportRequest):
     try:
         class_num = _extract_class_number(req.classGrade)
+
+        # SECURITY: Whitelist template
         template = (req.template or "modern").strip().lower()
+        if template not in VALID_TEMPLATES:
+            template = "modern"
+
+        # SECURITY: Whitelist format
+        export_format = req.format.lower().strip()
+        if export_format not in VALID_EXPORT_FORMATS:
+            raise HTTPException(status_code=422, detail="Invalid format. Use pdf or docx.")
 
         normalized_questions = []
         for q in req.questions:
@@ -637,13 +598,7 @@ async def export_test(req: ExportRequest):
                 q['is_manual'] = True
             normalized_questions.append(q)
 
-        manual_count = sum(1 for q in normalized_questions if q.get('is_manual'))
-        if manual_count:
-            logger.info(f"Export includes {manual_count} manual question(s)")
-
-        logger.info(f"Export: format={req.format}, template={template}, questions={len(normalized_questions)}")
-
-        if req.format.lower() == "docx":
+        if export_format == "docx":
             from app.services.export_service import generate_docx
             file_bytes = generate_docx(
                 questions=normalized_questions,
@@ -660,11 +615,11 @@ async def export_test(req: ExportRequest):
                 duration=req.duration,
                 institute_name=req.institute_name,
             )
-            filename = f"{req.examTitle.replace(' ', '_')}.docx"
+            filename = re.sub(r'[^a-zA-Z0-9_\-]', '_', req.examTitle)[:50]  # Safe filename
             return Response(
                 content=file_bytes,
                 media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+                headers={"Content-Disposition": f'attachment; filename="{filename}.docx"'},
             )
         else:
             from app.services.export_service import generate_pdf
@@ -683,16 +638,18 @@ async def export_test(req: ExportRequest):
                 duration=req.duration,
                 institute_name=req.institute_name,
             )
-            filename = f"{req.examTitle.replace(' ', '_')}.pdf"
+            filename = re.sub(r'[^a-zA-Z0-9_\-]', '_', req.examTitle)[:50]
             return Response(
                 content=file_bytes,
                 media_type="application/pdf",
-                headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+                headers={"Content-Disposition": f'attachment; filename="{filename}.pdf"'},
             )
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Export error: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Export failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Export failed. Please try again.")
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -715,17 +672,19 @@ async def get_templates():
                 {"id": "colorful", "label": "Colorful", "description": "Section-wise accent colors."},
                 {"id": "exam_paper", "label": "Exam Paper", "description": "Traditional CBSE-style exam paper."},
             ],
-            "error": str(e),
         }
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# ENDPOINT: Chapters
+# ENDPOINT: Chapters (hardened)
 # ═══════════════════════════════════════════════════════════════════════
 
 @router.get("/chapters")
 async def get_chapters(subject: str = "Science", class_grade: str = "10"):
-    subject = _resolve_subject(subject)
+    # SECURITY: Sanitize inputs
+    subject = sanitize_like(_resolve_subject(subject), max_length=50)
+    class_grade = sanitize_like(class_grade, max_length=5)
+
     try:
         supabase = get_supabase()
         result = supabase.table("ncert_chunks") \
@@ -744,9 +703,7 @@ async def get_chapters(subject: str = "Science", class_grade: str = "10"):
             ctype = row.get("chapter_type")
             order = row.get("chapter_order")
 
-            if not chapter:
-                continue
-            if not book or not ctype:
+            if not chapter or not book or not ctype:
                 continue
 
             key = (chapter, book, ctype)
@@ -799,57 +756,11 @@ async def get_chapters(subject: str = "Science", class_grade: str = "10"):
             "chapters": [],
             "groups": None,
             "count": 0,
-            "error": str(e),
         }
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# ENDPOINT: Health Detail
-# ═══════════════════════════════════════════════════════════════════════
-
-@router.get("/health-detail")
-async def health_detail():
-    result = {
-        "ok": False,
-        "services": {"postgresql": False, "supabase": False, "gemini": False, "ncertChunks": 0},
-        "version": settings.APP_VERSION,
-        "model": settings.GEMINI_MODEL,
-    }
-
-    try:
-        import psycopg2
-        from psycopg2.extras import RealDictCursor
-        conn = psycopg2.connect(settings.DATABASE_URL, cursor_factory=RealDictCursor)
-        with conn.cursor() as cur:
-            cur.execute("SELECT COUNT(*) as count FROM ncert_chunks")
-            row = cur.fetchone()
-            result["services"]["postgresql"] = True
-            result["services"]["ncertChunks"] = row["count"] if row else 0
-        conn.close()
-    except Exception as e:
-        logger.warning(f"PostgreSQL check failed: {e}")
-
-    try:
-        sb = get_supabase()
-        sb.table("tests").select("id").limit(1).execute()
-        result["services"]["supabase"] = True
-    except Exception as e:
-        logger.warning(f"Supabase check failed: {e}")
-
-    try:
-        from google import genai
-        client = genai.Client(api_key=settings.GEMINI_API_KEY)
-        response = client.models.generate_content(model=settings.GEMINI_MODEL, contents="Reply with just: OK")
-        result["services"]["gemini"] = bool(response.text)
-    except Exception as e:
-        logger.warning(f"Gemini check failed: {e}")
-
-    result["ok"] = all([result["services"]["postgresql"], result["services"]["supabase"], result["services"]["gemini"]])
-    return result
-
-
-# ═══════════════════════════════════════════════════════════════════════
-# ENDPOINT: Browse NCERT Questions (for Test Builder — v3.2 NEW)
+# ENDPOINT: Browse NCERT Questions (hardened)
 # ═══════════════════════════════════════════════════════════════════════
 
 @router.get("/ncert-questions")
@@ -863,40 +774,59 @@ async def get_ncert_questions(
     limit: int = 50,
     offset: int = 0,
 ):
-    subject = _resolve_subject(subject)
+    # SECURITY: Sanitize ALL inputs + cap limit/offset
+    subject = sanitize_like(_resolve_subject(subject), max_length=50)
+    class_grade = sanitize_like(class_grade, max_length=5)
+    limit = min(max(1, limit), 100)    # Cap at 100
+    offset = max(0, min(offset, 10000))  # Cap offset
+
     try:
         supabase = get_supabase()
-        query = supabase.table("ncert_questions").select("*").eq("class_grade", class_grade).ilike("subject", f"%{subject}%")
-        if chapter:
-            query = query.ilike("chapter", f"%{chapter}%")
-        if question_type and question_type.lower() != "all":
-            query = query.eq("question_type", question_type.lower())
-        if section:
-            query = query.ilike("section", f"%{section}%")
-        if search:
-            query = query.ilike("question_text", f"%{search}%")
+        query = supabase.table("ncert_questions").select("*") \
+            .eq("class_grade", class_grade) \
+            .ilike("subject", f"%{subject}%")
 
-        count_query = supabase.table("ncert_questions").select("id", count="exact").eq("class_grade", class_grade).ilike("subject", f"%{subject}%")
         if chapter:
-            count_query = count_query.ilike("chapter", f"%{chapter}%")
+            safe_chapter = sanitize_like(chapter, max_length=200)
+            query = query.ilike("chapter", f"%{safe_chapter}%")
         if question_type and question_type.lower() != "all":
-            count_query = count_query.eq("question_type", question_type.lower())
+            safe_qtype = sanitize_like(question_type, max_length=30)
+            query = query.eq("question_type", safe_qtype.lower())
         if section:
-            count_query = count_query.ilike("section", f"%{section}%")
+            safe_section = sanitize_like(section, max_length=100)
+            query = query.ilike("section", f"%{safe_section}%")
         if search:
-            count_query = count_query.ilike("question_text", f"%{search}%")
+            safe_search = sanitize_like(search, max_length=200)
+            query = query.ilike("question_text", f"%{safe_search}%")
+
+        # Count query (same filters)
+        count_query = supabase.table("ncert_questions").select("id", count="exact") \
+            .eq("class_grade", class_grade) \
+            .ilike("subject", f"%{subject}%")
+        if chapter:
+            count_query = count_query.ilike("chapter", f"%{sanitize_like(chapter, 200)}%")
+        if question_type and question_type.lower() != "all":
+            count_query = count_query.eq("question_type", sanitize_like(question_type, 30).lower())
+        if section:
+            count_query = count_query.ilike("section", f"%{sanitize_like(section, 100)}%")
+        if search:
+            count_query = count_query.ilike("question_text", f"%{sanitize_like(search, 200)}%")
 
         count_result = count_query.execute()
         total_count = len(count_result.data) if count_result.data else 0
 
-        result = query.order("section", desc=False).order("question_number", desc=False).range(offset, offset + limit - 1).execute()
+        result = query.order("section", desc=False) \
+            .order("question_number", desc=False) \
+            .range(offset, offset + limit - 1) \
+            .execute()
+
         questions = result.data or []
 
         for q in questions:
             if isinstance(q.get("options"), str):
                 try:
                     q["options"] = json.loads(q["options"])
-                except:
+                except Exception:
                     q["options"] = []
 
         return {
@@ -906,19 +836,26 @@ async def get_ncert_questions(
         }
     except Exception as e:
         logger.error(f"NCERT questions fetch error: {e}", exc_info=True)
-        return {"ok": False, "questions": [], "total": 0, "error": str(e)}
+        return {"ok": False, "questions": [], "total": 0}
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# ENDPOINT: NCERT Question Stats (for Test Builder sidebar — v3.2 NEW)
+# ENDPOINT: NCERT Question Stats (hardened)
 # ═══════════════════════════════════════════════════════════════════════
 
 @router.get("/ncert-question-stats")
 async def get_ncert_question_stats(subject: str = "Science", class_grade: str = "10"):
-    subject = _resolve_subject(subject)
+    subject = sanitize_like(_resolve_subject(subject), max_length=50)
+    class_grade = sanitize_like(class_grade, max_length=5)
+
     try:
         supabase = get_supabase()
-        result = supabase.table("ncert_questions").select("chapter, section, question_type").eq("class_grade", class_grade).ilike("subject", f"%{subject}%").execute()
+        result = supabase.table("ncert_questions") \
+            .select("chapter, section, question_type") \
+            .eq("class_grade", class_grade) \
+            .ilike("subject", f"%{subject}%") \
+            .execute()
+
         rows = result.data or []
 
         chapter_stats = {}
@@ -944,11 +881,11 @@ async def get_ncert_question_stats(subject: str = "Science", class_grade: str = 
         }
     except Exception as e:
         logger.error(f"NCERT question stats error: {e}", exc_info=True)
-        return {"ok": False, "chapters": [], "totalQuestions": 0, "error": str(e)}
+        return {"ok": False, "chapters": [], "totalQuestions": 0}
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# OTHER ENDPOINTS
+# OTHER ENDPOINTS (hardened)
 # ═══════════════════════════════════════════════════════════════════════
 
 @router.post("/generate", response_model=TestGenerationResponse)
@@ -979,11 +916,18 @@ async def feedback(request: TestFeedbackRequest):
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# ENDPOINT: Save Test (v3.1)
+# ENDPOINT: Save Test (hardened)
 # ═══════════════════════════════════════════════════════════════════════
 
 @router.post("/save")
 async def save_test(request: FrontendSaveRequest):
+    # SECURITY: Validate UUIDs
+    try:
+        sanitize_uuid(request.test_id)
+        sanitize_uuid(request.teacher_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid test or teacher ID format")
+
     supabase = get_supabase()
     try:
         check_result = supabase.table("tests").select("id, teacher_id, exam_title").eq(
@@ -992,17 +936,7 @@ async def save_test(request: FrontendSaveRequest):
             "teacher_id", request.teacher_id
         ).execute()
 
-        logger.info(
-            f"Pre-save check: found {len(check_result.data or [])} rows "
-            f"for test_id={request.test_id}, teacher_id={request.teacher_id}"
-        )
-
         if not check_result.data:
-            logger.warning(
-                f"tests row missing for test_id={request.test_id}. "
-                f"Attempting upsert recovery from questions payload."
-            )
-
             if request.questions:
                 first_q = request.questions[0] if request.questions else {}
                 total_marks = sum(q.get("marks", 1) for q in request.questions if isinstance(q, dict))
@@ -1019,27 +953,17 @@ async def save_test(request: FrontendSaveRequest):
                 }
                 try:
                     supabase.table("tests").insert(recovery_row).execute()
-                    logger.info(f"Recovery INSERT succeeded for {request.test_id}")
                 except Exception as rec_err:
                     logger.error(f"Recovery INSERT failed: {rec_err}")
-                    raise HTTPException(
-                        status_code=404,
-                        detail="Test not found. Please generate a new test."
-                    )
+                    raise HTTPException(status_code=404, detail="Test not found. Please generate a new test.")
             else:
-                raise HTTPException(
-                    status_code=404,
-                    detail="Test not found or you don't have permission to save it."
-                )
+                raise HTTPException(status_code=404, detail="Test not found.")
         else:
             supabase.table("tests").update({
                 "status": "saved"
             }).eq("id", request.test_id).eq("teacher_id", request.teacher_id).execute()
-            logger.info(f"tests row updated to saved: {request.test_id}")
 
         if request.questions:
-            logger.info(f"Saving {len(request.questions)} questions for test {request.test_id}")
-
             try:
                 supabase.table("questions").delete().eq("test_id", request.test_id).execute()
             except Exception as del_err:
@@ -1081,16 +1005,13 @@ async def save_test(request: FrontendSaveRequest):
             if rows_to_insert:
                 try:
                     supabase.table("questions").insert(rows_to_insert).execute()
-                    logger.info(f"Inserted {len(rows_to_insert)} questions")
                 except Exception as ins_err:
                     err_str = str(ins_err).lower()
                     if "question_table" in err_str and ("column" in err_str or "schema" in err_str):
-                        logger.warning("question_table column missing in DB, retrying without it")
                         for r in rows_to_insert:
                             r.pop("question_table", None)
                         try:
                             supabase.table("questions").insert(rows_to_insert).execute()
-                            logger.info(f"Inserted {len(rows_to_insert)} questions (without question_table)")
                         except Exception as retry_err:
                             logger.error(f"Insert retry also failed: {retry_err}")
                     else:
@@ -1101,15 +1022,22 @@ async def save_test(request: FrontendSaveRequest):
         raise
     except Exception as e:
         logger.error(f"Save error: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Save failed.")
+        raise HTTPException(status_code=500, detail="Save failed. Please try again.")
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# ENDPOINT: Add Manual Question
+# ENDPOINT: Add Manual Question (hardened)
 # ═══════════════════════════════════════════════════════════════════════
 
 @router.post("/tests/{test_id}/add-manual-question")
 async def add_manual_question(test_id: str, req: AddManualQuestionRequest):
+    # SECURITY: Validate UUIDs
+    try:
+        sanitize_uuid(test_id)
+        sanitize_uuid(req.teacher_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid ID format")
+
     supabase = get_supabase()
     try:
         gq = req.question.to_generated_question()
@@ -1144,7 +1072,7 @@ async def add_manual_question(test_id: str, req: AddManualQuestionRequest):
             supabase.table("questions").insert(row).execute()
         except Exception as ins_err:
             logger.error(f"Insert manual question failed: {ins_err}")
-            raise HTTPException(status_code=500, detail="Failed to save manual question")
+            raise HTTPException(status_code=500, detail="Failed to save question. Please try again.")
 
         return {
             "ok": True,
@@ -1169,7 +1097,7 @@ async def add_manual_question(test_id: str, req: AddManualQuestionRequest):
         raise
     except Exception as e:
         logger.error(f"Add manual question error: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to add question.")
 
 
 @router.post("/quiz/create")
@@ -1198,6 +1126,13 @@ async def create_quiz(settings_req: QuizSettings):
 
 @router.get("/test/{test_id}")
 async def get_test(test_id: str, teacher_id: str):
+    # SECURITY: Validate UUIDs
+    try:
+        sanitize_uuid(test_id)
+        sanitize_uuid(teacher_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid ID format")
+
     supabase = get_supabase()
     try:
         test = supabase.table("tests").select("*").eq("id", test_id).eq("teacher_id", teacher_id).single().execute()

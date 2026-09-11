@@ -1,40 +1,45 @@
 import os
+import logging
 from dotenv import load_dotenv
 
 load_dotenv()
+logger = logging.getLogger(__name__)
+
+
+def _require(name: str) -> str:
+    """Fail fast if a critical env var is missing."""
+    val = os.getenv(name)
+    if not val:
+        raise RuntimeError(f"❌ Missing required env var: {name}")
+    return val
 
 
 class Settings:
-    # ── Supabase / Postgres ─────────────────────────────────────────
-    SUPABASE_URL: str = os.getenv("SUPABASE_URL", "")
-    SUPABASE_KEY: str = os.getenv("SUPABASE_KEY", "")
-    SUPABASE_ANON_KEY: str = os.getenv("SUPABASE_ANON_KEY", "")
+    # ── Supabase / Postgres (REQUIRED) ──────────────────────────────
+    SUPABASE_URL: str = _require("SUPABASE_URL")
+    SUPABASE_ANON_KEY: str = _require("SUPABASE_ANON_KEY") if os.getenv("SUPABASE_ANON_KEY") else os.getenv("SUPABASE_KEY", "")
+    # Service key — ONLY for admin operations (bypasses RLS)
+    SUPABASE_SERVICE_KEY: str = os.getenv("SUPABASE_SERVICE_KEY", os.getenv("SUPABASE_KEY", ""))
     DATABASE_URL: str = os.getenv("DATABASE_URL", "")
 
-    # ── Gemini — AGGRESSIVE COST OPTIMIZATION ───────────────────────
-    GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
+    # ── Gemini (REQUIRED) ───────────────────────────────────────────
+    GEMINI_API_KEY: str = _require("GEMINI_API_KEY")
     GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite")
     GEMINI_GEN_MODEL: str = os.getenv("GEMINI_GEN_MODEL", "gemini-2.5-flash-lite")
-    # Fallback to gemini-2.0-flash (cheaper than 2.5-flash, still capable)
     GEMINI_FALLBACK_MODEL: str = os.getenv("GEMINI_FALLBACK_MODEL", "gemini-2.5-flash-lite")
     GEMINI_VAL_MODEL: str = os.getenv("GEMINI_VAL_MODEL", "gemini-2.5-flash-lite")
-
     GEMINI_THINKING_BUDGET: int = int(os.getenv("GEMINI_THINKING_BUDGET", "0"))
 
-    # ── Generation (cost optimized) ─────────────────────────────────
+    # ── Generation ──────────────────────────────────────────────────
     BATCH_SIZE: int = int(os.getenv("BATCH_SIZE", "5"))
     BATCH_DELAY: int = int(os.getenv("BATCH_DELAY", "2"))
     OVERSHOOT_PER_CHAPTER: int = int(os.getenv("OVERSHOOT_PER_CHAPTER", "1"))
     GENERATION_TEMPERATURE: float = 0.55
     MAX_OUTPUT_TOKENS: int = int(os.getenv("MAX_OUTPUT_TOKENS", "16384"))
-    
-    # ── CONTEXT OPTIMIZATION (FIXED) ──────────────────────────────
-    # Each chunk now carries ~600-800 characters of NCERT content
-    # 8 chunks = 4800-6400 characters = Complete chapter coverage
-    CONTEXT_CHARS_PER_CHUNK: int = int(os.getenv("CONTEXT_CHARS_PER_CHUNK", "750"))  # Increased from 300
-    MAX_CONTEXT_CHUNKS: int = int(os.getenv("MAX_CONTEXT_CHUNKS", "8"))  # Increased from 3
-    
-    # Total context = 750 × 8 = 6000 characters (~800-1000 tokens)
+
+    # ── Context Optimization ────────────────────────────────────────
+    CONTEXT_CHARS_PER_CHUNK: int = int(os.getenv("CONTEXT_CHARS_PER_CHUNK", "750"))
+    MAX_CONTEXT_CHUNKS: int = int(os.getenv("MAX_CONTEXT_CHUNKS", "8"))
 
     # ── RAG ─────────────────────────────────────────────────────────
     MAX_CHUNKS: int = int(os.getenv("MAX_CHUNKS", "10"))
@@ -54,10 +59,10 @@ class Settings:
     RATE_LIMIT_PER_MINUTE: int = int(os.getenv("RATE_LIMIT_PER_MINUTE", "10"))
     RATE_LIMIT_PER_HOUR: int = int(os.getenv("RATE_LIMIT_PER_HOUR", "50"))
 
-    # ── CORS ────────────────────────────────────────────────────────
+    # ── CORS (RESTRICTED — set in Vercel env for production) ───────
     CORS_ORIGINS: str = os.getenv(
         "CORS_ORIGINS",
-        "http://localhost:5173,http://localhost:3000,http://localhost:5174,http://localhost:8080"
+        "http://localhost:5173,http://localhost:3000"  # Dev only defaults
     )
 
     # ── App ─────────────────────────────────────────────────────────
@@ -69,3 +74,12 @@ class Settings:
 
 
 settings = Settings()
+
+# ── Startup validation log ──────────────────────────────────────────
+if settings.DEBUG:
+    logger.info(f"🔧 Running in DEVELOPMENT mode")
+    logger.info(f"   CORS: {settings.CORS_ORIGINS}")
+else:
+    logger.info(f"🔒 Running in PRODUCTION mode")
+    if "*" in settings.CORS_ORIGINS:
+        logger.warning("⚠️  CORS_ORIGINS contains '*' in production! Fix this immediately.")
