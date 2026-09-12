@@ -14,6 +14,7 @@ from fastapi import APIRouter, HTTPException, Header, Query, Depends
 from pydantic import BaseModel, ConfigDict, Field
 from app.services.module_service import ModuleService
 from app.core.sanitize import sanitize_uuid
+from fastapi.responses import Response
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -173,3 +174,224 @@ async def generate_test_from_module(
         raise HTTPException(500, "Test generation failed. Please try again.")
 
     return {"success": True, "test": test_data}
+
+    
+
+@router.post("/modules/{module_id}/generate-worksheet")
+async def generate_worksheet(module_id: str, req: dict, authorization: Optional[str] = Header(None)):
+    """Generate worksheet questions from module content."""
+    teacher_id = extract_teacher_id(req.get("teacher_id"), authorization)
+    if not teacher_id:
+        raise HTTPException(400, "teacher_id required")
+
+    from app.services.worksheet_service import WorksheetService
+
+    num_questions = req.get("num_questions", 10)
+    question_types = req.get("question_types")
+    difficulty = req.get("difficulty", "medium")
+
+    worksheet_data, error = WorksheetService.generate_worksheet_questions(
+        module_id=module_id,
+        teacher_id=teacher_id,
+        num_questions=num_questions,
+        question_types=question_types,
+        difficulty=difficulty,
+    )
+
+    if error:
+        raise HTTPException(500, error)
+
+    return {"success": True, "worksheet": worksheet_data}
+
+
+@router.post("/modules/{module_id}/download-worksheet")
+async def download_worksheet(module_id: str, req: dict, authorization: Optional[str] = Header(None)):
+    """Generate and download worksheet as PDF."""
+    teacher_id = extract_teacher_id(req.get("teacher_id"), authorization)
+    if not teacher_id:
+        raise HTTPException(400, "teacher_id required")
+
+    from app.services.worksheet_service import WorksheetService
+    import base64
+
+    worksheet_data = req.get("worksheet_data")
+    if not worksheet_data:
+        num_questions = req.get("num_questions", 10)
+        question_types = req.get("question_types")
+        difficulty = req.get("difficulty", "medium")
+
+        worksheet_data, error = WorksheetService.generate_worksheet_questions(
+            module_id=module_id,
+            teacher_id=teacher_id,
+            num_questions=num_questions,
+            question_types=question_types,
+            difficulty=difficulty,
+        )
+        if error:
+            raise HTTPException(500, error)
+
+    include_answers = req.get("include_answers", False)
+    school_name = req.get("school_name", None)
+
+    logo_bytes = None
+    logo_ext = "png"
+    logo_b64 = req.get("logo_base64")
+    if logo_b64:
+        try:
+            if "," in logo_b64:
+                header, logo_b64 = logo_b64.split(",", 1)
+                if "jpeg" in header or "jpg" in header:
+                    logo_ext = "jpeg"
+            logo_bytes = base64.b64decode(logo_b64)
+        except Exception as e:
+            pass
+
+    try:
+        pdf_bytes = WorksheetService.generate_pdf(
+            worksheet_data=worksheet_data,
+            include_answers=include_answers,
+            school_name=school_name,
+            logo_bytes=logo_bytes,
+            logo_ext=logo_ext,
+        )
+
+        pdf_b64 = base64.b64encode(pdf_bytes).decode("utf-8")
+
+        return {
+            "success": True,
+            "pdf_base64": pdf_b64,
+            "filename": f"worksheet_{worksheet_data.get('subject', 'assignment')}_{worksheet_data.get('class', '')}.pdf",
+        }
+
+    except Exception as e:
+        raise HTTPException(500, f"PDF generation failed: {str(e)}")
+
+ 
+ 
+@router.post("/worksheet/generate-direct")
+async def generate_worksheet_direct(req: dict, authorization: Optional[str] = Header(None)):
+    """Generate worksheet directly from uploaded PDF — no module needed."""
+    teacher_id = extract_teacher_id(req.get("teacher_id"), authorization)
+    if not teacher_id:
+        raise HTTPException(400, "teacher_id required")
+
+    from app.services.module_service import ModuleService, get_supabase, get_genai
+    import tempfile, os, json
+
+    storage_path = req.get("storage_path", "")
+    if not storage_path:
+        raise HTTPException(400, "storage_path required")
+
+    try:
+        sb = get_supabase()
+        file_bytes = sb.storage.from_("Modules").download(storage_path)
+
+        tmp_path = tempfile.mktemp(suffix=".pdf")
+        with open(tmp_path, "wb") as f:
+            f.write(file_bytes)
+
+        full_text, page_count, is_scanned = ModuleService._extract_pdf(tmp_path)
+
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+
+        if not full_text or len(full_text.strip()) < 50:
+            raise HTTPException(400, "Could not extract text from PDF")
+
+        from google import genai as genai_client
+        client = genai_client.Client(api_key=os.getenv("GEMINI_API_KEY", ""))
+
+        subject = req.get("subject", "General")
+        class_level = req.get("class_level", "")
+        chapter_name = req.get("chapter_name", "")
+        num_questions = req.get("num_questions", 10)
+        question_types = req.get("question_types", ["MCQ", "Short Answer"])
+        difficulty = req.get("difficulty", "medium")
+
+        prompt = f"""You are an expert Indian school teacher creating an assignment worksheet.
+
+SUBJECT: {subject}
+CLASS: {class_level}
+CHAPTER: {chapter_name}
+DIFFICULTY: {difficulty}
+TOTAL QUESTIONS: {num_questions}
+QUESTION TYPES: {', '.join(question_types)}
+
+SOURCE CONTENT:
+{full_text[:400000]}
+
+Generate EXACTLY {num_questions} questions for a student assignment.
+Questions must be DIRECTLY from the source content — no outside knowledge.
+For MCQs: 4 options (a, b, c, d). For Fill in Blanks: use _______.
+Questions should go easy to hard.
+Use proper equations, formulas, scientific notation where needed.
+
+Output as JSON:
+{{"questions": [{{"q_no": 1, "type": "MCQ", "question": "...", "options": ["a)...", "b)...", "c)...", "d)..."], "answer": "correct answer with brief explanation"}}]}}
+Output ONLY valid JSON."""
+
+        response = client.models.generate_content(
+            model="gemini-3.6-flash",
+            contents=prompt,
+            config={"temperature": 0.3, "max_output_tokens": 16000, "response_mime_type": "application/json"})
+
+        data = json.loads(response.text)
+
+        return {
+            "success": True,
+            "worksheet": {
+                "title": chapter_name or "Worksheet",
+                "subject": subject,
+                "class": class_level,
+                "questions": data.get("questions", []),
+                "num_questions": len(data.get("questions", [])),
+            }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+@router.post("/worksheet/download")
+async def download_worksheet_pdf(req: dict, authorization: Optional[str] = Header(None)):
+    """Download worksheet as PDF with optional school branding and date."""
+    from app.services.worksheet_service import WorksheetService
+    import base64
+
+    worksheet_data = req.get("worksheet_data")
+    if not worksheet_data:
+        raise HTTPException(400, "worksheet_data required")
+
+    include_answers = req.get("include_answers", False)
+    school_name = req.get("school_name")
+
+    logo_bytes = None
+    logo_ext = "png"
+    logo_b64 = req.get("logo_base64")
+    if logo_b64:
+        try:
+            if "," in logo_b64:
+                header, logo_b64 = logo_b64.split(",", 1)
+                if "jpeg" in header or "jpg" in header:
+                    logo_ext = "jpeg"
+            logo_bytes = base64.b64decode(logo_b64)
+        except:
+            pass
+
+    try:
+        pdf_bytes = WorksheetService.generate_pdf(
+            worksheet_data=worksheet_data,
+            include_answers=include_answers,
+            school_name=school_name,
+            logo_bytes=logo_bytes,
+            logo_ext=logo_ext,
+        )
+        pdf_b64 = base64.b64encode(pdf_bytes).decode("utf-8")
+        return {
+            "success": True,
+            "pdf_base64": pdf_b64,
+            "filename": f"worksheet_{worksheet_data.get('subject', 'assignment')}_{worksheet_data.get('class', '')}.pdf",
+        }
+    except Exception as e:
+        raise HTTPException(500, f"PDF generation failed: {str(e)}")

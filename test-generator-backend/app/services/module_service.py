@@ -33,8 +33,7 @@ def get_fitz():
 def get_genai():
     global _genai
     if _genai is None:
-        import google.generativeai as genai
-        genai.configure(api_key=os.getenv("GEMINI_API_KEY") or os.getenv("GEMINI_API") or "")
+        from google import genai
         _genai = genai
     return _genai
 
@@ -271,7 +270,7 @@ class ModuleService:
     def _extract_with_gemini(file_bytes):
         """Use Gemini to OCR a scanned PDF."""
         genai = get_genai()
-        model = genai.GenerativeModel(GEMINI_MODEL)
+        client = genai.Client(api_key=os.getenv("GEMINI_API_KEY") or os.getenv("GEMINI_API") or "")
 
         # Upload file to Gemini
         import io
@@ -279,20 +278,18 @@ class ModuleService:
         with open(tmp, "wb") as f:
             f.write(file_bytes)
 
-        uploaded = genai.upload_file(tmp, mime_type="application/pdf")
+        uploaded = client.files.upload(file=tmp, config={"mime_type": "application/pdf"})
 
-        response = model.generate_content(
-            [
+        response = client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=[
                 uploaded,
                 "Extract ALL text from this document exactly as written. "
                 "Preserve headings, bullet points, numbering. "
                 "If text is in Hindi/Devanagari, keep it as-is. "
                 "Output only the extracted text, nothing else."
             ],
-            generation_config=genai.GenerationConfig(
-                temperature=0.1,
-                max_output_tokens=65000,
-            ),
+            config={"temperature": 0.1, "max_output_tokens": 65000},
         )
 
         # Cleanup
@@ -351,7 +348,7 @@ class ModuleService:
     def _generate_summary(full_text, subject, class_level, page_count):
         """Generate comprehensive, detailed module summary using Gemini."""
         genai = get_genai()
-        model = genai.GenerativeModel(GEMINI_MODEL)
+        client = genai.Client(api_key=os.getenv("GEMINI_API_KEY") or os.getenv("GEMINI_API") or "")
 
         text_for_prompt = full_text[:800000]
 
@@ -462,13 +459,10 @@ CRITICAL RULES:
 - quick_revision_notes: crisp one-liners for last-minute revision
 - Output ONLY valid JSON, no markdown, no backticks, no explanation"""
 
-        response = model.generate_content(
-            prompt,
-            generation_config=genai.GenerationConfig(
-                temperature=0.2,
-                max_output_tokens=65000,
-                response_mime_type="application/json",
-            ),
+        response = client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=prompt,
+            config={"temperature": 0.2, "max_output_tokens": 65000, "response_mime_type": "application/json"},
         )
 
         try:
@@ -793,15 +787,12 @@ Output as JSON:
 Output ONLY valid JSON."""
 
             genai = get_genai()
-            model = genai.GenerativeModel(GEMINI_MODEL)
+            client = genai.Client(api_key=os.getenv("GEMINI_API_KEY") or os.getenv("GEMINI_API") or "")
 
-            response = model.generate_content(
-                prompt,
-                generation_config=genai.GenerationConfig(
-                    temperature=0.4,
-                    max_output_tokens=16000,
-                    response_mime_type="application/json",
-                ),
+            response = client.models.generate_content(
+                model=GEMINI_MODEL,
+                contents=prompt,
+                config={"temperature": 0.4, "max_output_tokens": 16000, "response_mime_type": "application/json"},
             )
 
             test_data = json.loads(response.text)
