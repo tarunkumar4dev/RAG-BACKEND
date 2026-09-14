@@ -20057,3 +20057,235 @@
 2026-09-11 15:55:13,765 [INFO] HTTP Request: POST https://dcmnzvjftmdbywrjkust.supabase.co/rest/v1/ncert_questions?columns=%22options%22%2C%22question_type%22%2C%22difficulty%22%2C%22chapter%22%2C%22question_number%22%2C%22section%22%2C%22answer%22%2C%22marks%22%2C%22class_grade%22%2C%22question_text%22%2C%22subject%22%2C%22source_chunk_id%22 "HTTP/2 201 Created"
 2026-09-11 15:55:13,768 [INFO]    💾 Inserted 2 questions into DB
 2026-09-11 15:55:13,770 [INFO]    ⏳ Waiting 300s before next request...
+2026-09-13 19:17:34,371 [INFO] ============================================================
+2026-09-13 19:17:34,373 [INFO] a4ai NCERT Question Extraction
+2026-09-13 19:17:34,374 [INFO] Model: gemini-3.6-flash
+2026-09-13 19:17:34,374 [INFO] Filters: subject=None, class=None, chapter=None
+2026-09-13 19:17:34,374 [INFO] Dry run: False, Resume: True
+2026-09-13 19:17:34,374 [INFO] Daily limit: 18 requests/day (free tier)
+2026-09-13 19:17:34,375 [INFO] ============================================================
+2026-09-13 19:17:41,037 [INFO] HTTP Request: GET https://dcmnzvjftmdbywrjkust.supabase.co/rest/v1/ncert_chunks?select=id%2C%20class_grade%2C%20subject%2C%20chapter%2C%20content&offset=0&limit=1000 "HTTP/2 200 OK"
+2026-09-13 19:17:41,728 [INFO] HTTP Request: GET https://dcmnzvjftmdbywrjkust.supabase.co/rest/v1/ncert_chunks?select=id%2C%20class_grade%2C%20subject%2C%20chapter%2C%20content&offset=0&offset=1000&limit=1000&limit=1000 "HTTP/2 200 OK"
+2026-09-13 19:17:43,014 [INFO] HTTP Request: GET https://dcmnzvjftmdbywrjkust.supabase.co/rest/v1/ncert_chunks?select=id%2C%20class_grade%2C%20subject%2C%20chapter%2C%20content&offset=0&offset=1000&offset=2000&limit=1000&limit=1000&limit=1000 "HTTP/2 200 OK"
+2026-09-13 19:17:43,815 [INFO] HTTP Request: GET https://dcmnzvjftmdbywrjkust.supabase.co/rest/v1/ncert_chunks?select=id%2C%20class_grade%2C%20subject%2C%20chapter%2C%20content&offset=0&offset=1000&offset=2000&offset=3000&limit=1000&limit=1000&limit=1000&limit=1000 "HTTP/2 200 OK"
+2026-09-13 19:17:44,920 [INFO] HTTP Request: GET https://dcmnzvjftmdbywrjkust.supabase.co/rest/v1/ncert_chunks?select=id%2C%20class_grade%2C%20subject%2C%20chapter%2C%20content&offset=0&offset=1000&offset=2000&offset=3000&offset=4000&limit=1000&limit=1000&limit=1000&limit=1000&limit=1000 "HTTP/2 200 OK"
+2026-09-13 19:17:45,585 [INFO] HTTP Request: GET https://dcmnzvjftmdbywrjkust.supabase.co/rest/v1/ncert_chunks?select=id%2C%20class_grade%2C%20subject%2C%20chapter%2C%20content&offset=0&offset=1000&offset=2000&offset=3000&offset=4000&offset=5000&limit=1000&limit=1000&limit=1000&limit=1000&limit=1000&limit=1000 "HTTP/2 200 OK"
+2026-09-13 19:17:46,254 [INFO] HTTP Request: GET https://dcmnzvjftmdbywrjkust.supabase.co/rest/v1/ncert_chunks?select=id%2C%20class_grade%2C%20subject%2C%20chapter%2C%20content&offset=0&offset=1000&offset=2000&offset=3000&offset=4000&offset=5000&offset=6000&limit=1000&limit=1000&limit=1000&limit=1000&limit=1000&limit=1000&limit=1000 "HTTP/2 200 OK"
+2026-09-13 19:17:47,027 [INFO] HTTP Request: GET https://dcmnzvjftmdbywrjkust.supabase.co/rest/v1/ncert_chunks?select=id%2C%20class_grade%2C%20subject%2C%20chapter%2C%20content&offset=0&offset=1000&offset=2000&offset=3000&offset=4000&offset=5000&offset=6000&offset=7000&limit=1000&limit=1000&limit=1000&limit=1000&limit=1000&limit=1000&limit=1000&limit=1000 "HTTP/2 200 OK"
+2026-09-13 19:17:47,583 [INFO] HTTP Request: GET https://dcmnzvjftmdbywrjkust.supabase.co/rest/v1/ncert_chunks?select=id%2C%20class_grade%2C%20subject%2C%20chapter%2C%20content&offset=0&offset=1000&offset=2000&offset=3000&offset=4000&offset=5000&offset=6000&offset=7000&offset=8000&limit=1000&limit=1000&limit=1000&limit=1000&limit=1000&limit=1000&limit=1000&limit=1000&limit=1000 "HTTP/2 200 OK"
+2026-09-13 19:17:48,067 [INFO] HTTP Request: GET https://dcmnzvjftmdbywrjkust.supabase.co/rest/v1/ncert_chunks?select=id%2C%20class_grade%2C%20subject%2C%20chapter%2C%20content&offset=0&offset=1000&offset=2000&offset=3000&offset=4000&offset=5000&offset=6000&offset=7000&offset=8000&offset=9000&limit=1000&limit=1000&limit=1000&limit=1000&limit=1000&limit=1000&limit=1000&limit=1000&limit=1000&limit=1000 "HTTP/2 200 OK"
+2026-09-13 19:17:48,539 [INFO] HTTP Request: GET https://dcmnzvjftmdbywrjkust.supabase.co/rest/v1/ncert_chunks?select=id%2C%20class_grade%2C%20subject%2C%20chapter%2C%20content&offset=0&offset=1000&offset=2000&offset=3000&offset=4000&offset=5000&offset=6000&offset=7000&offset=8000&offset=9000&offset=10000&limit=1000&limit=1000&limit=1000&limit=1000&limit=1000&limit=1000&limit=1000&limit=1000&limit=1000&limit=1000&limit=1000 "HTTP/2 200 OK"
+2026-09-13 19:17:49,105 [INFO] HTTP Request: GET https://dcmnzvjftmdbywrjkust.supabase.co/rest/v1/ncert_chunks?select=id%2C%20class_grade%2C%20subject%2C%20chapter%2C%20content&offset=0&offset=1000&offset=2000&offset=3000&offset=4000&offset=5000&offset=6000&offset=7000&offset=8000&offset=9000&offset=10000&offset=11000&limit=1000&limit=1000&limit=1000&limit=1000&limit=1000&limit=1000&limit=1000&limit=1000&limit=1000&limit=1000&limit=1000&limit=1000 "HTTP/2 200 OK"
+2026-09-13 19:17:49,665 [INFO] HTTP Request: GET https://dcmnzvjftmdbywrjkust.supabase.co/rest/v1/ncert_chunks?select=id%2C%20class_grade%2C%20subject%2C%20chapter%2C%20content&offset=0&offset=1000&offset=2000&offset=3000&offset=4000&offset=5000&offset=6000&offset=7000&offset=8000&offset=9000&offset=10000&offset=11000&offset=12000&limit=1000&limit=1000&limit=1000&limit=1000&limit=1000&limit=1000&limit=1000&limit=1000&limit=1000&limit=1000&limit=1000&limit=1000&limit=1000 "HTTP/2 200 OK"
+2026-09-13 19:17:49,758 [INFO] Fetched 12448 chunks total
+2026-09-13 19:17:49,771 [INFO] Grouped into 505 (class, subject, chapter) combos
+2026-09-13 19:17:49,935 [INFO] HTTP Request: GET https://dcmnzvjftmdbywrjkust.supabase.co/rest/v1/ncert_questions?select=class_grade%2C%20subject%2C%20chapter "HTTP/2 200 OK"
+2026-09-13 19:17:50,003 [INFO] Resume mode: 41 combos already extracted, will skip
+2026-09-13 19:17:50,007 [INFO] ⏭️  SKIP (already extracted): Economics 10 — CONSUMER RIGHTS
+2026-09-13 19:17:50,014 [INFO] ⏭️  SKIP (already extracted): Economics 10 — DEVELOPMENT
+2026-09-13 19:17:50,016 [INFO] ⏭️  SKIP (already extracted): Economics 10 — GLOBALISATION AND THE INDIAN ECONOMY
+2026-09-13 19:17:50,018 [INFO] ⏭️  SKIP (already extracted): Economics 10 — MONEY AND CREDIT
+2026-09-13 19:17:50,021 [INFO] ⏭️  SKIP (already extracted): Economics 10 — SECTORS OF THE INDIAN ECONOMY
+2026-09-13 19:17:50,021 [INFO] ⏭️  SKIP (already extracted): English 10 — A Letter to God
+2026-09-13 19:17:50,023 [INFO] ⏭️  SKIP (already extracted): English 10 — A Question of Trust
+2026-09-13 19:17:50,024 [INFO] ⏭️  SKIP (already extracted): English 10 — A Tiger in the Zoo
+2026-09-13 19:17:50,025 [INFO] ⏭️  SKIP (already extracted): English 10 — A Triumph of Surgery
+2026-09-13 19:17:50,029 [INFO] ⏭️  SKIP (already extracted): English 10 — Amanda
+2026-09-13 19:17:50,030 [INFO] ⏭️  SKIP (already extracted): English 10 — Bholi
+2026-09-13 19:17:50,033 [INFO] ⏭️  SKIP (already extracted): English 10 — Dust of Snow
+2026-09-13 19:17:50,036 [INFO] ⏭️  SKIP (already extracted): English 10 — Fire and Ice
+2026-09-13 19:17:50,152 [INFO] ⏭️  SKIP (already extracted): English 10 — Fog
+2026-09-13 19:17:50,198 [INFO] ⏭️  SKIP (already extracted): English 10 — Footprints Without Feet
+2026-09-13 19:17:50,205 [INFO] ⏭️  SKIP (already extracted): English 10 — For Anne Gregory
+2026-09-13 19:17:50,208 [INFO] ⏭️  SKIP (already extracted): English 10 — From the Diary of Anne Frank
+2026-09-13 19:17:50,221 [INFO] ⏭️  SKIP (already extracted): English 10 — Glimpses of India
+2026-09-13 19:17:50,225 [INFO] ⏭️  SKIP (already extracted): English 10 — How to Tell Wild Animals
+2026-09-13 19:17:50,238 [INFO] ⏭️  SKIP (already extracted): English 10 — Madam Rides the Bus
+2026-09-13 19:17:50,256 [INFO] ⏭️  SKIP (already extracted): English 10 — Mijbil the Otter
+2026-09-13 19:17:50,264 [INFO] ⏭️  SKIP (already extracted): English 10 — Nelson Mandela - Long Walk to Freedom
+2026-09-13 19:17:50,275 [INFO] ⏭️  SKIP (already extracted): English 10 — Stories About Flying
+2026-09-13 19:17:50,286 [INFO] ⏭️  SKIP (already extracted): English 10 — The Ball Poem
+2026-09-13 19:17:50,291 [INFO] ⏭️  SKIP (already extracted): English 10 — The Book that Saved the Earth
+2026-09-13 19:17:50,292 [INFO] ⏭️  SKIP (already extracted): English 10 — The Making of a Scientist
+2026-09-13 19:17:50,297 [INFO] ⏭️  SKIP (already extracted): English 10 — The Midnight Visitor
+2026-09-13 19:17:50,319 [INFO] ⏭️  SKIP (already extracted): English 10 — The Necklace
+2026-09-13 19:17:50,327 [INFO] ⏭️  SKIP (already extracted): English 10 — The Proposal (Play)
+2026-09-13 19:17:50,338 [INFO] ⏭️  SKIP (already extracted): English 10 — The Sermon at Benares
+2026-09-13 19:17:50,339 [INFO] ⏭️  SKIP (already extracted): English 10 — The Tale of Custard Dragon
+2026-09-13 19:17:50,342 [INFO] ⏭️  SKIP (already extracted): English 10 — The Thief's Story
+2026-09-13 19:17:50,357 [INFO] ⏭️  SKIP (already extracted): English 10 — The Trees
+2026-09-13 19:17:50,362 [INFO] ⏭️  SKIP (already extracted): Geography 10 — Agriculture
+2026-09-13 19:17:50,373 [INFO] ⏭️  SKIP (already extracted): Geography 10 — Forest and Wildlife Resources
+2026-09-13 19:17:50,391 [INFO] ⏭️  SKIP (already extracted): Geography 10 — Lifelines of National Economy
+2026-09-13 19:17:50,404 [INFO] ⏭️  SKIP (already extracted): Geography 10 — Manufacturing Industries
+2026-09-13 19:17:50,407 [INFO] ⏭️  SKIP (already extracted): Geography 10 — Minerals and Energy Resources
+2026-09-13 19:17:50,408 [INFO] ⏭️  SKIP (already extracted): Geography 10 — Resources and Development
+2026-09-13 19:17:50,410 [INFO] ⏭️  SKIP (already extracted): Geography 10 — Water Resources
+2026-09-13 19:17:50,417 [INFO] ⏭️  SKIP (already extracted): History 10 — EVERYDAY LIFE, CULTURE AND POLITICS
+2026-09-13 19:17:50,423 [INFO] 
+──────────────────────────────────────────────────
+2026-09-13 19:17:50,424 [INFO] 📖 Processing: History Class 10 — LIVELIHOODS, ECONOMIES AND SOCIETIES (66 chunks)
+2026-09-13 19:17:50,426 [INFO]    Remaining daily quota: 18
+2026-09-13 19:17:50,429 [INFO]    Split into 11 batch(es)
+2026-09-13 19:17:50,434 [INFO]    🤖 Batch 1/11: 14380 chars → Gemini...
+2026-09-13 19:17:50,547 [INFO] AFC is enabled with max remote calls: 10.
+2026-09-13 19:17:50,549 [WARNING] Direct use of automatic function calling (AFC) in Models.generate_content is not recommended. Instead, we recommend to use AFC in Chat.send_message. Similarly, direct use of AFC in Models.generate_content_stream is not recommended. Instead, we recommend to use AFC in Chat.send_message_stream.
+2026-09-13 19:18:00,436 [INFO] HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent "HTTP/1.1 200 OK"
+2026-09-13 19:18:00,451 [INFO]    📊 Daily usage: 1/18 (17 remaining)
+2026-09-13 19:18:00,452 [INFO]    ✅ Extracted 1 questions
+2026-09-13 19:18:00,737 [INFO] HTTP Request: POST https://dcmnzvjftmdbywrjkust.supabase.co/rest/v1/ncert_questions?columns=%22question_type%22%2C%22chapter%22%2C%22options%22%2C%22marks%22%2C%22subject%22%2C%22difficulty%22%2C%22question_text%22%2C%22class_grade%22%2C%22source_chunk_id%22%2C%22answer%22%2C%22question_number%22%2C%22section%22 "HTTP/2 201 Created"
+2026-09-13 19:18:00,739 [INFO]    💾 Inserted 1 questions into DB
+2026-09-13 19:18:00,739 [INFO]    ⏳ Waiting 300s before next request...
+2026-09-13 19:23:00,740 [INFO]    🤖 Batch 2/11: 12585 chars → Gemini...
+2026-09-13 19:23:00,741 [INFO] AFC is enabled with max remote calls: 10.
+2026-09-13 19:23:11,774 [INFO] HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent "HTTP/1.1 200 OK"
+2026-09-13 19:23:11,778 [INFO]    📊 Daily usage: 2/18 (16 remaining)
+2026-09-13 19:23:11,779 [INFO]    ✅ Extracted 3 questions
+2026-09-13 19:23:12,206 [INFO] HTTP Request: POST https://dcmnzvjftmdbywrjkust.supabase.co/rest/v1/ncert_questions?columns=%22question_type%22%2C%22chapter%22%2C%22options%22%2C%22marks%22%2C%22subject%22%2C%22difficulty%22%2C%22question_text%22%2C%22class_grade%22%2C%22source_chunk_id%22%2C%22answer%22%2C%22question_number%22%2C%22section%22 "HTTP/2 201 Created"
+2026-09-13 19:23:12,208 [INFO]    💾 Inserted 3 questions into DB
+2026-09-13 19:23:12,208 [INFO]    ⏳ Waiting 300s before next request...
+2026-09-13 19:28:12,209 [INFO]    🤖 Batch 3/11: 13724 chars → Gemini...
+2026-09-13 19:28:12,210 [INFO] AFC is enabled with max remote calls: 10.
+2026-09-13 19:28:21,553 [INFO] HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent "HTTP/1.1 200 OK"
+2026-09-13 19:28:21,556 [INFO]    📊 Daily usage: 3/18 (15 remaining)
+2026-09-13 19:28:21,556 [INFO]    ✅ Extracted 4 questions
+2026-09-13 19:28:21,922 [INFO] HTTP Request: POST https://dcmnzvjftmdbywrjkust.supabase.co/rest/v1/ncert_questions?columns=%22question_type%22%2C%22chapter%22%2C%22options%22%2C%22marks%22%2C%22subject%22%2C%22difficulty%22%2C%22question_text%22%2C%22class_grade%22%2C%22source_chunk_id%22%2C%22answer%22%2C%22question_number%22%2C%22section%22 "HTTP/2 201 Created"
+2026-09-13 19:28:21,923 [INFO]    💾 Inserted 4 questions into DB
+2026-09-13 19:28:21,924 [INFO]    ⏳ Waiting 300s before next request...
+2026-09-13 19:33:21,925 [INFO]    🤖 Batch 4/11: 14773 chars → Gemini...
+2026-09-13 19:33:21,925 [INFO] AFC is enabled with max remote calls: 10.
+2026-09-13 19:33:27,295 [INFO] HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent "HTTP/1.1 200 OK"
+2026-09-13 19:33:27,297 [INFO]    📊 Daily usage: 4/18 (14 remaining)
+2026-09-13 19:33:27,299 [INFO]    ✅ Extracted 0 questions
+2026-09-13 19:33:27,299 [INFO]    ⏳ Waiting 300s before next request...
+2026-09-13 19:38:27,300 [INFO]    🤖 Batch 5/11: 13047 chars → Gemini...
+2026-09-13 19:38:27,301 [INFO] AFC is enabled with max remote calls: 10.
+2026-09-13 19:38:34,737 [INFO] HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent "HTTP/1.1 200 OK"
+2026-09-13 19:38:34,741 [INFO]    📊 Daily usage: 5/18 (13 remaining)
+2026-09-13 19:38:34,741 [INFO]    ✅ Extracted 3 questions
+2026-09-13 19:38:35,097 [INFO] HTTP Request: POST https://dcmnzvjftmdbywrjkust.supabase.co/rest/v1/ncert_questions?columns=%22question_type%22%2C%22chapter%22%2C%22options%22%2C%22marks%22%2C%22subject%22%2C%22difficulty%22%2C%22question_text%22%2C%22class_grade%22%2C%22source_chunk_id%22%2C%22answer%22%2C%22question_number%22%2C%22section%22 "HTTP/2 201 Created"
+2026-09-13 19:38:35,098 [INFO]    💾 Inserted 3 questions into DB
+2026-09-13 19:38:35,099 [INFO]    ⏳ Waiting 300s before next request...
+2026-09-13 19:43:35,100 [INFO]    🤖 Batch 6/11: 14221 chars → Gemini...
+2026-09-13 19:43:35,100 [INFO] AFC is enabled with max remote calls: 10.
+2026-09-13 19:43:45,640 [INFO] HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent "HTTP/1.1 200 OK"
+2026-09-13 19:43:45,643 [INFO]    📊 Daily usage: 6/18 (12 remaining)
+2026-09-13 19:43:45,643 [INFO]    ✅ Extracted 11 questions
+2026-09-13 19:43:46,066 [INFO] HTTP Request: POST https://dcmnzvjftmdbywrjkust.supabase.co/rest/v1/ncert_questions?columns=%22question_type%22%2C%22chapter%22%2C%22options%22%2C%22marks%22%2C%22subject%22%2C%22difficulty%22%2C%22question_text%22%2C%22class_grade%22%2C%22source_chunk_id%22%2C%22answer%22%2C%22question_number%22%2C%22section%22 "HTTP/2 201 Created"
+2026-09-13 19:43:46,068 [INFO]    💾 Inserted 11 questions into DB
+2026-09-13 19:43:46,068 [INFO]    ⏳ Waiting 300s before next request...
+2026-09-13 19:48:46,069 [INFO]    🤖 Batch 7/11: 12730 chars → Gemini...
+2026-09-13 19:48:46,069 [INFO] AFC is enabled with max remote calls: 10.
+2026-09-13 19:48:52,930 [INFO] HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent "HTTP/1.1 200 OK"
+2026-09-13 19:48:52,934 [INFO]    📊 Daily usage: 7/18 (11 remaining)
+2026-09-13 19:48:52,934 [INFO]    ✅ Extracted 4 questions
+2026-09-13 19:48:53,315 [INFO] HTTP Request: POST https://dcmnzvjftmdbywrjkust.supabase.co/rest/v1/ncert_questions?columns=%22question_type%22%2C%22chapter%22%2C%22options%22%2C%22marks%22%2C%22subject%22%2C%22difficulty%22%2C%22question_text%22%2C%22class_grade%22%2C%22source_chunk_id%22%2C%22answer%22%2C%22question_number%22%2C%22section%22 "HTTP/2 201 Created"
+2026-09-13 19:48:53,317 [INFO]    💾 Inserted 4 questions into DB
+2026-09-13 19:48:53,317 [INFO]    ⏳ Waiting 300s before next request...
+2026-09-13 19:53:53,319 [INFO]    🤖 Batch 8/11: 14898 chars → Gemini...
+2026-09-13 19:53:53,319 [INFO] AFC is enabled with max remote calls: 10.
+2026-09-13 19:54:01,954 [INFO] HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent "HTTP/1.1 200 OK"
+2026-09-13 19:54:01,957 [INFO]    📊 Daily usage: 8/18 (10 remaining)
+2026-09-13 19:54:01,957 [INFO]    ✅ Extracted 4 questions
+2026-09-13 19:54:02,421 [INFO] HTTP Request: POST https://dcmnzvjftmdbywrjkust.supabase.co/rest/v1/ncert_questions?columns=%22question_type%22%2C%22chapter%22%2C%22options%22%2C%22marks%22%2C%22subject%22%2C%22difficulty%22%2C%22question_text%22%2C%22class_grade%22%2C%22source_chunk_id%22%2C%22answer%22%2C%22question_number%22%2C%22section%22 "HTTP/2 201 Created"
+2026-09-13 19:54:02,422 [INFO]    💾 Inserted 4 questions into DB
+2026-09-13 19:54:02,423 [INFO]    ⏳ Waiting 300s before next request...
+2026-09-13 19:59:02,424 [INFO]    🤖 Batch 9/11: 13234 chars → Gemini...
+2026-09-13 19:59:02,425 [INFO] AFC is enabled with max remote calls: 10.
+2026-09-13 19:59:10,071 [INFO] HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent "HTTP/1.1 503 Service Unavailable"
+2026-09-13 19:59:10,072 [WARNING] Server error, retrying in 30s...
+2026-09-13 19:59:40,073 [INFO] AFC is enabled with max remote calls: 10.
+2026-09-13 19:59:47,379 [INFO] HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent "HTTP/1.1 200 OK"
+2026-09-13 19:59:47,388 [INFO]    📊 Daily usage: 9/18 (9 remaining)
+2026-09-13 19:59:47,389 [INFO]    ✅ Extracted 0 questions
+2026-09-13 19:59:47,392 [INFO]    ⏳ Waiting 300s before next request...
+2026-09-13 20:04:47,395 [INFO]    🤖 Batch 10/11: 14636 chars → Gemini...
+2026-09-13 20:04:47,396 [INFO] AFC is enabled with max remote calls: 10.
+2026-09-13 20:04:53,772 [INFO] HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent "HTTP/1.1 200 OK"
+2026-09-13 20:04:53,776 [INFO]    📊 Daily usage: 10/18 (8 remaining)
+2026-09-13 20:04:53,777 [INFO]    ✅ Extracted 2 questions
+2026-09-13 20:04:54,177 [INFO] HTTP Request: POST https://dcmnzvjftmdbywrjkust.supabase.co/rest/v1/ncert_questions?columns=%22question_type%22%2C%22chapter%22%2C%22options%22%2C%22marks%22%2C%22subject%22%2C%22difficulty%22%2C%22question_text%22%2C%22class_grade%22%2C%22source_chunk_id%22%2C%22answer%22%2C%22question_number%22%2C%22section%22 "HTTP/2 201 Created"
+2026-09-13 20:04:54,179 [INFO]    💾 Inserted 2 questions into DB
+2026-09-13 20:04:54,180 [INFO]    ⏳ Waiting 300s before next request...
+2026-09-13 20:09:54,181 [INFO]    🤖 Batch 11/11: 9202 chars → Gemini...
+2026-09-13 20:09:54,182 [INFO] AFC is enabled with max remote calls: 10.
+2026-09-13 20:10:08,394 [INFO] HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent "HTTP/1.1 200 OK"
+2026-09-13 20:10:08,397 [INFO]    📊 Daily usage: 11/18 (7 remaining)
+2026-09-13 20:10:08,397 [INFO]    ✅ Extracted 12 questions
+2026-09-13 20:10:08,783 [INFO] HTTP Request: POST https://dcmnzvjftmdbywrjkust.supabase.co/rest/v1/ncert_questions?columns=%22question_type%22%2C%22chapter%22%2C%22options%22%2C%22marks%22%2C%22subject%22%2C%22difficulty%22%2C%22question_text%22%2C%22class_grade%22%2C%22source_chunk_id%22%2C%22answer%22%2C%22question_number%22%2C%22section%22 "HTTP/2 201 Created"
+2026-09-13 20:10:08,785 [INFO]    💾 Inserted 12 questions into DB
+2026-09-13 20:10:08,786 [INFO]    ⏳ Waiting 300s before next request...
+2026-09-13 20:15:08,787 [INFO]    📊 Chapter total: 44 questions
+2026-09-13 20:15:08,787 [INFO] 
+──────────────────────────────────────────────────
+2026-09-13 20:15:08,788 [INFO] 📖 Processing: History Class 10 — Nationalism in India (58 chunks)
+2026-09-13 20:15:08,788 [INFO]    Remaining daily quota: 7
+2026-09-13 20:15:08,789 [INFO]    Split into 10 batch(es)
+2026-09-13 20:15:08,789 [INFO]    🤖 Batch 1/10: 12683 chars → Gemini...
+2026-09-13 20:15:08,789 [INFO] AFC is enabled with max remote calls: 10.
+2026-09-13 20:15:19,068 [INFO] HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent "HTTP/1.1 200 OK"
+2026-09-13 20:15:19,071 [INFO]    📊 Daily usage: 12/18 (6 remaining)
+2026-09-13 20:15:19,072 [INFO]    ✅ Extracted 5 questions
+2026-09-13 20:15:19,510 [INFO] HTTP Request: POST https://dcmnzvjftmdbywrjkust.supabase.co/rest/v1/ncert_questions?columns=%22question_type%22%2C%22chapter%22%2C%22options%22%2C%22marks%22%2C%22subject%22%2C%22difficulty%22%2C%22question_text%22%2C%22class_grade%22%2C%22source_chunk_id%22%2C%22answer%22%2C%22question_number%22%2C%22section%22 "HTTP/2 201 Created"
+2026-09-13 20:15:19,511 [INFO]    💾 Inserted 5 questions into DB
+2026-09-13 20:15:19,512 [INFO]    ⏳ Waiting 300s before next request...
+2026-09-13 20:20:19,513 [INFO]    🤖 Batch 2/10: 14477 chars → Gemini...
+2026-09-13 20:20:19,513 [INFO] AFC is enabled with max remote calls: 10.
+2026-09-13 20:20:32,261 [INFO] HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent "HTTP/1.1 200 OK"
+2026-09-13 20:20:32,264 [INFO]    📊 Daily usage: 13/18 (5 remaining)
+2026-09-13 20:20:32,265 [INFO]    ✅ Extracted 6 questions
+2026-09-13 20:20:32,622 [INFO] HTTP Request: POST https://dcmnzvjftmdbywrjkust.supabase.co/rest/v1/ncert_questions?columns=%22question_type%22%2C%22chapter%22%2C%22options%22%2C%22marks%22%2C%22subject%22%2C%22difficulty%22%2C%22question_text%22%2C%22class_grade%22%2C%22source_chunk_id%22%2C%22answer%22%2C%22question_number%22%2C%22section%22 "HTTP/2 201 Created"
+2026-09-13 20:20:32,624 [INFO]    💾 Inserted 6 questions into DB
+2026-09-13 20:20:32,625 [INFO]    ⏳ Waiting 300s before next request...
+2026-09-13 21:39:00,682 [INFO]    🤖 Batch 3/10: 13224 chars → Gemini...
+2026-09-13 21:39:00,739 [INFO] AFC is enabled with max remote calls: 10.
+2026-09-13 21:39:10,570 [INFO] HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent "HTTP/1.1 200 OK"
+2026-09-13 21:39:10,610 [INFO]    📊 Daily usage: 14/18 (4 remaining)
+2026-09-13 21:39:10,612 [INFO]    ✅ Extracted 3 questions
+2026-09-13 21:39:10,797 [INFO] HTTP Request: POST https://dcmnzvjftmdbywrjkust.supabase.co/rest/v1/ncert_questions?columns=%22question_type%22%2C%22chapter%22%2C%22options%22%2C%22marks%22%2C%22subject%22%2C%22difficulty%22%2C%22question_text%22%2C%22class_grade%22%2C%22source_chunk_id%22%2C%22answer%22%2C%22question_number%22%2C%22section%22 "HTTP/2 201 Created"
+2026-09-13 21:39:10,799 [INFO]    💾 Inserted 3 questions into DB
+2026-09-13 21:39:10,802 [INFO]    ⏳ Waiting 300s before next request...
+2026-09-13 21:44:10,812 [INFO]    🤖 Batch 4/10: 14407 chars → Gemini...
+2026-09-13 21:44:10,817 [INFO] AFC is enabled with max remote calls: 10.
+2026-09-13 21:44:18,793 [INFO] HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent "HTTP/1.1 200 OK"
+2026-09-13 21:44:18,799 [INFO]    📊 Daily usage: 15/18 (3 remaining)
+2026-09-13 21:44:18,799 [INFO]    ✅ Extracted 2 questions
+2026-09-13 21:44:19,168 [INFO] HTTP Request: POST https://dcmnzvjftmdbywrjkust.supabase.co/rest/v1/ncert_questions?columns=%22question_type%22%2C%22chapter%22%2C%22options%22%2C%22marks%22%2C%22subject%22%2C%22difficulty%22%2C%22question_text%22%2C%22class_grade%22%2C%22source_chunk_id%22%2C%22answer%22%2C%22question_number%22%2C%22section%22 "HTTP/2 201 Created"
+2026-09-13 21:44:19,168 [INFO]    💾 Inserted 2 questions into DB
+2026-09-13 21:44:19,168 [INFO]    ⏳ Waiting 300s before next request...
+2026-09-13 21:49:19,187 [INFO]    🤖 Batch 5/10: 14453 chars → Gemini...
+2026-09-13 21:49:19,187 [INFO] AFC is enabled with max remote calls: 10.
+2026-09-13 21:49:40,973 [INFO] HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent "HTTP/1.1 200 OK"
+2026-09-13 21:49:40,982 [INFO]    📊 Daily usage: 16/18 (2 remaining)
+2026-09-13 21:49:40,982 [INFO]    ✅ Extracted 11 questions
+2026-09-13 21:49:41,255 [INFO] HTTP Request: POST https://dcmnzvjftmdbywrjkust.supabase.co/rest/v1/ncert_questions?columns=%22question_type%22%2C%22chapter%22%2C%22options%22%2C%22marks%22%2C%22subject%22%2C%22difficulty%22%2C%22question_text%22%2C%22class_grade%22%2C%22source_chunk_id%22%2C%22answer%22%2C%22question_number%22%2C%22section%22 "HTTP/2 201 Created"
+2026-09-13 21:49:41,255 [INFO]    💾 Inserted 11 questions into DB
+2026-09-13 21:49:41,255 [INFO]    ⏳ Waiting 300s before next request...
+2026-09-13 21:54:41,263 [INFO]    🤖 Batch 6/10: 14887 chars → Gemini...
+2026-09-13 21:54:41,268 [INFO] AFC is enabled with max remote calls: 10.
+2026-09-13 21:54:50,807 [INFO] HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent "HTTP/1.1 200 OK"
+2026-09-13 21:54:51,151 [INFO]    📊 Daily usage: 17/18 (1 remaining)
+2026-09-13 21:54:51,357 [INFO]    ✅ Extracted 5 questions
+2026-09-13 21:54:52,263 [INFO] HTTP Request: POST https://dcmnzvjftmdbywrjkust.supabase.co/rest/v1/ncert_questions?columns=%22question_type%22%2C%22chapter%22%2C%22options%22%2C%22marks%22%2C%22subject%22%2C%22difficulty%22%2C%22question_text%22%2C%22class_grade%22%2C%22source_chunk_id%22%2C%22answer%22%2C%22question_number%22%2C%22section%22 "HTTP/2 201 Created"
+2026-09-13 21:54:52,269 [INFO]    💾 Inserted 5 questions into DB
+2026-09-13 21:54:52,271 [INFO]    ⏳ Waiting 300s before next request...
+2026-09-13 21:59:52,280 [INFO]    🤖 Batch 7/10: 12711 chars → Gemini...
+2026-09-13 21:59:52,288 [INFO] AFC is enabled with max remote calls: 10.
+2026-09-13 21:59:58,129 [INFO] HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent "HTTP/1.1 200 OK"
+2026-09-13 21:59:58,150 [INFO]    📊 Daily usage: 18/18 (0 remaining)
+2026-09-13 21:59:58,150 [INFO]    ✅ Extracted 3 questions
+2026-09-13 21:59:58,656 [INFO] HTTP Request: POST https://dcmnzvjftmdbywrjkust.supabase.co/rest/v1/ncert_questions?columns=%22question_type%22%2C%22chapter%22%2C%22options%22%2C%22marks%22%2C%22subject%22%2C%22difficulty%22%2C%22question_text%22%2C%22class_grade%22%2C%22source_chunk_id%22%2C%22answer%22%2C%22question_number%22%2C%22section%22 "HTTP/2 201 Created"
+2026-09-13 21:59:58,663 [INFO]    💾 Inserted 3 questions into DB
+2026-09-13 21:59:58,667 [WARNING] ⚠️ Daily limit reached! Stopping mid-chapter.
+2026-09-13 21:59:58,667 [INFO]    📊 Chapter total: 35 questions
+2026-09-13 21:59:58,669 [WARNING] ⚠️ Daily limit reached! Stopping early.
+2026-09-13 21:59:58,679 [INFO] 
+============================================================
+2026-09-13 21:59:58,679 [INFO] ✅ EXTRACTION COMPLETE
+2026-09-13 21:59:58,679 [INFO]    Total questions extracted: 79
+2026-09-13 21:59:58,679 [INFO]    Total batches processed:   18
+2026-09-13 21:59:58,686 [INFO]    Errors:                    0
+2026-09-13 21:59:58,687 [INFO]    Skipped (resume):          41
+2026-09-13 21:59:58,690 [INFO]    Daily requests used:       18/18
+2026-09-13 21:59:58,690 [INFO]    ⚠️ Daily limit reached! Run again tomorrow.
+2026-09-13 21:59:58,690 [INFO] ============================================================
