@@ -57,10 +57,10 @@ class Settings:
 
     # ── Gemini ──────────────────────────────────────────────────────
     GEMINI_API_KEY: str = _require("GEMINI_API_KEY")
-    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite")
-    GEMINI_GEN_MODEL: str = os.getenv("GEMINI_GEN_MODEL", "gemini-2.5-flash-lite")
-    GEMINI_FALLBACK_MODEL: str = os.getenv("GEMINI_FALLBACK_MODEL", "gemini-2.5-flash-lite")
-    GEMINI_VAL_MODEL: str = os.getenv("GEMINI_VAL_MODEL", "gemini-2.5-flash-lite")
+    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
+    GEMINI_GEN_MODEL: str = os.getenv("GEMINI_GEN_MODEL", os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite"))
+    GEMINI_FALLBACK_MODEL: str = os.getenv("GEMINI_FALLBACK_MODEL", "gemini-3.6-flash")
+    GEMINI_VAL_MODEL: str = os.getenv("GEMINI_VAL_MODEL", "gemini-3.5-flash-lite")
     GEMINI_THINKING_BUDGET: int = int(os.getenv("GEMINI_THINKING_BUDGET", "0"))
 
     # ── Razorpay ────────────────────────────────────────────────────
@@ -75,7 +75,7 @@ class Settings:
 
     # ── Generation ──────────────────────────────────────────────────
     BATCH_SIZE: int = int(os.getenv("BATCH_SIZE", "5"))
-    BATCH_DELAY: int = int(os.getenv("BATCH_DELAY", "2"))
+    BATCH_DELAY: int = int(os.getenv("BATCH_DELAY", "0"))
     OVERSHOOT_PER_CHAPTER: int = int(os.getenv("OVERSHOOT_PER_CHAPTER", "1"))
     GENERATION_TEMPERATURE: float = 0.55
     MAX_OUTPUT_TOKENS: int = int(os.getenv("MAX_OUTPUT_TOKENS", "16384"))
@@ -105,7 +105,7 @@ class Settings:
     # ── CORS ────────────────────────────────────────────────────────
     # In development we default to local dev servers.
     # In production CORS_ORIGINS must be set explicitly (validated below).
-    _DEV_CORS = "http://localhost:5173,http://localhost:3000,http://localhost:8080"
+    _DEV_CORS = "http://localhost:5173,http://localhost:3000,http://localhost:8080,http://127.0.0.1:8080,http://127.0.0.1:5173,http://127.0.0.1:3000"
     CORS_ORIGINS: str = os.getenv("CORS_ORIGINS", "" if IS_PRODUCTION else _DEV_CORS)
 
     # ── App ─────────────────────────────────────────────────────────

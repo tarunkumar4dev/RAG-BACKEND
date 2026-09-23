@@ -7,6 +7,7 @@ from collections import defaultdict
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api.v1.endpoints.test_generator import router as test_router
@@ -14,6 +15,7 @@ from app.api.v1.endpoints.contest import router as contest_router
 from app.api.v1.endpoints.payment import router as payment_router
 from app.api.v1.endpoints.community_quiz import router as community_quiz_router
 from app.api.v1.endpoints.modules import router as module_router
+from app.api.v1.endpoints.whatsapp import router as whatsapp_router
 from app.routers.test_checker_router import router as test_checker_router
 from app.api.v1.endpoints.chat import router as chat_router
 from app.core.config import settings
@@ -49,6 +51,8 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type", "X-Requested-With"],
 )
 
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
 
 # ── Rate Limiting Middleware ────────────────────────────────────────────
 
@@ -68,7 +72,7 @@ async def rate_limit_middleware(request: Request, call_next):
     """IP-based rate limiting."""
     path = request.url.path
 
-    if path in ("/health", "/", "/openapi.json"):
+    if path in ("/health", "/", "/openapi.json") or path.startswith("/api/v1/whatsapp"):
         return await call_next(request)
 
     client_ip = (
@@ -164,8 +168,10 @@ app.include_router(contest_router, prefix="/api/v1")
 app.include_router(payment_router, prefix="/api/v1")
 app.include_router(community_quiz_router, prefix="/api/v1")
 app.include_router(module_router, prefix="/api/v1")
+app.include_router(module_router)  # Fallback for direct /modules/* and /worksheet/* requests
 app.include_router(test_checker_router, prefix="/api/v1")
 app.include_router(chat_router, prefix="/api/v1")
+app.include_router(whatsapp_router, prefix="/api/v1")
 
 
 @app.get("/health")

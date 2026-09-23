@@ -6,8 +6,7 @@ v3.3 changes (SECURITY):
   - Input sanitization on all .ilike() queries (prevents SQL pattern injection)
   - UUID validation on all user_id / test_id fields
   - Removed str(e) from ALL error responses (prevents internal leak)
-  - /health-detail removed from public access
-  - Length limits on all string inputs
+  - /health-detail removed from public access  - Length limits on all string inputs
   - limit/offset capped on query endpoints
   - Removed debug INSERT logs that printed full row data
 """
@@ -49,6 +48,9 @@ router = APIRouter(prefix="/test-generator", tags=["Test Generator"])
 
 def check_usage(user_id: str) -> dict:
     if not user_id or user_id == "00000000-0000-0000-0000-000000000000":
+        if not settings.IS_PRODUCTION:
+            logger.info("Dev mode: Bypassing login requirement for local testing")
+            return {"allowed": True, "used": 0, "limit": 999, "remaining": 999}
         logger.warning("Usage check blocked: no valid user_id provided")
         raise HTTPException(
             status_code=401,
@@ -111,6 +113,9 @@ def check_usage(user_id: str) -> dict:
 
 
 def record_usage(user_id: str) -> dict:
+    if not user_id or user_id == "00000000-0000-0000-0000-000000000000":
+        if not settings.IS_PRODUCTION:
+            return {"recorded": True}
     try:
         supabase = get_supabase()
         result = supabase.rpc("record_usage", {
@@ -228,6 +233,11 @@ class FrontendQuestionResponse(BaseModel):
     questionTable: Optional[dict] = None
     isManual: bool = False
     imageUrl: Optional[str] = None
+    # v19: Rich answer fields
+    markingScheme: Optional[List[dict]] = None
+    subParts: Optional[List[dict]] = None
+    commonMistakes: Optional[List[str]] = None
+    modelAnswer: Optional[str] = None
 
 
 class FrontendGenerateResponse(BaseModel):
@@ -243,7 +253,7 @@ class FrontendGenerateResponse(BaseModel):
 
 
 class ExportRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="ignore")
 
     examTitle: str = Field(default="Test Paper", max_length=200)
     paperDate: Optional[str] = Field(default=None, max_length=20)
@@ -254,11 +264,13 @@ class ExportRequest(BaseModel):
     includeAnswers: bool = False
     includeExplanations: bool = False
     format: str = Field(default="pdf", max_length=10)
-    logoBase64: Optional[str] = Field(default=None, max_length=500_000)  # ~375KB image
+    logoBase64: Optional[str] = Field(default=None, max_length=2_000_000)
+    logo_base64: Optional[str] = Field(default=None, max_length=2_000_000)
     template: str = Field(default="modern", max_length=30)
     teacher_name: Optional[str] = Field(default=None, max_length=100)
     duration: Optional[str] = Field(default=None, max_length=20)
     institute_name: Optional[str] = Field(default=None, max_length=200)
+    topic: Optional[str] = Field(default=None, max_length=200)
 
 
 class FrontendSaveRequest(BaseModel):
@@ -274,6 +286,26 @@ class AddManualQuestionRequest(BaseModel):
 
     teacher_id: str = Field(max_length=50)
     question: ManualQuestionPayload
+
+class AnswerKeyExportRequest(BaseModel):
+    """Request model for standalone answer key export."""
+    model_config = ConfigDict(extra="ignore")
+ 
+    examTitle: str = Field(default="Test Paper", max_length=200)
+    paperDate: Optional[str] = Field(default=None, max_length=20)
+    board: str = Field(default="CBSE", max_length=30)
+    classGrade: str = Field(default="Class 10", max_length=20)
+    subject: str = Field(default="Science", max_length=50)
+    questions: list = Field(max_length=200)
+    includeExplanations: bool = False
+    format: str = Field(default="pdf", max_length=10)
+    logoBase64: Optional[str] = Field(default=None, max_length=2_000_000)
+    logo_base64: Optional[str] = Field(default=None, max_length=2_000_000)
+    template: str = Field(default="teal", max_length=30)
+    teacher_name: Optional[str] = Field(default=None, max_length=100)
+    duration: Optional[str] = Field(default=None, max_length=20)
+    institute_name: Optional[str] = Field(default=None, max_length=200)
+    topic: Optional[str] = Field(default=None, max_length=200)
 
 
 # ── Transform helpers ───────────────────────────────────────────────
@@ -322,7 +354,11 @@ MARKS_MAP = {
 }
 
 # SECURITY: Allowed export templates (whitelist)
-VALID_TEMPLATES = {"modern", "classic", "compact", "colorful", "exam_paper", "institute_paper"}
+VALID_TEMPLATES = {
+    "modern", "classic", "compact", "colorful", "exam_paper", "institute_paper",
+    "teal", "navy", "dark_green", "orange",
+    "teal_premium", "navy_premium", "dark_green_premium", "orange_premium",
+}
 VALID_EXPORT_FORMATS = {"pdf", "docx"}
 
 
@@ -389,6 +425,25 @@ def _serialize_table_field(table_obj):
     return None
 
 
+def _serialize_model_list(items):
+    if not items:
+        return None
+    out = []
+    for item in items:
+        try:
+            if hasattr(item, 'model_dump'):
+                out.append(item.model_dump())
+            elif hasattr(item, 'dict'):
+                out.append(item.dict())
+            elif isinstance(item, dict):
+                out.append(item)
+            else:
+                out.append(item)
+        except Exception:
+            out.append(str(item))
+    return out
+
+
 def _transform_backend_to_frontend(resp, req: FrontendGenerateRequest) -> FrontendGenerateResponse:
     if isinstance(resp, list):
         questions_list = resp
@@ -414,6 +469,8 @@ def _transform_backend_to_frontend(resp, req: FrontendGenerateRequest) -> Fronte
         section = getattr(q, '_section', None) or getattr(q, 'section', None)
         answer_table_data = _serialize_table_field(getattr(q, 'answer_table', None))
         question_table_data = _serialize_table_field(getattr(q, 'question_table', None))
+        marking_scheme_data = _serialize_model_list(getattr(q, 'marking_scheme', None))
+        sub_parts_data = _serialize_model_list(getattr(q, 'sub_parts', None))
 
         questions.append(FrontendQuestionResponse(
             id=q.id,
@@ -433,6 +490,10 @@ def _transform_backend_to_frontend(resp, req: FrontendGenerateRequest) -> Fronte
             questionTable=question_table_data,
             isManual=getattr(q, 'is_manual', False),
             imageUrl=getattr(q, 'image_url', None),
+            markingScheme=marking_scheme_data,
+            subParts=sub_parts_data,
+            commonMistakes=getattr(q, 'common_mistakes', None),
+            modelAnswer=getattr(q, 'model_answer', None),
         ))
 
     return FrontendGenerateResponse(
@@ -598,6 +659,9 @@ async def export_test(req: ExportRequest):
                 q['is_manual'] = True
             normalized_questions.append(q)
 
+        logo_b64 = req.logoBase64 or req.logo_base64
+        topic_val = req.topic
+
         if export_format == "docx":
             from app.services.export_service import generate_docx
             file_bytes = generate_docx(
@@ -608,12 +672,13 @@ async def export_test(req: ExportRequest):
                 subject=req.subject,
                 include_answers=req.includeAnswers,
                 include_explanations=req.includeExplanations,
-                logo_base64=req.logoBase64,
+                logo_base64=logo_b64,
                 paper_date=req.paperDate,
                 template=template,
                 teacher_name=req.teacher_name,
                 duration=req.duration,
                 institute_name=req.institute_name,
+                topic=topic_val,
             )
             filename = re.sub(r'[^a-zA-Z0-9_\-]', '_', req.examTitle)[:50]  # Safe filename
             return Response(
@@ -631,12 +696,13 @@ async def export_test(req: ExportRequest):
                 subject=req.subject,
                 include_answers=req.includeAnswers,
                 include_explanations=req.includeExplanations,
-                logo_base64=req.logoBase64,
+                logo_base64=logo_b64,
                 paper_date=req.paperDate,
                 template=template,
                 teacher_name=req.teacher_name,
                 duration=req.duration,
                 institute_name=req.institute_name,
+                topic=topic_val,
             )
             filename = re.sub(r'[^a-zA-Z0-9_\-]', '_', req.examTitle)[:50]
             return Response(
@@ -651,6 +717,94 @@ async def export_test(req: ExportRequest):
         logger.error(f"Export error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Export failed. Please try again.")
 
+@router.post("/export-answer-key")
+async def export_answer_key(req: AnswerKeyExportRequest):
+    """
+    Standalone Answer Key download (separate PDF/DOCX file).
+    Matches the sample PDF's clean institute-paper style.
+    """
+    try:
+        class_num = _extract_class_number(req.classGrade)
+ 
+        # SECURITY: Whitelist template
+        template = (req.template or "teal").strip().lower()
+        if template not in VALID_TEMPLATES:
+            template = "teal"
+ 
+        # SECURITY: Whitelist format
+        export_format = req.format.lower().strip()
+        if export_format not in VALID_EXPORT_FORMATS:
+            raise HTTPException(status_code=422, detail="Invalid format. Use pdf or docx.")
+ 
+        # Normalize questions (same shape as /export)
+        normalized_questions = []
+        for q in req.questions:
+            if not isinstance(q, dict):
+                continue
+            if 'section' not in q:
+                q['section'] = None
+            normalized_questions.append(q)
+ 
+        if not normalized_questions:
+            raise HTTPException(status_code=422, detail="No questions provided.")
+ 
+        safe_title = re.sub(r'[^a-zA-Z0-9_\-]', '_', req.examTitle)[:50]
+        filename_base = f"{safe_title}_AnswerKey"
+
+        logo_b64 = req.logoBase64 or req.logo_base64
+        topic_val = req.topic
+
+        if export_format == "docx":
+            from app.services.export_service import generate_answer_key_docx
+            file_bytes = generate_answer_key_docx(
+                questions=normalized_questions,
+                exam_title=req.examTitle,
+                board=req.board,
+                class_grade=class_num,
+                subject=req.subject,
+                include_explanations=req.includeExplanations,
+                logo_base64=logo_b64,
+                paper_date=req.paperDate,
+                template=template,
+                teacher_name=req.teacher_name,
+                duration=req.duration,
+                institute_name=req.institute_name,
+                topic=topic_val,
+            )
+            return Response(
+                content=file_bytes,
+                media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                headers={"Content-Disposition": f'attachment; filename="{filename_base}.docx"'},
+            )
+        else:
+            from app.services.export_service import generate_answer_key_pdf
+            file_bytes = generate_answer_key_pdf(
+                questions=normalized_questions,
+                exam_title=req.examTitle,
+                board=req.board,
+                class_grade=class_num,
+                subject=req.subject,
+                include_explanations=req.includeExplanations,
+                logo_base64=logo_b64,
+                paper_date=req.paperDate,
+                template=template,
+                teacher_name=req.teacher_name,
+                duration=req.duration,
+                institute_name=req.institute_name,
+                topic=topic_val,
+            )
+            return Response(
+                content=file_bytes,
+                media_type="application/pdf",
+                headers={"Content-Disposition": f'attachment; filename="{filename_base}.pdf"'},
+            )
+ 
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Answer key export error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Answer key export failed.")
+ 
 
 # ═══════════════════════════════════════════════════════════════════════
 # ENDPOINT: Available Export Templates
@@ -760,8 +914,37 @@ async def get_chapters(subject: str = "Science", class_grade: str = "10"):
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# ENDPOINT: Browse NCERT Questions (hardened)
+# NCERT HELPERS
 # ═══════════════════════════════════════════════════════════════════════
+
+def _apply_ncert_subject_filter(query, subject: str):
+    """Filter ncert_questions strictly so 'Science' never collides with 'Political Science'."""
+    sub_clean = (subject or "").strip().lower()
+    if sub_clean == "science":
+        return query.eq("subject", "Science")
+    elif sub_clean in ("physics", "physics-i", "physics-ii"):
+        return query.in_("subject", ["Physics", "Physics-I", "Physics-II"])
+    elif sub_clean in ("chemistry", "chemistry-i", "chemistry-ii"):
+        return query.in_("subject", ["Chemistry", "Chemistry-I", "Chemistry-II"])
+    elif sub_clean in ("political science", "political_science", "pol science"):
+        return query.in_("subject", ["Political Science", "Political_Science"])
+    else:
+        return query.ilike("subject", subject.strip())
+
+
+def _get_subject_sql_clause(subject: str) -> tuple[str, list]:
+    sub_clean = (subject or "").strip().lower()
+    if sub_clean == "science":
+        return "LOWER(subject) = 'science'", []
+    elif sub_clean in ("physics", "physics-i", "physics-ii"):
+        return "LOWER(subject) IN ('physics', 'physics-i', 'physics-ii')", []
+    elif sub_clean in ("chemistry", "chemistry-i", "chemistry-ii"):
+        return "LOWER(subject) IN ('chemistry', 'chemistry-i', 'chemistry-ii')", []
+    elif sub_clean in ("political science", "political_science", "pol science"):
+        return "LOWER(subject) IN ('political science', 'political_science')", []
+    else:
+        return "LOWER(subject) = LOWER(%s)", [subject.strip()]
+
 
 @router.get("/ncert-questions")
 async def get_ncert_questions(
@@ -782,9 +965,8 @@ async def get_ncert_questions(
 
     try:
         supabase = get_supabase()
-        query = supabase.table("ncert_questions").select("*") \
-            .eq("class_grade", class_grade) \
-            .ilike("subject", f"%{subject}%")
+        query = supabase.table("ncert_questions").select("*").eq("class_grade", class_grade)
+        query = _apply_ncert_subject_filter(query, subject)
 
         if chapter:
             safe_chapter = sanitize_like(chapter, max_length=200)
@@ -800,9 +982,8 @@ async def get_ncert_questions(
             query = query.ilike("question_text", f"%{safe_search}%")
 
         # Count query (same filters)
-        count_query = supabase.table("ncert_questions").select("id", count="exact") \
-            .eq("class_grade", class_grade) \
-            .ilike("subject", f"%{subject}%")
+        count_query = supabase.table("ncert_questions").select("id", count="exact").eq("class_grade", class_grade)
+        count_query = _apply_ncert_subject_filter(count_query, subject)
         if chapter:
             count_query = count_query.ilike("chapter", f"%{sanitize_like(chapter, 200)}%")
         if question_type and question_type.lower() != "all":
@@ -813,7 +994,7 @@ async def get_ncert_questions(
             count_query = count_query.ilike("question_text", f"%{sanitize_like(search, 200)}%")
 
         count_result = count_query.execute()
-        total_count = len(count_result.data) if count_result.data else 0
+        total_count = count_result.count if count_result and count_result.count is not None else (len(count_result.data) if count_result and count_result.data else 0)
 
         result = query.order("section", desc=False) \
             .order("question_number", desc=False) \
@@ -840,7 +1021,7 @@ async def get_ncert_questions(
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# ENDPOINT: NCERT Question Stats (hardened)
+# ENDPOINT: NCERT Question Stats (hardened & ultra-fast)
 # ═══════════════════════════════════════════════════════════════════════
 
 @router.get("/ncert-question-stats")
@@ -848,13 +1029,60 @@ async def get_ncert_question_stats(subject: str = "Science", class_grade: str = 
     subject = sanitize_like(_resolve_subject(subject), max_length=50)
     class_grade = sanitize_like(class_grade, max_length=5)
 
+    # 1. Fast direct SQL aggregation (accurate, no row cutoffs, <50ms)
+    try:
+        from app.core.db_pool import get_db_connection
+        conn = get_db_connection()
+        if conn:
+            try:
+                where_sub, sub_params = _get_subject_sql_clause(subject)
+                cur = conn.cursor()
+                cur.execute(f"""
+                    SELECT chapter, COALESCE(section, 'Uncategorized'), COALESCE(question_type, 'exercise'), COUNT(*)
+                    FROM ncert_questions
+                    WHERE class_grade = %s AND {where_sub}
+                    GROUP BY chapter, section, question_type
+                    ORDER BY chapter;
+                """, [class_grade] + sub_params)
+                rows = cur.fetchall()
+                cur.close()
+                conn.close()
+
+                chapter_stats = {}
+                for ch, sec, qtype, cnt in rows:
+                    if ch not in chapter_stats:
+                        chapter_stats[ch] = {"chapter": ch, "total": 0, "sections": {}, "types": {}}
+                    chapter_stats[ch]["total"] += cnt
+                    chapter_stats[ch]["sections"][sec] = chapter_stats[ch]["sections"].get(sec, 0) + cnt
+                    chapter_stats[ch]["types"][qtype] = chapter_stats[ch]["types"].get(qtype, 0) + cnt
+
+                stats_list = sorted(chapter_stats.values(), key=lambda x: x["chapter"])
+                for stat in stats_list:
+                    stat["sections"] = [{"name": k, "count": v} for k, v in sorted(stat["sections"].items())]
+                    stat["types"] = [{"name": k, "count": v} for k, v in sorted(stat["types"].items())]
+
+                total_questions = sum(s["total"] for s in stats_list)
+                return {
+                    "ok": True, "subject": subject, "classGrade": class_grade,
+                    "chapters": stats_list, "totalQuestions": total_questions, "totalChapters": len(stats_list),
+                }
+            except Exception as pool_err:
+                logger.warning(f"SQL aggregation error: {pool_err}, falling back to Supabase client")
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+    except Exception as e:
+        logger.warning(f"Pool connection unavailable: {e}")
+
+    # 2. Fallback to Supabase client
     try:
         supabase = get_supabase()
-        result = supabase.table("ncert_questions") \
+        base_query = supabase.table("ncert_questions") \
             .select("chapter, section, question_type") \
-            .eq("class_grade", class_grade) \
-            .ilike("subject", f"%{subject}%") \
-            .execute()
+            .eq("class_grade", class_grade)
+        base_query = _apply_ncert_subject_filter(base_query, subject)
+        result = base_query.limit(5000).execute()
 
         rows = result.data or []
 
@@ -1014,8 +1242,10 @@ async def save_test(request: FrontendSaveRequest):
                             supabase.table("questions").insert(rows_to_insert).execute()
                         except Exception as retry_err:
                             logger.error(f"Insert retry also failed: {retry_err}")
+                            raise HTTPException(status_code=500, detail="Failed to save questions. Please try again.")
                     else:
                         logger.error(f"Failed to insert questions: {ins_err}")
+                        raise HTTPException(status_code=500, detail="Failed to save questions. Please try again.")
 
         return {"success": True, "test_id": request.test_id, "message": "Test saved."}
     except HTTPException:

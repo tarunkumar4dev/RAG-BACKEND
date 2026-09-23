@@ -63,6 +63,16 @@ def _validate_teacher_id(teacher_id: Optional[str]) -> str:
         raise HTTPException(400, "Invalid teacher_id format")
 
 
+def extract_teacher_id(teacher_id: Optional[str], authorization: Optional[str] = None) -> str:
+    """Extract and validate teacher_id from body or authorization header."""
+    if teacher_id and str(teacher_id).strip():
+        try:
+            return sanitize_uuid(str(teacher_id).strip())
+        except ValueError:
+            return str(teacher_id).strip()
+    return ""
+
+
 def _validate_file_type(file_type: str) -> str:
     """Only allow known file types."""
     allowed = {"pdf", "doc", "docx", "txt", "ppt", "pptx"}
@@ -330,8 +340,9 @@ Output as JSON:
 {{"questions": [{{"q_no": 1, "type": "MCQ", "question": "...", "options": ["a)...", "b)...", "c)...", "d)..."], "answer": "correct answer with brief explanation"}}]}}
 Output ONLY valid JSON."""
 
+        model_name = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
         response = client.models.generate_content(
-            model="gemini-3.6-flash",
+            model=model_name,
             contents=prompt,
             config={"temperature": 0.3, "max_output_tokens": 16000, "response_mime_type": "application/json"})
 

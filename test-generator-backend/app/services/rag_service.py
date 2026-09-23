@@ -14,18 +14,28 @@ v4 retained:
 
 import logging
 import re
-from typing import List, Dict, Set
+import time
+from typing import List, Dict, Set, Tuple
 
 from app.core.config import settings
 from app.core.database import get_supabase
 
 logger = logging.getLogger(__name__)
 
+# In-memory chapter resolution cache to avoid repeated 1000-row Supabase queries
+_CHAPTERS_CACHE: Dict[Tuple[str, str], Tuple[float, List[str]]] = {}
+_CHAPTERS_CACHE_TTL = 3600  # 1 hour
+
 
 _STOPWORDS: Set[str] = {
     "and", "of", "the", "in", "a", "an", "to", "for", "with", "on",
     "at", "by", "from", "its", "it", "is", "are", "be",
 }
+
+
+def _escape_ilike(value: str) -> str:
+    """Escape SQL ILIKE wildcards to prevent pattern injection."""
+    return value.replace("%", r"\%").replace("_", r"\_")
 
 
 def _normalize_chapter_name(name: str) -> str:
@@ -43,28 +53,42 @@ def _word_set(normalized: str) -> Set[str]:
 
 
 def _resolve_chapters(requested_chapters, subject, class_grade):
-    supabase = get_supabase()
-    db_chapters: List[str] = []
+    cache_key = ((subject or "").strip().lower(), str(class_grade).strip())
+    now = time.time()
+    if cache_key in _CHAPTERS_CACHE:
+        cached_time, cached_chapters = _CHAPTERS_CACHE[cache_key]
+        if now - cached_time < _CHAPTERS_CACHE_TTL and cached_chapters:
+            logger.info(f"Using cached chapter list for {subject} class {class_grade} ({len(cached_chapters)} chapters)")
+            db_chapters = list(cached_chapters)
+        else:
+            db_chapters = []
+    else:
+        db_chapters = []
 
-    try:
-        response = (
-            supabase.table("ncert_chunks")
-            .select("chapter")
-            .ilike("subject", f"%{subject}%")
-            .eq("class_grade", str(class_grade))
-            .limit(1000)
-            .execute()
-        )
-        db_chapters = list({
-            row["chapter"]
-            for row in (response.data or [])
-            if row.get("chapter")
-        })
-        logger.info(f"DB has {len(db_chapters)} chapters for {subject} class {class_grade}")
-    except Exception as e:
-        logger.error(f"Chapter resolution query failed: {e}")
+    if not db_chapters:
+        supabase = get_supabase()
+        try:
+            response = (
+                supabase.table("ncert_chunks")
+                .select("chapter")
+                .ilike("subject", f"%{_escape_ilike(subject)}%")
+                .eq("class_grade", str(class_grade))
+                .limit(1000)
+                .execute()
+            )
+            db_chapters = list({
+                row["chapter"]
+                for row in (response.data or [])
+                if row.get("chapter")
+            })
+            logger.info(f"DB has {len(db_chapters)} chapters for {subject} class {class_grade}")
+            if db_chapters:
+                _CHAPTERS_CACHE[cache_key] = (now, list(db_chapters))
+        except Exception as e:
+            logger.error(f"Chapter resolution query failed: {e}")
 
     if len(db_chapters) < 3:
+        supabase = get_supabase()
         logger.warning("Few chapters from bulk query, trying per-chapter ILIKE...")
         for req_ch in requested_chapters:
             try:
@@ -72,7 +96,7 @@ def _resolve_chapters(requested_chapters, subject, class_grade):
                 search_words = [w for w in normalized.split() if len(w) > 2 and w not in _STOPWORDS][:3]
                 if not search_words:
                     continue
-                ilike_pattern = f"%{'%'.join(search_words)}%"
+                ilike_pattern = f"%{'%'.join(_escape_ilike(w) for w in search_words)}%"
                 resp = (
                     supabase.table("ncert_chunks")
                     .select("chapter")
@@ -87,6 +111,8 @@ def _resolve_chapters(requested_chapters, subject, class_grade):
                         db_chapters.append(ch)
             except Exception as e:
                 logger.error(f"Per-chapter ILIKE failed for '{req_ch}': {e}")
+        if db_chapters:
+            _CHAPTERS_CACHE[cache_key] = (now, list(db_chapters))
 
     if not db_chapters:
         logger.warning(f"No chapters found in DB. Returning requested as-is.")
@@ -175,14 +201,14 @@ def keyword_search(keywords, subject, class_grade, chapters, limit=10):
             if chapters:
                 logger.info(f"No keywords. Per-chapter stride sampling for diversity.")
                 num_chapters = len(chapters)
-                per_chapter_quota = max(2, limit // num_chapters)
+                per_chapter_quota = max(4, limit // num_chapters)
 
                 for ch_name in chapters:
                     # Fetch all chunks for THIS chapter
                     query = (
                         supabase.table("ncert_chunks")
                         .select("id, chapter, subject, class_grade, content")
-                        .ilike("subject", f"%{subject}%")
+                        .ilike("subject", f"%{_escape_ilike(subject)}%")
                         .eq("class_grade", str(class_grade))
                         .eq("chapter", ch_name)
                     )
@@ -226,8 +252,8 @@ def keyword_search(keywords, subject, class_grade, chapters, limit=10):
             query = (
                 supabase.table("ncert_chunks")
                 .select("id, chapter, subject, class_grade, content")
-                .ilike("content", f"%{kw}%")
-                .ilike("subject", f"%{subject}%")
+                .ilike("content", f"%{_escape_ilike(kw)}%")
+                .ilike("subject", f"%{_escape_ilike(subject)}%")
                 .eq("class_grade", str(class_grade))
             )
             if chapters:
@@ -240,8 +266,8 @@ def keyword_search(keywords, subject, class_grade, chapters, limit=10):
                 query_broad = (
                     supabase.table("ncert_chunks")
                     .select("id, chapter, subject, class_grade, content")
-                    .ilike("content", f"%{kw}%")
-                    .ilike("subject", f"%{subject}%")
+                    .ilike("content", f"%{_escape_ilike(kw)}%")
+                    .ilike("subject", f"%{_escape_ilike(subject)}%")
                     .eq("class_grade", str(class_grade))
                 )
                 response = query_broad.limit(limit).execute()
@@ -259,7 +285,7 @@ def keyword_search(keywords, subject, class_grade, chapters, limit=10):
             query = (
                 supabase.table("ncert_chunks")
                 .select("id, chapter, subject, class_grade, content")
-                .ilike("subject", f"%{subject}%")
+                .ilike("subject", f"%{_escape_ilike(subject)}%")
                 .eq("class_grade", str(class_grade))
                 .in_("chapter", chapters)
             )
@@ -278,7 +304,7 @@ def keyword_search(keywords, subject, class_grade, chapters, limit=10):
         return []
 
 
-def retrieve_context(chapters, topics, subject, class_grade, max_chunks=10):
+def retrieve_context(chapters, topics, subject, class_grade, max_chunks=20):
     """
     Retrieval pipeline:
       1. Resolve chapter names against DB

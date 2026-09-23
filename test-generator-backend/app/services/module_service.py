@@ -50,28 +50,11 @@ def get_supabase():
         _supabase_client = create_client(url, key)
     return _supabase_client
 
-def get_db_connection():
-    """Get psycopg2 connection — same as DatabaseManager in rag_system.py."""
-    import psycopg2
-    try:
-        conn = psycopg2.connect(
-            host=os.getenv("DB_HOST", "aws-0-ap-south-1.pooler.supabase.com"),
-            database=os.getenv("DB_NAME", "postgres"),
-            user=os.getenv("DB_USER", "postgres.dcmnzvjftmdbywrjkust"),
-            password=os.getenv("DB_PASSWORD", ""),
-            port=int(os.getenv("DB_PORT", "5432")),
-            sslmode="require",
-            connect_timeout=10,
-        )
-        conn.autocommit = True
-        return conn
-    except Exception as e:
-        logger.error(f"DB connection failed: {e}")
-        return None
+from app.core.db_pool import get_db_connection
 
 
 # ─── Config ────────────────────────────────────────────────
-GEMINI_MODEL = "gemini-3.6-flash"
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
 CHUNK_SIZE_CHARS = 3000       # ~750 tokens per chunk
 CHUNK_OVERLAP_CHARS = 400
 SCANNED_THRESHOLD = 50        # avg chars/page below this = scanned

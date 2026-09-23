@@ -150,6 +150,19 @@ class TestGenerationRequest(BaseModel):
 
 # ── Generated question ────────────────────────────────────────────────────────
 
+class SubPart(BaseModel):
+    label: str
+    text: str
+    marks: int = 1
+    answer: Optional[str] = None
+    correct_answer: Optional[str] = None
+    options: Optional[List[str]] = None
+
+class MarkingStep(BaseModel):
+    step: str
+    marks: int = 1
+    description: Optional[str] = None
+
 class GeneratedQuestion(BaseModel):
     id: str
     text: str
@@ -172,6 +185,12 @@ class GeneratedQuestion(BaseModel):
     is_manual: bool = False
     image_url: Optional[str] = None  # for image-based manual questions
     section: Optional[str] = None  # CBSE section (A/B/C/D/E)
+    # v5: Rich answer fields for Claude Pro-level output
+    model_answer: Optional[str] = None
+    marking_scheme: Optional[List[MarkingStep]] = None
+    common_mistakes: Optional[List[str]] = None
+    acceptable_alternatives: Optional[List[str]] = None
+    sub_parts: Optional[List[SubPart]] = None
 
 
 # ── v3: Manual Question Payload (from frontend) ──────────────────────────────
