@@ -36,6 +36,7 @@ from app.services.test_generator_service import generate_test, handle_feedback
 from app.services.rag_service import retrieve_context
 from app.core.database import get_supabase
 from app.core.config import settings
+from app.core.cache import api_cache
 from app.core.sanitize import sanitize_like, sanitize_text, sanitize_uuid, validate_class_grade
 
 logger = logging.getLogger(__name__)
@@ -839,15 +840,57 @@ async def get_chapters(subject: str = "Science", class_grade: str = "10"):
     subject = sanitize_like(_resolve_subject(subject), max_length=50)
     class_grade = sanitize_like(class_grade, max_length=5)
 
-    try:
-        supabase = get_supabase()
-        result = supabase.table("ncert_chunks") \
-            .select("chapter, book, chapter_type, chapter_order") \
-            .ilike("subject", f"%{subject}%") \
-            .eq("class_grade", class_grade) \
-            .execute()
+    cache_key = f"chapters:{class_grade}:{subject.lower()}"
+    cached = api_cache.get(cache_key)
+    if cached is not None:
+        return cached
 
-        rows = result.data or []
+    rows = []
+
+    # 1. Fast direct SQL (<5ms)
+    try:
+        from app.core.db_pool import get_db_connection
+        conn = get_db_connection()
+        if conn:
+            try:
+                where_sub, sub_params = _get_subject_sql_clause(subject)
+                cur = conn.cursor()
+                cur.execute(f"""
+                    SELECT DISTINCT chapter, book, chapter_type, chapter_order
+                    FROM ncert_chunks
+                    WHERE class_grade = %s AND {where_sub}
+                    ORDER BY chapter_order NULLS LAST, chapter ASC;
+                """, [class_grade] + sub_params)
+                db_rows = cur.fetchall()
+                cur.close()
+                conn.close()
+                rows = [
+                    {"chapter": r[0], "book": r[1], "chapter_type": r[2], "chapter_order": r[3]}
+                    for r in db_rows if r[0]
+                ]
+            except Exception as pool_err:
+                logger.warning(f"SQL chapters error: {pool_err}, falling back to Supabase client")
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+    except Exception as e:
+        logger.warning(f"Pool connection unavailable for chapters: {e}")
+
+    # 2. Fallback to Supabase client
+    if not rows:
+        try:
+            supabase = get_supabase()
+            query = supabase.table("ncert_chunks") \
+                .select("chapter, book, chapter_type, chapter_order") \
+                .eq("class_grade", class_grade)
+            query = _apply_ncert_subject_filter(query, subject)
+            result = query.execute()
+            rows = result.data or []
+        except Exception as e:
+            logger.error(f"Chapters fallback error: {e}")
+
+    try:
         chapters = sorted({row["chapter"] for row in rows if row.get("chapter")})
 
         seen_chapters = {}
@@ -893,7 +936,7 @@ async def get_chapters(subject: str = "Science", class_grade: str = "10"):
         for g in groups:
             g.pop("_sort_order", None)
 
-        return {
+        response_payload = {
             "ok": True,
             "subject": subject,
             "classGrade": class_grade,
@@ -901,6 +944,8 @@ async def get_chapters(subject: str = "Science", class_grade: str = "10"):
             "groups": groups if groups else None,
             "count": len(chapters),
         }
+        api_cache.set(cache_key, response_payload, ttl=3600)
+        return response_payload
     except Exception as e:
         logger.error(f"Chapters error: {e}")
         return {
@@ -963,6 +1008,97 @@ async def get_ncert_questions(
     limit = min(max(1, limit), 100)    # Cap at 100
     offset = max(0, min(offset, 10000))  # Cap offset
 
+    cache_key = f"qs:{class_grade}:{subject.lower()}:{chapter or ''}:{question_type or ''}:{section or ''}:{search or ''}:{limit}:{offset}"
+    cached = api_cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    # 1. Fast direct SQL with window count (5-10ms)
+    try:
+        from app.core.db_pool import get_db_connection
+        conn = get_db_connection()
+        if conn:
+            try:
+                where_sub, sub_params = _get_subject_sql_clause(subject)
+                conditions = ["class_grade = %s", where_sub]
+                params = [class_grade] + sub_params
+
+                if chapter:
+                    conditions.append("chapter ILIKE %s")
+                    params.append(f"%{chapter.strip()}%")
+                if question_type and question_type.lower() != "all":
+                    conditions.append("LOWER(question_type) = LOWER(%s)")
+                    params.append(question_type.strip())
+                if section:
+                    conditions.append("section ILIKE %s")
+                    params.append(f"%{section.strip()}%")
+                if search:
+                    conditions.append("question_text ILIKE %s")
+                    params.append(f"%{search.strip()}%")
+
+                where_clause = " AND ".join(conditions)
+                cur = conn.cursor()
+                cur.execute(f"""
+                    SELECT id, class_grade, subject, chapter, section, question_number, question_text,
+                           question_type, answer, options, marks, difficulty, figure_ref, image_url, question_table,
+                           COUNT(*) OVER() AS total_count
+                    FROM ncert_questions
+                    WHERE {where_clause}
+                    ORDER BY section ASC NULLS LAST, question_number ASC NULLS LAST
+                    LIMIT %s OFFSET %s;
+                """, params + [limit, offset])
+
+                rows = cur.fetchall()
+                cur.close()
+                conn.close()
+
+                total_count = rows[0][15] if rows else 0
+                questions = []
+                for r in rows:
+                    opts = r[9]
+                    if isinstance(opts, str):
+                        try:
+                            opts = json.loads(opts)
+                        except Exception:
+                            opts = []
+                    elif not isinstance(opts, list):
+                        opts = []
+
+                    questions.append({
+                        "id": r[0],
+                        "class_grade": r[1],
+                        "subject": r[2],
+                        "chapter": r[3],
+                        "section": r[4],
+                        "question_number": r[5],
+                        "question_text": r[6],
+                        "question_type": r[7],
+                        "answer": r[8],
+                        "options": opts,
+                        "marks": r[10],
+                        "difficulty": r[11],
+                        "figure_ref": r[12],
+                        "image_url": r[13],
+                        "question_table": r[14],
+                    })
+
+                resp = {
+                    "ok": True, "subject": subject, "classGrade": class_grade, "chapter": chapter,
+                    "questions": questions, "total": total_count, "limit": limit, "offset": offset,
+                    "hasMore": (offset + limit) < total_count,
+                }
+                api_cache.set(cache_key, resp, ttl=180)
+                return resp
+            except Exception as pool_err:
+                logger.warning(f"Direct SQL ncert-questions error: {pool_err}, falling back to Supabase client")
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+    except Exception as e:
+        logger.warning(f"Pool connection unavailable for questions: {e}")
+
+    # 2. Fallback to Supabase client
     try:
         supabase = get_supabase()
         query = supabase.table("ncert_questions").select("*").eq("class_grade", class_grade)
@@ -981,7 +1117,6 @@ async def get_ncert_questions(
             safe_search = sanitize_like(search, max_length=200)
             query = query.ilike("question_text", f"%{safe_search}%")
 
-        # Count query (same filters)
         count_query = supabase.table("ncert_questions").select("id", count="exact").eq("class_grade", class_grade)
         count_query = _apply_ncert_subject_filter(count_query, subject)
         if chapter:
@@ -1010,11 +1145,13 @@ async def get_ncert_questions(
                 except Exception:
                     q["options"] = []
 
-        return {
+        resp = {
             "ok": True, "subject": subject, "classGrade": class_grade, "chapter": chapter,
             "questions": questions, "total": total_count, "limit": limit, "offset": offset,
             "hasMore": (offset + limit) < total_count,
         }
+        api_cache.set(cache_key, resp, ttl=180)
+        return resp
     except Exception as e:
         logger.error(f"NCERT questions fetch error: {e}", exc_info=True)
         return {"ok": False, "questions": [], "total": 0}
@@ -1028,6 +1165,11 @@ async def get_ncert_questions(
 async def get_ncert_question_stats(subject: str = "Science", class_grade: str = "10"):
     subject = sanitize_like(_resolve_subject(subject), max_length=50)
     class_grade = sanitize_like(class_grade, max_length=5)
+
+    cache_key = f"stats:{class_grade}:{subject.lower()}"
+    cached = api_cache.get(cache_key)
+    if cached is not None:
+        return cached
 
     # 1. Fast direct SQL aggregation (accurate, no row cutoffs, <50ms)
     try:
@@ -1062,10 +1204,12 @@ async def get_ncert_question_stats(subject: str = "Science", class_grade: str = 
                     stat["types"] = [{"name": k, "count": v} for k, v in sorted(stat["types"].items())]
 
                 total_questions = sum(s["total"] for s in stats_list)
-                return {
+                resp = {
                     "ok": True, "subject": subject, "classGrade": class_grade,
                     "chapters": stats_list, "totalQuestions": total_questions, "totalChapters": len(stats_list),
                 }
+                api_cache.set(cache_key, resp, ttl=600)
+                return resp
             except Exception as pool_err:
                 logger.warning(f"SQL aggregation error: {pool_err}, falling back to Supabase client")
                 try:

@@ -57,22 +57,41 @@ app.add_middleware(GZipMiddleware, minimum_size=1000)
 # ── Rate Limiting Middleware ────────────────────────────────────────────
 
 _rate_store: dict[str, list[float]] = defaultdict(list)
+_last_rate_prune: float = 0.0
 RATE_LIMIT_WINDOW = 60
-RATE_LIMIT_MAX = settings.RATE_LIMIT_PER_MINUTE
+RATE_LIMIT_DEFAULT = settings.RATE_LIMIT_PER_MINUTE  # 300 req/min
 
 HEAVY_ENDPOINTS = {
-    "/api/v1/test-generator/generate-frontend": 5,
-    "/api/v1/test-generator/export": 10,
-    "/api/v1/modules/generate": 5,
+    "/api/v1/test-generator/generate-frontend": 20,
+    "/api/v1/test-generator/export": 30,
+    "/api/v1/test-generator/export-answer-key": 30,
+    "/api/v1/modules/generate": 20,
+}
+
+HIGH_THROUGHPUT_ENDPOINTS = {
+    "/api/v1/test-generator/ncert-questions": 1200,
+    "/api/v1/test-generator/ncert-question-stats": 1200,
+    "/api/v1/test-generator/chapters": 1200,
+    "/api/v1/test-generator/subjects": 1200,
 }
 
 
 @app.middleware("http")
 async def rate_limit_middleware(request: Request, call_next):
-    """IP-based rate limiting."""
+    """IP-based rate limiting designed for high scale (10,000+ req/min)."""
+    global _last_rate_prune
+
+    # CRITICAL: Always bypass CORS preflight OPTIONS requests immediately
+    if request.method == "OPTIONS":
+        return await call_next(request)
+
     path = request.url.path
 
-    if path in ("/health", "/", "/openapi.json") or path.startswith("/api/v1/whatsapp"):
+    # Bypass static / health / docs / webhook endpoints
+    if (
+        path in ("/health", "/", "/openapi.json", "/docs", "/redoc", "/favicon.ico")
+        or path.startswith("/api/v1/whatsapp")
+    ):
         return await call_next(request)
 
     client_ip = (
@@ -83,22 +102,55 @@ async def rate_limit_middleware(request: Request, call_next):
     )
 
     now = time.time()
+
+    # Periodic background pruning of expired keys (every 60s or when store grows large)
+    if now - _last_rate_prune > 60 or len(_rate_store) > 5000:
+        _last_rate_prune = now
+        dead_keys = []
+        for k, timestamps in list(_rate_store.items()):
+            active = [t for t in timestamps if now - t < RATE_LIMIT_WINDOW]
+            if active:
+                _rate_store[k] = active
+            else:
+                dead_keys.append(k)
+        for k in dead_keys:
+            _rate_store.pop(k, None)
+
+    # Resolve tiered endpoint limit
+    if path in HEAVY_ENDPOINTS:
+        max_req = HEAVY_ENDPOINTS[path]
+    elif path in HIGH_THROUGHPUT_ENDPOINTS:
+        max_req = HIGH_THROUGHPUT_ENDPOINTS[path]
+    else:
+        max_req = RATE_LIMIT_DEFAULT
+
+    # Rate limiting key per client IP + base endpoint
     key = f"{client_ip}:{path}"
-    max_req = HEAVY_ENDPOINTS.get(path, RATE_LIMIT_MAX)
+    active_requests = [t for t in _rate_store[key] if now - t < RATE_LIMIT_WINDOW]
+    _rate_store[key] = active_requests
 
-    _rate_store[key] = [t for t in _rate_store[key] if now - t < RATE_LIMIT_WINDOW]
-
-    if len(_rate_store[key]) >= max_req:
+    if len(active_requests) >= max_req:
         logger.warning(
-            f"Rate limit hit: {client_ip} on {path} ({len(_rate_store[key])}/{max_req})"
+            f"Rate limit hit: {client_ip} on {path} ({len(active_requests)}/{max_req})"
         )
+        origin = request.headers.get("origin", "*")
         return JSONResponse(
             status_code=429,
-            content={"detail": "Too many requests. Please wait a minute and try again."},
+            headers={
+                "Retry-After": "60",
+                "Access-Control-Allow-Origin": origin,
+                "Access-Control-Allow-Credentials": "true",
+                "X-RateLimit-Limit": str(max_req),
+                "X-RateLimit-Remaining": "0",
+            },
+            content={"detail": "Too many requests. Please wait a moment and try again."},
         )
 
     _rate_store[key].append(now)
-    return await call_next(request)
+    response = await call_next(request)
+    response.headers["X-RateLimit-Limit"] = str(max_req)
+    response.headers["X-RateLimit-Remaining"] = str(max(0, max_req - len(_rate_store[key])))
+    return response
 
 
 # ── Security Headers Middleware ─────────────────────────────────────────
