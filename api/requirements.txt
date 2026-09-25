@@ -11,3 +11,4 @@ python-docx
 razorpay
 psycopg2-binary
 PyMuPDF
+pylatexenc

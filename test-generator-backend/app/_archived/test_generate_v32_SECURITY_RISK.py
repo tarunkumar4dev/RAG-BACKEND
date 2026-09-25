@@ -735,7 +735,7 @@ async def get_chapters(subject: str = "Science", class_grade: str = "10"):
             .execute()
 
         rows = result.data or []
-        chapters = sorted({row["chapter"] for row in rows if row.get("chapter")})
+        chapters = sorted({row["chapter"].strip() for row in rows if row.get("chapter") and not row["chapter"].strip().isupper()})
 
         seen_chapters = {}
         for row in rows:
@@ -746,12 +746,14 @@ async def get_chapters(subject: str = "Science", class_grade: str = "10"):
 
             if not chapter:
                 continue
+            if chapter.strip().isupper():
+                continue
             if not book or not ctype:
                 continue
 
-            key = (chapter, book, ctype)
+            key = (chapter.strip(), book, ctype)
             if key not in seen_chapters:
-                seen_chapters[key] = {"name": chapter, "order": order}
+                seen_chapters[key] = {"name": chapter.strip(), "order": order}
 
         groups_dict = {}
         for (chapter, book, ctype), data in seen_chapters.items():

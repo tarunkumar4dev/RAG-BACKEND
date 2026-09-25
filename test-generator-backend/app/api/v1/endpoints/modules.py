@@ -190,7 +190,7 @@ async def generate_test_from_module(
 @router.post("/modules/{module_id}/generate-worksheet")
 async def generate_worksheet(module_id: str, req: dict, authorization: Optional[str] = Header(None)):
     """Generate worksheet questions from module content."""
-    teacher_id = extract_teacher_id(req.get("teacher_id"), authorization)
+    teacher_id = _validate_teacher_id(req.get("teacher_id"))
     if not teacher_id:
         raise HTTPException(400, "teacher_id required")
 
@@ -217,7 +217,7 @@ async def generate_worksheet(module_id: str, req: dict, authorization: Optional[
 @router.post("/modules/{module_id}/download-worksheet")
 async def download_worksheet(module_id: str, req: dict, authorization: Optional[str] = Header(None)):
     """Generate and download worksheet as PDF."""
-    teacher_id = extract_teacher_id(req.get("teacher_id"), authorization)
+    teacher_id = _validate_teacher_id(req.get("teacher_id"))
     if not teacher_id:
         raise HTTPException(400, "teacher_id required")
 
@@ -281,7 +281,7 @@ async def download_worksheet(module_id: str, req: dict, authorization: Optional[
 @router.post("/worksheet/generate-direct")
 async def generate_worksheet_direct(req: dict, authorization: Optional[str] = Header(None)):
     """Generate worksheet directly from uploaded PDF — no module needed."""
-    teacher_id = extract_teacher_id(req.get("teacher_id"), authorization)
+    teacher_id = _validate_teacher_id(req.get("teacher_id"))
     if not teacher_id:
         raise HTTPException(400, "teacher_id required")
 
@@ -318,7 +318,7 @@ async def generate_worksheet_direct(req: dict, authorization: Optional[str] = He
         question_types = req.get("question_types", ["MCQ", "Short Answer"])
         difficulty = req.get("difficulty", "medium")
 
-        prompt = f"""You are an expert Indian school teacher creating an assignment worksheet.
+        prompt = f"""You are an expert Indian school teacher creating a high-quality assignment worksheet.
 
 SUBJECT: {subject}
 CLASS: {class_level}
@@ -331,14 +331,85 @@ SOURCE CONTENT:
 {full_text[:400000]}
 
 Generate EXACTLY {num_questions} questions for a student assignment.
+
+FACTUAL ACCURACY — HIGHEST PRIORITY:
+1. Every question, formula, equation, fact, number, and definition MUST be verifiable from the source content above
+2. NEVER invent formulas, dates, values, or facts not present in the source
+3. Every mathematical calculation must be mathematically CORRECT — verify each step
+4. Every chemical equation must be BALANCED and use correct chemical formulas
+5. Every physics formula must have correct units and dimensions
+6. If unsure about a fact, DO NOT include that question — quality over quantity
+7. For MCQs: the correct answer MUST be actually correct (double-check before finalizing)
+8. For numerical problems: solve the problem yourself first, verify the answer is mathematically right
+9. Do NOT include questions where you're unsure of the answer
+10. If a concept is not clearly explained in the source, don't create a question on it
+
+SELF-VERIFICATION PASS:
+Before finalizing each question, mentally check:
+- Is this question conceptually correct?
+- Is the answer verifiable from source?
+- Is any calculation actually correct?
+- Would a subject expert approve this?
+If ANY answer is "no" or "unsure" — replace that question.
+
 Questions must be DIRECTLY from the source content — no outside knowledge.
 For MCQs: 4 options (a, b, c, d). For Fill in Blanks: use _______.
 Questions should go easy to hard.
 Use proper equations, formulas, scientific notation where needed.
 
+CRITICAL — ANSWER FORMAT (choose the BEST format for each question):
+Each answer must be an OBJECT with "format" and content fields.
+
+Choose format based on question type:
+
+1. For MATHS problems (integration, derivation, algebra, equations, numerical):
+   Use "steps" format — show THOROUGH step-by-step solution like a teacher solving on blackboard
+   - Show EVERY intermediate calculation, don't skip any step
+   - Include the formula/rule being used at each step (e.g., "Using power rule ∫xⁿdx = xⁿ⁺¹/(n+1)")
+   - Show substitutions explicitly
+   - Explain WHY each step is done, not just what
+   - Include arithmetic details (e.g., "= 4 × 3 = 12", not just "= 12")
+   - Aim for 6-10 detailed steps for complex problems, 4-5 for simple ones
+   - Final step should clearly state the answer with "Therefore" or "Hence"
+   
+   Example for ∫ 2x sin(x²+1) dx:
+   {{"format": "steps", "steps": [
+     "Step 1: Observe that the integrand has the form f'(x) · g(f(x)) where f(x) = x² + 1 and f'(x) = 2x",
+     "Step 2: This suggests using substitution method. Let u = x² + 1",
+     "Step 3: Differentiate both sides: du/dx = 2x, which gives du = 2x dx",
+     "Step 4: Substitute u and du into the original integral: ∫ sin(u) du",
+     "Step 5: Apply the standard integral formula ∫ sin(u) du = -cos(u) + C",
+     "Step 6: Substitute back u = x² + 1 to get the answer in terms of x",
+     "Step 7: Therefore, ∫ 2x sin(x²+1) dx = -cos(x² + 1) + C, where C is the constant of integration"
+   ]}}
+
+2. For COMPARISON questions (differences, similarities, categorize):
+   Use "table" format
+   {{"format": "table", "headers": ["Property", "Metal", "Non-metal"], "rows": [["Lustre", "Shiny", "Dull"], ["Conductivity", "Good", "Poor"]]}}
+
+3. For EXPLANATION questions (define, describe, explain, why):
+   Use "paragraph" format
+   {{"format": "paragraph", "text": "Photosynthesis is the process by which green plants make food using sunlight, carbon dioxide, and water. Chlorophyll in the leaves absorbs sunlight..."}}
+
+4. For LIST/POINTS questions (list, mention, state, features):
+   Use "points" format
+   {{"format": "points", "points": ["Point 1: Description", "Point 2: Description", "Point 3: Description"]}}
+
+5. For SHORT/MCQ/FILL/TRUE-FALSE answers (one-line answers):
+   Use "short" format
+   {{"format": "short", "text": "Option (b) — 2Fe + 3H₂O → Fe₂O₃ + 3H₂. Because iron is more reactive than hydrogen."}}
+
+6. For CHEMISTRY EQUATIONS or REACTIONS:
+   Use "steps" format showing balanced equation
+   {{"format": "steps", "steps": ["Unbalanced: Fe + O₂ → Fe₂O₃", "Balance oxygen: multiply by 2 → Fe + O₂ → 2Fe₂O₃... wait", "Balanced: 4Fe + 3O₂ → 2Fe₂O₃"]}}
+
 Output as JSON:
-{{"questions": [{{"q_no": 1, "type": "MCQ", "question": "...", "options": ["a)...", "b)...", "c)...", "d)..."], "answer": "correct answer with brief explanation"}}]}}
-Output ONLY valid JSON."""
+{{"questions": [
+  {{"q_no": 1, "type": "MCQ", "question": "...", "options": ["a)...", "b)...", "c)...", "d)..."], "answer": {{"format": "short", "text": "..."}}}},
+  {{"q_no": 2, "type": "Long Answer", "question": "Evaluate ∫ 2x sin(x²+1) dx", "answer": {{"format": "steps", "steps": ["Step 1: ...", "Step 2: ..."]}}}},
+  {{"q_no": 3, "type": "Short Answer", "question": "Compare metals and non-metals", "answer": {{"format": "table", "headers": [...], "rows": [[...]]}}}}
+]}}
+Output ONLY valid JSON, no markdown, no backticks."""
 
         model_name = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
         response = client.models.generate_content(
@@ -346,7 +417,16 @@ Output ONLY valid JSON."""
             contents=prompt,
             config={"temperature": 0.3, "max_output_tokens": 16000, "response_mime_type": "application/json"})
 
-        data = json.loads(response.text)
+        raw_text = response.text
+        try:
+            data = json.loads(raw_text)
+        except json.JSONDecodeError:
+            import re
+            cleaned = re.sub(r'\\(?!["\\/bfnrtu])', r'\\\\', raw_text)
+            data = json.loads(cleaned)
+        from app.services.worksheet_service import convert_worksheet_symbols
+        data = convert_worksheet_symbols(data)
+        
 
         return {
             "success": True,

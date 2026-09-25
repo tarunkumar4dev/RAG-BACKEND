@@ -26,6 +26,207 @@ def get_genai():
 from app.core.db_pool import get_db_connection
 
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
+# ─── Register DejaVu Fonts + LaTeX Converter ─────────────────
+def _register_fonts():
+    try:
+        from reportlab.pdfbase import pdfmetrics
+        from reportlab.pdfbase.ttfonts import TTFont
+        from reportlab.pdfbase.pdfmetrics import registerFontFamily
+        import os as _os
+        font_dir = _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))), "fonts")
+        if not _os.path.exists(font_dir):
+            return False
+        pdfmetrics.registerFont(TTFont('DejaVuSans', _os.path.join(font_dir, 'DejaVuSans.ttf')))
+        pdfmetrics.registerFont(TTFont('DejaVuSans-Bold', _os.path.join(font_dir, 'DejaVuSans-Bold.ttf')))
+        pdfmetrics.registerFont(TTFont('DejaVuSans-Oblique', _os.path.join(font_dir, 'DejaVuSans-Oblique.ttf')))
+        pdfmetrics.registerFont(TTFont('DejaVuSans-BoldOblique', _os.path.join(font_dir, 'DejaVuSans-BoldOblique.ttf')))
+        registerFontFamily('DejaVuSans', normal='DejaVuSans', bold='DejaVuSans-Bold', italic='DejaVuSans-Oblique', boldItalic='DejaVuSans-BoldOblique')
+        return True
+    except Exception:
+        return False
+
+_FONTS_REGISTERED = _register_fonts()
+UNICODE_FONT = 'DejaVuSans' if _FONTS_REGISTERED else 'Helvetica'
+UNICODE_FONT_BOLD = 'DejaVuSans-Bold' if _FONTS_REGISTERED else 'Helvetica-Bold'
+UNICODE_FONT_ITALIC = 'DejaVuSans-Oblique' if _FONTS_REGISTERED else 'Helvetica-Oblique'
+
+
+def latex_to_unicode(text):
+    if not text:
+        return text
+    try:
+        from pylatexenc.latex2text import LatexNodes2Text
+        import re
+        cleaned = text.replace('$$', '').replace('$', '')
+        result = LatexNodes2Text(math_mode='text').latex_to_text(cleaned)
+        
+        sup = {'0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹',
+               '+':'⁺','-':'⁻','=':'⁼','(':'⁽',')':'⁾','n':'ⁿ','i':'ⁱ','x':'ˣ','y':'ʸ','a':'ᵃ','b':'ᵇ','c':'ᶜ',
+               ' ':''}
+        sub = {'0':'₀','1':'₁','2':'₂','3':'₃','4':'₄','5':'₅','6':'₆','7':'₇','8':'₈','9':'₉',
+               '+':'₊','-':'₋','a':'ₐ','e':'ₑ','o':'ₒ','x':'ₓ','i':'ᵢ','n':'ₙ','(':'₍',')':'₎'}
+        
+        # ^{content} → superscript
+        def to_sup(m):
+            content = m.group(1)
+            return ''.join(sup.get(c, c) for c in content)
+        result = re.sub(r'\^\{([^{}]+)\}', to_sup, result)
+        
+        # ^-single, ^single (including special chars)
+        result = re.sub(r'\^(-?[0-9a-zA-Zπ]+)', 
+                       lambda m: ''.join(sup.get(c, c) for c in m.group(1)), result)
+        
+        # _{content} → subscript
+        def to_sub(m):
+            content = m.group(1)
+            return ''.join(sub.get(c, c) for c in content)
+        result = re.sub(r'_\{([^{}]+)\}', to_sub, result)
+        result = re.sub(r'_(-?[0-9a-zA-Z]+)', 
+                       lambda m: ''.join(sub.get(c, c) for c in m.group(1)), result)
+        
+        return result.strip()
+    except Exception:
+        return text.replace('$', '')
+
+def convert_worksheet_symbols(worksheet_data):
+    if not worksheet_data or 'questions' not in worksheet_data:
+        return worksheet_data
+    for q in worksheet_data['questions']:
+        if q.get('question'): q['question'] = latex_to_unicode(q['question'])
+        if q.get('options'): q['options'] = [latex_to_unicode(o) for o in q['options']]
+        ans = q.get('answer')
+        if isinstance(ans, dict):
+            fmt = ans.get('format', 'short')
+            if fmt == 'steps' and 'steps' in ans:
+                ans['steps'] = [latex_to_unicode(s) for s in ans['steps']]
+            elif fmt == 'paragraph' and 'text' in ans:
+                ans['text'] = latex_to_unicode(ans['text'])
+            elif fmt == 'points' and 'points' in ans:
+                ans['points'] = [latex_to_unicode(p) for p in ans['points']]
+            elif fmt == 'short' and 'text' in ans:
+                ans['text'] = latex_to_unicode(ans['text'])
+            elif fmt == 'table':
+                if 'headers' in ans:
+                    ans['headers'] = [latex_to_unicode(h) for h in ans['headers']]
+                if 'rows' in ans:
+                    ans['rows'] = [[latex_to_unicode(c) for c in row] for row in ans['rows']]
+        elif isinstance(ans, str):
+            q['answer'] = latex_to_unicode(ans)
+    return worksheet_data
+
+
+def _render_answer_block(story, ans, base_style, styles, accent, border_color, font_normal, font_bold):
+    """Render answer in appropriate format based on 'format' field."""
+    from reportlab.platypus import Paragraph, Spacer, Table, TableStyle
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.lib.units import mm
+    from reportlab.lib.colors import HexColor
+    from reportlab.lib import colors
+
+    # Legacy string answer
+    if isinstance(ans, str):
+        if ans:
+            story.append(Paragraph(f"<b>Ans:</b> {ans}", base_style))
+        return
+
+    if not isinstance(ans, dict):
+        return
+
+    fmt = ans.get('format', 'short')
+
+    # Answer label
+    label_style = ParagraphStyle(
+        'AnsLabel', parent=styles['Normal'],
+        fontSize=10, fontName=font_bold,
+        textColor=HexColor("#16a34a"), leading=14,
+        leftIndent=8 * mm, spaceBefore=2 * mm, spaceAfter=1 * mm,
+    )
+
+    # ─── Short/Paragraph ───
+    if fmt in ('short', 'paragraph'):
+        text = ans.get('text', '')
+        if text:
+            para_style = ParagraphStyle(
+                'AnsPara', parent=styles['Normal'],
+                fontSize=10, fontName=font_normal,
+                textColor=HexColor("#166534"), leading=14,
+                leftIndent=8 * mm, spaceAfter=2 * mm,
+            )
+            story.append(Paragraph(f"<b>Ans:</b> {text}", para_style))
+
+    # ─── Steps (step-by-step) ───
+    elif fmt == 'steps':
+        steps = ans.get('steps', [])
+        if steps:
+            story.append(Paragraph("<b>Ans:</b>", label_style))
+            step_style = ParagraphStyle(
+                'AnsStep', parent=styles['Normal'],
+                fontSize=10, fontName=font_normal,
+                textColor=HexColor("#166534"), leading=14,
+                leftIndent=12 * mm, spaceAfter=1 * mm,
+            )
+            for i, step in enumerate(steps, 1):
+                # If step already starts with "Step" or number, don't prefix
+                clean_step = step.strip()
+                if clean_step.lower().startswith('step') or clean_step[0:2].strip().rstrip('.').isdigit():
+                    story.append(Paragraph(clean_step, step_style))
+                else:
+                    story.append(Paragraph(f"<b>Step {i}:</b> {clean_step}", step_style))
+
+    # ─── Points (bullet points) ───
+    elif fmt == 'points':
+        points = ans.get('points', [])
+        if points:
+            story.append(Paragraph("<b>Ans:</b>", label_style))
+            point_style = ParagraphStyle(
+                'AnsPoint', parent=styles['Normal'],
+                fontSize=10, fontName=font_normal,
+                textColor=HexColor("#166534"), leading=14,
+                leftIndent=12 * mm, bulletIndent=8 * mm, spaceAfter=1 * mm,
+            )
+            for p in points:
+                story.append(Paragraph(f"• {p}", point_style))
+
+    # ─── Table ───
+    elif fmt == 'table':
+        headers = ans.get('headers', [])
+        rows = ans.get('rows', [])
+        if headers and rows:
+            story.append(Paragraph("<b>Ans:</b>", label_style))
+            # Calculate col widths to fit page (A4 - margins = ~170mm)
+            num_cols = len(headers)
+            available_width = 155 * mm
+            col_width = available_width / num_cols
+            col_widths = [col_width] * num_cols
+            # Wrap long cells in Paragraph for auto-wrap
+            wrap_style = ParagraphStyle(
+                'CellWrap', fontSize=9, fontName=font_normal,
+                textColor=HexColor("#1e293b"), leading=11,
+            )
+            wrap_header_style = ParagraphStyle(
+                'CellHead', fontSize=9, fontName=font_bold,
+                textColor=HexColor("#1e3a5f"), leading=11,
+            )
+            wrapped_headers = [Paragraph(str(h), wrap_header_style) for h in headers]
+            wrapped_rows = [[Paragraph(str(c), wrap_style) for c in row] for row in rows]
+            table_data = [wrapped_headers] + wrapped_rows
+            tbl = Table(table_data, colWidths=col_widths, hAlign='LEFT')
+            tbl.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), HexColor("#e0e7ff")),
+                ('TEXTCOLOR', (0, 0), (-1, 0), HexColor("#1e3a5f")),
+                ('FONTNAME', (0, 0), (-1, 0), font_bold),
+                ('FONTNAME', (0, 1), (-1, -1), font_normal),
+                ('FONTSIZE', (0, 0), (-1, -1), 9),
+                ('GRID', (0, 0), (-1, -1), 0.5, border_color),
+                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                ('LEFTPADDING', (0, 0), (-1, -1), 6),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+                ('TOPPADDING', (0, 0), (-1, -1), 4),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+            ]))
+            story.append(Spacer(1, 2 * mm))
+            story.append(tbl)
+            story.append(Spacer(1, 2 * mm))
 
 
 class WorksheetService:
@@ -224,28 +425,28 @@ Output ONLY valid JSON."""
 
         school_style = ParagraphStyle(
             'SchoolName', parent=styles['Normal'],
-            fontSize=16, fontName='Helvetica-Bold',
+            fontSize=16, fontName=UNICODE_FONT_BOLD,
             alignment=TA_CENTER, textColor=primary,
             spaceAfter=2 * mm,
         )
 
         title_style = ParagraphStyle(
             'AssignmentTitle', parent=styles['Normal'],
-            fontSize=13, fontName='Helvetica-Bold',
+            fontSize=13, fontName=UNICODE_FONT_BOLD,
             alignment=TA_CENTER, textColor=accent,
             spaceAfter=3 * mm,
         )
 
         meta_style = ParagraphStyle(
             'Meta', parent=styles['Normal'],
-            fontSize=10, fontName='Helvetica',
+            fontSize=10, fontName=UNICODE_FONT,
             alignment=TA_CENTER, textColor=text_color,
             spaceAfter=6 * mm,
         )
 
         question_style = ParagraphStyle(
             'Question', parent=styles['Normal'],
-            fontSize=11, fontName='Helvetica-Bold',
+            fontSize=11, fontName=UNICODE_FONT_BOLD,
             textColor=text_color, leading=15,
             spaceBefore=4 * mm, spaceAfter=2 * mm,
             leftIndent=0,
@@ -253,27 +454,27 @@ Output ONLY valid JSON."""
 
         option_style = ParagraphStyle(
             'Option', parent=styles['Normal'],
-            fontSize=10, fontName='Helvetica',
+            fontSize=10, fontName=UNICODE_FONT,
             textColor=text_color, leading=14,
             leftIndent=8 * mm,
         )
 
         type_badge_style = ParagraphStyle(
             'TypeBadge', parent=styles['Normal'],
-            fontSize=8, fontName='Helvetica-Bold',
+            fontSize=8, fontName=UNICODE_FONT_BOLD,
             textColor=HexColor("#6366f1"),
         )
 
         answer_style = ParagraphStyle(
             'Answer', parent=styles['Normal'],
-            fontSize=10, fontName='Helvetica-Oblique',
+            fontSize=10, fontName=UNICODE_FONT_ITALIC,
             textColor=HexColor("#16a34a"), leading=14,
             leftIndent=8 * mm, spaceBefore=2 * mm,
         )
 
         answer_heading_style = ParagraphStyle(
             'AnswerHeading', parent=styles['Normal'],
-            fontSize=14, fontName='Helvetica-Bold',
+            fontSize=14, fontName=UNICODE_FONT_BOLD,
             alignment=TA_CENTER, textColor=accent,
             spaceBefore=8 * mm, spaceAfter=6 * mm,
         )
@@ -372,14 +573,10 @@ Output ONLY valid JSON."""
                 for opt in options:
                     story.append(Paragraph(f"&nbsp;&nbsp;&nbsp;&nbsp;{opt}", option_style))
 
-            # Answer (only if include_answers)
+            # Answer (only if include_answers) — supports multi-format
             if include_answers:
-                answer_text = q.get("answer", "")
-                if answer_text:
-                    story.append(Paragraph(
-                        f"<b>Ans:</b> {answer_text}",
-                        answer_style
-                    ))
+                ans = q.get("answer", "")
+                _render_answer_block(story, ans, answer_style, styles, accent, border_color, UNICODE_FONT, UNICODE_FONT_BOLD)
 
             story.append(Spacer(1, 2 * mm))
 
@@ -389,18 +586,19 @@ Output ONLY valid JSON."""
             story.append(Paragraph("ANSWER KEY", answer_heading_style))
             story.append(HRFlowable(width="100%", thickness=1, color=accent, spaceAfter=5 * mm))
 
+            ans_key_style = ParagraphStyle(
+                'AnsKey', parent=styles['Normal'],
+                fontSize=10, fontName=UNICODE_FONT,
+                textColor=text_color, leading=14,
+                spaceBefore=2 * mm,
+            )
             for q in questions:
                 q_no = q.get("q_no", "")
-                answer_text = q.get("answer", "")
+                ans = q.get("answer", "")
                 q_type = q.get("type", "")
-
-                ans_text = f"<b>Q{q_no} ({q_type}):</b> {answer_text}"
-                story.append(Paragraph(ans_text, ParagraphStyle(
-                    'AnsKey', parent=styles['Normal'],
-                    fontSize=10, fontName='Helvetica',
-                    textColor=text_color, leading=14,
-                    spaceBefore=2 * mm,
-                )))
+                story.append(Paragraph(f"<b>Q{q_no} ({q_type}):</b>", ans_key_style))
+                _render_answer_block(story, ans, ans_key_style, styles, accent, border_color, UNICODE_FONT, UNICODE_FONT_BOLD)
+                story.append(Spacer(1, 3 * mm))
 
         # ── Build PDF ──
         doc.build(story, onFirstPage=add_watermark, onLaterPages=add_watermark)
