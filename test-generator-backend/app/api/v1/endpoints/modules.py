@@ -124,8 +124,10 @@ async def process_module(req: ProcessModuleRequest):
     if result.get("success"):
         return result
     else:
-        logger.error(f"Module processing failed: {result.get('error')}")
-        raise HTTPException(500, "Processing failed. Please try again.")
+        err = result.get('error', 'Processing failed')
+        logger.error(f"Module processing failed: {err}")
+        raise HTTPException(500, f"Processing failed: {err}")
+
 
 
 @router.get("/modules/list")

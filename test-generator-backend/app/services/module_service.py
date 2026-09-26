@@ -60,6 +60,50 @@ CHUNK_OVERLAP_CHARS = 400
 SCANNED_THRESHOLD = 50        # avg chars/page below this = scanned
 
 
+def _get_gemini_api_keys():
+    """Get all configured Gemini API keys in priority order."""
+    keys = []
+    for name in ["GEMINI_API_KEY", "GEMINI_API"]:
+        k = os.getenv(name)
+        if k and k.strip() and k.strip() not in keys:
+            keys.append(k.strip())
+    for i in range(1, 10):
+        for name in [f"GEMINI_API_KEY_{i}", f"GEMINI_API_{i}"]:
+            k = os.getenv(name)
+            if k and k.strip() and k.strip() not in keys:
+                keys.append(k.strip())
+    return keys
+
+
+def _call_gemini_with_fallback(contents, config=None, model=None):
+    """Call Gemini generate_content with automatic key fallback across all configured keys."""
+    genai = get_genai()
+    keys = _get_gemini_api_keys()
+    if not keys:
+        raise Exception("No GEMINI_API_KEY configured in environment variables")
+
+    target_model = model or GEMINI_MODEL
+    last_err = None
+    for k in keys:
+        try:
+            client = genai.Client(api_key=k)
+            response = client.models.generate_content(
+                model=target_model,
+                contents=contents,
+                config=config,
+            )
+            return response
+        except Exception as e:
+            err_msg = str(e)
+            logger.warning(f"Gemini call failed with key {k[:10]}...: {err_msg[:120]}")
+            last_err = e
+            if any(term in err_msg for term in ["403", "401", "429", "PERMISSION_DENIED", "UNAUTHENTICATED", "RESOURCE_EXHAUSTED"]):
+                continue
+            raise e
+    raise last_err
+
+
+
 # ═══════════════════════════════════════════════════════════
 # MODULE SERVICE CLASS
 # ═══════════════════════════════════════════════════════════
@@ -251,36 +295,46 @@ class ModuleService:
 
     @staticmethod
     def _extract_with_gemini(file_bytes):
-        """Use Gemini to OCR a scanned PDF."""
+        """Use Gemini to OCR a scanned PDF with key fallback."""
         genai = get_genai()
-        client = genai.Client(api_key=os.getenv("GEMINI_API_KEY") or os.getenv("GEMINI_API") or "")
+        keys = _get_gemini_api_keys()
+        if not keys:
+            raise Exception("No GEMINI_API_KEY configured in environment variables")
 
-        # Upload file to Gemini
-        import io
         tmp = tempfile.mktemp(suffix=".pdf")
         with open(tmp, "wb") as f:
             f.write(file_bytes)
 
-        uploaded = client.files.upload(file=tmp, config={"mime_type": "application/pdf"})
-
-        response = client.models.generate_content(
-            model=GEMINI_MODEL,
-            contents=[
-                uploaded,
-                "Extract ALL text from this document exactly as written. "
-                "Preserve headings, bullet points, numbering. "
-                "If text is in Hindi/Devanagari, keep it as-is. "
-                "Output only the extracted text, nothing else."
-            ],
-            config={"temperature": 0.1, "max_output_tokens": 65000},
-        )
-
-        # Cleanup
-        import os as _os
-        if _os.path.exists(tmp):
-            _os.unlink(tmp)
-
-        return response.text
+        last_err = None
+        try:
+            for k in keys:
+                try:
+                    client = genai.Client(api_key=k)
+                    uploaded = client.files.upload(file=tmp, config={"mime_type": "application/pdf"})
+                    response = client.models.generate_content(
+                        model=GEMINI_MODEL,
+                        contents=[
+                            uploaded,
+                            "Extract ALL text from this document exactly as written. "
+                            "Preserve headings, bullet points, numbering. "
+                            "If text is in Hindi/Devanagari, keep it as-is. "
+                            "Output only the extracted text, nothing else."
+                        ],
+                        config={"temperature": 0.1, "max_output_tokens": 65000},
+                    )
+                    return response.text
+                except Exception as e:
+                    err_msg = str(e)
+                    logger.warning(f"OCR with key {k[:10]}... failed: {err_msg[:120]}")
+                    last_err = e
+                    if any(term in err_msg for term in ["403", "401", "429", "PERMISSION_DENIED", "UNAUTHENTICATED", "RESOURCE_EXHAUSTED"]):
+                        continue
+                    raise e
+            raise last_err
+        finally:
+            import os as _os
+            if _os.path.exists(tmp):
+                _os.unlink(tmp)
 
     # ────────────────────────────────────────────────────────
     # SUMMARY GENERATION
@@ -329,11 +383,9 @@ class ModuleService:
 
     @staticmethod
     def _generate_summary(full_text, subject, class_level, page_count):
-        """Generate comprehensive, detailed module summary using Gemini."""
-        genai = get_genai()
-        client = genai.Client(api_key=os.getenv("GEMINI_API_KEY") or os.getenv("GEMINI_API") or "")
-
+        """Generate comprehensive, detailed module summary using Gemini with key fallback."""
         text_for_prompt = full_text[:800000]
+
 
         prompt = f"""You are an expert Indian education content creator and NCERT/CBSE curriculum specialist.
 Analyze this {subject} document for Class {class_level} and create a COMPREHENSIVE, DETAILED study module.
@@ -442,11 +494,11 @@ CRITICAL RULES:
 - quick_revision_notes: crisp one-liners for last-minute revision
 - Output ONLY valid JSON, no markdown, no backticks, no explanation"""
 
-        response = client.models.generate_content(
-            model=GEMINI_MODEL,
+        response = _call_gemini_with_fallback(
             contents=prompt,
             config={"temperature": 0.2, "max_output_tokens": 65000, "response_mime_type": "application/json"},
         )
+
 
         try:
             return json.loads(response.text)
@@ -769,14 +821,11 @@ Output as JSON:
 }}
 Output ONLY valid JSON."""
 
-            genai = get_genai()
-            client = genai.Client(api_key=os.getenv("GEMINI_API_KEY") or os.getenv("GEMINI_API") or "")
-
-            response = client.models.generate_content(
-                model=GEMINI_MODEL,
+            response = _call_gemini_with_fallback(
                 contents=prompt,
                 config={"temperature": 0.4, "max_output_tokens": 16000, "response_mime_type": "application/json"},
             )
+
 
             test_data = json.loads(response.text)
             test_data["module_id"] = module_id
