@@ -16,9 +16,9 @@ async def verify_webhook(
 ):
     """Meta webhook verification handshake."""
     import os
-    verify_token = os.environ.get("WHATSAPP_VERIFY_TOKEN", "")
+    verify_token = os.environ.get("WHATSAPP_VERIFY_TOKEN", "").strip().strip('"').strip("'")
     
-    if hub_mode == "subscribe" and hub_verify_token == verify_token:
+    if hub_mode == "subscribe" and hub_verify_token and hub_verify_token.strip() == verify_token:
         logger.info("WhatsApp webhook verified successfully!")
         return Response(content=hub_challenge, media_type="text/plain")
     
