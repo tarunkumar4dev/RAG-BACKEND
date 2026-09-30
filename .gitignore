@@ -13,3 +13,5 @@ answer_check/.env
 answer_check/sheets/*.jpg
 answer_check/sheets/*.pdf
 answer_check/results/
+# DB remediation backups (contain question data)
+test-generator-backend/scripts/backups/

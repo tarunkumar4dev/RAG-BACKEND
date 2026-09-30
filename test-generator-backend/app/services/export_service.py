@@ -37,6 +37,8 @@ from datetime import datetime
 from urllib.request import urlopen, Request
 from urllib.error import URLError, HTTPError
 
+from app.services.accountancy_parser import build_question_segments, infer_table_meta
+
 logger = logging.getLogger(__name__)
 
 
@@ -5314,6 +5316,22 @@ def _register_accountancy_fonts():
         except Exception as e:
             logger.warning(f"Could not register Linux DejaVuSans: {e}")
 
+    # Fonts shipped with the app (Vercel / Docker images have neither Arial nor system DejaVu).
+    fonts_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "fonts")
+    app_dejavu = os.path.join(fonts_dir, "DejaVuSans.ttf")
+    app_dejavu_bd = os.path.join(fonts_dir, "DejaVuSans-Bold.ttf")
+    if os.path.exists(app_dejavu) and os.path.exists(app_dejavu_bd):
+        try:
+            pdfmetrics.registerFont(TTFont("A4DejaVuSans", app_dejavu))
+            pdfmetrics.registerFont(TTFont("A4DejaVuSans-Bold", app_dejavu_bd))
+            _ACCOUNTANCY_FONT_BODY = "A4DejaVuSans"
+            _ACCOUNTANCY_FONT_BOLD = "A4DejaVuSans-Bold"
+            _ACCOUNTANCY_HAS_TT = True
+            _ACCOUNTANCY_FONTS_REGISTERED = True
+            return _ACCOUNTANCY_FONT_BODY, _ACCOUNTANCY_FONT_BOLD, _ACCOUNTANCY_HAS_TT
+        except Exception as e:
+            logger.warning(f"Could not register bundled DejaVuSans: {e}")
+
     _ACCOUNTANCY_FONTS_REGISTERED = True
     return _ACCOUNTANCY_FONT_BODY, _ACCOUNTANCY_FONT_BOLD, _ACCOUNTANCY_HAS_TT
 
@@ -5360,10 +5378,12 @@ class AccountancyNumberedCanvas(canvas.Canvas):
 def _format_acc_text(text: str, has_tt_font: bool = True) -> str:
     if not text:
         return ""
-    cleaned = _latex_to_paragraph(str(text))
-    if not has_tt_font:
-        cleaned = cleaned.replace("₹", "Rs. ")
-    return cleaned
+    # NCERT's rupee glyph arrives as a backtick; _process_latex would also turn ₹ into "Rs.",
+    # so shield it and restore it when the registered font can draw it.
+    shielded = str(text).replace("`", "₹").replace("₹", "RUPEESIGNPH")
+    # Line by line: _latex_to_paragraph's newline placeholders get mangled by its subscript rules.
+    cleaned = "<br/>".join(_latex_to_paragraph(line) if line.strip() else "" for line in shielded.split("\n"))
+    return cleaned.replace("RUPEESIGNPH", "₹" if has_tt_font else "Rs.")
 
 
 def _build_accountancy_mcq_table(options, correct_answer, include_answers, col_w, styles, has_tt_font=True):
@@ -5417,142 +5437,179 @@ def _build_accountancy_mcq_table(options, correct_answer, include_answers, col_w
     return [Spacer(1, 3), t, Spacer(1, 4)]
 
 
-def _render_accountancy_financial_table_pdf(headers, rows, col_w, styles, has_tt_font=True, caption=None):
+# ═══════════════════════════════════════════════════════════════════════
+# Structured Accountancy tables (reconstructed from flattened NCERT text)
+# ═══════════════════════════════════════════════════════════════════════
+
+def _acc_question_segments(q: dict) -> List[dict]:
+    """Ordered text/table segments for an Accountancy question (see build_question_segments)."""
+    raw = q.get("text") or q.get("question") or ""
+    return build_question_segments(raw, _get_question_table(q))
+
+
+def _acc_cell_markup(text: str, has_tt_font: bool) -> str:
+    """Escapes a table cell for Paragraph, keeping **bold** headings and the ₹ glyph when the font has it."""
+    s = str(text or "").strip()
+    if not has_tt_font:
+        s = s.replace("₹", "Rs.")
+    s = s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    s = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", s)
+    return s.replace("\n", "<br/>")
+
+
+def _acc_plain(text: str) -> str:
+    return re.sub(r"\*\*(.+?)\*\*", r"\1", str(text or "")).strip()
+
+
+def _render_acc_structured_table_pdf(table: dict, col_w: float, styles, has_tt_font: bool = True) -> list:
+    """CBSE-style financial table: #F3F4F6 header, #374151 0.5pt rules, right-aligned amounts,
+    single rule above / double rule below totals, section rows spanning the width."""
     from reportlab.platypus import Table, TableStyle, Paragraph, Spacer
     from reportlab.lib.colors import HexColor
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.lib.enums import TA_LEFT, TA_RIGHT, TA_CENTER
+    from reportlab.pdfbase.pdfmetrics import stringWidth
 
+    t = infer_table_meta(table)
+    headers, rows = t["headers"], t["rows"]
     if not headers or not rows:
         return []
+    ncol = len(headers)
+    kind = t.get("kind", "generic")
+    amount_cols = set(t.get("amount_cols") or [])
+    total_rows = set(t.get("total_rows") or [])
+    section_rows = set(t.get("section_rows") or [])
 
-    num_cols = len(headers)
-    cell_style = styles["AccTableBody"]
-    cell_style_right = styles["AccTableBodyRight"]
-    cell_style_bold_right = styles["AccTableBodyBoldRight"]
-    header_style = styles["AccTableHead"]
+    base = styles["AccTableBody"]
+    font, font_b = base.fontName, styles["AccTableHead"].fontName
+    size = 7.5 if ncol <= 4 else (7.0 if ncol <= 6 else 6.5)
+    leading = size + 2.2
+    body = ParagraphStyle("AccStBody", parent=base, fontName=font, fontSize=size, leading=leading, alignment=TA_LEFT)
+    body_r = ParagraphStyle("AccStBodyR", parent=body, alignment=TA_RIGHT)
+    body_c = ParagraphStyle("AccStBodyC", parent=body, alignment=TA_CENTER)
+    body_b = ParagraphStyle("AccStBodyB", parent=body, fontName=font_b)
+    body_br = ParagraphStyle("AccStBodyBR", parent=body_r, fontName=font_b)
+    head = ParagraphStyle("AccStHead", parent=body, fontName=font_b, alignment=TA_CENTER)
+    center_cols = {c for c, h in enumerate(headers) if re.search(r"^(?:[JL]\.\s?F\.?|Note\s+No\.?|V\.?\s?No\.?)$", h.strip(), re.I)}
+    # Columns that keep their natural width; spare width goes to the particulars/details column(s).
+    fixed_cols = amount_cols | center_cols | {c for c, h in enumerate(headers) if re.match(r"^(?:Date|Year)\b", h.strip(), re.I)}
 
-    h_str = " ".join([str(h).lower() for h in headers])
-    is_balance_sheet = ("liabilit" in h_str and "asset" in h_str) and num_cols == 4
-    is_comparative = ("absolute change" in h_str or "percentage change" in h_str or "comparative" in h_str or "common size" in h_str)
-    is_journal = ("particular" in h_str and ("debit" in h_str or "credit" in h_str or "l.f" in h_str))
-    is_ledger = ("dr" in h_str or "cr" in h_str or num_cols == 8)
+    pad_h = 3 if ncol >= 5 else 4
+    pad_v = 1.6 if ncol >= 5 else 2.2
 
-    if is_balance_sheet:
-        col_widths = [col_w * 0.35, col_w * 0.15, col_w * 0.35, col_w * 0.15]
-    elif is_comparative and num_cols == 5:
-        col_widths = [col_w * 0.32, col_w * 0.17, col_w * 0.17, col_w * 0.17, col_w * 0.17]
-    elif is_journal and num_cols == 5:
-        col_widths = [col_w * 0.12, col_w * 0.48, col_w * 0.08, col_w * 0.16, col_w * 0.16]
-    elif is_ledger:
-        col_widths = [col_w*0.09, col_w*0.26, col_w*0.05, col_w*0.10, col_w*0.09, col_w*0.26, col_w*0.05, col_w*0.10]
-    elif num_cols == 2:
-        col_widths = [col_w * 0.60, col_w * 0.40]
-    elif num_cols == 3:
-        col_widths = [col_w * 0.50, col_w * 0.25, col_w * 0.25]
-    elif num_cols == 4:
-        col_widths = [col_w * 0.40, col_w * 0.20, col_w * 0.20, col_w * 0.20]
+    # ── Column widths from content ──
+    def text_w(s: str, bold: bool = False) -> float:
+        s = _acc_plain(s) if has_tt_font else _acc_plain(s).replace("₹", "Rs.")
+        return stringWidth(s, font_b if bold else font, size)
+
+    natural, minimum = [], []
+    for c in range(ncol):
+        cells = [r[c] for k, r in enumerate(rows) if k not in section_rows and c < len(r) and str(r[c]).strip()]
+        longest_word = max([text_w(w) for s in cells for w in _acc_plain(s).split()] + [text_w(w, True) for w in headers[c].split()] + [8])
+        if c in amount_cols:
+            # Wide enough for the figures and, within reason, the whole header ("Amount (₹)").
+            nat = max([text_w(s) for s in cells] + [text_w("00,00,000"), longest_word, min(text_w(headers[c], True), 62)])
+            natural.append(nat + 2 * pad_h)
+            minimum.append(nat + 2 * pad_h)
+        else:
+            nat = max([text_w(s) for s in cells] + [text_w(headers[c], True) * 0.6, 20])
+            natural.append(nat + 2 * pad_h)
+            minimum.append(min(nat, max(longest_word, 28)) + 2 * pad_h)
+
+    total_nat = sum(natural)
+    if total_nat <= col_w:
+        # Short "given data" lists read better at a compact centred width; statements use full width.
+        target = col_w if kind in ("t_account", "pipe", "trial_balance", "dated", "ledger") or ncol >= 4 else min(col_w, max(total_nat * 1.35, col_w * 0.62))
+        extra = target - total_nat
+        text_cols = [c for c in range(ncol) if c not in fixed_cols] or list(range(ncol))
+        weight = sum(natural[c] for c in text_cols) or 1
+        widths = [natural[c] + (extra * natural[c] / weight if c in text_cols else 0) for c in range(ncol)]
     else:
-        col_widths = [col_w / num_cols] * num_cols
+        fixed = sum(natural[c] for c in range(ncol) if c in fixed_cols)
+        flex = [c for c in range(ncol) if c not in fixed_cols]
+        room = col_w - fixed
+        flex_nat = sum(natural[c] for c in flex) or 1
+        widths = list(natural)
+        for c in flex:
+            widths[c] = max(minimum[c], room * natural[c] / flex_nat)
+        if sum(widths) > col_w:
+            scale = col_w / sum(widths)
+            widths = [w * scale for w in widths]
 
-    col_widths = col_widths[:num_cols]
+    # ── Cells ──
+    def cell_style(c: int, r_idx: int, text: str):
+        is_total = r_idx in total_rows
+        if c in amount_cols:
+            return body_br if is_total else body_r
+        if c in center_cols:
+            return body_c
+        if is_total or text.startswith("**"):
+            return body_b
+        return body
 
-    # For wide tables (5+ columns or ledger), use compact font and padding
-    is_wide = num_cols >= 5
-    if is_wide:
-        h_style = styles.get("AccTableHeadWide", header_style)
-        c_style = styles.get("AccTableBodyWide", cell_style)
-        c_style_r = styles.get("AccTableBodyWideRight", cell_style_right)
-        c_style_br = styles.get("AccTableBodyWideBoldRight", cell_style_bold_right)
-    else:
-        h_style = header_style
-        c_style = cell_style
-        c_style_r = cell_style_right
-        c_style_br = cell_style_bold_right
-
-    table_data = [[Paragraph(f"<b>{_format_acc_text(str(h), has_tt_font)}</b>", h_style) for h in headers]]
-
+    data = [[Paragraph(_acc_cell_markup(h, has_tt_font), head) for h in headers]]
     for r_idx, row in enumerate(rows):
-        padded = (list(row) + [""] * num_cols)[:num_cols]
-        is_last_row = (r_idx == len(rows) - 1)
-        row_cells = []
-        for c_idx, cell in enumerate(padded):
-            val = str(cell).strip()
-            fmt_val = _format_acc_text(val, has_tt_font)
-            if is_balance_sheet:
-                if c_idx in (1, 3):
-                    st = c_style_br if is_last_row else c_style_r
-                else:
-                    st = c_style
-            elif is_journal:
-                if c_idx in (3, 4):
-                    st = c_style_r
-                elif c_idx == 1 and val.startswith("To "):
-                    st = styles["AccTableIndented"]
-                elif c_idx == 1 and (val.startswith("(") or "being" in val.lower()):
-                    st = styles["AccTableNarration"]
-                else:
-                    st = c_style
-            elif is_ledger:
-                if c_idx in (3, 7):
-                    st = c_style_r
-                else:
-                    st = c_style
-            elif is_comparative:
-                if c_idx >= 1:
-                    st = c_style_r
-                else:
-                    st = c_style
-            else:
-                st = c_style
-            row_cells.append(Paragraph(fmt_val, st))
-        table_data.append(row_cells)
+        cells = (list(row) + [""] * ncol)[:ncol]
+        if r_idx in section_rows:
+            data.append([Paragraph(f"<b>{_acc_cell_markup(_acc_plain(cells[0]), has_tt_font)}</b>", body)] + [""] * (ncol - 1))
+            continue
+        data.append([Paragraph(_acc_cell_markup(v, has_tt_font), cell_style(c, r_idx, str(v))) for c, v in enumerate(cells)])
 
-    pad_h = 2 if is_wide else 4
-    pad_v = 1.5 if is_wide else 2.5
-
-    t = Table(table_data, colWidths=col_widths, repeatRows=0)
-    style_cmds = [
-        ('BOX', (0,0), (-1,-1), 0.5, HexColor('#374151')),
-        ('INNERGRID', (0,0), (-1,-1), 0.5, HexColor('#9CA3AF')),
-        ('BACKGROUND', (0,0), (-1,0), HexColor('#F9FAFB')),
-        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-        ('TOPPADDING', (0,0), (-1,-1), pad_v),
-        ('BOTTOMPADDING', (0,0), (-1,-1), pad_v),
-        ('LEFTPADDING', (0,0), (-1,-1), pad_h),
-        ('RIGHTPADDING', (0,0), (-1,-1), pad_h),
-        ('ALIGN', (0,0), (-1,0), 'CENTER'),
+    rule = HexColor("#374151")
+    cmds = [
+        ("BOX", (0, 0), (-1, -1), 0.5, rule),
+        ("BACKGROUND", (0, 0), (-1, 0), HexColor("#F3F4F6")),
+        ("LINEBELOW", (0, 0), (-1, 0), 0.5, rule),
+        ("VALIGN", (0, 0), (-1, 0), "MIDDLE"),
+        ("VALIGN", (0, 1), (-1, -1), "TOP"),
+        ("TOPPADDING", (0, 0), (-1, -1), pad_v),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), pad_v),
+        ("LEFTPADDING", (0, 0), (-1, -1), pad_h),
+        ("RIGHTPADDING", (0, 0), (-1, -1), pad_h),
     ]
+    # Blank header cells (inner working columns) merge into the title on their left.
+    for c in range(1, ncol):
+        if not headers[c].strip():
+            start = c - 1
+            while start > 0 and not headers[start].strip():
+                start -= 1
+            cmds.append(("SPAN", (start, 0), (c, 0)))
 
-    if is_balance_sheet:
-        style_cmds.extend([
-            ('ALIGN', (1, 1), (1, -1), 'RIGHT'),
-            ('ALIGN', (3, 1), (3, -1), 'RIGHT'),
-            ('LINEAFTER', (1, 0), (1, -1), 1.0, HexColor('#374151')),
-        ])
-        if len(rows) > 0:
-            last = len(table_data) - 1
-            style_cmds.append(('LINEABOVE', (0, last), (-1, last), 1.0, HexColor('#111827')))
-            style_cmds.append(('LINEBELOW', (0, last), (-1, last), 1.5, HexColor('#111827')))
-    elif is_journal:
-        style_cmds.extend([
-            ('ALIGN', (2, 1), (2, -1), 'CENTER'),
-            ('ALIGN', (3, 1), (4, -1), 'RIGHT'),
-        ])
-    elif is_ledger and num_cols >= 8:
-        style_cmds.extend([
-            ('ALIGN', (3, 1), (3, -1), 'RIGHT'),
-            ('ALIGN', (7, 1), (7, -1), 'RIGHT'),
-            ('LINEAFTER', (3, 0), (3, -1), 1.5, HexColor('#111827')),
-        ])
+    ledger_style = kind in ("t_account", "ledger")
+    if ledger_style:
+        # Account format: vertical rulings only; no rule between particulars and their inner column.
+        for c in range(ncol - 1):
+            if not headers[c + 1].strip():
+                continue
+            cmds.append(("LINEAFTER", (c, 0), (c, -1), 0.5, rule))
+        if kind == "t_account":
+            mid = ncol // 2 - 1
+            cmds.append(("LINEAFTER", (mid, 0), (mid, -1), 1.0, rule))
+    else:
+        cmds.append(("INNERGRID", (0, 0), (-1, -1), 0.5, rule))
 
-    t.setStyle(TableStyle(style_cmds))
+    for r_idx in section_rows:
+        rr = r_idx + 1
+        cmds += [("SPAN", (0, rr), (-1, rr)), ("BACKGROUND", (0, rr), (-1, rr), HexColor("#F9FAFB"))]
+    for r_idx in total_rows:
+        rr = r_idx + 1
+        cols = [c for c in amount_cols if c < ncol and str((rows[r_idx] + [""] * ncol)[c]).strip()] or sorted(amount_cols)
+        for c in cols:
+            cmds.append(("LINEABOVE", (c, rr), (c, rr), 0.75, rule))
+            # Authentic accounting double underline under totals.
+            cmds.append(("LINEBELOW", (c, rr), (c, rr), 0.6, rule, None, None, None, 2, 1.4))
+        cmds.append(("BOTTOMPADDING", (0, rr), (-1, rr), pad_v + 1.5))
 
-    res = [Spacer(1, 4)]
-    if caption:
-        res.append(Paragraph(f"<b><i>{_format_acc_text(caption, has_tt_font)}</i></b>", styles["AccTableCaption"]))
-        res.append(Spacer(1, 2))
-    res.append(t)
-    res.append(Spacer(1, 5))
-    return res
+    tbl = Table(data, colWidths=widths, repeatRows=1, hAlign="CENTER")
+    tbl.setStyle(TableStyle(cmds))
+
+    out = [Spacer(1, 3)]
+    if t.get("caption"):
+        out.append(Paragraph(f"<b>{_acc_cell_markup(t['caption'], has_tt_font)}</b>", styles["AccTableCaption"]))
+        out.append(Spacer(1, 2))
+    out.append(tbl)
+    out.append(Spacer(1, 4))
+    return out
 
 
 def _generate_pdf_accountancy_exam(
@@ -5590,6 +5647,7 @@ def _generate_pdf_accountancy_exam(
     col0_w = 1.2 * cm
     col2_w = 1.2 * cm
     col1_w = W - (col0_w + col2_w)
+    cell_inner_w = col1_w - 8  # master-table cell padding (4 + 4)
 
     fb, fbd, has_tt = _register_accountancy_fonts()
 
@@ -5736,27 +5794,13 @@ def _generate_pdf_accountancy_exam(
 
         def _render_single_q_content(target_q):
             q_flowables = []
-            raw_text = target_q.get("text") or target_q.get("question") or ""
-
-            # Check question_table or markdown table in text
-            qt = _get_question_table(target_q)
-            if qt:
-                raw_text = _strip_markdown_table_from_text(raw_text)
-
-            segments = _split_text_and_tables(raw_text)
-            for seg in segments:
-                if seg['type'] == 'text':
-                    if seg['content'].strip():
-                        q_flowables.append(Paragraph(_format_acc_text(seg['content'], has_tt), styles["AccQText"]))
-                elif seg['type'] == 'table':
-                    hdrs, rws = seg['content']
-                    q_flowables.extend(_render_accountancy_financial_table_pdf(hdrs, rws, col1_w, styles, has_tt))
-
-            # Render question_table if separately attached
-            if qt:
-                q_flowables.extend(_render_accountancy_financial_table_pdf(
-                    qt.get("headers", []), qt.get("rows", []), col1_w, styles, has_tt, caption=qt.get("caption")
-                ))
+            # Intro text, reconstructed financial tables and trailing text, in printed order.
+            for seg in _acc_question_segments(target_q):
+                if seg["type"] == "text":
+                    if seg["content"].strip():
+                        q_flowables.append(Paragraph(_format_acc_text(seg["content"], has_tt), styles["AccQText"]))
+                else:
+                    q_flowables.extend(_render_acc_structured_table_pdf(seg["table"], cell_inner_w, styles, has_tt))
 
             # Sub-parts
             sub_parts = target_q.get("sub_parts") or target_q.get("sub_questions")
@@ -5814,7 +5858,8 @@ def _generate_pdf_accountancy_exam(
         ])
 
     # Build Master Table (repeatRows=0 matches CBSE sample paper flow)
-    master_table = Table(table_rows, colWidths=[col0_w, col1_w, col2_w], repeatRows=0)
+    # splitInRow lets a question with long ledgers/statements continue on the next page.
+    master_table = Table(table_rows, colWidths=[col0_w, col1_w, col2_w], repeatRows=0, splitInRow=1)
     table_style_cmds = [
         ('BOX', (0,0), (-1,-1), 0.75, HexColor('#111827')),
         ('INNERGRID', (0,0), (-1,-1), 0.5, HexColor('#374151')),
@@ -5856,10 +5901,8 @@ def _generate_pdf_accountancy_exam(
                 story.append(Paragraph(f"<b>Answer:</b>  {_format_acc_text(ca, has_tt)}", styles["AccSolText"]))
             if expl:
                 story.append(Paragraph(f"<b>Working / Explanation:</b>  {_format_acc_text(expl, has_tt)}", styles["AccSolText"]))
-            if ans_tbl and isinstance(ans_tbl, dict):
-                story.extend(_render_accountancy_financial_table_pdf(
-                    ans_tbl.get("headers", []), ans_tbl.get("rows", []), W * 0.95, styles, has_tt
-                ))
+            if ans_tbl and isinstance(ans_tbl, dict) and ans_tbl.get("headers") and ans_tbl.get("rows"):
+                story.extend(_render_acc_structured_table_pdf(ans_tbl, W * 0.95, styles, has_tt))
             story.append(Spacer(1, 4))
 
     doc.build(story, canvasmaker=AccountancyNumberedCanvas)
@@ -5908,40 +5951,104 @@ def _add_docx_mcq_grid(container, options, correct_answer, include_answers, font
                 r_r.font.name = font_name; r_r.font.size = Pt(8.0)
 
 
-def _add_docx_financial_table(container, headers, rows, font_name):
+def _docx_cell_borders(cell, **edges):
+    """edges: top/bottom/left/right = (val, size_eighths_pt) e.g. bottom=("double", 6)."""
+    from docx.oxml.ns import qn
+    tc_pr = cell._element.get_or_add_tcPr()
+    borders = tc_pr.find(qn("w:tcBorders"))
+    if borders is None:
+        borders = tc_pr.makeelement(qn("w:tcBorders"), {})
+        tc_pr.append(borders)
+    for edge, (val, sz) in edges.items():
+        el = borders.find(qn(f"w:{edge}"))
+        if el is None:
+            el = borders.makeelement(qn(f"w:{edge}"), {})
+            borders.append(el)
+        el.set(qn("w:val"), val)
+        el.set(qn("w:sz"), str(sz))
+        el.set(qn("w:space"), "0")
+        el.set(qn("w:color"), "374151")
+
+
+def _docx_add_cell_text(cell, text: str, font_name: str, size: float, bold: bool = False, align=None):
+    from docx.shared import Pt
+    p = cell.paragraphs[0]
+    if align is not None:
+        p.alignment = align
+    p.paragraph_format.space_after = Pt(0)
+    parts = re.split(r"(\*\*.+?\*\*)", str(text or ""))
+    for part in parts:
+        if not part:
+            continue
+        is_b = part.startswith("**") and part.endswith("**")
+        r = p.add_run(part[2:-2] if is_b else part)
+        r.bold = bold or is_b
+        r.font.name = font_name
+        r.font.size = Pt(size)
+
+
+def _add_docx_structured_table(container, table: dict, font_name: str):
+    """DOCX twin of _render_acc_structured_table_pdf."""
     from docx.shared import Pt
     from docx.enum.text import WD_ALIGN_PARAGRAPH
     from docx.enum.table import WD_TABLE_ALIGNMENT
     from docx.oxml.ns import qn
 
+    t = infer_table_meta(table)
+    headers, rows = t["headers"], t["rows"]
     if not headers or not rows:
         return
-    num_cols = len(headers)
-    tbl = container.add_table(rows=1 + len(rows), cols=num_cols)
-    tbl.style = 'Table Grid'
+    ncol = len(headers)
+    amount_cols = set(t.get("amount_cols") or [])
+    total_rows = set(t.get("total_rows") or [])
+    section_rows = set(t.get("section_rows") or [])
+    size = 8.0 if ncol <= 4 else 7.0
+
+    if t.get("caption"):
+        p = container.add_paragraph()
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p.paragraph_format.space_after = Pt(1)
+        r = p.add_run(_acc_plain(t["caption"]))
+        r.bold = True
+        r.font.name = font_name
+        r.font.size = Pt(size + 0.5)
+
+    tbl = container.add_table(rows=1 + len(rows), cols=ncol)
+    tbl.style = "Table Grid"
     tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
 
-    # Header row
-    for j, h in enumerate(headers):
-        cell = tbl.rows[0].cells[j]
-        p = cell.paragraphs[0]
-        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        r = p.add_run(_latex_to_plain(str(h)))
-        r.bold = True; r.font.name = font_name; r.font.size = Pt(8.0)
-        shading = cell._element.get_or_add_tcPr()
-        shd = shading.makeelement(qn('w:shd'), {qn('w:fill'): 'F9FAFB', qn('w:val'): 'clear'})
-        shading.append(shd)
+    for c, h in enumerate(headers):
+        cell = tbl.rows[0].cells[c]
+        _docx_add_cell_text(cell, h, font_name, size, bold=True, align=WD_ALIGN_PARAGRAPH.CENTER)
+        tc_pr = cell._element.get_or_add_tcPr()
+        tc_pr.append(tc_pr.makeelement(qn("w:shd"), {qn("w:fill"): "F3F4F6", qn("w:val"): "clear"}))
+    # Merge blank header cells into the title on their left.
+    c = ncol - 1
+    while c > 0:
+        if not headers[c].strip():
+            start = c - 1
+            while start > 0 and not headers[start].strip():
+                start -= 1
+            merged = tbl.rows[0].cells[start].merge(tbl.rows[0].cells[c])
+            # merge() concatenates paragraphs; keep only the title.
+            for extra in merged.paragraphs[1:]:
+                extra._element.getparent().remove(extra._element)
+            c = start
+        c -= 1
 
-    # Data rows
-    for i, row in enumerate(rows):
-        padded = (list(row) + [""] * num_cols)[:num_cols]
-        for j, val in enumerate(padded):
-            cell = tbl.rows[i + 1].cells[j]
-            p = cell.paragraphs[0]
-            r = p.add_run(_latex_to_plain(str(val)))
-            r.font.name = font_name; r.font.size = Pt(8.0)
-            if any(term in str(headers[j]).lower() for term in ("amount", "debit", "credit", "rs", "₹", "change")):
-                p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    for r_idx, row in enumerate(rows):
+        cells = (list(row) + [""] * ncol)[:ncol]
+        drow = tbl.rows[r_idx + 1]
+        if r_idx in section_rows:
+            merged = drow.cells[0].merge(drow.cells[ncol - 1])
+            _docx_add_cell_text(merged, _acc_plain(cells[0]), font_name, size, bold=True)
+            continue
+        is_total = r_idx in total_rows
+        for c, v in enumerate(cells):
+            align = WD_ALIGN_PARAGRAPH.RIGHT if c in amount_cols else None
+            _docx_add_cell_text(drow.cells[c], v, font_name, size, bold=is_total, align=align)
+            if is_total and c in amount_cols and str(v).strip():
+                _docx_cell_borders(drow.cells[c], top=("single", 6), bottom=("double", 6))
 
 
 def _generate_docx_accountancy_exam(
@@ -6122,25 +6229,22 @@ def _generate_docx_accountancy_exam(
         cell_q = _add_master_row(f"{q_num}.", str(q.get("marks", 1)))
 
         def _render_docx_q_content(container, target_q, is_first=True):
-            raw_text = target_q.get("text") or target_q.get("question") or ""
-            qt = _get_question_table(target_q)
-            if qt:
-                raw_text = _strip_markdown_table_from_text(raw_text)
-
-            segments = _split_text_and_tables(raw_text)
-            for s_idx, seg in enumerate(segments):
-                if seg['type'] == 'text':
-                    if seg['content'].strip():
+            for s_idx, seg in enumerate(_acc_question_segments(target_q)):
+                if seg["type"] == "text":
+                    if seg["content"].strip():
                         p = container.paragraphs[0] if (is_first and s_idx == 0) else container.add_paragraph()
                         p.paragraph_format.space_after = Pt(2)
-                        r = p.add_run(_latex_to_plain(seg['content']))
-                        r.font.name = font_name; r.font.size = Pt(8.5)
-                elif seg['type'] == 'table':
-                    hdrs, rws = seg['content']
-                    _add_docx_financial_table(container, hdrs, rws, font_name)
-
-            if qt:
-                _add_docx_financial_table(container, qt.get("headers", []), qt.get("rows", []), font_name)
+                        # Keep the printed line breaks (lists, adjustments).
+                        lines = _latex_to_plain(seg["content"].replace("₹", "RUPEESIGNPH")).replace("RUPEESIGNPH", "₹").split("\n")
+                        for li, line in enumerate(lines):
+                            r = p.add_run(line)
+                            r.font.name = font_name; r.font.size = Pt(8.5)
+                            if li < len(lines) - 1:
+                                r.add_break()
+                else:
+                    _add_docx_structured_table(container, seg["table"], font_name)
+                    # A paragraph after a table keeps Word from gluing the next table to it.
+                    container.add_paragraph().paragraph_format.space_after = Pt(1)
 
             sub_parts = target_q.get("sub_parts") or target_q.get("sub_questions")
             if sub_parts and isinstance(sub_parts, list):

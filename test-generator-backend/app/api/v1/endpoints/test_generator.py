@@ -1012,6 +1012,19 @@ async def get_ncert_questions(
                 except Exception:
                     q["options"] = []
 
+        # Accountancy: send the same text/table segments the PDF exporter will print, so the
+        # builder preview shows real ledgers/statements instead of flattened NCERT text.
+        if subject.lower() in ("accountancy", "accounts", "accounting"):
+            from app.services.accountancy_parser import build_question_segments
+            for q in questions:
+                try:
+                    segs = build_question_segments(q.get("question_text") or "", q.get("question_table"))
+                except Exception as seg_err:  # a heuristic must never break the question list
+                    logger.warning(f"Accountancy table parse failed for {q.get('id')}: {seg_err}")
+                    continue
+                if any(s["type"] == "table" for s in segs):
+                    q["structured_segments"] = segs
+
         return {
             "ok": True, "subject": subject, "classGrade": class_grade, "chapter": chapter,
             "questions": questions, "total": total_count, "limit": limit, "offset": offset,
