@@ -1662,7 +1662,7 @@ def generate_pdf(
         try:
             if ',' in logo_base64:
                 logo_base64 = logo_base64.split(',', 1)[1]
-            logo_img = RLImage(io.BytesIO(base64.b64decode(logo_base64)), width=1.8 * cm, height=1.8 * cm)
+            logo_img = RLImage(io.BytesIO(base64.b64decode(logo_base64)), width=1.8 * cm, height=1.8 * cm, kind="proportional")
             logo_img.hAlign = 'CENTER'
         except Exception as e:
             logger.warning(f"Logo failed: {e}")
@@ -2523,7 +2523,7 @@ def _generate_pdf_institute(
     if logo_base64:
         try:
             lb = logo_base64.split(",", 1)[1] if "," in logo_base64 else logo_base64
-            logo_img = RLImage(io.BytesIO(base64.b64decode(lb)), width=1.6 * cm, height=1.6 * cm)
+            logo_img = RLImage(io.BytesIO(base64.b64decode(lb)), width=1.6 * cm, height=1.6 * cm, kind="proportional")
             logo_img.hAlign = "CENTER"
             story.append(logo_img)
             story.append(Spacer(1, 2))
@@ -3266,7 +3266,7 @@ def generate_answer_key_pdf(
     if logo_base64:
         try:
             lb = logo_base64.split(",", 1)[1] if "," in logo_base64 else logo_base64
-            logo_img = RLImage(io.BytesIO(base64.b64decode(lb)), width=1.6 * cm, height=1.6 * cm)
+            logo_img = RLImage(io.BytesIO(base64.b64decode(lb)), width=1.6 * cm, height=1.6 * cm, kind="proportional")
             logo_img.hAlign = "CENTER"
             story.append(logo_img)
             story.append(Spacer(1, 2))
@@ -4304,7 +4304,7 @@ def _generate_pdf_cbse_exam(
         try:
             lb = logo_base64.split(",", 1)[1] if "," in logo_base64 else logo_base64
             img_data = io.BytesIO(base64.b64decode(lb))
-            logo_flowable = RLImage(img_data, width=2.2 * cm, height=2.2 * cm)
+            logo_flowable = RLImage(img_data, width=2.2 * cm, height=2.2 * cm, kind="proportional")
             logo_flowable.hAlign = "LEFT"
         except Exception as e:
             logger.warning(f"Could not load logo in cbse exam pdf: {e}")
@@ -5375,6 +5375,21 @@ class AccountancyNumberedCanvas(canvas.Canvas):
         canvas.Canvas.save(self)
 
 
+def _logo_flowable(logo_base64: Optional[str], max_w: float, max_h: float):
+    """Institute logo as a ReportLab Image that keeps its aspect ratio inside max_w x max_h."""
+    if not logo_base64:
+        return None
+    try:
+        from reportlab.platypus import Image as RLImage
+        data = logo_base64.split(",", 1)[1] if "," in logo_base64 else logo_base64
+        img = RLImage(io.BytesIO(base64.b64decode(data)), width=max_w, height=max_h, kind="proportional")
+        img.hAlign = "CENTER"
+        return img
+    except Exception as e:
+        logger.warning(f"Could not load logo: {e}")
+        return None
+
+
 def _format_acc_text(text: str, has_tt_font: bool = True) -> str:
     if not text:
         return ""
@@ -5698,14 +5713,27 @@ def _generate_pdf_accountancy_exam(
     total_marks = sum(q.get("marks", 1) for q in questions if not q.get("_is_or", False))
     main_questions_count = len([q for q in questions if not q.get("_is_or", False)])
 
-    # 1. Header block
+    # 1. Header block (institute logo on the left, titles centred)
+    header_block = []
     if institute_name and institute_name.strip():
-        story.append(Paragraph(f"<b>{institute_name.strip().upper()}</b>", styles["AccInstName"]))
-
-    story.append(Paragraph("ACCOUNTANCY (055)", styles["AccMainTitle"]))
+        header_block.append(Paragraph(f"<b>{institute_name.strip().upper()}</b>", styles["AccInstName"]))
+    header_block.append(Paragraph("ACCOUNTANCY (055)", styles["AccMainTitle"]))
     title_text = exam_title.strip() if exam_title else "SAMPLE QUESTION PAPER"
-    story.append(Paragraph(title_text.upper(), styles["AccSubTitle"]))
-    story.append(Paragraph(f"Class {class_num} (2025-26)", styles["AccClassLine"]))
+    header_block.append(Paragraph(title_text.upper(), styles["AccSubTitle"]))
+    header_block.append(Paragraph(f"Class {class_num} (2025-26)", styles["AccClassLine"]))
+
+    logo_flow = _logo_flowable(logo_base64, 2.2 * cm, 2.2 * cm)
+    if logo_flow:
+        side_w = 2.6 * cm
+        head_tbl = Table([[logo_flow, header_block, ""]], colWidths=[side_w, W - 2 * side_w, side_w])
+        head_tbl.setStyle(TableStyle([
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 0),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+        ]))
+        story.append(head_tbl)
+    else:
+        story.extend(header_block)
 
     # Time / Maximum Marks row
     if not duration or str(duration).strip().lower() in ("none", "as per schedule", ""):
@@ -6099,7 +6127,16 @@ def _generate_docx_accountancy_exam(
         r.font.color.rgb = _rgb(color)
         return p
 
-    # Header
+    # Header (institute logo centred above the name)
+    if logo_base64:
+        try:
+            lb = logo_base64.split(",", 1)[1] if "," in logo_base64 else logo_base64
+            p_logo = doc.add_paragraph()
+            p_logo.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            p_logo.paragraph_format.space_after = Pt(2)
+            p_logo.add_run().add_picture(io.BytesIO(base64.b64decode(lb)), height=Cm(1.8))
+        except Exception as e:
+            logger.warning(f"Could not add logo to accountancy docx: {e}")
     if institute_name and institute_name.strip():
         _add_p(institute_name.strip().upper(), size=14, bold=True, color=primary)
 

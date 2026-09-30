@@ -271,6 +271,9 @@ class ExportRequest(BaseModel):
     duration: Optional[str] = Field(default=None, max_length=20)
     institute_name: Optional[str] = Field(default=None, max_length=200)
     topic: Optional[str] = Field(default=None, max_length=200)
+    # PDF watermark: diagonal text and/or the uploaded logo faded behind every page.
+    watermarkText: Optional[str] = Field(default=None, max_length=60)
+    watermarkLogo: bool = False
 
 
 class FrontendSaveRequest(BaseModel):
@@ -306,6 +309,9 @@ class AnswerKeyExportRequest(BaseModel):
     duration: Optional[str] = Field(default=None, max_length=20)
     institute_name: Optional[str] = Field(default=None, max_length=200)
     topic: Optional[str] = Field(default=None, max_length=200)
+    # PDF watermark: diagonal text and/or the uploaded logo faded behind every page.
+    watermarkText: Optional[str] = Field(default=None, max_length=60)
+    watermarkLogo: bool = False
 
 
 # ── Transform helpers ───────────────────────────────────────────────
@@ -627,6 +633,17 @@ async def generate_from_frontend(req: FrontendGenerateRequest):
 # ENDPOINT: Export PDF / DOCX (hardened)
 # ═══════════════════════════════════════════════════════════════════════
 
+def _watermark_pdf(pdf_bytes: bytes, req, logo_b64: Optional[str]) -> bytes:
+    """Optional watermark (text and/or faded logo) on every page of an exported PDF."""
+    # Drawn as PDF text (not HTML), so strip control characters instead of HTML-escaping.
+    text = re.sub(r"[\x00-\x1f\x7f]", "", req.watermarkText or "").strip()[:60] or None
+    logo = logo_b64 if req.watermarkLogo else None
+    if not text and not logo:
+        return pdf_bytes
+    from app.services.pdf_branding import apply_pdf_watermark
+    return apply_pdf_watermark(pdf_bytes, text=text, logo_base64=logo)
+
+
 @router.post("/export")
 async def export_test(req: ExportRequest):
     try:
@@ -704,6 +721,7 @@ async def export_test(req: ExportRequest):
                 institute_name=req.institute_name,
                 topic=topic_val,
             )
+            file_bytes = _watermark_pdf(file_bytes, req, logo_b64)
             filename = re.sub(r'[^a-zA-Z0-9_\-]', '_', req.examTitle)[:50]
             return Response(
                 content=file_bytes,
@@ -793,6 +811,7 @@ async def export_answer_key(req: AnswerKeyExportRequest):
                 institute_name=req.institute_name,
                 topic=topic_val,
             )
+            file_bytes = _watermark_pdf(file_bytes, req, logo_b64)
             return Response(
                 content=file_bytes,
                 media_type="application/pdf",
@@ -948,8 +967,7 @@ def _get_subject_sql_clause(subject: str) -> tuple[str, list]:
         return "LOWER(subject) = LOWER(%s)", [subject.strip()]
 
 
-@router.get("/ncert-questions")
-async def get_ncert_questions(
+async def _ncert_questions_impl(
     subject: str = "Science",
     class_grade: str = "10",
     chapter: Optional[str] = None,
@@ -967,7 +985,8 @@ async def get_ncert_questions(
 
     try:
         supabase = get_supabase()
-        query = supabase.table("ncert_questions").select("*").eq("class_grade", class_grade)
+        # count="exact" returns the total with the page — one Supabase round trip instead of two.
+        query = supabase.table("ncert_questions").select("*", count="exact").eq("class_grade", class_grade)
         query = _apply_ncert_subject_filter(query, subject)
 
         if chapter:
@@ -983,27 +1002,13 @@ async def get_ncert_questions(
             safe_search = sanitize_like(search, max_length=200)
             query = query.ilike("question_text", f"%{safe_search}%")
 
-        # Count query (same filters)
-        count_query = supabase.table("ncert_questions").select("id", count="exact").eq("class_grade", class_grade)
-        count_query = _apply_ncert_subject_filter(count_query, subject)
-        if chapter:
-            count_query = count_query.ilike("chapter", f"%{sanitize_like(chapter, 200)}%")
-        if question_type and question_type.lower() != "all":
-            count_query = count_query.eq("question_type", sanitize_like(question_type, 30).lower())
-        if section:
-            count_query = count_query.ilike("section", f"%{sanitize_like(section, 100)}%")
-        if search:
-            count_query = count_query.ilike("question_text", f"%{sanitize_like(search, 200)}%")
-
-        count_result = count_query.execute()
-        total_count = count_result.count if count_result and count_result.count is not None else (len(count_result.data) if count_result and count_result.data else 0)
-
         result = query.order("section", desc=False) \
             .order("question_number", desc=False) \
             .range(offset, offset + limit - 1) \
             .execute()
 
         questions = result.data or []
+        total_count = result.count if result.count is not None else offset + len(questions)
 
         for q in questions:
             if isinstance(q.get("options"), str):
@@ -1039,8 +1044,7 @@ async def get_ncert_questions(
 # ENDPOINT: NCERT Question Stats (hardened & ultra-fast)
 # ═══════════════════════════════════════════════════════════════════════
 
-@router.get("/ncert-question-stats")
-async def get_ncert_question_stats(subject: str = "Science", class_grade: str = "10"):
+async def _ncert_question_stats_impl(subject: str = "Science", class_grade: str = "10"):
     subject = sanitize_like(_resolve_subject(subject), max_length=50)
     class_grade = sanitize_like(class_grade, max_length=5)
 
@@ -1390,3 +1394,49 @@ async def get_test(test_id: str, teacher_id: str):
     except Exception as e:
         logger.error(f"Get test error: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch test.")
+
+# ═══════════════════════════════════════════════════════════════════════
+# NCERT library routes — cached (NCERT data only changes when re-ingested)
+#   * in-memory TTL cache per warm instance: repeat requests skip Supabase entirely
+#   * Cache-Control lets the browser and Vercel's edge serve repeats without hitting Python
+# ═══════════════════════════════════════════════════════════════════════
+
+from app.core.cache import api_cache  # noqa: E402
+
+_NCERT_CACHE_CONTROL = "public, max-age=300, s-maxage=600, stale-while-revalidate=86400"
+
+
+@router.get("/ncert-questions")
+async def get_ncert_questions(
+    response: Response,
+    subject: str = "Science",
+    class_grade: str = "10",
+    chapter: Optional[str] = None,
+    question_type: Optional[str] = None,
+    section: Optional[str] = None,
+    search: Optional[str] = None,
+    limit: int = 50,
+    offset: int = 0,
+):
+    key = "ncertq:" + json.dumps([subject, class_grade, chapter, question_type, section, search, limit, offset])
+    data = api_cache.get(key)
+    if data is None:
+        data = await _ncert_questions_impl(subject, class_grade, chapter, question_type, section, search, limit, offset)
+        if data.get("ok"):
+            api_cache.set(key, data, ttl=600)
+    if data.get("ok"):
+        response.headers["Cache-Control"] = _NCERT_CACHE_CONTROL
+    return data
+
+
+@router.get("/ncert-question-stats")
+async def get_ncert_question_stats(response: Response, subject: str = "Science", class_grade: str = "10"):
+    key = "ncertstats:" + json.dumps([subject, class_grade])
+    data = api_cache.get(key)
+    if data is None:
+        data = await _ncert_question_stats_impl(subject, class_grade)
+        if data.get("ok"):
+            api_cache.set(key, data, ttl=1800)
+    if data.get("ok"):
+        response.headers["Cache-Control"] = _NCERT_CACHE_CONTROL
+    return data
