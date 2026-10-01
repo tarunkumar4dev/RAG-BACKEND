@@ -50,11 +50,10 @@ async def get_optional_user_id(request: Request) -> Optional[str]:
         return None
 
     try:
-        # TODO: Replace with your Supabase JWT verification
-        from app.core.auth import verify_token  # your auth utility
+        from app.core.auth import verify_token
         token = auth_header.split(" ")[1]
         user = await verify_token(token)
-        return user.get("sub") or user.get("id")
+        return user.id if user else None
     except Exception:
         return None
 
