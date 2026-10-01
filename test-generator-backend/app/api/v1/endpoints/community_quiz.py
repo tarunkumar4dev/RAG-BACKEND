@@ -12,7 +12,8 @@ from typing import Optional, List
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field, field_validator
 
-from app.core.database import get_supabase
+from app.core.auth import verify_token
+from app.core.database import get_supabase_admin
 from app.services.youtube_transcript_service import (
     fetch_video_data,
     TranscriptFetchError,
@@ -31,23 +32,16 @@ router = APIRouter(prefix="/community-quizzes", tags=["Community Quizzes"])
 # AUTH HELPERS
 # ═══════════════════════════════════════════════════════════
 
-def get_optional_user_id(request: Request) -> Optional[str]:
-    auth_header = request.headers.get("Authorization")
-    if not auth_header or not auth_header.startswith("Bearer "):
+async def get_optional_user_id(request: Request) -> Optional[str]:
+    scheme, _, token = request.headers.get("authorization", "").partition(" ")
+    if scheme.lower() != "bearer" or not token.strip():
         return None
-    try:
-        token = auth_header.split(" ")[1]
-        sb = get_supabase()
-        user_response = sb.auth.get_user(token)
-        if user_response and user_response.user:
-            return user_response.user.id
-    except Exception as e:
-        logger.warning(f"Token verification failed: {e}")
-    return None
+    user = await verify_token(token.strip())
+    return user.id if user else None
 
 
-def get_required_user_id(request: Request) -> str:
-    user_id = get_optional_user_id(request)
+async def get_required_user_id(request: Request) -> str:
+    user_id = await get_optional_user_id(request)
     if not user_id:
         raise HTTPException(status_code=401, detail="Authentication required")
     return user_id
@@ -143,12 +137,6 @@ class SubmitAttemptRequest(BaseModel):
     tab_switch_count: int = 0
 
 
-class TestGenerateRequest(BaseModel):
-    url: str
-    count: int = 5
-    difficulty: str = "medium"
-
-
 # ═══════════════════════════════════════════════════════════
 # HELPERS
 # ═══════════════════════════════════════════════════════════
@@ -190,7 +178,7 @@ def _get_share_link(request: Request, slug: str) -> str:
 
 @router.post("/preview-video")
 async def preview_video(payload: PreviewVideoRequest, request: Request):
-    teacher_id = get_required_user_id(request)
+    teacher_id = await get_required_user_id(request)
     try:
         data = fetch_video_data(payload.url)
     except TranscriptFetchError as e:
@@ -214,8 +202,8 @@ async def preview_video(payload: PreviewVideoRequest, request: Request):
 
 @router.post("", status_code=201)
 async def create_quiz(payload: CreateQuizRequest, request: Request):
-    teacher_id = get_required_user_id(request)
-    sb = get_supabase()
+    teacher_id = await get_required_user_id(request)
+    sb = get_supabase_admin()
     started_at = datetime.now(timezone.utc)
     transcript_text = None
     source_metadata = {}
@@ -364,8 +352,8 @@ async def create_quiz(payload: CreateQuizRequest, request: Request):
 
 @router.get("")
 async def list_my_quizzes(request: Request):
-    teacher_id = get_required_user_id(request)
-    sb = get_supabase()
+    teacher_id = await get_required_user_id(request)
+    sb = get_supabase_admin()
 
     result = sb.table("community_quizzes").select(
         "id, title, subject, chapter, share_slug, status, "
@@ -382,7 +370,7 @@ async def list_my_quizzes(request: Request):
 
 @router.get("/q/{slug}")
 async def get_public_quiz(slug: str):
-    sb = get_supabase()
+    sb = get_supabase_admin()
 
     result = sb.table("community_quizzes").select(
         "id, title, description, subject, chapter, class_level, "
@@ -408,7 +396,7 @@ async def get_public_quiz(slug: str):
 
 @router.post("/q/{slug}/start")
 async def start_attempt(slug: str, payload: StartAttemptRequest, request: Request):
-    sb = get_supabase()
+    sb = get_supabase_admin()
 
     quiz_result = sb.table("community_quizzes").select("*").eq("share_slug", slug).execute()
     if not quiz_result.data:
@@ -479,7 +467,7 @@ async def start_attempt(slug: str, payload: StartAttemptRequest, request: Reques
 
 @router.post("/q/{slug}/submit")
 async def submit_attempt(slug: str, payload: SubmitAttemptRequest):
-    sb = get_supabase()
+    sb = get_supabase_admin()
 
     attempt_result = sb.table("community_quiz_attempts").select("*").eq("id", payload.attempt_id).execute()
     if not attempt_result.data:
@@ -607,8 +595,8 @@ async def submit_attempt(slug: str, payload: SubmitAttemptRequest):
 
 @router.get("/{quiz_id}/leaderboard")
 async def get_leaderboard(quiz_id: str, request: Request):
-    teacher_id = get_required_user_id(request)
-    sb = get_supabase()
+    teacher_id = await get_required_user_id(request)
+    sb = get_supabase_admin()
 
     quiz_result = sb.table("community_quizzes").select(
         "id, teacher_id, title, total_questions, total_marks"
@@ -636,7 +624,7 @@ async def get_leaderboard(quiz_id: str, request: Request):
 
 @router.get("/q/{slug}/leaderboard")
 async def get_public_leaderboard(slug: str):
-    sb = get_supabase()
+    sb = get_supabase_admin()
 
     quiz_result = sb.table("community_quizzes").select(
         "id, title, total_questions, total_marks, ends_at, leaderboard_reveal_mode"
@@ -685,8 +673,8 @@ async def get_public_leaderboard(slug: str):
 
 @router.delete("/{quiz_id}", status_code=200)
 async def delete_quiz(quiz_id: str, request: Request):
-    teacher_id = get_required_user_id(request)
-    sb = get_supabase()
+    teacher_id = await get_required_user_id(request)
+    sb = get_supabase_admin()
 
     # Verify ownership
     result = sb.table("community_quizzes").select("id, teacher_id").eq("id", quiz_id).execute()
@@ -723,38 +711,3 @@ async def delete_quiz(quiz_id: str, request: Request):
 
     logger.info(f"Quiz deleted: {quiz_id} by teacher {teacher_id}")
     return {"deleted": True, "quiz_id": quiz_id}
-
-
-# ═══════════════════════════════════════════════════════════
-# 🧪 10. TEMPORARY TEST ENDPOINT (delete in prod)
-# ═══════════════════════════════════════════════════════════
-
-@router.post("/test-generate-no-auth")
-async def test_generate_no_auth(payload: TestGenerateRequest):
-    try:
-        video_data = fetch_video_data(payload.url)
-    except TranscriptFetchError as e:
-        raise HTTPException(status_code=400, detail={"code": e.code, "message": e.message})
-
-    try:
-        questions = generate_questions_from_transcript(
-            transcript=video_data["transcript"],
-            title=video_data["title"],
-            channel=video_data["channel"],
-            count=payload.count,
-            difficulty=payload.difficulty,
-            focus="mixed",
-        )
-    except QuestionGenerationError as e:
-        raise HTTPException(status_code=500, detail={"code": e.code, "message": e.message})
-
-    return {
-        "video": {
-            "title": video_data["title"],
-            "channel": video_data["channel"],
-            "language": video_data["language"],
-            "word_count": video_data["transcript_word_count"],
-        },
-        "questions_generated": len(questions),
-        "questions": questions,
-    }
