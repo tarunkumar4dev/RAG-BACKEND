@@ -9,7 +9,7 @@ from typing import List, Tuple
 from google import genai
 from google.genai import types as genai_types
 from app.core.config import settings
-from app.core.database import get_supabase
+from app.core.database import get_supabase_admin
 from app.models.test_generator import GeneratedQuestion
 
 logger = logging.getLogger(__name__)
@@ -132,7 +132,7 @@ def save_training_data(
     Save rejected/edited questions with feedback as training data.
     This is our long-term moat — fine-tuning fuel.
     """
-    supabase = get_supabase()
+    supabase = get_supabase_admin()
     try:
         supabase.table("training_data").insert({
             "test_id": test_id,

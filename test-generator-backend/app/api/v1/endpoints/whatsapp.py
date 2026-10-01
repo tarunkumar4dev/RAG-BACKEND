@@ -214,8 +214,8 @@ async def generate_worker(
             pdf_bytes = await asyncio.to_thread(generate_pdf, questions_dicts, exam_title=title)
             
             # 5. Upload to Supabase Storage (public assignments bucket)
-            from app.core.database import get_supabase
-            supabase = get_supabase()
+            from app.core.database import get_supabase_admin
+            supabase = get_supabase_admin()
             file_name = f"whatsapp/{payload.phone}_{uuid.uuid4().hex}.pdf"
             await asyncio.to_thread(
                 supabase.storage.from_("assignments").upload, 

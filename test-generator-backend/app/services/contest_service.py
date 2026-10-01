@@ -25,7 +25,7 @@ import logging
 from typing import Optional, List
 from datetime import datetime, timezone
 
-from app.core.database import get_supabase
+from app.core.database import get_supabase_admin
 
 from app.schemas.contest import (
     CreateContestRequest,
@@ -197,7 +197,7 @@ def create_contest(
 ) -> CreateContestResponse:
     """Create a new contest with questions and return share link"""
 
-    db = get_supabase()
+    db = get_supabase_admin()
 
     short_code = _generate_short_code()
 
@@ -277,7 +277,7 @@ def create_contest(
 def get_contest_info(short_code: str) -> Optional[ContestInfoResponse]:
     """Get public contest info by short code (student landing page)"""
 
-    db = get_supabase()
+    db = get_supabase_admin()
 
     result = db.table("contests").select(
         "id, title, subject, class_grade, board, logo_base64, "
@@ -325,7 +325,7 @@ def start_attempt(
 ) -> Optional[ContestDataResponse]:
     """Start a new attempt: creates attempt record, returns questions (without answers)"""
 
-    db = get_supabase()
+    db = get_supabase_admin()
 
     contest_result = db.table("contests").select("*").eq(
         "short_code", short_code
@@ -416,7 +416,7 @@ def submit_attempt(
 ) -> SubmitContestResponse:
     """Submit student answers, calculate score, return results"""
 
-    db = get_supabase()
+    db = get_supabase_admin()
 
     attempt_result = db.table("contest_attempts").select("*").eq(
         "id", attempt_id
@@ -529,7 +529,7 @@ def get_leaderboard(
 ) -> Optional[ContestLeaderboardResponse]:
     """Get all attempts for a contest (teacher view)"""
 
-    db = get_supabase()
+    db = get_supabase_admin()
 
     query = db.table("contests").select("id, title").eq("id", contest_id)
     if teacher_id:
@@ -580,7 +580,7 @@ def get_leaderboard(
 def list_teacher_contests(teacher_id: str) -> List[dict]:
     """List all contests created by a teacher"""
 
-    db = get_supabase()
+    db = get_supabase_admin()
 
     result = db.table("contests").select(
         "id, title, subject, class_grade, short_code, "
