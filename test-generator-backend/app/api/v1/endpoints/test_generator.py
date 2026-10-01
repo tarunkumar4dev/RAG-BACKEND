@@ -68,7 +68,7 @@ def check_usage(user_id: str) -> dict:
         raise HTTPException(status_code=400, detail="Invalid user ID format")
 
     try:
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
         result = supabase.rpc("check_usage", {
             "p_user_id": user_id,
         }).execute()
@@ -118,7 +118,7 @@ def record_usage(user_id: str) -> dict:
         if not settings.IS_PRODUCTION:
             return {"recorded": True}
     try:
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
         result = supabase.rpc("record_usage", {
             "p_user_id": user_id,
             "p_action": "test_generated",
@@ -281,14 +281,14 @@ class FrontendSaveRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     test_id: str = Field(max_length=50)
-    teacher_id: str = Field(max_length=50)
+    teacher_id: Optional[str] = Field(default=None, max_length=50)  # ignored; owner comes from the JWT
     questions: Optional[List[dict]] = Field(default=None, max_length=200)
 
 
 class AddManualQuestionRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    teacher_id: str = Field(max_length=50)
+    teacher_id: Optional[str] = Field(default=None, max_length=50)  # ignored; owner comes from the JWT
     question: ManualQuestionPayload
 
 class AnswerKeyExportRequest(BaseModel):
@@ -530,7 +530,8 @@ def _transform_backend_to_frontend(resp, req: FrontendGenerateRequest) -> Fronte
 # ═══════════════════════════════════════════════════════════════════════
 
 @router.post("/generate-frontend", response_model=FrontendGenerateResponse)
-async def generate_from_frontend(req: FrontendGenerateRequest):
+async def generate_from_frontend(req: FrontendGenerateRequest, user: AuthUser = Depends(require_user)):
+    req.userId = user.id  # usage and test owner come from the JWT; the client value is ignored
     start = time.time()
     logger.info(f"Frontend generate: {req.subject} {req.classGrade}, {len(req.simpleData)} chapters")
 
@@ -590,7 +591,7 @@ async def generate_from_frontend(req: FrontendGenerateRequest):
                 "paper_date": req.paperDate,
                 "cbse_pattern": req.cbsePattern,
             }
-            supabase = get_supabase()
+            supabase = get_supabase_admin()
             insert_result = supabase.table("tests").insert(tests_row).execute()
             if not insert_result.data:
                 logger.error(f"tests INSERT returned no data for test_id={frontend_response.testId}")
@@ -1168,20 +1169,20 @@ async def feedback(request: TestFeedbackRequest):
 # ═══════════════════════════════════════════════════════════════════════
 
 @router.post("/save")
-async def save_test(request: FrontendSaveRequest):
+async def save_test(request: FrontendSaveRequest, user: AuthUser = Depends(require_user)):
+    teacher_id = user.id
     # SECURITY: Validate UUIDs
     try:
         sanitize_uuid(request.test_id)
-        sanitize_uuid(request.teacher_id)
     except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid test or teacher ID format")
+        raise HTTPException(status_code=400, detail="Invalid test ID format")
 
-    supabase = get_supabase()
+    supabase = get_supabase_admin()
     try:
         check_result = supabase.table("tests").select("id, teacher_id, exam_title").eq(
             "id", request.test_id
         ).eq(
-            "teacher_id", request.teacher_id
+            "teacher_id", teacher_id
         ).execute()
 
         if not check_result.data:
@@ -1190,7 +1191,7 @@ async def save_test(request: FrontendSaveRequest):
                 total_marks = sum(q.get("marks", 1) for q in request.questions if isinstance(q, dict))
                 recovery_row = {
                     "id": request.test_id,
-                    "teacher_id": request.teacher_id,
+                    "teacher_id": teacher_id,
                     "exam_title": "Untitled Test (recovered)",
                     "board": "CBSE",
                     "class_grade": "10",
@@ -1209,7 +1210,7 @@ async def save_test(request: FrontendSaveRequest):
         else:
             supabase.table("tests").update({
                 "status": "saved"
-            }).eq("id", request.test_id).eq("teacher_id", request.teacher_id).execute()
+            }).eq("id", request.test_id).eq("teacher_id", teacher_id).execute()
 
         if request.questions:
             try:
@@ -1280,16 +1281,19 @@ async def save_test(request: FrontendSaveRequest):
 # ═══════════════════════════════════════════════════════════════════════
 
 @router.post("/tests/{test_id}/add-manual-question")
-async def add_manual_question(test_id: str, req: AddManualQuestionRequest):
+async def add_manual_question(test_id: str, req: AddManualQuestionRequest, user: AuthUser = Depends(require_user)):
     # SECURITY: Validate UUIDs
     try:
         sanitize_uuid(test_id)
-        sanitize_uuid(req.teacher_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid ID format")
 
-    supabase = get_supabase()
+    supabase = get_supabase_admin()
     try:
+        owned = supabase.table("tests").select("id").eq("id", test_id).eq("teacher_id", user.id).limit(1).execute()
+        if not owned.data:
+            raise HTTPException(status_code=404, detail="Test not found")
+
         gq = req.question.to_generated_question()
 
         try:

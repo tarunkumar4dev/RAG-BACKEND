@@ -14,7 +14,7 @@ Endpoints:
   GET  /history            List grading history for a teacher
 """
 
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel
 from typing import Optional, List
 import json
@@ -24,7 +24,8 @@ import tempfile
 import os
 import time
 
-from app.core.database import get_supabase
+from app.core.auth import AuthUser, require_user
+from app.core.database import get_supabase_admin
 from app.services.test_checker_service import (
     grade_answer_sheet,
     extract_answer_key_from_pdf,
@@ -154,6 +155,7 @@ async def check_answer_sheet(
     strictness: str = Form("medium", description="easy | medium | hard | extreme"),
     teacher_id: str = Form("", description="Teacher UUID for saving results"),
     student_name: str = Form("", description="Student name (optional, for records)"),
+    user: AuthUser = Depends(require_user),
 ):
     """
     Upload student answer sheet + answer key (PDF or JSON) → get graded result.
@@ -209,10 +211,10 @@ async def check_answer_sheet(
         result = grade_answer_sheet(sheet_tmp_path, key_data, strictness)
         elapsed = round(time.time() - start, 2)
 
-        # Save to DB if teacher_id provided
+        # Save only if the client opted in (non-empty teacher_id); the owner is always the JWT user
         check_id = str(uuid.uuid4())
         if teacher_id:
-            _save_result_to_db(check_id, teacher_id, student_name, file.filename, result, key_data)
+            _save_result_to_db(check_id, user.id, student_name, file.filename, result, key_data)
 
         return {
             "ok": True,
@@ -249,17 +251,22 @@ async def check_with_saved_test(
     strictness: str = Form("medium"),
     teacher_id: str = Form(""),
     student_name: str = Form(""),
+    user: AuthUser = Depends(require_user),
 ):
     """
     Upload answer sheet + reference a saved test_id — answer key is auto-pulled
     from the test's questions in the DB.
     """
     ext = _validate_file(file)
-    supabase = get_supabase()
+    supabase = get_supabase_admin()
 
     try:
-        test_result = supabase.table("tests").select("*").eq("id", test_id).maybeSingle().execute()
-        if not test_result.data:
+        test_result = (
+            supabase.table("tests").select("*")
+            .eq("id", test_id).eq("teacher_id", user.id)
+            .maybe_single().execute()
+        )
+        if not test_result or not test_result.data:
             raise HTTPException(status_code=404, detail=f"Test {test_id} not found.")
 
         questions_result = (
@@ -292,7 +299,7 @@ async def check_with_saved_test(
         check_id = str(uuid.uuid4())
         if teacher_id:
             _save_result_to_db(
-                check_id, teacher_id, student_name, file.filename,
+                check_id, user.id, student_name, file.filename,
                 result, key_data, test_id=test_id,
             )
 
@@ -322,18 +329,18 @@ async def check_with_saved_test(
 # ═══════════════════════════════════════════════════════════════════════
 
 @router.get("/results/{check_id}")
-async def get_result(check_id: str, teacher_id: str):
-    supabase = get_supabase()
+async def get_result(check_id: str, user: AuthUser = Depends(require_user)):
+    supabase = get_supabase_admin()
     try:
         result = (
             supabase.table("answer_checks")
             .select("*")
             .eq("id", check_id)
-            .eq("teacher_id", teacher_id)
-            .maybeSingle()
+            .eq("teacher_id", user.id)
+            .maybe_single()
             .execute()
         )
-        if not result.data:
+        if not result or not result.data:
             raise HTTPException(status_code=404, detail="Result not found.")
         return {"ok": True, "data": result.data}
     except HTTPException:
@@ -348,13 +355,15 @@ async def get_result(check_id: str, teacher_id: str):
 # ═══════════════════════════════════════════════════════════════════════
 
 @router.get("/history")
-async def get_history(teacher_id: str, limit: int = 20, offset: int = 0):
-    supabase = get_supabase()
+async def get_history(limit: int = 20, offset: int = 0, user: AuthUser = Depends(require_user)):
+    supabase = get_supabase_admin()
+    limit = max(1, min(limit, 100))
+    offset = max(0, offset)
     try:
         result = (
             supabase.table("answer_checks")
             .select("id, student_name, file_name, total_obtained, total_possible, percentage, strictness, created_at")
-            .eq("teacher_id", teacher_id)
+            .eq("teacher_id", user.id)
             .order("created_at", desc=True)
             .range(offset, offset + limit - 1)
             .execute()
@@ -380,7 +389,7 @@ def _save_result_to_db(
 ):
     """Save grading result to answer_checks table. Non-fatal on failure."""
     try:
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
         supabase.table("answer_checks").insert({
             "id": check_id,
             "teacher_id": teacher_id,
