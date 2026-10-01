@@ -1,4 +1,5 @@
 import logging
+import os
 from typing import Dict, Any, Optional
 from app.services.whatsapp_service import send_text_message, send_interactive_buttons, send_interactive_list
 
@@ -138,8 +139,10 @@ async def process_whatsapp_message(phone: str, message: Any, message_id: str, ho
             
             async def fire_and_forget():
                 try:
+                    worker_secret = os.environ.get("WHATSAPP_WORKER_SECRET", "").strip().strip('"').strip("'")
                     async with httpx.AsyncClient() as client:
-                        await client.post(worker_url, json=worker_payload, timeout=0.5)
+                        await client.post(worker_url, json=worker_payload, timeout=0.5,
+                                          headers={"X-Worker-Secret": worker_secret})
                 except httpx.ReadTimeout:
                     pass
                 except Exception as ex:

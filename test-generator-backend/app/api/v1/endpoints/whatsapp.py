@@ -1,12 +1,43 @@
-from fastapi import APIRouter, Request, Response, HTTPException, BackgroundTasks, Query
+from fastapi import APIRouter, Request, Response, HTTPException, BackgroundTasks, Query, Header
 from app.models.whatsapp import WhatsAppWebhookPayload
 from app.core.config import settings
+from typing import Optional
+import hashlib
+import hmac
+import json
 import logging
+import os
 import httpx
 import asyncio
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/whatsapp", tags=["WhatsApp"])
+
+
+def _env_secret(name: str) -> str:
+    return os.environ.get(name, "").strip().strip('"').strip("'")
+
+
+def _valid_meta_signature(raw_body: bytes, signature_header: Optional[str]) -> bool:
+    """Checks Meta's X-Hub-Signature-256 (HMAC-SHA256 of the raw body with the app secret)."""
+    app_secret = _env_secret("WHATSAPP_APP_SECRET")
+    if not app_secret:
+        logger.error("WHATSAPP_APP_SECRET is not set; rejecting webhook POST")
+        return False
+    if not signature_header or not signature_header.startswith("sha256="):
+        return False
+    expected = hmac.new(app_secret.encode(), raw_body, hashlib.sha256).hexdigest()
+    return hmac.compare_digest(expected, signature_header[len("sha256="):].strip())
+
+
+def _valid_worker_secret(header_value: Optional[str]) -> bool:
+    """generate_worker is only called by our own webhook handler, which sends this shared secret."""
+    secret = _env_secret("WHATSAPP_WORKER_SECRET")
+    if not secret:
+        logger.error("WHATSAPP_WORKER_SECRET is not set; rejecting worker call")
+        return False
+    return bool(header_value) and hmac.compare_digest(header_value.strip(), secret)
+
 
 @router.get("/webhook")
 async def verify_webhook(
@@ -25,15 +56,21 @@ async def verify_webhook(
     raise HTTPException(status_code=403, detail="Invalid verification token")
 
 @router.post("/webhook")
-async def receive_webhook(payload: dict, request: Request):
+async def receive_webhook(request: Request):
     """
     Receive incoming messages from WhatsApp.
-    Returns 200 OK immediately.
+    Only requests signed by Meta (X-Hub-Signature-256) are processed.
     """
-    print("\n\n" + "="*50)
-    print("🔥 WEBHOOK RECEIVED FROM META! 🔥")
-    print(payload)
-    print("="*50 + "\n\n")
+    raw_body = await request.body()
+    if not _valid_meta_signature(raw_body, request.headers.get("x-hub-signature-256")):
+        logger.warning("WhatsApp webhook rejected: missing or invalid signature")
+        raise HTTPException(status_code=401, detail="Invalid signature")
+    try:
+        payload = json.loads(raw_body)
+    except ValueError:
+        logger.warning("WhatsApp webhook: signed body is not valid JSON")
+        return Response(content="EVENT_RECEIVED", status_code=200)
+    logger.info("WhatsApp webhook received")
     try:
         # Extract messages safely
         entries = payload.get("entry", [])
@@ -96,11 +133,19 @@ class WorkerPayload(BaseModel):
     context: dict = {}
 
 @router.post("/generate_worker")
-async def generate_worker(payload: WorkerPayload, background_tasks: BackgroundTasks):
+async def generate_worker(
+    payload: WorkerPayload,
+    background_tasks: BackgroundTasks,
+    x_worker_secret: Optional[str] = Header(default=None),
+):
     """
     This route runs in the background. Vercel will allow it to run up to maxDuration.
     Make sure to configure vercel.json to allow maxDuration (e.g. 300s) for this route.
+    Internal only: requires the X-Worker-Secret header sent by the webhook handler.
     """
+    if not _valid_worker_secret(x_worker_secret):
+        logger.warning("generate_worker rejected: missing or invalid worker secret")
+        raise HTTPException(status_code=401, detail="Unauthorized")
     logger.info(f"Worker started for {payload.phone}")
     
     from app.services.whatsapp_service import send_text_message, send_document_by_url
