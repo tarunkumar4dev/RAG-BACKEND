@@ -11,7 +11,7 @@ v3.3 changes (SECURITY):
   - Removed debug INSERT logs that printed full row data
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel, ConfigDict, Field
 from typing import List, Optional
@@ -34,7 +34,8 @@ from app.models.test_generator import (
 )
 from app.services.test_generator_service import generate_test, handle_feedback
 from app.services.rag_service import retrieve_context
-from app.core.database import get_supabase
+from app.core.auth import AuthUser, require_user
+from app.core.database import get_supabase, get_supabase_admin
 from app.core.config import settings
 from app.core.sanitize import sanitize_like, sanitize_text, sanitize_uuid, validate_class_grade
 
@@ -1374,18 +1375,18 @@ async def create_quiz(settings_req: QuizSettings):
 
 
 @router.get("/test/{test_id}")
-async def get_test(test_id: str, teacher_id: str):
+async def get_test(test_id: str, user: AuthUser = Depends(require_user)):
     # SECURITY: Validate UUIDs
     try:
         sanitize_uuid(test_id)
-        sanitize_uuid(teacher_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid ID format")
 
-    supabase = get_supabase()
+    supabase = get_supabase_admin()
     try:
-        test = supabase.table("tests").select("*").eq("id", test_id).eq("teacher_id", teacher_id).single().execute()
-        if not test.data:
+        # Owner comes from the verified JWT, never from the request.
+        test = supabase.table("tests").select("*").eq("id", test_id).eq("teacher_id", user.id).maybe_single().execute()
+        if not test or not test.data:
             raise HTTPException(status_code=404, detail="Test not found")
         questions = supabase.table("questions").select("*").eq("test_id", test_id).order("position").execute()
         return {**test.data, "questions": questions.data}
