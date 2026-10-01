@@ -119,10 +119,16 @@ def record_usage(user_id: str) -> dict:
             return {"recorded": True}
     try:
         supabase = get_supabase_admin()
-        result = supabase.rpc("record_usage", {
-            "p_user_id": user_id,
-            "p_action": "test_generated",
-        }).execute()
+        params = {"p_user_id": user_id, "p_action": "test_generated"}
+        try:
+            result = supabase.rpc("record_usage", params).execute()
+        except Exception as e:
+            # usage_records.user_id references teacher_profiles; some accounts never got a
+            # row, and without it their papers were never counted against the plan.
+            if "foreign key" not in str(e).lower():
+                raise
+            supabase.table("teacher_profiles").insert({"id": user_id}).execute()
+            result = supabase.rpc("record_usage", params).execute()
 
         if result.data:
             logger.info(f"Usage recorded: user={user_id}")
@@ -1138,14 +1144,21 @@ async def _ncert_question_stats_impl(subject: str = "Science", class_grade: str 
 # ═══════════════════════════════════════════════════════════════════════
 
 @router.post("/generate", response_model=TestGenerationResponse)
-async def generate(request: TestGenerationRequest):
+async def generate(request: TestGenerationRequest, user: AuthUser = Depends(require_user)):
+    # Same plan quota as /generate-frontend: one AI paper per call, owner from the JWT.
+    request.teacher_id = user.id
     try:
+        check_usage(user.id)
         chapters = [ch.chapter for ch in request.chapters]
         topics = [ch.topic for ch in request.chapters if ch.topic]
         if not topics:
             topics = chapters
         context_chunks = retrieve_context(chapters, topics, request.subject, request.class_grade)
-        return generate_test(request, context_chunks)
+        result = generate_test(request, context_chunks)
+        record_usage(user.id)
+        return result
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -1154,7 +1167,7 @@ async def generate(request: TestGenerationRequest):
 
 
 @router.post("/feedback", response_model=TestGenerationResponse)
-async def feedback(request: TestFeedbackRequest):
+async def feedback(request: TestFeedbackRequest, user: AuthUser = Depends(require_user)):
     try:
         return handle_feedback(request)
     except ValueError as e:

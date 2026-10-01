@@ -168,6 +168,27 @@ async def generate_worker(
         raw_chapter = ctx.get("chapter", "Light")
         marks = int(ctx.get("marks", 20))
         
+        # Plan quota: a phone linked to an a4ai account uses that account's plan,
+        # any other phone gets the Free plan's monthly papers.
+        quota_db = get_supabase_admin()
+        try:
+            quota = quota_db.rpc("whatsapp_paper_quota", {"p_phone": payload.phone, "p_consume": False}).execute().data or {}
+        except Exception as e:
+            logger.error(f"WhatsApp quota check failed: {e}")
+            quota = {"allowed": False, "error": "quota_unavailable"}
+        if not quota.get("allowed"):
+            if quota.get("error") == "quota_unavailable":
+                await send_text_message(payload.phone, "Sorry, we couldn't start your paper right now. Please try again in a few minutes.")
+            else:
+                await send_text_message(
+                    payload.phone,
+                    f"You've used all {quota.get('limit', 2)} free test papers for this month on the "
+                    f"{str(quota.get('plan', 'free')).title()} plan.\n\n"
+                    "Upgrade for more papers: https://a4ai.in/pricing\n"
+                    "Unlimited drag & drop paper building is always free on a4ai.in"
+                )
+            return
+
         try:
             # 1. Retrieve Context first (blocking)
             chunks = await asyncio.to_thread(retrieve_context, [raw_chapter], None, subject, class_val, 20)
@@ -226,12 +247,18 @@ async def generate_worker(
             public_url = supabase.storage.from_("assignments").get_public_url(file_name)
             
             # 6. Send to WhatsApp
-            await send_document_by_url(
+            sent = await send_document_by_url(
                 payload.phone,
                 public_url,
                 f"{resolved_chapter}_Test.pdf",
                 f"✅ Here is your AI generated test paper for *{resolved_chapter}*! 🎉"
             )
+            # Count the paper only once it has actually been delivered.
+            if sent:
+                try:
+                    quota_db.rpc("whatsapp_paper_quota", {"p_phone": payload.phone, "p_consume": True}).execute()
+                except Exception as e:
+                    logger.error(f"WhatsApp quota consume failed: {e}")
         except Exception as e:
             logger.error(f"Generation error in worker: {e}", exc_info=True)
             err_msg = str(e)
