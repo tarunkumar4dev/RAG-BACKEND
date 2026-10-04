@@ -70,6 +70,8 @@ class Settings:
     DEEPSEEK_MODEL: str = os.getenv("DEEPSEEK_MODEL", "deepseek-flash")
     # Reasoning effort: low | high | max. Higher is slower and costs more output tokens.
     DEEPSEEK_EFFORT: str = os.getenv("DEEPSEEK_EFFORT", "low")
+    # Max LLM calls in flight per server instance (sections/batches run in parallel).
+    LLM_MAX_CONCURRENCY: int = int(os.getenv("LLM_MAX_CONCURRENCY", "12"))
 
     # ── Razorpay ────────────────────────────────────────────────────
     RAZORPAY_KEY_ID: str = os.getenv("RAZORPAY_KEY_ID", "")

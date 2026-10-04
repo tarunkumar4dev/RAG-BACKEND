@@ -245,6 +245,8 @@ class FrontendQuestionResponse(BaseModel):
     subParts: Optional[List[dict]] = None
     commonMistakes: Optional[List[str]] = None
     modelAnswer: Optional[str] = None
+    # Internal-choice alternative to the previous question in its section (CBSE "OR").
+    isOr: bool = False
 
 
 class FrontendGenerateResponse(BaseModel):
@@ -462,8 +464,11 @@ def _transform_backend_to_frontend(resp, req: FrontendGenerateRequest) -> Fronte
         questions_list = resp
         test_id = str(uuid.uuid4())
         exam_title = req.examTitle
-        total_marks = sum(q.marks for q in questions_list)
-        total_questions = len(questions_list)
+        # OR alternatives are an internal choice: they are answered instead of a question,
+        # so they count towards neither the marks nor the number of questions.
+        main_questions = [q for q in questions_list if not getattr(q, '_is_or', False)]
+        total_marks = sum(q.marks for q in main_questions)
+        total_questions = len(main_questions)
         iteration = 0
         generation_time = 0.0
         status = "preview"
@@ -507,6 +512,7 @@ def _transform_backend_to_frontend(resp, req: FrontendGenerateRequest) -> Fronte
             subParts=sub_parts_data,
             commonMistakes=getattr(q, 'common_mistakes', None),
             modelAnswer=getattr(q, 'model_answer', None),
+            isOr=bool(getattr(q, '_is_or', False)),
         ))
 
     return FrontendGenerateResponse(

@@ -39,6 +39,20 @@ from urllib.error import URLError, HTTPError
 
 from app.services.accountancy_parser import build_question_segments, infer_table_meta
 
+
+def _is_or_q(q) -> bool:
+    """CBSE internal-choice (OR) alternative. Frontend sends isOr; older payloads is_or / _is_or."""
+    return bool(q.get("_is_or") or q.get("isOr") or q.get("is_or"))
+
+
+def _main_questions(questions) -> list:
+    """Questions a student must answer; OR alternatives replace one, they do not add one."""
+    return [q for q in questions if not _is_or_q(q)]
+
+
+def _paper_marks(questions) -> int:
+    return sum(q.get("marks", 1) for q in _main_questions(questions))
+
 logger = logging.getLogger(__name__)
 
 
@@ -1667,7 +1681,7 @@ def generate_pdf(
         except Exception as e:
             logger.warning(f"Logo failed: {e}")
 
-    total_marks = sum(q.get('marks', 1) for q in questions)
+    total_marks = _paper_marks(questions)
 
     title_block = [
         Paragraph(f"<b>{exam_title}</b>", styles['SchoolName']),
@@ -1676,7 +1690,7 @@ def generate_pdf(
     info_block = [
         Paragraph(f"Date: {display_date}", styles['ExamMeta']),
         Paragraph(f"Total Marks: {total_marks}", styles['ExamMeta']),
-        Paragraph(f"Total Questions: {len(questions)}", styles['ExamMeta']),
+        Paragraph(f"Total Questions: {len(_main_questions(questions))}", styles['ExamMeta']),
     ]
 
     if logo_img:
@@ -1876,8 +1890,8 @@ def generate_pdf(
             story.append(Paragraph(meta.get('instruction', ''), styles['SectionInstruction']))
             story.append(HRFlowable(width="40%", thickness=0.5, color=HexColor(tpl['border']), spaceAfter=_sc(6, tpl)))
 
-            main_qs = [q for q in sec_qs if not q.get('_is_or', False)]
-            or_qs = [q for q in sec_qs if q.get('_is_or', False)]
+            main_qs = [q for q in sec_qs if not _is_or_q(q)]
+            or_qs = [q for q in sec_qs if _is_or_q(q)]
             or_queue = list(or_qs)
 
             for q in main_qs:
@@ -2077,11 +2091,11 @@ def generate_docx(
     r.font.color.rgb = _rgb(tpl['secondary'])
     r.font.name = tpl['docx_font']
 
-    total_marks = sum(q.get('marks', 1) for q in questions)
+    total_marks = _paper_marks(questions)
 
     meta = header_container.add_paragraph()
     meta.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    r = meta.add_run(f"Total Questions: {len(questions)} | Total Marks: {total_marks} | Date: {display_date}")
+    r = meta.add_run(f"Total Questions: {len(_main_questions(questions))} | Total Marks: {total_marks} | Date: {display_date}")
     r.font.size = Pt(9)
     r.font.color.rgb = _rgb(tpl['muted'])
     r.font.name = tpl['docx_font']
@@ -2314,8 +2328,8 @@ def generate_docx(
             inst_r.font.name = tpl['docx_font']
             inst_r.italic = True
 
-            main_qs = [q for q in sec_qs if not q.get('_is_or', False)]
-            or_qs = [q for q in sec_qs if q.get('_is_or', False)]
+            main_qs = [q for q in sec_qs if not _is_or_q(q)]
+            or_qs = [q for q in sec_qs if _is_or_q(q)]
             or_queue = list(or_qs)
 
             for i, q in enumerate(main_qs):
@@ -2517,7 +2531,7 @@ def _generate_pdf_institute(
 
     story = []
     display_date = _format_date_for_display(paper_date)
-    total_marks = sum(q.get("marks", 1) for q in questions)
+    total_marks = _paper_marks(questions)
 
     # ── Header ──────────────────────────────────────────────────────
     if logo_base64:
@@ -2716,8 +2730,8 @@ def _generate_pdf_institute(
                 story.extend(_section_heading_flowables(sec_key, sec_meta_dict))
                 last_title = current_title
 
-            main_qs = [q for q in sec_qs if not q.get("_is_or", False)]
-            or_qs = [q for q in sec_qs if q.get("_is_or", False)]
+            main_qs = [q for q in sec_qs if not _is_or_q(q)]
+            or_qs = [q for q in sec_qs if _is_or_q(q)]
             or_queue = list(or_qs)
 
             for q in main_qs:
@@ -2856,7 +2870,7 @@ def _generate_docx_institute(
         section.right_margin = Cm(right_m)
 
     display_date = _format_date_for_display(paper_date)
-    total_marks = sum(q.get("marks", 1) for q in questions)
+    total_marks = _paper_marks(questions)
     labels_lower = ["a", "b", "c", "d", "e", "f"]
 
     def _center_run(text, size, color_hex, bold=True, italic=False):
@@ -3094,8 +3108,8 @@ def _generate_docx_institute(
                 _section_heading_docx(sec_key, sec_meta_dict)
                 last_title = current_title
 
-            main_qs = [q for q in sec_qs if not q.get("_is_or", False)]
-            or_qs = [q for q in sec_qs if q.get("_is_or", False)]
+            main_qs = [q for q in sec_qs if not _is_or_q(q)]
+            or_qs = [q for q in sec_qs if _is_or_q(q)]
             or_queue = list(or_qs)
 
             for q in main_qs:
@@ -3260,7 +3274,7 @@ def generate_answer_key_pdf(
 
     story = []
     display_date = _format_date_for_display(paper_date)
-    total_marks = sum(q.get("marks", 1) for q in questions)
+    total_marks = _paper_marks(questions)
 
     # ── Header ──────────────────────────────────────────────────────
     if logo_base64:
@@ -3443,8 +3457,8 @@ def generate_answer_key_pdf(
                 story.append(HRFlowable(width="100%", thickness=0.8, color=HexColor(tpl["primary"]), spaceAfter=4))
                 last_title = current_title
 
-            main_qs = [q for q in sec_qs if not q.get("_is_or", False)]
-            or_qs = [q for q in sec_qs if q.get("_is_or", False)]
+            main_qs = [q for q in sec_qs if not _is_or_q(q)]
+            or_qs = [q for q in sec_qs if _is_or_q(q)]
             or_queue = list(or_qs)
 
             for q in main_qs:
@@ -3536,7 +3550,7 @@ def generate_answer_key_docx(
     normal_style.font.size = Pt(10.5)
 
     display_date = _format_date_for_display(paper_date)
-    total_marks = sum(q.get("marks", 1) for q in questions)
+    total_marks = _paper_marks(questions)
     header_name = (institute_name or "").strip() or (exam_title or "Test Paper")
 
     # ── Institute name (title) ──
@@ -3780,8 +3794,8 @@ def generate_answer_key_docx(
                     r2.font.color.rgb = _rgb(tpl["muted"])
                 last_title = current_title
 
-            main_qs = [q for q in sec_qs if not q.get("_is_or", False)]
-            or_qs = [q for q in sec_qs if q.get("_is_or", False)]
+            main_qs = [q for q in sec_qs if not _is_or_q(q)]
+            or_qs = [q for q in sec_qs if _is_or_q(q)]
             or_queue = list(or_qs)
 
             for q in main_qs:
@@ -3960,8 +3974,8 @@ def _build_cbse_answer_key_elements(
             elements.append(_ak_bar(title))
             elements.append(Spacer(1, 2))
 
-            main_qs = [q for q in sec_qs if not q.get("_is_or", False)]
-            or_qs = [q for q in sec_qs if q.get("_is_or", False)]
+            main_qs = [q for q in sec_qs if not _is_or_q(q)]
+            or_qs = [q for q in sec_qs if _is_or_q(q)]
             or_queue = list(or_qs)
 
             for q in main_qs:
@@ -4168,8 +4182,8 @@ def _generate_docx_cbse_answer_key(
             meta = sec_meta_dict.get(sec_key, {})
             title = meta.get("title", f"Section {sec_key}")
             _add_ak_bar(title)
-            main_qs = [q for q in sec_qs if not q.get("_is_or", False)]
-            or_qs = [q for q in sec_qs if q.get("_is_or", False)]
+            main_qs = [q for q in sec_qs if not _is_or_q(q)]
+            or_qs = [q for q in sec_qs if _is_or_q(q)]
             or_queue = list(or_qs)
             for q in main_qs:
                 q_num += 1
@@ -4295,7 +4309,7 @@ def _generate_pdf_cbse_exam(
 
     story = []
     display_date = _format_date_for_display(paper_date)
-    total_marks = sum(q.get("marks", 1) for q in questions)
+    total_marks = _paper_marks(questions)
     class_num = re.sub(r'[^0-9]', '', str(class_grade)) or class_grade
 
     # ── Top Left Logo & Header ──────────────────────────────────────
@@ -4415,7 +4429,7 @@ def _generate_pdf_cbse_exam(
     has_sec = sec_order is not None
 
     instructions = [
-        f"All questions are compulsory. There are {len(questions)} questions in total"
+        f"All questions are compulsory. There are {len(_main_questions(questions))} questions in total"
         + (", divided into 5 Sections." if has_sec else "."),
     ]
     if has_sec and sec_meta_dict is CBSE_SECTIONS_META:
@@ -4426,7 +4440,7 @@ def _generate_pdf_cbse_exam(
             sq = grouped_temp.get(sk, [])
             if not sq:
                 continue
-            cnt = len([q for q in sq if not q.get("_is_or", False)])
+            cnt = len([q for q in sq if not _is_or_q(q)])
             meta = sec_meta_dict.get(sk, {})
             q_range = f"Q{curr_q}–Q{curr_q + cnt - 1}" if cnt > 1 else f"Q{curr_q}"
             curr_q += cnt
@@ -4676,7 +4690,7 @@ def _generate_pdf_cbse_exam(
                 last_section_title = current_title
 
             # Section subtitle with dynamic question range (e.g. 1 Mark Each (Q1–5))
-            main_count = len([q for q in sec_qs if not q.get("_is_or", False)])
+            main_count = len([q for q in sec_qs if not _is_or_q(q)])
             start_q = q_num + 1
             end_q = q_num + main_count
             q_range = f"(Q{start_q}–{end_q})" if end_q > start_q else f"(Q{start_q})"
@@ -4691,8 +4705,8 @@ def _generate_pdf_cbse_exam(
                 sub_label = q_range
             story.append(Paragraph(sub_label, styles["SecSub"]))
 
-            main_qs = [q for q in sec_qs if not q.get("_is_or", False)]
-            or_qs = [q for q in sec_qs if q.get("_is_or", False)]
+            main_qs = [q for q in sec_qs if not _is_or_q(q)]
+            or_qs = [q for q in sec_qs if _is_or_q(q)]
             or_queue = list(or_qs)
 
             for q in main_qs:
@@ -4776,7 +4790,7 @@ def _generate_docx_cbse_exam(
         section.right_margin = Cm(right_m)
 
     display_date = _format_date_for_display(paper_date)
-    total_marks = sum(q.get("marks", 1) for q in questions)
+    total_marks = _paper_marks(questions)
     class_num = re.sub(r'[^0-9]', '', str(class_grade)) or class_grade
     labels_lower = ["a", "b", "c", "d", "e", "f"]
 
@@ -4903,7 +4917,7 @@ def _generate_docx_cbse_exam(
     has_sec = sec_order is not None
 
     instructions = [
-        f"All questions are compulsory. There are {len(questions)} questions in total"
+        f"All questions are compulsory. There are {len(_main_questions(questions))} questions in total"
         + (", divided into 5 Sections." if has_sec else "."),
     ]
     if has_sec and sec_meta_dict is CBSE_SECTIONS_META:
@@ -4914,7 +4928,7 @@ def _generate_docx_cbse_exam(
             sq = grouped_temp.get(sk, [])
             if not sq:
                 continue
-            cnt = len([q for q in sq if not q.get("_is_or", False)])
+            cnt = len([q for q in sq if not _is_or_q(q)])
             meta = sec_meta_dict.get(sk, {})
             q_range = f"Q{curr_q}–Q{curr_q + cnt - 1}" if cnt > 1 else f"Q{curr_q}"
             curr_q += cnt
@@ -5077,7 +5091,7 @@ def _generate_docx_cbse_exam(
 
             marks_each = meta.get("marks", "?")
             start_q = q_num + 1
-            main_count = len([q for q in sec_qs if not q.get("_is_or", False)])
+            main_count = len([q for q in sec_qs if not _is_or_q(q)])
             end_q = q_num + main_count
             q_range = f"(Q{start_q}–{end_q})" if end_q > start_q else f"(Q{start_q})"
 
@@ -5094,8 +5108,8 @@ def _generate_docx_cbse_exam(
             r = p.add_run(sub_label)
             r.italic = True; r.font.size = Pt(7.0); r.font.color.rgb = _rgb(muted); r.font.name = font_name
 
-            main_qs = [q for q in sec_qs if not q.get("_is_or", False)]
-            or_qs = [q for q in sec_qs if q.get("_is_or", False)]
+            main_qs = [q for q in sec_qs if not _is_or_q(q)]
+            or_qs = [q for q in sec_qs if _is_or_q(q)]
             or_queue = list(or_qs)
 
             for q in main_qs:
@@ -5201,8 +5215,8 @@ def _generate_docx_cbse_exam(
                 meta = sec_meta_dict.get(sec_key, {})
                 title = meta.get("title", f"Section {sec_key}")
                 _add_section_bar(title)
-                main_qs = [q for q in sec_qs if not q.get("_is_or", False)]
-                or_qs = [q for q in sec_qs if q.get("_is_or", False)]
+                main_qs = [q for q in sec_qs if not _is_or_q(q)]
+                or_qs = [q for q in sec_qs if _is_or_q(q)]
                 or_queue = list(or_qs)
                 for q in main_qs:
                     ak_num += 1
@@ -5710,8 +5724,8 @@ def _generate_pdf_accountancy_exam(
 
     story = []
     class_num = re.sub(r'[^0-9]', '', str(class_grade)) or class_grade
-    total_marks = sum(q.get("marks", 1) for q in questions if not q.get("_is_or", False))
-    main_questions_count = len([q for q in questions if not q.get("_is_or", False)])
+    total_marks = sum(q.get("marks", 1) for q in questions if not _is_or_q(q))
+    main_questions_count = len([q for q in questions if not _is_or_q(q)])
 
     # 1. Header block (institute logo on the left, titles centred)
     header_block = []
@@ -5794,8 +5808,8 @@ def _generate_pdf_accountancy_exam(
     part_b_started = False
     divider_row_indices = []
 
-    main_qs = [q for q in questions if not q.get("_is_or", False)]
-    or_qs = [q for q in questions if q.get("_is_or", False)]
+    main_qs = [q for q in questions if not _is_or_q(q)]
+    or_qs = [q for q in questions if _is_or_q(q)]
     or_queue = list(or_qs)
 
     q_num = 0
@@ -6112,8 +6126,8 @@ def _generate_docx_accountancy_exam(
         section.right_margin = Cm(1.2)
 
     class_num = re.sub(r'[^0-9]', '', str(class_grade)) or class_grade
-    total_marks = sum(q.get("marks", 1) for q in questions if not q.get("_is_or", False))
-    main_questions_count = len([q for q in questions if not q.get("_is_or", False)])
+    total_marks = sum(q.get("marks", 1) for q in questions if not _is_or_q(q))
+    main_questions_count = len([q for q in questions if not _is_or_q(q)])
 
     def _add_p(text, size=9.5, bold=False, italic=False, color="#111827", align=WD_ALIGN_PARAGRAPH.CENTER, space_after=1):
         p = doc.add_paragraph()
@@ -6202,8 +6216,8 @@ def _generate_docx_accountancy_exam(
         r.font.name = font_name; r.font.size = Pt(7.5); r.font.color.rgb = _rgb("#1F2937")
 
     # Master 3-Column Table
-    main_qs = [q for q in questions if not q.get("_is_or", False)]
-    or_qs = [q for q in questions if q.get("_is_or", False)]
+    main_qs = [q for q in questions if not _is_or_q(q)]
+    or_qs = [q for q in questions if _is_or_q(q)]
     or_queue = list(or_qs)
 
     master_table = doc.add_table(rows=0, cols=3)

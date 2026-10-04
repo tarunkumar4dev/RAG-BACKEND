@@ -22,6 +22,9 @@ import uuid
 from typing import List, Dict, Optional
 import math
 import concurrent.futures
+import contextvars
+import functools
+import threading
 
 import httpx
 from google import genai
@@ -1714,6 +1717,64 @@ def _validate_batch_quality(questions, chapter, request):
     return filtered
 
 
+# Model "thinking out loud" that ends up in the answer key (seen in real output:
+# "Wait, check calculation ... The correct answer is 60°" under a key marked 30°).
+_REASONING_LEAK = re.compile(
+    r"\bwait[,.!]|\blet(?:'s| us| me) (?:re-?check|re-?verify|check (?:again|carefully))"
+    r"|\bre-?verify (?:the )?options|\bcheck calculation|\bon second thought",
+    re.IGNORECASE,
+)
+_OPTION_LETTER = re.compile(r"^\s*\(?([A-Da-d])\s*[\).:\]]")
+_STATED_ANSWER = re.compile(r"correct (?:answer|option) is\s*(?:option\s*)?\(?([A-D])\b", re.IGNORECASE)
+
+
+def _norm_text(s) -> str:
+    return re.sub(r"[^a-z0-9]", "", (s or "").lower())
+
+
+def _quality_issue(fmt, options, correct, explanation) -> Optional[str]:
+    """Cheap, model-free checks for answer-key errors. Returns why a question is unusable, or None."""
+    if _REASONING_LEAK.search(f"{correct or ''} {explanation or ''}"):
+        return "model reasoning leaked into the answer/explanation"
+    if fmt not in ("mcq", "assertion_reason"):
+        return None
+    if not isinstance(options, list) or len(options) != 4:
+        return f"{len(options) if isinstance(options, list) else 0} options instead of 4"
+    if len({_norm_text(o) for o in options}) < 4:
+        return "duplicate options"
+    ans = _norm_text(correct)
+    if not ans:
+        return "no correct answer"
+    ans_letter_m = _OPTION_LETTER.match(correct or "")
+    ans_letter = ans_letter_m.group(1).upper() if ans_letter_m else None
+
+    def matches(opt):
+        o = _norm_text(opt)
+        opt_letter_m = _OPTION_LETTER.match(opt or "")
+        if ans_letter and opt_letter_m and opt_letter_m.group(1).upper() == ans_letter:
+            return True
+        return bool(o) and (ans == o or (len(ans) > 3 and (ans in o or o in ans)))
+
+    if not any(matches(o) for o in options):
+        return "correct answer is not one of the options"
+    stated = _STATED_ANSWER.search(explanation or "")
+    if stated and ans_letter and stated.group(1).upper() != ans_letter:
+        return f"explanation says {stated.group(1).upper()}, key says {ans_letter}"
+    return None
+
+
+def _dedupe_questions(qs: list) -> list:
+    """Parallel batches don't see each other, so drop repeats across batches."""
+    seen, out = set(), []
+    for q in qs:
+        key = _norm_text(getattr(q, "text", ""))[:160]
+        if key and key in seen:
+            continue
+        seen.add(key)
+        out.append(q)
+    return out
+
+
 def _parse_batch(raw, chapter, request, section_key=None):
     try:
         data = _extract_json(raw)
@@ -1785,6 +1846,15 @@ def _parse_batch(raw, chapter, request, section_key=None):
 
         if isinstance(options, list):
             options = [_clean_gemini_text(o) for o in options]
+
+        issue = _quality_issue(fmt, options, correct, explanation)
+        if issue:
+            logger.warning(f"  Dropped ({chapter.chapter}/{fmt}): {issue}")
+            stats = _PAPER_STATS.get()
+            if stats:
+                stats.add_drop()
+            dropped += 1
+            continue
 
         answer_table = None
         raw_table = q.get("answer_table")
@@ -1989,6 +2059,86 @@ def _is_retryable(error_str: str) -> bool:
     return any(kw in error_str.upper() for kw in (k.upper() for k in RETRYABLE_KEYWORDS))
 
 
+_LLM_SLOTS = threading.BoundedSemaphore(max(1, settings.LLM_MAX_CONCURRENCY))
+
+# USD per 1M tokens (input, output), Oct 2026 list prices; DeepSeek at peak rate (conservative).
+_PRICE_PER_M = {
+    "gemini-3.5-flash-lite": (0.30, 2.50),
+    "deepseek-flash": (0.30, 1.20),
+}
+
+
+class _PaperStats:
+    """Per-paper LLM usage, shared by every worker thread generating that paper."""
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self.calls = {}  # model -> [calls, input tokens, output tokens]
+        self.dropped = 0
+
+    def add_call(self, model: str, tokens_in: int, tokens_out: int):
+        with self._lock:
+            c = self.calls.setdefault(model, [0, 0, 0])
+            c[0] += 1
+            c[1] += tokens_in or 0
+            c[2] += tokens_out or 0
+
+    def add_drop(self):
+        with self._lock:
+            self.dropped += 1
+
+    def summary(self) -> str:
+        parts, cost, cost_known = [], 0.0, True
+        for model, (n, tin, tout) in self.calls.items():
+            parts.append(f"{model}: {n} calls, {tin} in / {tout} out")
+            price = _PRICE_PER_M.get(model)
+            if price:
+                cost += (tin * price[0] + tout * price[1]) / 1e6
+            else:
+                cost_known = False
+        est = f"${cost:.4f}" + ("" if cost_known else " + unpriced models")
+        return f"{'; '.join(parts) or 'no LLM calls'} | est. cost {est} | quality drops {self.dropped}"
+
+
+_PAPER_STATS: contextvars.ContextVar = contextvars.ContextVar("a4ai_paper_stats", default=None)
+
+
+def _record_call(model: str, tokens_in: int, tokens_out: int):
+    stats = _PAPER_STATS.get()
+    if stats:
+        stats.add_call(model, tokens_in, tokens_out)
+
+
+def _submit(pool, fn, *args, **kwargs):
+    """pool.submit that carries the caller's context (the paper's stats) into the worker thread."""
+    return pool.submit(contextvars.copy_context().run, fn, *args, **kwargs)
+
+
+def _with_paper_stats(kind: str):
+    """Log one line per paper: time, questions, LLM calls/tokens per model, est. cost, quality drops."""
+    def decorate(fn):
+        @functools.wraps(fn)
+        def wrapper(*args, **kwargs):
+            if _PAPER_STATS.get() is not None:  # nested (e.g. generate_questions -> generate_cbse_paper)
+                return fn(*args, **kwargs)
+            stats = _PaperStats()
+            token = _PAPER_STATS.set(stats)
+            t0 = time.time()
+            result = None
+            try:
+                result = fn(*args, **kwargs)
+                return result
+            finally:
+                _PAPER_STATS.reset(token)
+                n = len(result) if isinstance(result, list) else 0
+                label = "cbse" if kwargs.get("cbse_pattern") else kind
+                logger.info(
+                    f"PAPER STATS [{label}] provider={settings.LLM_PROVIDER} {time.time() - t0:.1f}s "
+                    f"{n} questions | {stats.summary()}"
+                )
+        return wrapper
+    return decorate
+
 DEEPSEEK_URL = "https://api.deepseek.com/chat/completions"
 DEEPSEEK_TIMEOUT_SECONDS = 180
 DEEPSEEK_RETRYABLE_STATUS = {429, 500, 502, 503, 504}
@@ -2024,6 +2174,7 @@ def _call_deepseek(prompt):
                 if not raw:
                     raise GenerationError("Empty response from deepseek", 502)
                 usage = data.get("usage") or {}
+                _record_call(settings.DEEPSEEK_MODEL, usage.get("prompt_tokens", 0), usage.get("completion_tokens", 0))
                 logger.info(
                     f"[deepseek:{settings.DEEPSEEK_MODEL}/{settings.DEEPSEEK_EFFORT}] {time.time() - t0:.1f}s "
                     f"({len(raw)} chars, {usage.get('prompt_tokens', 0)} in / {usage.get('completion_tokens', 0)} out tokens)"
@@ -2040,6 +2191,13 @@ def _call_deepseek(prompt):
 
 
 def _call_gemini(client, prompt, model):
+    # Sections and batches run in parallel; this caps how many LLM calls are in flight
+    # per server instance so a burst of teachers cannot trip provider rate limits.
+    with _LLM_SLOTS:
+        return _call_llm(client, prompt, model)
+
+
+def _call_llm(client, prompt, model):
     # Every test-generation path (normal, CBSE, accountancy) calls this function, so the
     # provider switch lives here. DeepSeek failures fall back to the Gemini model asked for.
     if settings.LLM_PROVIDER == "deepseek" and settings.DEEPSEEK_API_KEY:
@@ -2065,6 +2223,13 @@ def _call_gemini(client, prompt, model):
             raw = (resp.text or "").strip()
             if not raw:
                 raise GenerationError("Empty response from model", 502)
+            um = getattr(resp, "usage_metadata", None)
+            if um is not None:
+                _record_call(
+                    model,
+                    getattr(um, "prompt_token_count", 0) or 0,
+                    (getattr(um, "candidates_token_count", 0) or 0) + (getattr(um, "thoughts_token_count", 0) or 0),
+                )
             logger.info(f"[{model}] {time.time() - t0:.1f}s ({len(raw)} chars)")
             return raw
         except GenerationError:
@@ -2080,6 +2245,12 @@ def _call_gemini(client, prompt, model):
                 logger.warning(f"[{model}] Retry {attempt + 1}: {err[:80]}... waiting {wait:.1f}s")
                 time.sleep(wait)
     raise GenerationError(f"{model}: failed after {MAX_RETRIES} attempts: {str(last_exc)[:150]}", 503)
+
+
+def _split_batches(total: int, size: int) -> List[int]:
+    """[17, 5] -> [5, 5, 5, 2]"""
+    size = max(1, size)
+    return [min(size, total - i) for i in range(0, total, size)] if total > 0 else []
 
 
 def _generate_for_chapter(client, chapter, request, context_chunks, models, section_key=None, section_info=None, errors=None):
@@ -2105,14 +2276,7 @@ def _generate_for_chapter(client, chapter, request, context_chunks, models, sect
 
     logger.info(f"  '{chapter.chapter}': target={target}, fmt={fmt_val}, diff={chapter.difficulty}, marks={chapter.marks_per_question}" + (f", section={section_key}" if section_key else "") + routing_tag)
 
-    all_qs = []
-    remaining = ask
-    batch_num = 0
-
-    while remaining > 0 and len(all_qs) < target:
-        bc = min(remaining, batch_size)
-        batch_num += 1
-
+    def run_batch(bc: int, batch_num: int) -> list:
         if is_accountancy and fmt_val in ACCOUNTANCY_TABLE_FORMATS:
             prompt = _build_accountancy_prompt(
                 chapter, request, context_chunks, bc,
@@ -2152,18 +2316,23 @@ def _generate_for_chapter(client, chapter, request, context_chunks, models, sect
                     continue
                 logger.error(f"    '{chapter.chapter}' batch {batch_num} failed: {e}")
                 break
+        return batch_qs
 
-        all_qs.extend(batch_qs)
-        produced = len(batch_qs)
-        remaining -= bc
+    # Batches are independent (no prompt depends on an earlier batch), so the first
+    # wave runs in parallel. Shortfalls from the parser/quality filter are topped up
+    # afterwards, up to 3 more rounds.
+    all_qs = []
+    sizes = _split_batches(ask, batch_size)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, len(sizes))) as pool:
+        futures = [_submit(pool, run_batch, bc, i + 1) for i, bc in enumerate(sizes)]
+        for f in futures:
+            all_qs.extend(f.result())
+    all_qs = _dedupe_questions(all_qs)
 
-        # If quality filter or parser rejected questions, retry for shortfall
-        if produced < bc and len(all_qs) < target and batch_num < 4:
-            shortfall = bc - produced
-            remaining += shortfall
-
-        if remaining > 0 and len(all_qs) < target:
-            time.sleep(settings.BATCH_DELAY)
+    batch_num = len(sizes)
+    while len(all_qs) < target and batch_num < len(sizes) + 3:
+        batch_num += 1
+        all_qs = _dedupe_questions(all_qs + run_batch(min(target - len(all_qs) + settings.OVERSHOOT_PER_CHAPTER, batch_size), batch_num))
 
     if len(all_qs) > target:
         all_qs = all_qs[:target]
@@ -2188,6 +2357,7 @@ def _distribute_chapters_to_sections(chapters):
     return distribution
 
 
+@_with_paper_stats("cbse")
 def generate_cbse_paper(request, context_chunks, feedback=None):
     if not context_chunks:
         raise GenerationError("No NCERT content found.", 404)
@@ -2203,67 +2373,60 @@ def generate_cbse_paper(request, context_chunks, feedback=None):
     total_expected = sum(sec["count"] for sec in CBSE_SECTIONS.values())
     logger.info(f"CBSE Paper: {len(request.chapters)} chapters, {total_expected} questions")
 
-    all_questions = []
     errors = []
     t0 = time.time()
 
+    # Build every (section, chapter, format) job first, then run them all in parallel.
+    # Results are re-assembled in job order, so the paper keeps its A→E layout.
+    jobs = []  # (sec_key, sec_info, ChapterSection, main_count or None for "keep all")
     for sec_key, sec_info in CBSE_SECTIONS.items():
-        sec_chapters = distribution.get(sec_key, [])
-        logger.info(f"\n{sec_info['title']}: {sec_info['count']} × {sec_info['marks_per_q']}m")
-
-        for ch_entry in sec_chapters:
+        logger.info(f"{sec_info['title']}: {sec_info['count']} × {sec_info['marks_per_q']}m")
+        for ch_entry in distribution.get(sec_key, []):
             ch_name = ch_entry["chapter"]
             count = ch_entry["count"]
             orig_ch = next((c for c in request.chapters if c.chapter == ch_name), None)
             if not orig_ch:
                 continue
+            topic = getattr(orig_ch, 'topic', None)
+            diff = DifficultyLevel(sec_info["difficulty"])
+            marks = sec_info["marks_per_q"]
 
-            formats = sec_info["formats"]
             if sec_key == "A":
                 mcq_count = sec_info.get("mcq_count", 16)
                 ar_count = sec_info.get("ar_count", 4)
-                total_a = mcq_count + ar_count
-                ch_mcq = max(1, round(count * mcq_count / total_a))
+                ch_mcq = max(1, round(count * mcq_count / (mcq_count + ar_count)))
                 ch_ar = count - ch_mcq
-
                 if ch_mcq > 0:
-                    mcq_chapter = ChapterSection(chapter=ch_name, difficulty=DifficultyLevel(sec_info["difficulty"]), format=QuestionFormat("mcq"), marks_per_question=sec_info["marks_per_q"], quantity=ch_mcq, topic=getattr(orig_ch, 'topic', None))
-                    qs = _generate_for_chapter(client, mcq_chapter, request, context_chunks, models, sec_key, sec_info, errors=errors)
-                    all_questions.extend(qs)
-                    time.sleep(settings.BATCH_DELAY)
-
+                    jobs.append((sec_key, sec_info, ChapterSection(chapter=ch_name, difficulty=diff, format=QuestionFormat("mcq"), marks_per_question=marks, quantity=ch_mcq, topic=topic), None))
                 if ch_ar > 0:
-                    ar_chapter = ChapterSection(chapter=ch_name, difficulty=DifficultyLevel(sec_info["difficulty"]), format=QuestionFormat("assertion_reason"), marks_per_question=sec_info["marks_per_q"], quantity=ch_ar, topic=getattr(orig_ch, 'topic', None))
-                    qs = _generate_for_chapter(client, ar_chapter, request, context_chunks, models, sec_key, sec_info, errors=errors)
-                    all_questions.extend(qs)
-                    time.sleep(settings.BATCH_DELAY)
+                    jobs.append((sec_key, sec_info, ChapterSection(chapter=ch_name, difficulty=diff, format=QuestionFormat("assertion_reason"), marks_per_question=marks, quantity=ch_ar, topic=topic), None))
             elif sec_key in ("D", "E"):
-                fmt = formats[0]
-                sec_chapter = ChapterSection(
-                    chapter=ch_name,
-                    difficulty=DifficultyLevel(sec_info["difficulty"]),
-                    format=QuestionFormat(fmt),
-                    marks_per_question=sec_info["marks_per_q"],
-                    quantity=count + 1,  # +1 for OR alternative
-                    topic=getattr(orig_ch, 'topic', None)
-                )
-                qs = _generate_for_chapter(client, sec_chapter, request, context_chunks, models, sec_key, sec_info, errors=errors)
-                main_qs = [q for q in qs if not getattr(q, '_is_or', False)]
-                or_qs = [q for q in qs if getattr(q, '_is_or', False)]
-                all_questions.extend(main_qs[:count])
-                if or_qs:
-                    all_questions.append(or_qs[0])
-                elif len(main_qs) > count:
-                    extra = main_qs[count]
-                    extra._is_or = True
-                    all_questions.append(extra)
-                time.sleep(settings.BATCH_DELAY)
+                # +1 question for the internal-choice (OR) alternative
+                jobs.append((sec_key, sec_info, ChapterSection(chapter=ch_name, difficulty=diff, format=QuestionFormat(sec_info["formats"][0]), marks_per_question=marks, quantity=count + 1, topic=topic), count))
             else:
-                fmt = formats[0]
-                sec_chapter = ChapterSection(chapter=ch_name, difficulty=DifficultyLevel(sec_info["difficulty"]), format=QuestionFormat(fmt), marks_per_question=sec_info["marks_per_q"], quantity=count, topic=getattr(orig_ch, 'topic', None))
-                qs = _generate_for_chapter(client, sec_chapter, request, context_chunks, models, sec_key, sec_info, errors=errors)
-                all_questions.extend(qs)
-                time.sleep(settings.BATCH_DELAY)
+                jobs.append((sec_key, sec_info, ChapterSection(chapter=ch_name, difficulty=diff, format=QuestionFormat(sec_info["formats"][0]), marks_per_question=marks, quantity=count, topic=topic), None))
+
+    def run_job(job):
+        sec_key, sec_info, sec_chapter, main_count = job
+        qs = _generate_for_chapter(client, sec_chapter, request, context_chunks, models, sec_key, sec_info, errors=errors)
+        if main_count is None:
+            return qs
+        main_qs = [q for q in qs if not getattr(q, '_is_or', False)]
+        or_qs = [q for q in qs if getattr(q, '_is_or', False)]
+        out = main_qs[:main_count]
+        if or_qs:
+            out.append(or_qs[0])
+        elif len(main_qs) > main_count:
+            extra = main_qs[main_count]
+            extra._is_or = True
+            out.append(extra)
+        return out
+
+    all_questions = []
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, len(jobs))) as pool:
+        futures = [_submit(pool, run_job, job) for job in jobs]
+        for f in futures:
+            all_questions.extend(f.result())
 
     elapsed = time.time() - t0
     logger.info(f"CBSE Paper Done: {len(all_questions)}/{total_expected} in {elapsed:.1f}s")
@@ -2313,6 +2476,7 @@ def _distribute_accountancy_chapters(chapters, pattern):
     return distribution
 
 
+@_with_paper_stats("cbse-accountancy")
 def generate_cbse_accountancy_paper(request, context_chunks, feedback=None):
     if not context_chunks:
         raise GenerationError("No NCERT content for Accountancy.", 404)
@@ -2328,15 +2492,17 @@ def generate_cbse_accountancy_paper(request, context_chunks, feedback=None):
     distribution = _distribute_accountancy_chapters(request.chapters, pattern)
     logger.info(f"CBSE Accountancy: {len(request.chapters)} chapters, target={pattern['total_questions']}")
 
-    all_questions = []
     errors = []
     t0 = time.time()
 
+    # One LLM call per (part, group, chapter, format). Build them all, run in parallel,
+    # then re-assemble in job order so the paper keeps its Part A / Part B layout.
+    jobs = []  # (ChapterSection, prompt, main_n, or_n, section_tag, error_tag)
     for part_key, part_info in pattern["parts"].items():
         part_groups = distribution.get(part_key, {})
         if not part_groups:
             continue
-        logger.info(f"\n{part_info['title']}: {part_info['subtitle']}")
+        logger.info(f"{part_info['title']}: {part_info['subtitle']}")
 
         for group in part_info["groups"]:
             group_id = group["id"]
@@ -2346,6 +2512,7 @@ def generate_cbse_accountancy_paper(request, context_chunks, feedback=None):
             marks = group["marks_per_q"]
             formats = group["formats"]
             difficulty = group["difficulty"]
+            section_tag = f"{part_key}_{marks}m"
             logger.info(f"  Group {group_id}: {group['count']} × {marks}m")
 
             for ch_entry in group_chapters:
@@ -2359,48 +2526,20 @@ def generate_cbse_accountancy_paper(request, context_chunks, feedback=None):
                 if group_id in ("A1", "B1_1"):
                     mcq_total = group.get("mcq_count", 12)
                     ar_total = group.get("ar_count", 4)
-                    total_group = mcq_total + ar_total
-                    ch_mcq = max(1, round(count * mcq_total / total_group))
+                    ch_mcq = max(1, round(count * mcq_total / (mcq_total + ar_total)))
                     ch_ar = count - ch_mcq
 
                     if ch_mcq > 0:
-                        mcq_chapter = ChapterSection(chapter=ch_name, difficulty=DifficultyLevel(difficulty), format=QuestionFormat("mcq"), marks_per_question=marks, quantity=ch_mcq + min(or_count, ch_mcq))
-                        prompt = _build_accountancy_cbse_prompt(mcq_chapter, request, context_chunks, ch_mcq + min(or_count, ch_mcq), group, part_key, generate_or=(or_count > 0))
-                        for m in models:
-                            try:
-                                raw = _call_gemini(client, prompt, m)
-                                batch_qs = _parse_batch(raw, mcq_chapter, request, f"{part_key}_{marks}m")
-                                if batch_qs:
-                                    main_qs = [q for q in batch_qs if not getattr(q, '_is_or', False)]
-                                    or_qs = [q for q in batch_qs if getattr(q, '_is_or', False)]
-                                    all_questions.extend(main_qs[:ch_mcq])
-                                    all_questions.extend(or_qs[:min(or_count, ch_mcq)])
-                                    break
-                            except GenerationError as e:
-                                errors.append(f"{ch_name}/A1: {str(e)}")
-                                if m != models[-1]:
-                                    continue
-                        time.sleep(settings.BATCH_DELAY)
+                        mcq_or = min(or_count, ch_mcq)
+                        mcq_chapter = ChapterSection(chapter=ch_name, difficulty=DifficultyLevel(difficulty), format=QuestionFormat("mcq"), marks_per_question=marks, quantity=ch_mcq + mcq_or)
+                        prompt = _build_accountancy_cbse_prompt(mcq_chapter, request, context_chunks, ch_mcq + mcq_or, group, part_key, generate_or=(or_count > 0))
+                        jobs.append((mcq_chapter, prompt, ch_mcq, mcq_or, section_tag, f"{ch_name}/A1"))
 
                     if ch_ar > 0:
                         ar_or = max(0, or_count - min(or_count, ch_mcq))
                         ar_chapter = ChapterSection(chapter=ch_name, difficulty=DifficultyLevel(difficulty), format=QuestionFormat("assertion_reason"), marks_per_question=marks, quantity=ch_ar + ar_or)
                         prompt = _build_accountancy_cbse_prompt(ar_chapter, request, context_chunks, ch_ar + ar_or, group, part_key, generate_or=(ar_or > 0))
-                        for m in models:
-                            try:
-                                raw = _call_gemini(client, prompt, m)
-                                batch_qs = _parse_batch(raw, ar_chapter, request, f"{part_key}_{marks}m")
-                                if batch_qs:
-                                    main_qs = [q for q in batch_qs if not getattr(q, '_is_or', False)]
-                                    or_qs = [q for q in batch_qs if getattr(q, '_is_or', False)]
-                                    all_questions.extend(main_qs[:ch_ar])
-                                    all_questions.extend(or_qs[:ar_or])
-                                    break
-                            except GenerationError as e:
-                                errors.append(f"{ch_name}/AR: {str(e)}")
-                                if m != models[-1]:
-                                    continue
-                        time.sleep(settings.BATCH_DELAY)
+                        jobs.append((ar_chapter, prompt, ch_ar, ar_or, section_tag, f"{ch_name}/AR"))
                 else:
                     fmt = formats[0]
                     if marks >= 4 and "journal_entry" in formats:
@@ -2409,21 +2548,27 @@ def generate_cbse_accountancy_paper(request, context_chunks, feedback=None):
                         fmt = "long_answer"
                     sec_chapter = ChapterSection(chapter=ch_name, difficulty=DifficultyLevel(difficulty), format=QuestionFormat(fmt), marks_per_question=marks, quantity=count + or_count)
                     prompt = _build_accountancy_cbse_prompt(sec_chapter, request, context_chunks, count + or_count, group, part_key, generate_or=(or_count > 0))
-                    for m in models:
-                        try:
-                            raw = _call_gemini(client, prompt, m)
-                            batch_qs = _parse_batch(raw, sec_chapter, request, f"{part_key}_{marks}m")
-                            if batch_qs:
-                                main_qs = [q for q in batch_qs if not getattr(q, '_is_or', False)]
-                                or_qs = [q for q in batch_qs if getattr(q, '_is_or', False)]
-                                all_questions.extend(main_qs[:count])
-                                all_questions.extend(or_qs[:or_count])
-                                break
-                        except GenerationError as e:
-                            errors.append(f"{ch_name}/{fmt}: {str(e)}")
-                            if m != models[-1]:
-                                continue
-                    time.sleep(settings.BATCH_DELAY)
+                    jobs.append((sec_chapter, prompt, count, or_count, section_tag, f"{ch_name}/{fmt}"))
+
+    def run_job(job):
+        chapter_section, prompt, main_n, or_n, section_tag, error_tag = job
+        for m in models:
+            try:
+                raw = _call_gemini(client, prompt, m)
+                batch_qs = _parse_batch(raw, chapter_section, request, section_tag)
+                if batch_qs:
+                    main_qs = [q for q in batch_qs if not getattr(q, '_is_or', False)]
+                    or_qs = [q for q in batch_qs if getattr(q, '_is_or', False)]
+                    return main_qs[:main_n] + or_qs[:or_n]
+            except GenerationError as e:
+                errors.append(f"{error_tag}: {str(e)}")
+        return []
+
+    all_questions = []
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, len(jobs))) as pool:
+        futures = [_submit(pool, run_job, job) for job in jobs]
+        for f in futures:
+            all_questions.extend(f.result())
 
     elapsed = time.time() - t0
     main_count = len([q for q in all_questions if not getattr(q, '_is_or', False)])
@@ -2434,6 +2579,7 @@ def generate_cbse_accountancy_paper(request, context_chunks, feedback=None):
     return all_questions
 
 
+@_with_paper_stats("custom")
 def generate_questions(request, context_chunks, feedback=None, cbse_pattern: bool = False):
     subject_lower = (request.subject or "").lower()
     is_accountancy = subject_lower in ACCOUNTANCY_SUBJECTS
@@ -2471,7 +2617,7 @@ def generate_questions(request, context_chunks, feedback=None, cbse_pattern: boo
         logger.info(f"Generating {len(valid_chapters)} chapters in parallel with {max_workers} workers")
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
             future_to_idx = {
-                executor.submit(_generate_for_chapter, client, chapter, request, context_chunks, models, errors=errors): idx
+                _submit(executor, _generate_for_chapter, client, chapter, request, context_chunks, models, errors=errors): idx
                 for idx, chapter in enumerate(valid_chapters)
             }
             results = [None] * len(valid_chapters)
