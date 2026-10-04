@@ -23,6 +23,7 @@ from typing import List, Dict, Optional
 import math
 import concurrent.futures
 
+import httpx
 from google import genai
 from google.genai import types as genai_types
 
@@ -1988,7 +1989,65 @@ def _is_retryable(error_str: str) -> bool:
     return any(kw in error_str.upper() for kw in (k.upper() for k in RETRYABLE_KEYWORDS))
 
 
+DEEPSEEK_URL = "https://api.deepseek.com/chat/completions"
+DEEPSEEK_TIMEOUT_SECONDS = 180
+DEEPSEEK_RETRYABLE_STATUS = {429, 500, 502, 503, 504}
+
+
+def _call_deepseek(prompt):
+    """DeepSeek chat completion in JSON mode; same contract as the Gemini call (returns raw JSON text)."""
+    last_err = ""
+    for attempt in range(MAX_RETRIES):
+        t0 = time.time()
+        try:
+            resp = httpx.post(
+                DEEPSEEK_URL,
+                headers={"Authorization": f"Bearer {settings.DEEPSEEK_API_KEY}"},
+                json={
+                    "model": settings.DEEPSEEK_MODEL,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "temperature": settings.GENERATION_TEMPERATURE,
+                    "top_p": 0.92,
+                    "max_tokens": settings.MAX_OUTPUT_TOKENS,
+                    "response_format": {"type": "json_object"},
+                    "reasoning_effort": settings.DEEPSEEK_EFFORT,
+                },
+                timeout=DEEPSEEK_TIMEOUT_SECONDS,
+            )
+        except httpx.HTTPError as e:
+            last_err = f"{type(e).__name__}: {e}"
+        else:
+            if resp.status_code == 200:
+                data = resp.json()
+                raw = ((data.get("choices") or [{}])[0].get("message") or {}).get("content") or ""
+                raw = raw.strip()
+                if not raw:
+                    raise GenerationError("Empty response from deepseek", 502)
+                usage = data.get("usage") or {}
+                logger.info(
+                    f"[deepseek:{settings.DEEPSEEK_MODEL}/{settings.DEEPSEEK_EFFORT}] {time.time() - t0:.1f}s "
+                    f"({len(raw)} chars, {usage.get('prompt_tokens', 0)} in / {usage.get('completion_tokens', 0)} out tokens)"
+                )
+                return raw
+            last_err = f"HTTP {resp.status_code}: {resp.text[:200]}"
+            if resp.status_code not in DEEPSEEK_RETRYABLE_STATUS:
+                raise GenerationError(f"deepseek: {last_err}", 502)
+        if attempt < MAX_RETRIES - 1:
+            wait = min(BASE_BACKOFF_SECONDS ** (attempt + 1), MAX_BACKOFF_SECONDS) * random.uniform(*JITTER_RANGE)
+            logger.warning(f"[deepseek] Retry {attempt + 1}: {last_err[:80]}... waiting {wait:.1f}s")
+            time.sleep(wait)
+    raise GenerationError(f"deepseek: failed after {MAX_RETRIES} attempts: {last_err[:150]}", 503)
+
+
 def _call_gemini(client, prompt, model):
+    # Every test-generation path (normal, CBSE, accountancy) calls this function, so the
+    # provider switch lives here. DeepSeek failures fall back to the Gemini model asked for.
+    if settings.LLM_PROVIDER == "deepseek" and settings.DEEPSEEK_API_KEY:
+        try:
+            return _call_deepseek(prompt)
+        except GenerationError as e:
+            logger.warning(f"DeepSeek failed, falling back to Gemini {model}: {e}")
+
     last_exc = None
     for attempt in range(MAX_RETRIES):
         try:
