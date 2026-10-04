@@ -1267,6 +1267,12 @@ async def save_test(request: FrontendSaveRequest, user: AuthUser = Depends(requi
                     "image_url": q.get("imageUrl") or q.get("image_url"),
                     "answer_table": q.get("answerTable") or q.get("answer_table"),
                     "question_table": q.get("questionTable") or q.get("question_table"),
+                    # Columns added by 20261004120000_questions_rich_fields.sql
+                    "is_or": bool(q.get("isOr") or q.get("is_or") or q.get("_is_or")),
+                    "sub_parts": q.get("subParts") or q.get("sub_parts"),
+                    "marking_scheme": q.get("markingScheme") or q.get("marking_scheme"),
+                    "model_answer": q.get("modelAnswer") or q.get("model_answer"),
+                    "common_mistakes": q.get("commonMistakes") or q.get("common_mistakes"),
                 }
                 rows_to_insert.append(row)
 
@@ -1275,9 +1281,12 @@ async def save_test(request: FrontendSaveRequest, user: AuthUser = Depends(requi
                     supabase.table("questions").insert(rows_to_insert).execute()
                 except Exception as ins_err:
                     err_str = str(ins_err).lower()
-                    if "question_table" in err_str and ("column" in err_str or "schema" in err_str):
+                    if "column" in err_str or "schema" in err_str:
+                        # The rich-field migration has not run yet: keep the paper, drop the extras.
+                        logger.warning(f"questions insert without rich fields (migration pending?): {ins_err}")
                         for r in rows_to_insert:
-                            r.pop("question_table", None)
+                            for k in ("question_table", "is_or", "sub_parts", "marking_scheme", "model_answer", "common_mistakes"):
+                                r.pop(k, None)
                         try:
                             supabase.table("questions").insert(rows_to_insert).execute()
                         except Exception as retry_err:

@@ -53,6 +53,30 @@ def _main_questions(questions) -> list:
 def _paper_marks(questions) -> int:
     return sum(q.get("marks", 1) for q in _main_questions(questions))
 
+
+def _pair_or_questions(questions):
+    """Pairs each OR alternative with the closest earlier main question of the same marks and
+    format. The generator emits a group's OR alternatives right after that group's main
+    questions, so this keeps a 6-mark journal entry's OR next to a 6-mark journal entry
+    (a single FIFO queue paired it with Q1, an MCQ).
+
+    Returns ({index of main question in `questions`: or_question}, [unpaired OR questions]).
+    """
+    pairs, unpaired = {}, []
+    for idx, q in enumerate(questions):
+        if not _is_or_q(q):
+            continue
+        for j in range(idx - 1, -1, -1):
+            m = questions[j]
+            if _is_or_q(m) or j in pairs:
+                continue
+            if m.get("marks") == q.get("marks") and str(m.get("format")) == str(q.get("format")):
+                pairs[j] = q
+                break
+        else:
+            unpaired.append(q)
+    return pairs, unpaired
+
 logger = logging.getLogger(__name__)
 
 
@@ -5519,6 +5543,10 @@ def _render_acc_structured_table_pdf(table: dict, col_w: float, styles, has_tt_f
     body_b = ParagraphStyle("AccStBodyB", parent=body, fontName=font_b)
     body_br = ParagraphStyle("AccStBodyBR", parent=body_r, fontName=font_b)
     head = ParagraphStyle("AccStHead", parent=body, fontName=font_b, alignment=TA_CENTER)
+    # Journal layout as in CBSE answer keys: credit lines ("To ...") indented, narration lighter.
+    body_to = ParagraphStyle("AccStBodyTo", parent=body, leftIndent=12)
+    body_narr = ParagraphStyle("AccStBodyNarr", parent=body, fontSize=size - 0.5, textColor=HexColor("#4B5563"))
+    particulars_col = next((c for c, h in enumerate(headers) if re.match(r"^\s*particulars", h, re.I)), None)
     center_cols = {c for c, h in enumerate(headers) if re.search(r"^(?:[JL]\.\s?F\.?|Note\s+No\.?|V\.?\s?No\.?)$", h.strip(), re.I)}
     # Columns that keep their natural width; spare width goes to the particulars/details column(s).
     fixed_cols = amount_cols | center_cols | {c for c, h in enumerate(headers) if re.match(r"^(?:Date|Year)\b", h.strip(), re.I)}
@@ -5572,6 +5600,12 @@ def _render_acc_structured_table_pdf(table: dict, col_w: float, styles, has_tt_f
             return body_br if is_total else body_r
         if c in center_cols:
             return body_c
+        if kind == "journal_entry" and c == particulars_col and not is_total:
+            line = text.strip()
+            if line.startswith("To "):
+                return body_to
+            if line.lower().startswith("(being"):
+                return body_narr
         if is_total or text.startswith("**"):
             return body_b
         return body
@@ -5808,12 +5842,12 @@ def _generate_pdf_accountancy_exam(
     part_b_started = False
     divider_row_indices = []
 
-    main_qs = [q for q in questions if not _is_or_q(q)]
-    or_qs = [q for q in questions if _is_or_q(q)]
-    or_queue = list(or_qs)
+    main_idx = [i for i, q in enumerate(questions) if not _is_or_q(q)]
+    or_pairs, or_queue = _pair_or_questions(questions)
 
     q_num = 0
-    for q in main_qs:
+    for qi in main_idx:
+        q = questions[qi]
         q_num += 1
         sec = str(q.get("section") or q.get("_section") or "").lower()
         part = str(q.get("part") or "").lower()
@@ -5873,11 +5907,7 @@ def _generate_pdf_accountancy_exam(
         flowables = _render_single_q_content(q)
 
         # Internal Choice OR
-        or_target = None
-        if q.get("or_question"):
-            or_target = q["or_question"]
-        elif or_queue:
-            or_target = or_queue.pop(0)
+        or_target = q.get("or_question") or or_pairs.get(qi)
 
         if or_target:
             flowables.append(Paragraph("<b>OR</b>", styles["AccOr"]))
@@ -5931,14 +5961,11 @@ def _generate_pdf_accountancy_exam(
         story.append(Paragraph("Step-by-step model solutions and marking scheme for evaluators", styles["AccSolSubtitle"]))
         story.append(Spacer(1, 4))
 
-        ak_num = 0
-        for q in main_qs:
-            ak_num += 1
-            ca = q.get("correct_answer") or q.get("answer") or ""
-            expl = q.get("explanation") or q.get("model_answer") or ""
-            ans_tbl = q.get("answer_table") or q.get("answerTable")
-
-            story.append(Paragraph(f"<b>Question {ak_num} [{q.get('marks', 1)} Marks]</b>", styles["AccSolQHead"]))
+        def _solution(target_q, heading):
+            ca = target_q.get("correct_answer") or target_q.get("answer") or ""
+            expl = target_q.get("explanation") or target_q.get("model_answer") or ""
+            ans_tbl = target_q.get("answer_table") or target_q.get("answerTable")
+            story.append(Paragraph(heading, styles["AccSolQHead"]))
             if ca:
                 story.append(Paragraph(f"<b>Answer:</b>  {_format_acc_text(ca, has_tt)}", styles["AccSolText"]))
             if expl:
@@ -5946,6 +5973,19 @@ def _generate_pdf_accountancy_exam(
             if ans_tbl and isinstance(ans_tbl, dict) and ans_tbl.get("headers") and ans_tbl.get("rows"):
                 story.extend(_render_acc_structured_table_pdf(ans_tbl, W * 0.95, styles, has_tt))
             story.append(Spacer(1, 4))
+
+        # Same numbering and pairing as the question paper; OR alternatives get their own solution.
+        ak_num = 0
+        for qi in main_idx:
+            q = questions[qi]
+            ak_num += 1
+            _solution(q, f"<b>Question {ak_num} [{q.get('marks', 1)} Marks]</b>")
+            or_target = q.get("or_question") or or_pairs.get(qi)
+            if or_target:
+                _solution(or_target, f"<b>Question {ak_num} (OR) [{or_target.get('marks', 1)} Marks]</b>")
+        for or_target in or_queue:
+            ak_num += 1
+            _solution(or_target, f"<b>Question {ak_num} (OR) [{or_target.get('marks', 1)} Marks]</b>")
 
     doc.build(story, canvasmaker=AccountancyNumberedCanvas)
     buf_val = buffer.getvalue()
@@ -6216,9 +6256,8 @@ def _generate_docx_accountancy_exam(
         r.font.name = font_name; r.font.size = Pt(7.5); r.font.color.rgb = _rgb("#1F2937")
 
     # Master 3-Column Table
-    main_qs = [q for q in questions if not _is_or_q(q)]
-    or_qs = [q for q in questions if _is_or_q(q)]
-    or_queue = list(or_qs)
+    main_idx = [i for i, q in enumerate(questions) if not _is_or_q(q)]
+    or_pairs, _unpaired_or = _pair_or_questions(questions)
 
     master_table = doc.add_table(rows=0, cols=3)
     master_table.style = 'Table Grid'
@@ -6259,7 +6298,8 @@ def _generate_docx_accountancy_exam(
     part_b_started = False
     q_num = 0
 
-    for q in main_qs:
+    for qi in main_idx:
+        q = questions[qi]
         q_num += 1
         sec = str(q.get("section") or q.get("_section") or "").lower()
         part = str(q.get("part") or "").lower()
@@ -6315,11 +6355,7 @@ def _generate_docx_accountancy_exam(
 
         _render_docx_q_content(cell_q, q, is_first=True)
 
-        or_target = None
-        if q.get("or_question"):
-            or_target = q["or_question"]
-        elif or_queue:
-            or_target = or_queue.pop(0)
+        or_target = q.get("or_question") or or_pairs.get(qi)
 
         if or_target:
             p_or = cell_q.add_paragraph()
