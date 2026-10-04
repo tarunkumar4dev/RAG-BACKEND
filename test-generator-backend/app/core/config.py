@@ -63,6 +63,14 @@ class Settings:
     GEMINI_VAL_MODEL: str = os.getenv("GEMINI_VAL_MODEL", "gemini-3.5-flash-lite")
     GEMINI_THINKING_BUDGET: int = int(os.getenv("GEMINI_THINKING_BUDGET", "0"))
 
+    # ── Test-generation LLM provider ────────────────────────────────
+    # "gemini": Gemini only. "deepseek": DeepSeek first, Gemini as fallback if it fails.
+    LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "gemini").strip().lower()
+    DEEPSEEK_API_KEY: str = os.getenv("DEEPSEEK_API_KEY", "").strip()
+    DEEPSEEK_MODEL: str = os.getenv("DEEPSEEK_MODEL", "deepseek-flash")
+    # Reasoning effort: low | high | max. Higher is slower and costs more output tokens.
+    DEEPSEEK_EFFORT: str = os.getenv("DEEPSEEK_EFFORT", "low")
+
     # ── Razorpay ────────────────────────────────────────────────────
     RAZORPAY_KEY_ID: str = os.getenv("RAZORPAY_KEY_ID", "")
     RAZORPAY_KEY_SECRET: str = os.getenv("RAZORPAY_KEY_SECRET", "")
