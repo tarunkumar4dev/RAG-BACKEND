@@ -1266,6 +1266,23 @@ ACCOUNTANCY_PROMPT_RULES = """ACCOUNTANCY RULES (CRITICAL):
 • Round figures suitable for manual calculation.
 • Ordinals as plain text: "15th" not "15ᵗʰ"."""
 
+# Errors seen in generated keys: fixed-capital interest/salary posted to Capital A/c,
+# unbalanced entries. Teachers grade from this key, so the rules are spelled out.
+ACCOUNTANCY_CORRECTNESS_RULES = """ACCOUNTING CORRECTNESS (teachers grade from this answer key):
+• Fixed capital method: interest on capital, salary, commission, share of profit/loss, drawings and interest on drawings go to partners' CURRENT Accounts; Capital Accounts change only for capital introduced or withdrawn. Fluctuating capital method: all of these go to CAPITAL Accounts. Say in the question which method applies, and follow it in the answer.
+• Interest on capital, partners' salary/commission and interest on drawings are appropriations: pass them through Profit and Loss Appropriation A/c, never Profit and Loss A/c.
+• Interest on drawings uses the given rate and the average period (6.5 months if drawn at the beginning of every month, 5.5 months if at the end, 6 months if dates are not given).
+• Every journal entry balances (total debit = total credit) and has a narration "(Being ...)".
+• Share capital: premium goes to Securities Premium A/c; on forfeiture, Share Capital is debited with the called-up amount and Share Forfeiture A/c is credited with the amount received (excluding premium already received); follow the Companies Act, 2013 and NCERT treatment for calls in arrears/advance and pro-rata allotment.
+• Use only the figures given in the question and show every computation in the explanation."""
+
+ACCOUNTANCY_CBSE_TABLE_RULES = """ANSWER TABLE (required whenever the answer contains journal entries or an account):
+• Journal entries: "answer_table": {"type":"journal_entry","headers":["Date","Particulars","L.F.","Debit (Rs.)","Credit (Rs.)"],"rows":[[5 strings], ...],"total_row":null}. Credit lines start with "  To ". After each entry add a narration row ["", "(Being ...)", "", "", ""].
+• An account (P&L Appropriation, Partners' Capital/Current, Revaluation, Realisation, Share Capital): "answer_table": {"type":"ledger","headers":["Date","Particulars","J.F.","Amount (Rs.)","Date","Particulars","J.F.","Amount (Rs.)"],"rows":[[8 strings], ...],"total_row":[8 strings with equal totals on both sides]}.
+• Amount cells are plain figures such as "1,20,000" (no "Rs." inside cells).
+• With a table, "correct_answer" is a short summary plus working notes; do not repeat the entries there.
+• If the answer has no entries or account (a pure calculation), use "answer_table": null."""
+
 
 def _build_accountancy_cbse_prompt(chapter, request, context_chunks, count, group_info, part_key, generate_or=False):
     ch_name = chapter.chapter.upper()
@@ -1308,7 +1325,9 @@ def _build_accountancy_cbse_prompt(chapter, request, context_chunks, count, grou
     if fmt_val in ("mcq", "assertion_reason"):
         json_template = f'{{"questions":[{{"text":"...","format":"{fmt_val}","options":["A) ...","B) ...","C) ...","D) ..."],"correct_answer":"B) exact option","explanation":"...","marks":{marks},"difficulty":"{diff_val}","bloom_level":"apply","chapter":"{chapter.chapter}","topic":"specific topic","section":"{section_tag}","is_or":false}}]}}'
     else:
-        json_template = f'{{"questions":[{{"text":"[question with given data]","format":"{fmt_val}","options":null,"correct_answer":"[answer]","explanation":"[working]","marks":{marks},"difficulty":"{diff_val}","bloom_level":"apply","chapter":"{chapter.chapter}","topic":"specific topic","section":"{section_tag}","is_or":false}}]}}'
+        json_template = f'{{"questions":[{{"text":"[question with given data]","format":"{fmt_val}","options":null,"correct_answer":"[short summary + working notes]","explanation":"[working]","answer_table":{{"type":"journal_entry","headers":["Date","Particulars","L.F.","Debit (Rs.)","Credit (Rs.)"],"rows":[["...","...","","...",""]],"total_row":null}},"marks":{marks},"difficulty":"{diff_val}","bloom_level":"apply","chapter":"{chapter.chapter}","topic":"specific topic","section":"{section_tag}","is_or":false}}]}}'
+
+    table_rules = "" if fmt_val in ("mcq", "assertion_reason") else ACCOUNTANCY_CBSE_TABLE_RULES
 
     return f"""You are an expert CBSE Class 12 Accountancy paper setter.
 
@@ -1319,6 +1338,10 @@ Chapter: {chapter.chapter}
 Difficulty: {DIFF_INST.get(diff_val, DIFF_INST["medium"])}
 
 {ACCOUNTANCY_PROMPT_RULES}
+
+{ACCOUNTANCY_CORRECTNESS_RULES}
+
+{table_rules}
 
 FORMAT RULES:
 {fmt_line}
@@ -1736,7 +1759,8 @@ def _quality_issue(fmt, options, correct, explanation) -> Optional[str]:
     """Cheap, model-free checks for answer-key errors. Returns why a question is unusable, or None."""
     if _REASONING_LEAK.search(f"{correct or ''} {explanation or ''}"):
         return "model reasoning leaked into the answer/explanation"
-    if fmt not in ("mcq", "assertion_reason"):
+    # Assertion-reason options are normalised to the 4 standard ones later in _parse_batch.
+    if fmt != "mcq":
         return None
     if not isinstance(options, list) or len(options) != 4:
         return f"{len(options) if isinstance(options, list) else 0} options instead of 4"
@@ -1760,6 +1784,35 @@ def _quality_issue(fmt, options, correct, explanation) -> Optional[str]:
     stated = _STATED_ANSWER.search(explanation or "")
     if stated and ans_letter and stated.group(1).upper() != ans_letter:
         return f"explanation says {stated.group(1).upper()}, key says {ans_letter}"
+    return None
+
+
+def _amount(cell) -> Optional[float]:
+    """'Rs. 1,20,000' / '₹ 1,20,000' / '1,20,000.50' -> 120000.0; anything else -> None."""
+    s = re.sub(r"(?i)rs\.?|₹|inr|\s", "", str(cell or ""))
+    s = s.replace(",", "")
+    return float(s) if re.fullmatch(r"\d+(\.\d+)?", s) else None
+
+
+def _answer_table_issue(table) -> Optional[str]:
+    """Accounting checks: a journal must balance, both sides of a ledger must total the same."""
+    if table is None:
+        return None
+    headers = [str(h).lower() for h in (table.headers or [])]
+    rows = table.rows or []
+    if table.type == "journal_entry":
+        dr = next((i for i, h in enumerate(headers) if "debit" in h or h.startswith("dr")), None)
+        cr = next((i for i, h in enumerate(headers) if "credit" in h or h.startswith("cr")), None)
+        if dr is None or cr is None:
+            return None
+        dr_sum = sum(a for r in rows if len(r) > dr and (a := _amount(r[dr])) is not None)
+        cr_sum = sum(a for r in rows if len(r) > cr and (a := _amount(r[cr])) is not None)
+        if dr_sum and cr_sum and abs(dr_sum - cr_sum) > 1:
+            return f"journal does not balance (Dr {dr_sum:,.0f} vs Cr {cr_sum:,.0f})"
+    elif table.type == "ledger" and table.total_row and len(headers) >= 8:
+        left, right = _amount(table.total_row[3]), _amount(table.total_row[7])
+        if left and right and abs(left - right) > 1:
+            return f"ledger totals differ ({left:,.0f} vs {right:,.0f})"
     return None
 
 
@@ -1877,6 +1930,15 @@ def _parse_batch(raw, chapter, request, section_key=None):
                     answer_table = AnswerTable(type=table_type, headers=[str(h) for h in headers], rows=clean_rows, total_row=clean_total)
             except Exception as e:
                 logger.warning(f"  answer_table parse failed: {e}")
+
+        table_issue = _answer_table_issue(answer_table)
+        if table_issue:
+            logger.warning(f"  Dropped ({chapter.chapter}/{fmt}): {table_issue}")
+            stats = _PAPER_STATS.get()
+            if stats:
+                stats.add_drop()
+            dropped += 1
+            continue
 
         question_table = _parse_question_table(q.get("question_table"))
 
@@ -2497,7 +2559,7 @@ def generate_cbse_accountancy_paper(request, context_chunks, feedback=None):
 
     # One LLM call per (part, group, chapter, format). Build them all, run in parallel,
     # then re-assemble in job order so the paper keeps its Part A / Part B layout.
-    jobs = []  # (ChapterSection, prompt, main_n, or_n, section_tag, error_tag)
+    jobs = []  # (ChapterSection, make_prompt(n), main_n, or_n, section_tag, error_tag)
     for part_key, part_info in pattern["parts"].items():
         part_groups = distribution.get(part_key, {})
         if not part_groups:
@@ -2532,14 +2594,14 @@ def generate_cbse_accountancy_paper(request, context_chunks, feedback=None):
                     if ch_mcq > 0:
                         mcq_or = min(or_count, ch_mcq)
                         mcq_chapter = ChapterSection(chapter=ch_name, difficulty=DifficultyLevel(difficulty), format=QuestionFormat("mcq"), marks_per_question=marks, quantity=ch_mcq + mcq_or)
-                        prompt = _build_accountancy_cbse_prompt(mcq_chapter, request, context_chunks, ch_mcq + mcq_or, group, part_key, generate_or=(or_count > 0))
-                        jobs.append((mcq_chapter, prompt, ch_mcq, mcq_or, section_tag, f"{ch_name}/A1"))
+                        make = functools.partial(_build_accountancy_cbse_prompt, mcq_chapter, request, context_chunks, group_info=group, part_key=part_key, generate_or=(or_count > 0))
+                        jobs.append((mcq_chapter, make, ch_mcq, mcq_or, section_tag, f"{ch_name}/A1"))
 
                     if ch_ar > 0:
                         ar_or = max(0, or_count - min(or_count, ch_mcq))
                         ar_chapter = ChapterSection(chapter=ch_name, difficulty=DifficultyLevel(difficulty), format=QuestionFormat("assertion_reason"), marks_per_question=marks, quantity=ch_ar + ar_or)
-                        prompt = _build_accountancy_cbse_prompt(ar_chapter, request, context_chunks, ch_ar + ar_or, group, part_key, generate_or=(ar_or > 0))
-                        jobs.append((ar_chapter, prompt, ch_ar, ar_or, section_tag, f"{ch_name}/AR"))
+                        make = functools.partial(_build_accountancy_cbse_prompt, ar_chapter, request, context_chunks, group_info=group, part_key=part_key, generate_or=(ar_or > 0))
+                        jobs.append((ar_chapter, make, ch_ar, ar_or, section_tag, f"{ch_name}/AR"))
                 else:
                     fmt = formats[0]
                     if marks >= 4 and "journal_entry" in formats:
@@ -2547,22 +2609,35 @@ def generate_cbse_accountancy_paper(request, context_chunks, feedback=None):
                     elif marks >= 6 and "long_answer" in formats:
                         fmt = "long_answer"
                     sec_chapter = ChapterSection(chapter=ch_name, difficulty=DifficultyLevel(difficulty), format=QuestionFormat(fmt), marks_per_question=marks, quantity=count + or_count)
-                    prompt = _build_accountancy_cbse_prompt(sec_chapter, request, context_chunks, count + or_count, group, part_key, generate_or=(or_count > 0))
-                    jobs.append((sec_chapter, prompt, count, or_count, section_tag, f"{ch_name}/{fmt}"))
+                    make = functools.partial(_build_accountancy_cbse_prompt, sec_chapter, request, context_chunks, group_info=group, part_key=part_key, generate_or=(or_count > 0))
+                    jobs.append((sec_chapter, make, count, or_count, section_tag, f"{ch_name}/{fmt}"))
 
     def run_job(job):
-        chapter_section, prompt, main_n, or_n, section_tag, error_tag = job
-        for m in models:
-            try:
-                raw = _call_gemini(client, prompt, m)
-                batch_qs = _parse_batch(raw, chapter_section, request, section_tag)
-                if batch_qs:
-                    main_qs = [q for q in batch_qs if not getattr(q, '_is_or', False)]
-                    or_qs = [q for q in batch_qs if getattr(q, '_is_or', False)]
-                    return main_qs[:main_n] + or_qs[:or_n]
-            except GenerationError as e:
-                errors.append(f"{error_tag}: {str(e)}")
-        return []
+        chapter_section, make_prompt, main_n, or_n, section_tag, error_tag = job
+        main_qs, or_qs = [], []
+        # First round asks for everything; up to 2 more rounds top up what the parser
+        # or the quality checks rejected.
+        for _ in range(3):
+            need = max(main_n - len(main_qs), 0) + max(or_n - len(or_qs), 0)
+            if need == 0:
+                break
+            prompt = make_prompt(count=need)
+            for m in models:
+                try:
+                    raw = _call_gemini(client, prompt, m)
+                    batch_qs = _dedupe_questions(main_qs + or_qs + _parse_batch(raw, chapter_section, request, section_tag))
+                    if len(batch_qs) > len(main_qs) + len(or_qs):
+                        main_qs = [q for q in batch_qs if not getattr(q, '_is_or', False)]
+                        or_qs = [q for q in batch_qs if getattr(q, '_is_or', False)]
+                        break
+                except GenerationError as e:
+                    errors.append(f"{error_tag}: {str(e)}")
+        if len(or_qs) < or_n and len(main_qs) > main_n:
+            # Not enough marked OR alternatives: use surplus main questions as the alternatives.
+            for extra in main_qs[main_n:main_n + (or_n - len(or_qs))]:
+                extra._is_or = True
+                or_qs.append(extra)
+        return main_qs[:main_n] + or_qs[:or_n]
 
     all_questions = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, len(jobs))) as pool:

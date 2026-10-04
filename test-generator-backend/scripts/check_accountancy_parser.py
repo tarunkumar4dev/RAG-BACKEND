@@ -71,6 +71,13 @@ t = tables("Show the following items in the balance sheet:\nPreliminary Expenses
            "Discount on issue of shares: Rs. 20,000\nLoose tools: Rs. 12,000")
 check("E: key-value lines", len(t) == 1 and t[0]["rows"][1] == ["Goodwill", "30,000"], t)
 
+# Semicolon list whose parts end in a date: the trailing year is not the amount.
+t = tables("Interest on drawings @ 12% p.a. Drawings during the year: Priya withdrew Rs. 10,000 on 1st July 2023; "
+           "Riya withdrew Rs. 8,000 on 1st October 2023; Siya withdrew Rs. 6,000 on 1st January 2024.")
+check("semicolon list: year is not the amount",
+      len(t) == 1 and t[0]["rows"][0] == ["Priya withdrew on 1st July 2023", "10,000"]
+      and [r[1] for r in t[0]["rows"]] == ["10,000", "8,000", "6,000"], t)
+
 # Prose must stay prose
 for prose in [
     "Cost of Revenue from Operations is Rs. 1,50,000. Operating expenses are Rs. 60,000. Revenue from Operations is Rs. 2,50,000. Calculate Operating Ratio.",

@@ -1461,6 +1461,16 @@ def _parse_semicolon_list(text: str) -> Optional[List[dict]]:
         if not p:
             continue
         m = _SEMI_PART.match(p)
+        if m and _YEAR_RE.match(m.group("amt")) and re.search(_MONTH + r"\.?\s*$", m.group("label")):
+            # "Priya withdrew Rs. 10,000 on 1st July 2023": the trailing figure is a year;
+            # the amount is the one figure earlier in the part.
+            amts = _find_amounts(p)
+            if len(amts) == 1:
+                label = _clean_label(p[:amts[0].start] + " " + p[amts[0].end:])
+                rows.append([label, _clean_amount(amts[0].text)])
+                matched += 1
+                continue
+            m = None
         if m and len(m.group("label").split()) <= 14 and not _label_is_bad(_clean_label(m.group("label"))):
             label = _clean_label(m.group("label"))
             if _is_total_label(label):
@@ -1932,6 +1942,9 @@ def build_question_segments(text: str, question_table=None) -> List[dict]:
 # Helpers shared by renderers
 # ═══════════════════════════════════════════════════════════════════════
 
+_TYPED_AMOUNT_HEADER = re.compile(r"debit|credit|amount|^\s*(?:dr|cr)\.?\s*$|₹|\brs\b", re.IGNORECASE)
+
+
 def infer_table_meta(table: dict) -> dict:
     """Fills amount_cols / total_rows / section_rows for tables that arrived without metadata
     (question_table rows from the DB, AI-generated answer tables, markdown tables)."""
@@ -1941,6 +1954,22 @@ def infer_table_meta(table: dict) -> dict:
     ncol = len(headers)
     rows = [(r + [""] * ncol)[:ncol] if ncol else r for r in rows]
     t["headers"], t["rows"] = headers, rows
+
+    # Typed AI answer tables: the headers say which columns hold money, so don't guess.
+    # Guessing marked a journal's Particulars as an amount column (narrations like
+    # "on 75,000 shares @ Rs. 3") and most entries as totals, right-aligned and bold.
+    ttype = str(t.get("type") or "").lower()
+    if ttype in ("journal_entry", "ledger", "trial_balance") and ncol:
+        t.setdefault("amount_cols", [i for i, h in enumerate(headers) if _TYPED_AMOUNT_HEADER.search(h)])
+        total = t.get("total_row")
+        if "total_rows" not in t and isinstance(total, list) and any(str(c or "").strip() for c in total):
+            rows.append(([str(c) if c is not None else "" for c in total] + [""] * ncol)[:ncol])
+            t["total_rows"] = [len(rows) - 1]
+        t.setdefault("total_rows", [k for k, r in enumerate(rows) if any(re.match(r"\s*total\b", c, re.I) for c in r)])
+        t.setdefault("section_rows", [])
+        t.setdefault("kind", ttype)
+        return t
+
     if "amount_cols" not in t:
         t["amount_cols"] = _finalize_generic(headers, rows, "generic", [], [])["amount_cols"] if ncol else []
     if "section_rows" not in t:
