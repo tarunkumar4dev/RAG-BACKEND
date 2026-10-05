@@ -2835,7 +2835,15 @@ def verify_answer_key(questions: List[dict], subject: str, class_grade: str) -> 
         except Exception as e:
             logger.warning(f"Checker batch failed: {e}")
             return [], []
-        res = data.get("results", []) if isinstance(data, dict) else []
+        # Models return either {"results": [...]} or a bare [...] list; anything else is
+        # unreadable and counts as unchecked rather than "all correct".
+        if isinstance(data, dict) and isinstance(data.get("results"), list):
+            res = data["results"]
+        elif isinstance(data, list):
+            res = data
+        else:
+            logger.warning(f"Checker batch returned an unexpected shape: {str(data)[:200]}")
+            return [], []
         return res, [str(v["id"]) for v in batch]
 
     raw_results, checked_ids = [], set()
