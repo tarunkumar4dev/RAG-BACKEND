@@ -586,6 +586,9 @@ async def generate_from_frontend(req: FrontendGenerateRequest, user: AuthUser = 
 
         recorded = record_usage(req.userId)
         usage.update(recorded)
+        # check_usage ran before this paper was counted; refresh "remaining" from the new count.
+        if isinstance(usage.get("limit"), int) and usage["limit"] >= 0 and isinstance(usage.get("used"), int):
+            usage["remaining"] = max(usage["limit"] - usage["used"], 0)
 
         # Insert test row
         try:
