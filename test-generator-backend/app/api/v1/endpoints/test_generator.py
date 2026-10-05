@@ -32,7 +32,9 @@ from app.models.test_generator import (
     QuestionFormat,
     ManualQuestionPayload,
 )
-from app.services.test_generator_service import generate_test, handle_feedback
+from app.services.test_generator_service import generate_test, handle_feedback, verify_answer_key
+from app.api.v1.endpoints.chat import _SlidingWindow
+from starlette.concurrency import run_in_threadpool
 from app.services.rag_service import retrieve_context
 from app.core.auth import AuthUser, require_user
 from app.core.database import get_supabase, get_supabase_admin
@@ -1173,6 +1175,34 @@ async def generate(request: TestGenerationRequest, user: AuthUser = Depends(requ
     except Exception as e:
         logger.error(f"Generate error: {e}")
         raise HTTPException(status_code=500, detail="Generation failed.")
+
+
+class VerifyAnswersRequest(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    subject: str = Field(default="Science", max_length=50)
+    classGrade: str = Field(default="Class 10", max_length=20)
+    questions: List[dict] = Field(min_length=1, max_length=80)
+
+
+# The checker is an extra LLM pass per paper; a teacher needs at most a few per minute.
+_verify_limiter = _SlidingWindow(limit=6, window_seconds=60.0)
+
+
+@router.post("/verify-answers")
+async def verify_answers(req: VerifyAnswersRequest, user: AuthUser = Depends(require_user)):
+    """Second-model check of a generated paper's answer key. Stateless: returns verdicts
+    (ok / fix with corrected key / reject = needs review) and the client applies them."""
+    if not _verify_limiter.hit(user.id):
+        raise HTTPException(status_code=429, detail="Too many answer checks. Please wait a minute.",
+                            headers={"Retry-After": "60"})
+    try:
+        return await run_in_threadpool(
+            verify_answer_key, req.questions, _resolve_subject(req.subject), _extract_class_number(req.classGrade)
+        )
+    except Exception:
+        logger.exception("Answer-key check failed")
+        raise HTTPException(status_code=503, detail="Answer check is unavailable right now.")
 
 
 @router.post("/feedback", response_model=TestGenerationResponse)

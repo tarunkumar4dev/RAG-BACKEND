@@ -73,6 +73,12 @@ class Settings:
     # Max LLM calls in flight per server instance (sections/batches run in parallel).
     LLM_MAX_CONCURRENCY: int = int(os.getenv("LLM_MAX_CONCURRENCY", "12"))
 
+    # ── Answer-key checker (POST /test-generator/verify-answers) ──────
+    # A second model re-solves each question after the paper is shown. "gemini" uses
+    # CHECKER_MODEL; "deepseek" uses DEEPSEEK_MODEL and falls back to CHECKER_MODEL.
+    CHECKER_PROVIDER: str = os.getenv("CHECKER_PROVIDER", "gemini").strip().lower()
+    CHECKER_MODEL: str = os.getenv("CHECKER_MODEL", "gemini-3.5-flash-lite")
+
     # ── Razorpay ────────────────────────────────────────────────────
     RAZORPAY_KEY_ID: str = os.getenv("RAZORPAY_KEY_ID", "")
     RAZORPAY_KEY_SECRET: str = os.getenv("RAZORPAY_KEY_SECRET", "")
