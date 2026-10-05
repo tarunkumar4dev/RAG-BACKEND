@@ -2270,7 +2270,7 @@ def _call_llm(client, prompt, model):
     return _call_gemini_model(client, prompt, model)
 
 
-def _call_gemini_model(client, prompt, model):
+def _call_gemini_model(client, prompt, model, temperature=None):
     last_exc = None
     for attempt in range(MAX_RETRIES):
         try:
@@ -2279,7 +2279,7 @@ def _call_gemini_model(client, prompt, model):
                 model=model,
                 contents=prompt,
                 config=genai_types.GenerateContentConfig(
-                    temperature=settings.GENERATION_TEMPERATURE,
+                    temperature=settings.GENERATION_TEMPERATURE if temperature is None else temperature,
                     top_p=0.92,
                     max_output_tokens=settings.MAX_OUTPUT_TOKENS,
                     response_mime_type="application/json",
@@ -2781,7 +2781,8 @@ def _call_checker(prompt: str) -> str:
                 return _call_deepseek(prompt)
             except GenerationError as e:
                 logger.warning(f"Checker: DeepSeek failed, using {settings.CHECKER_MODEL}: {e}")
-        return _call_gemini_model(_get_gemini_client(), prompt, settings.CHECKER_MODEL)
+        # Low temperature: a checker should give the same, careful verdict every time.
+        return _call_gemini_model(_get_gemini_client(), prompt, settings.CHECKER_MODEL, temperature=0.1)
 
 
 def _match_option(answer: str, options) -> Optional[str]:
