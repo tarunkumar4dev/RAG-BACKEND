@@ -2617,24 +2617,57 @@ def generate_cbse_accountancy_paper(request, context_chunks, feedback=None):
 
     def run_job(job):
         chapter_section, make_prompt, main_n, or_n, section_tag, error_tag = job
-        main_qs, or_qs = [], []
-        # First round asks for everything; up to 2 more rounds top up what the parser
-        # or the quality checks rejected.
-        for _ in range(3):
-            need = max(main_n - len(main_qs), 0) + max(or_n - len(or_qs), 0)
-            if need == 0:
-                break
-            prompt = make_prompt(count=need)
+        marks = chapter_section.marks_per_question or 1
+        # Long answers (journal entries, accounts) are slow to generate, so they are split
+        # into small parallel calls; the paper is only as fast as its slowest call.
+        per_call = 6 if marks <= 1 else (2 if marks <= 3 else 1)
+
+        def ask(count, with_or):
+            # with_or: `count` main questions, each with its OR alternative.
+            prompt = make_prompt(count=count, generate_or=with_or)
             for m in models:
                 try:
-                    raw = _call_gemini(client, prompt, m)
-                    batch_qs = _dedupe_questions(main_qs + or_qs + _parse_batch(raw, chapter_section, request, section_tag))
-                    if len(batch_qs) > len(main_qs) + len(or_qs):
-                        main_qs = [q for q in batch_qs if not getattr(q, '_is_or', False)]
-                        or_qs = [q for q in batch_qs if getattr(q, '_is_or', False)]
-                        break
+                    qs = _parse_batch(_call_gemini(client, prompt, m), chapter_section, request, section_tag)
+                    if qs:
+                        return qs
                 except GenerationError as e:
                     errors.append(f"{error_tag}: {str(e)}")
+            return []
+
+        # Ask for exactly what is needed: `or_n` (main + OR) pairs and the remaining mains
+        # alone. (Asking for main_n + or_n "pairs" generated about twice the questions.)
+        pairs = min(or_n, main_n)
+        requests = [(min(per_call, pairs - i), True) for i in range(0, pairs, per_call)]
+        requests += [(min(per_call, main_n - pairs - i), False) for i in range(0, main_n - pairs, per_call)]
+
+        main_qs, or_qs = [], []
+
+        def add(qs):
+            nonlocal main_qs, or_qs
+            merged = _dedupe_questions(main_qs + or_qs + qs)
+            main_qs = [q for q in merged if not getattr(q, '_is_or', False)]
+            or_qs = [q for q in merged if getattr(q, '_is_or', False)]
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, len(requests))) as pool:
+            for f in [_submit(pool, ask, c, w) for c, w in requests]:
+                add(f.result())
+
+        # Up to 3 top-up rounds for whatever the parser or the quality checks rejected
+        # (e.g. unbalanced journals); each round asks for the whole shortfall in parallel.
+        for _ in range(3):
+            need_main, need_or = main_n - len(main_qs), or_n - len(or_qs)
+            if need_main <= 0 and need_or <= 0:
+                break
+            pairs_needed = max(min(need_or, max(need_main, 0)), 0)
+            top = [(min(per_call, pairs_needed - i), True) for i in range(0, pairs_needed, per_call)]
+            singles = max(need_main - pairs_needed, 0)
+            top += [(min(per_call, singles - i), False) for i in range(0, singles, per_call)]
+            if need_or > pairs_needed:  # mains are complete but OR alternatives are missing
+                top += [(min(per_call, need_or - pairs_needed - i), True) for i in range(0, need_or - pairs_needed, per_call)]
+            with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, len(top))) as pool:
+                for f in [_submit(pool, ask, c, w) for c, w in top]:
+                    add(f.result())
+
         if len(or_qs) < or_n and len(main_qs) > main_n:
             # Not enough marked OR alternatives: use surplus main questions as the alternatives.
             for extra in main_qs[main_n:main_n + (or_n - len(or_qs))]:
