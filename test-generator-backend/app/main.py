@@ -19,6 +19,7 @@ from app.api.v1.endpoints.whatsapp import router as whatsapp_router
 from app.routers.test_checker_router import router as test_checker_router
 from app.api.v1.endpoints.chat import router as chat_router
 from app.core.config import settings
+from app.routers.smart_assignment_router import router as smart_assignment_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -224,6 +225,7 @@ app.include_router(module_router)  # Fallback for direct /modules/* and /workshe
 app.include_router(test_checker_router, prefix="/api/v1")
 app.include_router(chat_router, prefix="/api/v1")
 app.include_router(whatsapp_router, prefix="/api/v1")
+app.include_router(smart_assignment_router, prefix="/api/v1")
 
 
 @app.get("/health")

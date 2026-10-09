@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 
 # ── Config ─────────────────────────────────────────────────────────
 CHECKER_API_KEY = os.getenv("CHECKER_GEMINI_API_KEY")
-CHECKER_MODEL = os.getenv("CHECKER_GEMINI_MODEL", "gemini-2.5-pro")
+CHECKER_MODEL = os.getenv("CHECKER_GEMINI_MODEL", "gemini-3.6-flash")
 
 _client: Optional[genai.Client] = None
 
