@@ -5,11 +5,21 @@ Endpoints (all require a Supabase access token; the owner is always the JWT user
   POST /smart-assignment-checker/check    Upload 3 files → grading result (saved to history)
   GET  /smart-assignment-checker/history  The caller's past checks
   GET  /smart-assignment-checker/result/{id}
+
+Institute assignments (portal submissions). Access is decided by Supabase RLS: every read/write of
+assignments / submissions / assignment_ai_keys goes through a client bound to the caller's JWT.
+The service key is only used to download files after that check passes.
+  POST /smart-assignment-checker/assignments/{assignment_id}/rubric
+        Build (or reuse) the marking scheme from the assignment's question paper + private answer key
+  POST /smart-assignment-checker/assignments/{assignment_id}/submissions/{submission_id}/check
+        AI-grade one submission → submissions.ai_* (teacher approves later; student sees nothing yet)
 """
 
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File, Form
+from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
+from urllib.parse import unquote, urlparse
 import json
 import logging
 import uuid
@@ -18,8 +28,9 @@ import os
 import time
 
 from app.core.auth import AuthUser, require_user
-from app.core.database import get_supabase_admin
-from app.services.smart_assignment_service import check_assignment
+from app.core.config import settings
+from app.core.database import get_supabase_admin, get_supabase_for_user
+from app.services.smart_assignment_service import build_rubric, check_assignment, grade_sheet
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/smart-assignment-checker", tags=["Smart Assignment Checker"])
@@ -216,10 +227,11 @@ async def get_history(limit: int = 20, offset: int = 0, user: AuthUser = Depends
 def _save_to_db(
     check_id: str, teacher_id: str, result: dict,
     class_grade: str, subject: str, qp_filename: str, ss_filename: str,
+    assignment_id: str = None, submission_id: str = None,
 ):
     try:
         student_info = result.get("student_info", {})
-        get_supabase_admin().table(TABLE).insert({
+        row = {
             "id": check_id,
             "teacher_id": teacher_id,
             "student_name": student_info.get("name") or None,
@@ -237,7 +249,238 @@ def _save_to_db(
             "strictness": result.get("_meta", {}).get("strictness", "medium"),
             "overall_remarks": result.get("overall_remarks", ""),
             "result_json": result,
-        }).execute()
+        }
+        if assignment_id:
+            row["assignment_id"] = assignment_id
+            row["submission_id"] = submission_id
+        get_supabase_admin().table(TABLE).insert(row).execute()
         logger.info(f"Saved smart assignment check {check_id}")
     except Exception as e:
         logger.warning(f"Could not save (non-fatal): {e}")
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# INSTITUTE ASSIGNMENTS — portal submissions
+# ═══════════════════════════════════════════════════════════════════════
+
+class _Caller:
+    def __init__(self, user: AuthUser, token: str):
+        self.user = user
+        self.token = token
+        self.db = get_supabase_for_user(token)  # RLS = the caller's permissions
+
+
+async def require_caller(request: Request) -> _Caller:
+    user = await require_user(request)
+    token = request.headers.get("authorization", "").partition(" ")[2].strip()
+    return _Caller(user, token)
+
+
+def _storage_path(url: str, bucket: str) -> str:
+    """Object path from a public URL of THIS project's bucket. Anything else is rejected (no SSRF)."""
+    if not url:
+        raise HTTPException(status_code=400, detail="File is missing.")
+    u = urlparse(url)
+    if u.netloc != urlparse(settings.SUPABASE_URL).netloc:
+        raise HTTPException(status_code=400, detail="File is not stored in this project.")
+    prefix = f"/storage/v1/object/public/{bucket}/"
+    if not u.path.startswith(prefix):
+        raise HTTPException(status_code=400, detail=f"File is not in the '{bucket}' bucket.")
+    path = unquote(u.path[len(prefix):])
+    if not path or ".." in path.split("/"):
+        raise HTTPException(status_code=400, detail="Invalid file path.")
+    return path
+
+
+def _download_to_temp(bucket: str, path: str, prefix: str) -> str:
+    ext = os.path.splitext(path)[1].lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(status_code=400, detail=f"Unsupported file type '{ext}' for AI checking.")
+    data = get_supabase_admin().storage.from_(bucket).download(path)
+    if len(data) > MAX_FILE_SIZE:
+        raise HTTPException(status_code=413, detail="File too large. Max 20 MB.")
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=ext, prefix=prefix)
+    tmp.write(data)
+    tmp.close()
+    return tmp.name
+
+
+def _get_assignment(c: _Caller, assignment_id: str) -> dict:
+    r = (c.db.table("assignments").select("id, title, file_url, file_name, max_marks, batch_id")
+         .eq("id", assignment_id).limit(1).execute())
+    if not r.data:
+        raise HTTPException(status_code=404, detail="Assignment not found.")
+    return r.data[0]
+
+
+def _get_ai_key(c: _Caller, assignment_id: str) -> dict:
+    # RLS on assignment_ai_keys = staff who may grade this assignment
+    r = (c.db.table("assignment_ai_keys").select("*").eq("assignment_id", assignment_id).limit(1).execute())
+    if not r.data:
+        raise HTTPException(status_code=400, detail="Attach an answer key to this assignment first (Edit → Answer key).")
+    return r.data[0]
+
+
+def _ensure_rubric(c: _Caller, assignment_id: str, force: bool = False) -> tuple:
+    """Returns (assignment, ai_key_row with a fresh rubric). Builds and caches the rubric when needed."""
+    asg = _get_assignment(c, assignment_id)
+    key = _get_ai_key(c, assignment_id)
+    if not asg.get("file_url"):
+        raise HTTPException(status_code=400, detail="Attach the question paper PDF to this assignment first.")
+    source = f"{asg['file_url']}|{key['answer_key_path']}"
+    if key.get("rubric") and key.get("rubric_source") == source and not force:
+        return asg, key
+
+    qp_path = ak_path = None
+    try:
+        qp_path = _download_to_temp("assignments", _storage_path(asg["file_url"], "assignments"), "qpaper_")
+        ak_path = _download_to_temp("answer-keys", key["answer_key_path"], "akey_")
+        rubric = build_rubric(qp_path, ak_path)
+    finally:
+        _cleanup(qp_path, ak_path)
+
+    rubric = {k: v for k, v in rubric.items() if not k.startswith("_")}
+    upd = (c.db.table("assignment_ai_keys")
+           .update({"rubric": rubric, "rubric_source": source,
+                    "rubric_built_at": datetime.now(timezone.utc).isoformat()})
+           .eq("assignment_id", assignment_id).execute())
+    if not upd.data:
+        raise HTTPException(status_code=403, detail="You can't check this assignment.")
+    key.update(upd.data[0])
+    if not asg.get("max_marks") and rubric.get("total_marks"):
+        try:  # only the creator / admin may update the assignment — fine if it fails
+            c.db.table("assignments").update({"max_marks": int(round(rubric["total_marks"]))}) \
+                .eq("id", assignment_id).execute()
+        except Exception as e:
+            logger.info(f"max_marks not set on assignment {assignment_id[:8]}: {e}")
+    return asg, key
+
+
+def _rubric_summary(key: dict) -> dict:
+    rubric = key.get("rubric") or {}
+    return {
+        "total_marks": rubric.get("total_marks"),
+        "total_questions": rubric.get("total_questions"),
+        "marks_mismatch": rubric.get("marks_mismatch"),
+        "estimated_questions": [q["q_no"] for q in rubric.get("questions", []) if q.get("scheme_source") != "key"],
+        "strictness": key.get("strictness", "medium"),
+        "built_at": key.get("rubric_built_at"),
+    }
+
+
+class RubricRequest(BaseModel):
+    force: bool = False
+
+
+@router.post("/assignments/{assignment_id}/rubric")
+async def assignment_rubric(assignment_id: str, body: RubricRequest = RubricRequest(),
+                            c: _Caller = Depends(require_caller)):
+    try:
+        uuid.UUID(assignment_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Assignment not found.")
+    try:
+        _, key = await run_in_threadpool(_ensure_rubric, c, assignment_id, body.force)
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=f"Could not read the question paper / answer key: {e}")
+    except Exception as e:
+        logger.error(f"Rubric build failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Could not build the marking scheme. Please try again.")
+    return {"ok": True, "rubric": _rubric_summary(key)}
+
+
+def _compact(result: dict) -> dict:
+    """What the teacher's review screen needs (no rubric copy, no timings)."""
+    keep = ("graded_questions", "total_marks_awarded", "max_marks", "percentage", "overall_remarks",
+            "readability_score", "needs_review_count", "student_info")
+    return {k: result.get(k) for k in keep}
+
+
+def _check_submission(c: _Caller, assignment_id: str, submission_id: str) -> dict:
+    sr = (c.db.table("submissions")
+          .select("id, assignment_id, student_id, file_url, file_name, text_answer, status")
+          .eq("id", submission_id).eq("assignment_id", assignment_id).limit(1).execute())
+    if not sr.data:
+        raise HTTPException(status_code=404, detail="Submission not found.")
+    sub = sr.data[0]
+    if not sub.get("file_url") and not (sub.get("text_answer") or "").strip():
+        raise HTTPException(status_code=400, detail="This submission has no file or text to check.")
+
+    asg, key = _ensure_rubric(c, assignment_id)
+
+    # Claim it (also proves the caller may grade: sub_grade RLS)
+    claim = (c.db.table("submissions").update({"ai_status": "checking", "ai_error": None})
+             .eq("id", submission_id).execute())
+    if not claim.data:
+        raise HTTPException(status_code=403, detail="You can't grade this submission.")
+
+    sheet_path = None
+    try:
+        if sub.get("file_url"):
+            sheet_path = _download_to_temp("submissions", _storage_path(sub["file_url"], "submissions"), "ssheet_")
+        else:
+            tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".txt", prefix="ssheet_", mode="w", encoding="utf-8")
+            tmp.write(sub["text_answer"][:20000])
+            tmp.close()
+            sheet_path = tmp.name
+
+        start = time.time()
+        result = grade_sheet(sheet_path, key["rubric"], key.get("strictness") or "medium", require_identity=False)
+        result["_meta"] = {"strictness": key.get("strictness") or "medium",
+                           "grade_time_s": result.pop("_grade_time_s", round(time.time() - start, 2))}
+    except Exception as e:
+        c.db.table("submissions").update({"ai_status": "failed", "ai_error": str(e)[:300]}) \
+            .eq("id", submission_id).execute()
+        raise
+    finally:
+        _cleanup(sheet_path)
+
+    compact = _compact(result)
+    c.db.table("submissions").update({
+        "ai_status": "done",
+        "ai_marks": result.get("total_marks_awarded", 0),
+        "ai_max_marks": result.get("max_marks", 0),
+        "ai_result": compact,
+        "ai_error": None,
+        "ai_checked_at": datetime.now(timezone.utc).isoformat(),
+    }).eq("id", submission_id).execute()
+
+    st = c.db.table("students").select("name, roll_no").eq("id", sub["student_id"]).limit(1).execute()
+    if st.data:
+        result["student_info"] = {"name": st.data[0].get("name") or "", "class": "",
+                                  "roll_no": st.data[0].get("roll_no") or "", "missing_fields": []}
+    _save_to_db(str(uuid.uuid4()), c.user.id, result, "", asg.get("title") or "",
+                asg.get("file_name") or "", sub.get("file_name") or "text answer",
+                assignment_id=assignment_id, submission_id=submission_id)
+    return compact
+
+
+@router.post("/assignments/{assignment_id}/submissions/{submission_id}/check")
+async def check_submission(assignment_id: str, submission_id: str, c: _Caller = Depends(require_caller)):
+    try:
+        uuid.UUID(assignment_id)
+        uuid.UUID(submission_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Submission not found.")
+
+    try:
+        used = await run_in_threadpool(_checks_today, c.user.id)
+    except Exception as e:
+        logger.warning(f"Daily-limit check failed (allowing): {e}")
+        used = 0
+    if used >= DAILY_LIMIT:
+        raise HTTPException(status_code=429,
+                            detail=f"Daily limit reached ({DAILY_LIMIT} sheets). Try again tomorrow.")
+
+    try:
+        result = await run_in_threadpool(_check_submission, c, assignment_id, submission_id)
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except Exception as e:
+        logger.error(f"Submission check failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="AI check failed. Please try again.")
+    return {"ok": True, "result": result}

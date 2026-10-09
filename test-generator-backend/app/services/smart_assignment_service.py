@@ -91,7 +91,8 @@ def _generate(client: genai.Client, contents: list, tag: str):
                 response = client.models.generate_content(
                     model=model,
                     contents=contents,
-                    config={"response_mime_type": "application/json", "temperature": 0.05},
+                    # temperature 0 + fixed seed: the same sheet should get the same marks every time
+                    config={"response_mime_type": "application/json", "temperature": 0, "seed": 7},
                 )
                 if model != _preferred_model:
                     logger.info(f"[{tag}] Using {model}")
@@ -450,6 +451,8 @@ Rules:
 - mcq / one_word: only "full" or "none".
 - "evidence": quote the student's own words for this point (max 20 words), "" if nothing written.
 - "reason": one short sentence why (for the teacher).
+- "borderline": true when a careful teacher could reasonably give a different verdict (e.g. a one-word
+  answer that names the right thing but not the action asked for). The teacher will review it.
 - OR-questions (same or_group): grade whichever alternative(s) the student actually attempted; mark the
   others attempted = false.
 - If you cannot read part of an answer, set legibility_issue = true and confidence = "low" for it.
@@ -468,9 +471,9 @@ Respond ONLY with JSON (no markdown):
       "q_no": "4", "sub_id": null, "attempted": true,
       "student_answer": "Refraction is the bending of light when it goes from one medium to another. Law: sin i / sin r = constant.",
       "points": [
-        {{"id": "4.1", "verdict": "mostly", "evidence": "bending of light when it goes from one medium to another", "reason": "Correct idea, 'obliquely' missing."}},
-        {{"id": "4.2", "verdict": "none", "evidence": "", "reason": "First law not stated."}},
-        {{"id": "4.3", "verdict": "full", "evidence": "sin i / sin r = constant", "reason": "Snell's law correct."}}
+        {{"id": "4.1", "verdict": "mostly", "evidence": "bending of light when it goes from one medium to another", "reason": "Correct idea, 'obliquely' missing.", "borderline": false}},
+        {{"id": "4.2", "verdict": "none", "evidence": "", "reason": "First law not stated.", "borderline": false}},
+        {{"id": "4.3", "verdict": "full", "evidence": "sin i / sin r = constant", "reason": "Snell's law correct.", "borderline": false}}
       ],
       "feedback": "Good definition; state both laws of refraction.",
       "confidence": "high",
@@ -478,7 +481,7 @@ Respond ONLY with JSON (no markdown):
     }},
     {{
       "q_no": "5", "sub_id": "5a", "attempted": true, "student_answer": "haemoglobin carries oxygen",
-      "points": [{{"id": "5a.1", "verdict": "full", "evidence": "carries oxygen", "reason": "Correct."}}],
+      "points": [{{"id": "5a.1", "verdict": "full", "evidence": "carries oxygen", "reason": "Correct.", "borderline": false}}],
       "feedback": "Correct.", "confidence": "high", "legibility_issue": false
     }}
   ],
@@ -518,6 +521,7 @@ def _score_leaf(leaf: dict, ans: Optional[dict], answer_type: str, scheme_source
             "id": p["id"], "text": p.get("text", ""), "expected": p.get("expected", ""),
             "max_marks": p["marks"], "marks_awarded": got, "verdict": verdict if attempted else "none",
             "evidence": str(v.get("evidence") or ""), "reason": str(v.get("reason") or ""),
+            "borderline": bool(v.get("borderline")) and attempted,
         })
 
     awarded = min(awarded, leaf["marks"])
@@ -530,6 +534,8 @@ def _score_leaf(leaf: dict, ans: Optional[dict], answer_type: str, scheme_source
         review_reasons.append("Low confidence")
     if legibility:
         review_reasons.append("Handwriting hard to read")
+    if any(pt["borderline"] for pt in points_out):
+        review_reasons.append("Borderline answer — teacher's call")
     if scheme_source == "estimated" and attempted and 0 < awarded < leaf["marks"]:
         review_reasons.append("Marking split was estimated (not in the answer key)")
 
