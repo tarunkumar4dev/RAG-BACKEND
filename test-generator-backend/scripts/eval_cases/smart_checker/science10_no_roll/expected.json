@@ -1,0 +1,8 @@
+{
+  "note": "Roll number missing → must be rejected, not graded.",
+  "strictness": "medium",
+  "require_identity": true,
+  "expected_valid": false,
+  "marks": {},
+  "total": 0
+}
