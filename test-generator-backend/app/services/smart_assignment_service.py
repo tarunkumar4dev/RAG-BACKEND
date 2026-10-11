@@ -338,19 +338,41 @@ def _validate_rubric(rubric: dict) -> dict:
     return rubric
 
 
-def _build_rubric_from_files(qp_file, key_file, max_retries: int = 2) -> dict:
+_NO_KEY_NOTE = """
+
+NO ANSWER KEY WAS PROVIDED — only the question paper. Write the standard CBSE/NCERT answer for every
+question yourself, split it into marking points as an examiner would, and set scheme_source = "estimated"
+on EVERY question and sub-part."""
+
+_MULTI_PAGE_NOTE = """
+The question paper is given as {qp} file(s) and the answer key as {key} file(s), in page order:
+first all question-paper pages, then all answer-key pages."""
+
+
+def _build_rubric_from_files(qp_files, key_files, max_retries: int = 2) -> dict:
+    """qp_files / key_files: one Gemini file or a list (multi-page photos). key_files may be empty."""
+    qp_files = qp_files if isinstance(qp_files, list) else [qp_files]
+    key_files = key_files if isinstance(key_files, list) else ([key_files] if key_files else [])
     client = _get_client()
-    prompt = RUBRIC_PROMPT
+    base = RUBRIC_PROMPT + _MULTI_PAGE_NOTE.format(qp=len(qp_files), key=len(key_files))
+    if not key_files:
+        base += _NO_KEY_NOTE
+    prompt = base
     rubric: dict = {}
     for attempt in range(1, max_retries + 1):
-        rubric = _validate_rubric(_generate_json(client, [qp_file, key_file, prompt], "RUBRIC", max_retries))
+        rubric = _validate_rubric(_generate_json(client, [*qp_files, *key_files, prompt], "RUBRIC", max_retries))
+        if not key_files:
+            for q in rubric["questions"]:
+                q["scheme_source"] = "estimated"
+                for s in q["subparts"]:
+                    s["scheme_source"] = "estimated"
         stated, computed = rubric["stated_max_marks"], rubric["_computed_total"]
         if not stated or abs(stated - computed) <= 0.01 or attempt == max_retries:
             break
         # Printed max marks is the truth — questions or section-wise marks were missed. Retry once.
         found = ", ".join(f"Q{q['q_no']}={q['marks']:g}" for q in rubric["questions"])
         logger.warning(f"[RUBRIC] marks sum {computed:g} != stated {stated:g} ({found}), retrying")
-        prompt = (RUBRIC_PROMPT +
+        prompt = (base +
                   f"\n\nCORRECTION: a previous reading found only {found} (sum {computed:g}), but the paper "
                   f"states Maximum Marks = {stated:g}. Re-read every page and section and return the "
                   f"complete structure.")
@@ -362,14 +384,133 @@ def _build_rubric_from_files(qp_file, key_file, max_retries: int = 2) -> dict:
     return rubric
 
 
-def build_rubric(question_paper_path: str, answer_key_path: str, max_retries: int = 2) -> dict:
-    """Pass 1 on its own: rubric for a paper + key (reusable for every student of the class)."""
+def build_rubric(question_paper_path, answer_key_path=None, max_retries: int = 2) -> dict:
+    """Pass 1 on its own: rubric for a paper + key (reusable for every student of the class).
+    Each argument is a path or a list of paths (multi-page photos); the key may be None / []."""
+    qp = question_paper_path if isinstance(question_paper_path, list) else [question_paper_path]
+    key = answer_key_path if isinstance(answer_key_path, list) else ([answer_key_path] if answer_key_path else [])
     start = time.time()
-    files = upload_files([question_paper_path, answer_key_path])
+    files = upload_files([*qp, *key])
     try:
-        rubric = _build_rubric_from_files(files[0], files[1], max_retries)
+        rubric = _build_rubric_from_files(files[:len(qp)], files[len(qp):], max_retries)
     finally:
         delete_files(files)
+    rubric["_rubric_time_s"] = round(time.time() - start, 2)
+    return rubric
+
+
+import re as _re
+
+_STEP_SPLIT = _re.compile(r"(?:^|\s)(?:Step\s*\d+\s*[:.)-]|\(\s*[a-h]\s*\)|\(\s*(?:i|ii|iii|iv|v|vi)\s*\))\s*", _re.I)
+
+
+def _split_answer(answer: str) -> list:
+    """'Step 1: … Step 2: …' / '(a) … (b) …' → parts; otherwise sentences."""
+    text = (answer or "").strip()
+    parts = [p.strip(" ;.") for p in _STEP_SPLIT.split(text) if p and p.strip(" ;.")]
+    if len(parts) >= 2:
+        return parts, True
+    sentences = [s.strip() for s in _re.split(r"(?<=[.!?])\s+", text) if len(s.strip()) > 3]
+    return (sentences or [text]), False
+
+
+def rubric_from_test_fast(test: dict, questions: list) -> dict:
+    """Rubric for a saved a4ai test WITHOUT any AI call (instant, free, deterministic).
+    Generated answers are already structured ("Step 1: … Step 2: …", "(a) … (b) …"); each question's
+    DB marks are spread over those parts on a 0.5 grid. MCQs are one point."""
+    start = time.time()
+    qs = sorted(questions, key=lambda q: (q.get("position") or 0))
+    out, prev_q = [], None
+    for i, q in enumerate(qs, 1):
+        q_no = str(q.get("position") or i)
+        marks = _num(q.get("marks"), 1.0)
+        fmt = (q.get("format") or "").lower()
+        answer = (q.get("correct_answer") or q.get("model_answer") or "").strip()
+        if "mcq" in fmt or "true_false" in fmt or "fill" in fmt:
+            atype = "mcq" if "mcq" in fmt or "true" in fmt else "one_word"
+            parts, structured = [answer], True
+        else:
+            atype = "descriptive" if marks >= 4 else "short"
+            parts, structured = _split_answer(answer)
+        # Not more points than half-marks available; merge the tail into the last point
+        max_pts = max(1, int(marks * 2))
+        if len(parts) > max_pts:
+            parts = parts[:max_pts - 1] + [" ".join(parts[max_pts - 1:])]
+        each = _half_floor(marks / len(parts)) or 0.5
+        pts = [{"id": f"{q_no}.{n}", "text": f"Point {n}" if len(parts) > 1 else "Answer",
+                "expected": p[:600], "marks": each} for n, p in enumerate(parts, 1)]
+        pts[-1]["marks"] = round(marks - each * (len(parts) - 1), 2)   # remainder → last point
+        if pts[-1]["marks"] <= 0:                                        # tiny marks, many parts
+            pts = [{"id": f"{q_no}.1", "text": "Answer", "expected": answer[:1200], "marks": marks}]
+        item = {"q_no": q_no, "question_text": (q.get("text") or "")[:1500], "marks": marks,
+                "answer_type": atype, "or_group": None, "attempt_count": None,
+                "scheme_source": "key" if structured else "estimated",
+                "model_answer": answer[:3000], "points": pts, "subparts": []}
+        if q.get("is_or") and prev_q is not None:     # OR-alternative of the previous question
+            group = prev_q["or_group"] or prev_q["q_no"]
+            prev_q["or_group"] = item["or_group"] = group
+        out.append(item)
+        prev_q = item
+    rubric = _validate_rubric({"questions": out,
+                               "stated_max_marks": test.get("total_marks") or None,
+                               "paper_notes": "Built from the saved test (no AI)."})
+    if rubric["stated_max_marks"] and abs(rubric["stated_max_marks"] - rubric["_computed_total"]) > 0.01:
+        rubric["marks_mismatch"] = (f"Questions add up to {rubric['_computed_total']:g}, "
+                                    f"test says {rubric['stated_max_marks']:g}")
+        rubric["total_marks"] = rubric["_computed_total"]
+    rubric["_rubric_time_s"] = round(time.time() - start, 3)
+    return rubric
+
+
+def build_rubric_from_test(test: dict, questions: list, max_retries: int = 2) -> dict:
+    """AI version of rubric_from_test_fast (better splits for unstructured answers, but one slow call
+    — can exceed serverless time limits). Kept for offline use / comparison."""
+    start = time.time()
+    qs = sorted(questions, key=lambda q: (q.get("position") or 0))
+    paper = []
+    for i, q in enumerate(qs, 1):
+        item = {
+            "q_no": str(q.get("position") or i),
+            "question_text": (q.get("text") or "")[:1500],
+            "marks": q.get("marks") or 1,
+            "format": q.get("format") or "",
+            "options": q.get("options"),
+            "answer": (q.get("correct_answer") or q.get("model_answer") or "")[:3000],
+        }
+        if q.get("marking_scheme"):
+            item["marking_scheme"] = q["marking_scheme"]
+        if q.get("sub_parts"):
+            item["sub_parts"] = q["sub_parts"]
+        if q.get("is_or"):
+            item["is_or_alternative"] = True
+        paper.append(item)
+
+    total = sum(_num(q.get("marks"), 1.0) for q in qs)
+    doc = json.dumps({"exam_title": test.get("exam_title"), "subject": test.get("subject"),
+                      "class": test.get("class_grade"), "max_marks": test.get("total_marks") or total,
+                      "questions": paper}, ensure_ascii=False)
+    prompt = (RUBRIC_PROMPT.replace(
+        "You get two documents: FIRST the exam QUESTION PAPER, SECOND its ANSWER KEY / MARKING SCHEME.",
+        "You get the teacher's saved test as JSON: every question with its marks and its answer "
+        "(\"answer\", sometimes with a \"marking_scheme\"). Treat \"answer\" as the ANSWER KEY.")
+        + "\n\nKeep q_no and marks EXACTLY as given. Use the paper's max_marks as stated_max_marks. "
+          "Questions marked is_or_alternative are the OR-choice of the question before them (same or_group).")
+    client = _get_client()
+    rubric = _validate_rubric(_generate_json(client, [doc, prompt], "RUBRIC-TEST", max_retries))
+
+    # The saved marks are the truth: force each question back to its DB marks
+    db_marks = {str(q.get("position") or i): _num(q.get("marks"), 1.0) for i, q in enumerate(qs, 1)}
+    for q in rubric["questions"]:
+        m = db_marks.get(q["q_no"].replace("-OR", ""))
+        if m and abs(m - q["marks"]) > 0.01:
+            q["marks"] = m
+            if q["subparts"]:
+                for s in q["subparts"]:
+                    s["marks"] = m / len(q["subparts"])
+                    _normalize_points(s, s["marks"], s["sub_id"])
+            else:
+                _normalize_points(q, m, q["q_no"])
+    rubric = _validate_rubric(rubric)
     rubric["_rubric_time_s"] = round(time.time() - start, 2)
     return rubric
 
@@ -626,25 +767,31 @@ def _score(grading: dict, rubric: dict) -> dict:
 
 
 def grade_sheet(
-    sheet_path: str,
+    sheet_path,
     rubric: dict,
     strictness: str = "medium",
     require_identity: bool = True,
     max_retries: int = 2,
     _uploaded_sheet=None,
 ) -> dict:
-    """Pass 2: grade one student's sheet against a rubric from build_rubric()."""
+    """Pass 2: grade one student's sheet against a rubric from build_rubric().
+    sheet_path: one file, or a list of page files in order (phone photos of a multi-page copy)."""
     strictness = strictness if strictness in STRICTNESS_RULES else "medium"
     start = time.time()
     client = _get_client()
     own_upload = _uploaded_sheet is None
-    sheet = _uploaded_sheet if not own_upload else upload_files([sheet_path])[0]
+    pages = _uploaded_sheet if not own_upload else upload_files(
+        sheet_path if isinstance(sheet_path, list) else [sheet_path])
+    pages = pages if isinstance(pages, list) else [pages]
+    prompt = _build_grading_prompt(rubric, strictness, require_identity)
+    if len(pages) > 1:
+        prompt = (f"The answer sheet is given as {len(pages)} page images, in order (page 1 first). "
+                  f"An answer may continue onto the next page.\n\n") + prompt
     try:
-        grading = _generate_json(client, [sheet, _build_grading_prompt(rubric, strictness, require_identity)],
-                                 "GRADE", max_retries)
+        grading = _generate_json(client, [*pages, prompt], "GRADE", max_retries)
     finally:
         if own_upload:
-            delete_files([sheet])
+            delete_files(pages)
     grade_time = round(time.time() - start, 2)
 
     info = grading.get("student_info") if isinstance(grading.get("student_info"), dict) else {}

@@ -227,7 +227,7 @@ async def get_history(limit: int = 20, offset: int = 0, user: AuthUser = Depends
 def _save_to_db(
     check_id: str, teacher_id: str, result: dict,
     class_grade: str, subject: str, qp_filename: str, ss_filename: str,
-    assignment_id: str = None, submission_id: str = None,
+    assignment_id: str = None, submission_id: str = None, check_sheet_id: str = None,
 ):
     try:
         student_info = result.get("student_info", {})
@@ -253,6 +253,8 @@ def _save_to_db(
         if assignment_id:
             row["assignment_id"] = assignment_id
             row["submission_id"] = submission_id
+        if check_sheet_id:
+            row["check_sheet_id"] = check_sheet_id
         get_supabase_admin().table(TABLE).insert(row).execute()
         logger.info(f"Saved smart assignment check {check_id}")
     except Exception as e:
