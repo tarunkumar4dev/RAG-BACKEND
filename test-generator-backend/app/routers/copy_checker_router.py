@@ -104,7 +104,8 @@ def _build_session_rubric(c: _Caller, session_id: str, force: bool) -> dict:
                 raise HTTPException(status_code=404, detail="Test not found in your Test History.")
             qs = admin.table("questions").select("*").eq("test_id", s["test_id"]).order("position").execute()
             if not qs.data:
-                raise HTTPException(status_code=400, detail="This test has no saved questions.")
+                raise HTTPException(status_code=400, detail="This test's questions were not saved, so its answers "
+                                    "aren't available. Start a new check with “Photo of paper” instead.")
             rubric = rubric_from_test_fast(t.data[0], qs.data)
         else:
             if not s.get("qp_paths"):
