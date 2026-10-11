@@ -26,7 +26,7 @@ import uuid
 from app.core.database import get_supabase_admin
 from app.routers.smart_assignment_router import (
     ALLOWED_EXTENSIONS, DAILY_LIMIT, MAX_FILE_SIZE, _Caller, _checks_today, _cleanup, _save_to_db,
-    require_caller,
+    require_caller, with_retry,
 )
 from app.services.smart_assignment_service import build_rubric, grade_sheet, rubric_from_test_fast
 
@@ -51,7 +51,7 @@ def _download_own(c: _Caller, path: str, prefix: str) -> str:
     ext = os.path.splitext(path)[1].lower()
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(status_code=400, detail=f"Unsupported file type '{ext}'.")
-    data = get_supabase_admin().storage.from_(BUCKET).download(path)
+    data = with_retry(lambda: get_supabase_admin().storage.from_(BUCKET).download(path))
     if len(data) > MAX_FILE_SIZE:
         raise HTTPException(status_code=413, detail="File too large. Max 20 MB.")
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=ext, prefix=prefix)
@@ -61,7 +61,7 @@ def _download_own(c: _Caller, path: str, prefix: str) -> str:
 
 
 def _get_session(c: _Caller, session_id: str) -> dict:
-    r = c.db.table("check_sessions").select("*").eq("id", session_id).limit(1).execute()
+    r = with_retry(lambda: c.db.table("check_sessions").select("*").eq("id", session_id).limit(1).execute())
     if not r.data:
         raise HTTPException(status_code=404, detail="Check session not found.")
     return r.data[0]
@@ -69,7 +69,7 @@ def _get_session(c: _Caller, session_id: str) -> dict:
 
 def _update_session(c: _Caller, session_id: str, fields: dict) -> dict:
     fields["updated_at"] = datetime.now(timezone.utc).isoformat()
-    r = c.db.table("check_sessions").update(fields).eq("id", session_id).execute()
+    r = with_retry(lambda: c.db.table("check_sessions").update(fields).eq("id", session_id).execute())
     return r.data[0] if r.data else {}
 
 
@@ -157,7 +157,7 @@ def _compact(result: dict) -> dict:
 
 
 def _check_sheet(c: _Caller, sheet_id: str) -> dict:
-    r = c.db.table("check_sheets").select("*").eq("id", sheet_id).limit(1).execute()
+    r = with_retry(lambda: c.db.table("check_sheets").select("*").eq("id", sheet_id).limit(1).execute())
     if not r.data:
         raise HTTPException(status_code=404, detail="Student copy not found.")
     sheet = r.data[0]
@@ -171,7 +171,7 @@ def _check_sheet(c: _Caller, sheet_id: str) -> dict:
     if session.get("rubric_status") != "ready" or not session.get("rubric"):
         session = _build_session_rubric(c, sheet["session_id"], False)
 
-    c.db.table("check_sheets").update({"status": "checking", "error": None}).eq("id", sheet_id).execute()
+    with_retry(lambda: c.db.table("check_sheets").update({"status": "checking", "error": None}).eq("id", sheet_id).execute())
     files = []
     try:
         files = [_download_own(c, p, "ssheet_") for p in pages]
@@ -183,18 +183,19 @@ def _check_sheet(c: _Caller, sheet_id: str) -> dict:
                            "grade_time_s": round(time.time() - start, 2), "pages": len(pages)}
     except Exception as e:
         msg = e.detail if isinstance(e, HTTPException) else str(e)
-        c.db.table("check_sheets").update({"status": "failed", "error": str(msg)[:300]}).eq("id", sheet_id).execute()
+        with_retry(lambda: c.db.table("check_sheets").update({"status": "failed", "error": str(msg)[:300]})
+                   .eq("id", sheet_id).execute())
         raise
     finally:
         _cleanup(*files)
 
     compact = _compact(result)
     now = datetime.now(timezone.utc).isoformat()
-    upd = c.db.table("check_sheets").update({
+    upd = with_retry(lambda: c.db.table("check_sheets").update({
         "status": "checked", "ai_result": compact,
         "ai_marks": result.get("total_marks_awarded", 0), "max_marks": result.get("max_marks", 0),
         "error": None, "checked_at": now, "updated_at": now,
-    }).eq("id", sheet_id).execute()
+    }).eq("id", sheet_id).execute())
 
     result["student_info"] = {"name": sheet.get("student_name") or "", "class": session.get("class_grade") or "",
                               "roll_no": sheet.get("roll_no") or "", "missing_fields": []}

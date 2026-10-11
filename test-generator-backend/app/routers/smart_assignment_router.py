@@ -75,6 +75,24 @@ async def _save_temp(file: UploadFile, ext: str, prefix: str) -> str:
         raise HTTPException(status_code=500, detail=f"Upload failed: {e}")
 
 
+_TRANSIENT = ("Server disconnected", "ConnectionReset", "Connection reset", "RemoteProtocolError",
+              "ReadError", "ReadTimeout", "ConnectError", "timed out")
+
+
+def with_retry(fn, attempts: int = 3):
+    """Supabase calls through a pooled HTTP/2 connection fail with "Server disconnected" when the
+    server closed it while idle (e.g. during a 20 s Gemini call). Retry those, nothing else."""
+    for i in range(attempts):
+        try:
+            return fn()
+        except Exception as e:
+            text = f"{type(e).__name__}: {e}"
+            if i == attempts - 1 or not any(t in text for t in _TRANSIENT):
+                raise
+            logger.warning(f"Transient Supabase error, retrying ({i + 1}/{attempts - 1}): {text[:120]}")
+            time.sleep(0.4 * (i + 1))
+
+
 def _cleanup(*paths):
     for p in paths:
         try:
@@ -298,7 +316,7 @@ def _download_to_temp(bucket: str, path: str, prefix: str) -> str:
     ext = os.path.splitext(path)[1].lower()
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(status_code=400, detail=f"Unsupported file type '{ext}' for AI checking.")
-    data = get_supabase_admin().storage.from_(bucket).download(path)
+    data = with_retry(lambda: get_supabase_admin().storage.from_(bucket).download(path))
     if len(data) > MAX_FILE_SIZE:
         raise HTTPException(status_code=413, detail="File too large. Max 20 MB.")
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=ext, prefix=prefix)
@@ -433,23 +451,23 @@ def _check_submission(c: _Caller, assignment_id: str, submission_id: str) -> dic
         result["_meta"] = {"strictness": key.get("strictness") or "medium",
                            "grade_time_s": result.pop("_grade_time_s", round(time.time() - start, 2))}
     except Exception as e:
-        c.db.table("submissions").update({"ai_status": "failed", "ai_error": str(e)[:300]}) \
-            .eq("id", submission_id).execute()
+        with_retry(lambda: c.db.table("submissions").update({"ai_status": "failed", "ai_error": str(e)[:300]})
+                   .eq("id", submission_id).execute())
         raise
     finally:
         _cleanup(sheet_path)
 
     compact = _compact(result)
-    c.db.table("submissions").update({
+    with_retry(lambda: c.db.table("submissions").update({
         "ai_status": "done",
         "ai_marks": result.get("total_marks_awarded", 0),
         "ai_max_marks": result.get("max_marks", 0),
         "ai_result": compact,
         "ai_error": None,
         "ai_checked_at": datetime.now(timezone.utc).isoformat(),
-    }).eq("id", submission_id).execute()
+    }).eq("id", submission_id).execute())
 
-    st = c.db.table("students").select("name, roll_no").eq("id", sub["student_id"]).limit(1).execute()
+    st = with_retry(lambda: c.db.table("students").select("name, roll_no").eq("id", sub["student_id"]).limit(1).execute())
     if st.data:
         result["student_info"] = {"name": st.data[0].get("name") or "", "class": "",
                                   "roll_no": st.data[0].get("roll_no") or "", "missing_fields": []}
