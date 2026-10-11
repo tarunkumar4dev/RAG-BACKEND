@@ -6,8 +6,10 @@ token and this endpoint forwards the conversation to OpenRouter.
 
 Protections:
   * Supabase JWT required (require_user)
-  * Per user: 20 requests/minute burst (in-memory, per instance) and 50 messages/day
-    (Postgres via consume_ai_chat_quota, consistent across serverless instances)
+  * Per user: 20 requests/minute burst (in-memory, per instance) and a daily quota in Postgres
+    (consume_ai_chat_quota, product/supabase/migrations/15_ai_chat_quota.sql): free users 10
+    messages/day; paid users unlimited, except that re-sending a message already sent today
+    counts against the same 10 (abuse guard)
   * Global: 1000 requests/minute per instance (in-memory approximation until Redis)
   * Bounded input (20 messages x 4000 chars), max_tokens 1024, 30 s upstream timeout
   * A fixed server-side system prompt is always sent first; a client system message is kept
@@ -18,6 +20,7 @@ AI_CHAT_DAILY_LIMIT, AI_CHAT_BURST_PER_MINUTE, AI_CHAT_GLOBAL_PER_MINUTE.
 """
 from __future__ import annotations
 
+import hashlib
 import logging
 import os
 import re
@@ -25,7 +28,7 @@ import threading
 import time
 from collections import deque
 from datetime import datetime, timedelta, timezone
-from typing import Deque, Dict, List, Literal, Tuple
+from typing import Deque, Dict, List, Literal, Optional, Tuple
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
@@ -47,7 +50,7 @@ MAX_MESSAGE_LENGTH = 4000
 MAX_OUTPUT_TOKENS = 1024
 UPSTREAM_TIMEOUT_SECONDS = 30.0
 
-DAILY_LIMIT_PER_USER = int(os.getenv("AI_CHAT_DAILY_LIMIT", "50"))
+DAILY_LIMIT_PER_USER = int(os.getenv("AI_CHAT_DAILY_LIMIT", "10"))
 BURST_LIMIT_PER_MINUTE = int(os.getenv("AI_CHAT_BURST_PER_MINUTE", "20"))
 GLOBAL_LIMIT_PER_MINUTE = int(os.getenv("AI_CHAT_GLOBAL_PER_MINUTE", "1000"))
 
@@ -94,10 +97,17 @@ _fallback_daily: Dict[Tuple[str, str], int] = {}
 _fallback_lock = threading.Lock()
 
 
-def _consume_daily_quota(user_id: str) -> dict:
+def _message_hash(text: str) -> str:
+    """Same question with different spacing/case = same message (repeat detection)."""
+    normalised = re.sub(r"\s+", " ", text).strip().lower()
+    return hashlib.sha256(normalised.encode("utf-8")).hexdigest()
+
+
+def _consume_daily_quota(user_id: str, message_hash: str) -> dict:
     try:
         res = get_supabase_admin().rpc(
-            "consume_ai_chat_quota", {"p_user_id": user_id, "p_daily_limit": DAILY_LIMIT_PER_USER}
+            "consume_ai_chat_quota",
+            {"p_user_id": user_id, "p_daily_limit": DAILY_LIMIT_PER_USER, "p_message_hash": message_hash},
         ).execute()
         if isinstance(res.data, dict):
             return res.data
@@ -131,7 +141,8 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     content: str
     model: str
-    remaining_today: int
+    remaining_today: Optional[int]  # None = unlimited (paid user)
+    unlimited: bool = False
 
 
 def _build_messages(messages: List[ChatMessage]) -> List[dict]:
@@ -223,15 +234,27 @@ async def chat(body: ChatRequest, user: AuthUser = Depends(require_user)):
         raise HTTPException(status_code=429, detail="You're sending messages too fast. Please wait a minute.",
                             headers={"Retry-After": "60"})
 
-    quota = await run_in_threadpool(_consume_daily_quota, user.id)
+    messages = _build_messages(body.messages)  # validates before a quota slot is used
+    quota = await run_in_threadpool(_consume_daily_quota, user.id, _message_hash(body.messages[-1].content))
     if not quota.get("allowed"):
+        limit = quota.get("limit") or DAILY_LIMIT_PER_USER
+        if quota.get("reason") == "duplicate_limit":
+            raise HTTPException(
+                status_code=429,
+                detail={"error": "duplicate_limit_reached",
+                        "message": "You've sent the same message too many times today. Please ask something new.",
+                        "limit": limit},
+            )
         raise HTTPException(
             status_code=429,
             detail={"error": "daily_limit_reached",
-                    "message": f"You've used all {quota.get('limit', DAILY_LIMIT_PER_USER)} AI messages for today. "
-                               "The limit resets at midnight IST.",
-                    "limit": quota.get("limit", DAILY_LIMIT_PER_USER)},
+                    "message": f"You've used all {limit} free AI messages for today. "
+                               "Upgrade for unlimited messages, or come back after midnight IST.",
+                    "limit": limit},
         )
 
-    content, model = await _complete(api_key, _build_messages(body.messages))
-    return ChatResponse(content=content, model=model, remaining_today=int(quota.get("remaining", 0)))
+    content, model = await _complete(api_key, messages)
+    remaining = quota.get("remaining")
+    unlimited = bool(quota.get("paid")) and remaining is None
+    return ChatResponse(content=content, model=model,
+                        remaining_today=None if unlimited else int(remaining or 0), unlimited=unlimited)
