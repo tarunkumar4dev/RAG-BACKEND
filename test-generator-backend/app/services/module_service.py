@@ -43,7 +43,7 @@ def get_supabase():
     if _supabase_client is None:
         from supabase import create_client
         url = os.getenv("SUPABASE_URL") or os.getenv("VITE_SUPABASE_URL") or ""
-        key = os.getenv("SUPABASE_SERVICE_KEY") or os.getenv("SUPABASE_KEY") or ""
+        key = os.getenv("SUPABASE_SECRET_KEY") or os.getenv("SUPABASE_SERVICE_KEY") or os.getenv("SUPABASE_KEY") or ""
         if not url or not key:
             logger.error("SUPABASE_URL or SUPABASE_SERVICE_KEY not set")
             return None

@@ -46,12 +46,15 @@ class Settings:
     # ── Supabase / Postgres ─────────────────────────────────────────
     SUPABASE_URL: str = _require("SUPABASE_URL")
 
-    # Anon key: respects RLS. Used for reads on behalf of a user.
-    SUPABASE_ANON_KEY: str = _first_set("SUPABASE_ANON_KEY", "SUPABASE_KEY")
+    # Supabase API keys (Oct 2026): new sb_publishable_… / sb_secret_… keys are read first, legacy JWT
+    # keys (anon / service_role) stay as fallback until they are disabled. supabase-py >= 2.32 accepts both
+    # (2.9 rejected any non-JWT key with "Invalid API key").
+    # Anon / publishable key: respects RLS. Used for reads on behalf of a user.
+    SUPABASE_ANON_KEY: str = _first_set("SUPABASE_PUBLISHABLE_KEY", "SUPABASE_ANON_KEY", "SUPABASE_KEY")
 
     # Service key: bypasses RLS. Server-side trusted writes ONLY.
     # Never send this to the frontend.
-    SUPABASE_SERVICE_KEY: str = _first_set("SUPABASE_SERVICE_KEY", "SUPABASE_KEY")
+    SUPABASE_SERVICE_KEY: str = _first_set("SUPABASE_SECRET_KEY", "SUPABASE_SERVICE_KEY", "SUPABASE_KEY")
 
     DATABASE_URL: str = os.getenv("DATABASE_URL", "")
 
@@ -142,6 +145,13 @@ def _validate() -> None:
 
     if not settings.SUPABASE_ANON_KEY:
         problems.append("SUPABASE_ANON_KEY (or SUPABASE_KEY) is not set")
+
+    # New-style keys swapped by mistake: a publishable key cannot do admin writes, and a secret key
+    # must never be the "anon" client (it bypasses RLS for requests made on behalf of a user).
+    if settings.SUPABASE_SERVICE_KEY.startswith("sb_publishable_"):
+        problems.append("SUPABASE_SECRET_KEY / SUPABASE_SERVICE_KEY holds a publishable key (sb_publishable_…)")
+    if settings.SUPABASE_ANON_KEY.startswith("sb_secret_"):
+        problems.append("SUPABASE_PUBLISHABLE_KEY / SUPABASE_ANON_KEY holds a secret key (sb_secret_…)")
 
     if settings.IS_PRODUCTION:
         if not settings.SUPABASE_SERVICE_KEY:
