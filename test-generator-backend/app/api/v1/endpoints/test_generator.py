@@ -36,6 +36,7 @@ from app.services.test_generator_service import generate_test, handle_feedback, 
 from app.api.v1.endpoints.chat import _SlidingWindow
 from starlette.concurrency import run_in_threadpool
 from app.services.rag_service import retrieve_context
+from app.services.ncert_subjects import apply_ncert_subject_filter
 from app.core.auth import AuthUser, require_user
 from app.core.database import get_supabase, get_supabase_admin
 from app.core.config import settings
@@ -879,11 +880,9 @@ async def get_chapters(subject: str = "Science", class_grade: str = "10"):
 
     try:
         supabase = get_supabase()
-        result = supabase.table("ncert_chunks") \
-            .select("chapter, book, chapter_type, chapter_order") \
-            .ilike("subject", f"%{subject}%") \
-            .eq("class_grade", class_grade) \
-            .execute()
+        result = apply_ncert_subject_filter(
+            supabase.table("ncert_chunks").select("chapter, book, chapter_type, chapter_order"), subject
+        ).eq("class_grade", class_grade).execute()
 
         rows = result.data or []
         chapters = sorted({row["chapter"].strip() for row in rows if row.get("chapter") and not row["chapter"].strip().isupper()})
@@ -958,18 +957,9 @@ async def get_chapters(subject: str = "Science", class_grade: str = "10"):
 # ═══════════════════════════════════════════════════════════════════════
 
 def _apply_ncert_subject_filter(query, subject: str):
-    """Filter ncert_questions strictly so 'Science' never collides with 'Political Science'."""
-    sub_clean = (subject or "").strip().lower()
-    if sub_clean == "science":
-        return query.eq("subject", "Science")
-    elif sub_clean in ("physics", "physics-i", "physics-ii"):
-        return query.in_("subject", ["Physics", "Physics-I", "Physics-II"])
-    elif sub_clean in ("chemistry", "chemistry-i", "chemistry-ii"):
-        return query.in_("subject", ["Chemistry", "Chemistry-I", "Chemistry-II"])
-    elif sub_clean in ("political science", "political_science", "pol science"):
-        return query.in_("subject", ["Political Science", "Political_Science"])
-    else:
-        return query.ilike("subject", subject.strip())
+    """Exact subject match so 'Science' never collides with 'Political Science' (shared helper,
+    also used by rag_service)."""
+    return apply_ncert_subject_filter(query, subject)
 
 
 def _get_subject_sql_clause(subject: str) -> tuple[str, list]:

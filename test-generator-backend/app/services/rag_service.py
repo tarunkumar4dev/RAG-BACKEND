@@ -19,6 +19,7 @@ from typing import List, Dict, Set, Tuple
 
 from app.core.config import settings
 from app.core.database import get_supabase
+from app.services.ncert_subjects import apply_ncert_subject_filter
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +32,11 @@ _STOPWORDS: Set[str] = {
     "and", "of", "the", "in", "a", "an", "to", "for", "with", "on",
     "at", "by", "from", "its", "it", "is", "are", "be",
 }
+
+
+def _ncert_select(supabase, columns: str, subject: str):
+    """ncert_chunks rows of exactly this subject (family) — never a substring match."""
+    return apply_ncert_subject_filter(supabase.table("ncert_chunks").select(columns), subject)
 
 
 def _escape_ilike(value: str) -> str:
@@ -69,9 +75,7 @@ def _resolve_chapters(requested_chapters, subject, class_grade):
         supabase = get_supabase()
         try:
             response = (
-                supabase.table("ncert_chunks")
-                .select("chapter")
-                .ilike("subject", f"%{_escape_ilike(subject)}%")
+                _ncert_select(supabase, "chapter", subject)
                 .eq("class_grade", str(class_grade))
                 .limit(1000)
                 .execute()
@@ -206,9 +210,7 @@ def keyword_search(keywords, subject, class_grade, chapters, limit=10):
                 for ch_name in chapters:
                     # Fetch all chunks for THIS chapter
                     query = (
-                        supabase.table("ncert_chunks")
-                        .select("id, chapter, subject, class_grade, content")
-                        .ilike("subject", f"%{_escape_ilike(subject)}%")
+                        _ncert_select(supabase, "id, chapter, subject, class_grade, content", subject)
                         .eq("class_grade", str(class_grade))
                         .eq("chapter", ch_name)
                     )
@@ -250,10 +252,8 @@ def keyword_search(keywords, subject, class_grade, chapters, limit=10):
                 continue
 
             query = (
-                supabase.table("ncert_chunks")
-                .select("id, chapter, subject, class_grade, content")
+                _ncert_select(supabase, "id, chapter, subject, class_grade, content", subject)
                 .ilike("content", f"%{_escape_ilike(kw)}%")
-                .ilike("subject", f"%{_escape_ilike(subject)}%")
                 .eq("class_grade", str(class_grade))
             )
             if chapters:
@@ -264,10 +264,8 @@ def keyword_search(keywords, subject, class_grade, chapters, limit=10):
 
             if not rows and chapters:
                 query_broad = (
-                    supabase.table("ncert_chunks")
-                    .select("id, chapter, subject, class_grade, content")
+                    _ncert_select(supabase, "id, chapter, subject, class_grade, content", subject)
                     .ilike("content", f"%{_escape_ilike(kw)}%")
-                    .ilike("subject", f"%{_escape_ilike(subject)}%")
                     .eq("class_grade", str(class_grade))
                 )
                 response = query_broad.limit(limit).execute()
@@ -283,9 +281,7 @@ def keyword_search(keywords, subject, class_grade, chapters, limit=10):
         if not results and chapters:
             logger.info(f"Keyword search empty. Falling back to chapter chunks.")
             query = (
-                supabase.table("ncert_chunks")
-                .select("id, chapter, subject, class_grade, content")
-                .ilike("subject", f"%{_escape_ilike(subject)}%")
+                _ncert_select(supabase, "id, chapter, subject, class_grade, content", subject)
                 .eq("class_grade", str(class_grade))
                 .in_("chapter", chapters)
             )
