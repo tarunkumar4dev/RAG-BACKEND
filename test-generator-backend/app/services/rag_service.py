@@ -94,8 +94,7 @@ def _resolve_chapters(requested_chapters, subject, class_grade):
                     continue
                 ilike_pattern = f"%{'%'.join(_escape_ilike(w) for w in search_words)}%"
                 resp = (
-                    supabase.table("ncert_chunks")
-                    .select("chapter")
+                    _ncert_select(supabase, "chapter", subject)
                     .ilike("chapter", ilike_pattern)
                     .eq("class_grade", str(class_grade))
                     .limit(5)
