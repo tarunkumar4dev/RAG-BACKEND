@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Request, Response, HTTPException, BackgroundTasks, Query, Header
+from fastapi import APIRouter, Request, Response, HTTPException, BackgroundTasks, Query, Header, Depends
 from app.models.whatsapp import WhatsAppWebhookPayload
 from app.core.config import settings
 from typing import Optional
@@ -11,7 +11,17 @@ import httpx
 import asyncio
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/whatsapp", tags=["WhatsApp"])
+
+
+def _whatsapp_bot_enabled() -> None:
+    """Kill switch for the WhatsApp paper bot (12 Oct 2026, Meta approval pending). Unless
+    WHATSAPP_BOT_ENABLED=true, every /whatsapp route answers 404 before its handler runs — no Meta
+    call, no background work. Separate from login OTP (WHATSAPP_OTP_ENABLED on the Supabase Edge Function)."""
+    if os.environ.get("WHATSAPP_BOT_ENABLED", "false").strip().lower() != "true":
+        raise HTTPException(status_code=404, detail="Not Found")
+
+
+router = APIRouter(prefix="/whatsapp", tags=["WhatsApp"], dependencies=[Depends(_whatsapp_bot_enabled)])
 
 
 def _env_secret(name: str) -> str:
