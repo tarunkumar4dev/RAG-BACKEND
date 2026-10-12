@@ -261,15 +261,9 @@ def keyword_search(keywords, subject, class_grade, chapters, limit=10):
 
             response = query.limit(limit).execute()
             rows = response.data or []
-
-            if not rows and chapters:
-                query_broad = (
-                    _ncert_select(supabase, "id, chapter, subject, class_grade, content", subject)
-                    .ilike("content", f"%{_escape_ilike(kw)}%")
-                    .eq("class_grade", str(class_grade))
-                )
-                response = query_broad.limit(limit).execute()
-                rows = response.data or []
+            # No broad retry without the chapter filter: a keyword missing from the chosen chapters
+            # used to pull chunks from OTHER chapters into the paper. The chapter-chunk fallback
+            # below covers "no keyword hits at all".
 
             for row in rows:
                 if row["id"] not in seen_ids:
