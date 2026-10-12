@@ -188,69 +188,66 @@ def vector_search(query_embedding, subject, class_grade, chapters, limit=8, thre
     return []
 
 
-def keyword_search(keywords, subject, class_grade, chapters, limit=10):
+# Every chosen chapter gets its own share of chunks (the per-chapter prompt uses at most
+# MAX_CONTEXT_CHUNKS of them). A fixed 20-chunk total used to leave chapters 6+ with nothing,
+# and their questions were then written from the first chapters' content.
+PER_CHAPTER_CHUNKS = settings.MAX_CONTEXT_CHUNKS          # 8
+MAX_TOTAL_CHUNKS = 120                                     # = 15 chapters x 8
+MIN_PER_CHAPTER = 2
+
+
+def _per_chapter_quota(num_chapters: int) -> int:
+    if num_chapters <= 0:
+        return PER_CHAPTER_CHUNKS
+    return max(MIN_PER_CHAPTER, min(PER_CHAPTER_CHUNKS, MAX_TOTAL_CHUNKS // num_chapters))
+
+
+def _sample_chapter(supabase, ch_name, subject, class_grade, quota, seen_ids):
+    """Up to `quota` chunks of ONE chapter, spread over the chapter (skips the intro chunks)."""
+    rows = (
+        _ncert_select(supabase, "id, chapter, subject, class_grade, content", subject)
+        .eq("class_grade", str(class_grade))
+        .eq("chapter", ch_name)
+        .limit(100)
+        .execute()
+    ).data or []
+    rows = [r for r in rows if r["id"] not in seen_ids]
+    if len(rows) > quota:
+        skip_intro = min(2, len(rows) // 4)
+        body = rows[skip_intro:]
+        if len(body) > quota:
+            stride = len(body) / quota
+            rows = [body[int(i * stride)] for i in range(quota)]
+        else:
+            rows = body[:quota]
+    for r in rows:
+        r["similarity"] = 0.7
+        seen_ids.add(r["id"])
+    return rows
+
+
+def keyword_search(keywords, subject, class_grade, chapters, limit=None):
     """
-    Search NCERT chunks. Two modes:
-      1. Keywords provided → search content, filtered by chapter
-      2. No keywords → per-chapter stride sampling for diversity
+    Search NCERT chunks of the chosen chapters only.
+      1. Keywords (subtopics) → chunks of the chosen chapters that contain them
+      2. Every chapter is then topped up to its quota with its own chunks, so a chapter whose
+         keyword isn't found (or that has no subtopic) is never left empty.
     """
     supabase = get_supabase()
+    chapters = list(chapters or [])
+    quota = _per_chapter_quota(len(chapters))
+    total_cap = min(MAX_TOTAL_CHUNKS, quota * len(chapters)) if chapters else (limit or PER_CHAPTER_CHUNKS)
 
     try:
         results: List[Dict] = []
         seen_ids: Set = set()
+        per_chapter: Dict[str, int] = {c: 0 for c in chapters}
 
-        # ── Mode 2: No keywords → per-chapter stride sampling ──
-        if not keywords or all(not k.strip() for k in keywords):
-            if chapters:
-                logger.info(f"No keywords. Per-chapter stride sampling for diversity.")
-                num_chapters = len(chapters)
-                per_chapter_quota = max(4, limit // num_chapters)
-
-                for ch_name in chapters:
-                    # Fetch all chunks for THIS chapter
-                    query = (
-                        _ncert_select(supabase, "id, chapter, subject, class_grade, content", subject)
-                        .eq("class_grade", str(class_grade))
-                        .eq("chapter", ch_name)
-                    )
-                    response = query.limit(100).execute()
-                    ch_rows = response.data or []
-
-                    if not ch_rows:
-                        continue
-
-                    # Stride sample WITHIN this chapter, skipping first 1-2 (intro bias)
-                    if len(ch_rows) > per_chapter_quota:
-                        skip_intro = min(2, len(ch_rows) // 4)
-                        body_rows = ch_rows[skip_intro:]
-                        if len(body_rows) > per_chapter_quota:
-                            stride = len(body_rows) / per_chapter_quota
-                            sampled = [body_rows[int(i * stride)] for i in range(per_chapter_quota)]
-                        else:
-                            sampled = body_rows
-                        logger.info(f"  '{ch_name}': stride-sampled {len(sampled)} from {len(ch_rows)} (skipped {skip_intro} intro)")
-                    else:
-                        sampled = ch_rows
-                        logger.info(f"  '{ch_name}': took all {len(sampled)} chunks")
-
-                    for row in sampled:
-                        if row["id"] not in seen_ids:
-                            row["similarity"] = 0.7
-                            results.append(row)
-                            seen_ids.add(row["id"])
-
-                return results[:limit]
-            return []
-
-        # ── Mode 1: Keywords provided → search inside content ──
-        for keyword in keywords[:8]:
-            kw = (keyword or "").strip()
-            if len(kw) < 3:
+        # ── 1. Keyword hits inside the chosen chapters ──
+        for keyword in [k for k in (keywords or []) if k and k.strip()][:8]:
+            kw = keyword.strip()
+            if len(kw) < 3 or len(kw.split()) > 4:
                 continue
-            if len(kw.split()) > 4:
-                continue
-
             query = (
                 _ncert_select(supabase, "id, chapter, subject, class_grade, content", subject)
                 .ilike("content", f"%{_escape_ilike(kw)}%")
@@ -258,49 +255,41 @@ def keyword_search(keywords, subject, class_grade, chapters, limit=10):
             )
             if chapters:
                 query = query.in_("chapter", chapters)
-
-            response = query.limit(limit).execute()
-            rows = response.data or []
-            # No broad retry without the chapter filter: a keyword missing from the chosen chapters
-            # used to pull chunks from OTHER chapters into the paper. The chapter-chunk fallback
-            # below covers "no keyword hits at all".
-
+            rows = query.limit(total_cap).execute().data or []
             for row in rows:
-                if row["id"] not in seen_ids:
-                    row["similarity"] = 0.6
-                    results.append(row)
-                    seen_ids.add(row["id"])
+                ch = row.get("chapter")
+                if row["id"] in seen_ids or (chapters and per_chapter.get(ch, 0) >= quota):
+                    continue
+                row["similarity"] = 0.6
+                results.append(row)
+                seen_ids.add(row["id"])
+                if ch in per_chapter:
+                    per_chapter[ch] += 1
 
-        # Final fallback: keyword search empty → chapter chunks
-        if not results and chapters:
-            logger.info(f"Keyword search empty. Falling back to chapter chunks.")
-            query = (
-                _ncert_select(supabase, "id, chapter, subject, class_grade, content", subject)
-                .eq("class_grade", str(class_grade))
-                .in_("chapter", chapters)
-            )
-            response = query.limit(limit).execute()
-            rows = response.data or []
-            for row in rows:
-                if row["id"] not in seen_ids:
-                    row["similarity"] = 0.5
-                    results.append(row)
-                    seen_ids.add(row["id"])
+        # ── 2. Top every chapter up to its quota with its own chunks ──
+        for ch in chapters:
+            need = quota - per_chapter[ch]
+            if need <= 0:
+                continue
+            rows = _sample_chapter(supabase, ch, subject, class_grade, need, seen_ids)
+            results.extend(rows)
+            per_chapter[ch] += len(rows)
+            logger.info(f"  '{ch}': {per_chapter[ch]} chunks (quota {quota})")
 
-        return results[:limit]
+        return results[:total_cap]
 
     except Exception as e:
         logger.error(f"Keyword search error: {e}")
         return []
 
 
-def retrieve_context(chapters, topics, subject, class_grade, max_chunks=20):
+def retrieve_context(chapters, topics, subject, class_grade, max_chunks=None):
     """
     Retrieval pipeline:
       1. Resolve chapter names against DB
-      2. Build keywords ONLY from real topics
-      3. If no real topics → per-chapter stride sampling
-      4. Return top chunks
+      2. Build keywords ONLY from real topics (subtopics)
+      3. Each chapter gets up to PER_CHAPTER_CHUNKS chunks (total capped at MAX_TOTAL_CHUNKS)
+    `max_chunks` is kept for old callers; the per-chapter quota decides the size now.
     """
     resolved_chapters = _resolve_chapters(chapters, subject, class_grade)
     if resolved_chapters != chapters:
@@ -317,20 +306,14 @@ def retrieve_context(chapters, topics, subject, class_grade, max_chunks=20):
             if len(word) >= 3:
                 real_topics.append(word)
 
-    query_text = " ".join(filter(None, [subject, str(class_grade)] + resolved_chapters + real_topics))
-    logger.info(f"RAG query: '{query_text[:80]}...' | real_topics={real_topics}")
-
-    keyword_results = keyword_search(
+    logger.info(f"RAG: {len(resolved_chapters)} chapters, real_topics={real_topics}")
+    final = keyword_search(
         keywords=real_topics,
         subject=subject,
         class_grade=str(class_grade),
         chapters=resolved_chapters,
         limit=max_chunks,
     )
-    logger.info(f"Keyword search: {len(keyword_results)} results")
-
-    final = keyword_results[:max_chunks]
     chapter_set = set(r.get("chapter", "?") for r in final)
     logger.info(f"Final: {len(final)} chunks from {len(chapter_set)} chapters")
-
     return final
