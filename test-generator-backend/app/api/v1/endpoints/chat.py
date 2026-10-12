@@ -8,15 +8,17 @@ Protections:
   * Supabase JWT required (require_user)
   * Per user: 20 requests/minute burst (in-memory, per instance) and a daily quota in Postgres
     (consume_ai_chat_quota, product/supabase/migrations/15_ai_chat_quota.sql): free users 10
-    messages/day; paid users unlimited, except that re-sending a message already sent today
-    counts against the same 10 (abuse guard)
+    messages/day; paid users don't use the 10 except when re-sending a message already sent
+    today (abuse guard), with a hard cap of 200 messages/day
   * Global: 1000 requests/minute per instance (in-memory approximation until Redis)
-  * Bounded input (20 messages x 4000 chars), max_tokens 1024, 30 s upstream timeout
+  * Bounded input: optional system message + last 8 history messages + the question, each at
+    most 2000 chars (history is truncated, a longer question is rejected); max_tokens 600;
+    30 s upstream timeout
   * A fixed server-side system prompt is always sent first; a client system message is kept
     only as extra persona context and length-capped
 Config (env): OPENROUTER_API_KEY (required), OPENROUTER_MODEL (default deepseek/deepseek-chat),
 OPENROUTER_FALLBACK_MODELS (comma-separated, default google/gemini-2.5-flash),
-AI_CHAT_DAILY_LIMIT, AI_CHAT_BURST_PER_MINUTE, AI_CHAT_GLOBAL_PER_MINUTE.
+AI_CHAT_DAILY_LIMIT, AI_CHAT_PAID_DAILY_CAP, AI_CHAT_BURST_PER_MINUTE, AI_CHAT_GLOBAL_PER_MINUTE.
 """
 from __future__ import annotations
 
@@ -45,12 +47,15 @@ OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 DEFAULT_MODEL = "deepseek/deepseek-chat"
 DEFAULT_FALLBACK_MODELS = "google/gemini-2.5-flash"
 
-MAX_MESSAGES = 20
-MAX_MESSAGE_LENGTH = 4000
-MAX_OUTPUT_TOKENS = 1024
+MAX_MESSAGES = 20            # accepted per request (older clients); only the tail is forwarded
+MAX_PAYLOAD_LENGTH = 8000    # per message, request validation only
+MAX_HISTORY = 8              # previous user/assistant messages forwarded to the model
+MAX_MESSAGE_LENGTH = 2000    # per message forwarded to the model
+MAX_OUTPUT_TOKENS = 600
 UPSTREAM_TIMEOUT_SECONDS = 30.0
 
 DAILY_LIMIT_PER_USER = int(os.getenv("AI_CHAT_DAILY_LIMIT", "10"))
+PAID_DAILY_CAP = int(os.getenv("AI_CHAT_PAID_DAILY_CAP", "200"))
 BURST_LIMIT_PER_MINUTE = int(os.getenv("AI_CHAT_BURST_PER_MINUTE", "20"))
 GLOBAL_LIMIT_PER_MINUTE = int(os.getenv("AI_CHAT_GLOBAL_PER_MINUTE", "1000"))
 
@@ -107,7 +112,8 @@ def _consume_daily_quota(user_id: str, message_hash: str) -> dict:
     try:
         res = get_supabase_admin().rpc(
             "consume_ai_chat_quota",
-            {"p_user_id": user_id, "p_daily_limit": DAILY_LIMIT_PER_USER, "p_message_hash": message_hash},
+            {"p_user_id": user_id, "p_daily_limit": DAILY_LIMIT_PER_USER, "p_message_hash": message_hash,
+             "p_paid_daily_cap": PAID_DAILY_CAP},
         ).execute()
         if isinstance(res.data, dict):
             return res.data
@@ -130,7 +136,7 @@ def _consume_daily_quota(user_id: str, message_hash: str) -> dict:
 class ChatMessage(BaseModel):
     model_config = ConfigDict(extra="forbid")
     role: Literal["user", "assistant", "system"]
-    content: str = Field(min_length=1, max_length=MAX_MESSAGE_LENGTH)
+    content: str = Field(min_length=1, max_length=MAX_PAYLOAD_LENGTH)
 
 
 class ChatRequest(BaseModel):
@@ -146,16 +152,24 @@ class ChatResponse(BaseModel):
 
 
 def _build_messages(messages: List[ChatMessage]) -> List[dict]:
+    """Server prompt + optional client persona + last MAX_HISTORY messages + the question.
+    History is cut to MAX_MESSAGE_LENGTH chars; a longer question is rejected."""
     if messages[-1].role != "user":
         raise HTTPException(status_code=422, detail="The last message must be from the user.")
+    if any(m.role == "system" for m in messages[1:]):
+        raise HTTPException(status_code=422, detail="Only the first message may be a system message.")
+    question = messages[-1].content
+    if len(question) > MAX_MESSAGE_LENGTH:
+        raise HTTPException(status_code=422,
+                            detail=f"Please keep your question under {MAX_MESSAGE_LENGTH} characters.")
+
     out = [{"role": "system", "content": SERVER_SYSTEM_PROMPT}]
-    for i, m in enumerate(messages):
-        if m.role == "system":
-            if i != 0:
-                raise HTTPException(status_code=422, detail="Only the first message may be a system message.")
-            out.append({"role": "system", "content": "Additional persona context:\n" + m.content})
-        else:
-            out.append({"role": m.role, "content": m.content})
+    if messages[0].role == "system":
+        out.append({"role": "system",
+                    "content": "Additional persona context:\n" + messages[0].content[:MAX_MESSAGE_LENGTH]})
+    history = [m for m in messages[:-1] if m.role != "system"][-MAX_HISTORY:]
+    out += [{"role": m.role, "content": m.content[:MAX_MESSAGE_LENGTH]} for m in history]
+    out.append({"role": "user", "content": question})
     return out
 
 
@@ -238,6 +252,14 @@ async def chat(body: ChatRequest, user: AuthUser = Depends(require_user)):
     quota = await run_in_threadpool(_consume_daily_quota, user.id, _message_hash(body.messages[-1].content))
     if not quota.get("allowed"):
         limit = quota.get("limit") or DAILY_LIMIT_PER_USER
+        if quota.get("reason") == "paid_daily_cap":
+            raise HTTPException(
+                status_code=429,
+                detail={"error": "paid_daily_cap_reached",
+                        "message": f"You've reached today's limit of {limit} AI messages. "
+                                   "It resets at midnight IST.",
+                        "limit": limit},
+            )
         if quota.get("reason") == "duplicate_limit":
             raise HTTPException(
                 status_code=429,
