@@ -14,7 +14,7 @@ v3.3 changes (SECURITY):
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel, ConfigDict, Field
-from typing import List, Optional
+from typing import Dict, List, Optional
 import re
 import uuid
 import time
@@ -36,7 +36,9 @@ from app.services.test_generator_service import generate_test, handle_feedback, 
 from app.api.v1.endpoints.chat import _SlidingWindow
 from starlette.concurrency import run_in_threadpool
 from app.services.rag_service import retrieve_context
-from app.services.ncert_subjects import apply_ncert_subject_filter
+from app.services.ncert_subjects import (
+    apply_ncert_subject_filter, chapter_display_name, chapter_key, fetch_all_rows, ncert_subject_names,
+)
 from app.core.auth import AuthUser, require_user
 from app.core.database import get_supabase, get_supabase_admin
 from app.core.config import settings
@@ -880,28 +882,48 @@ async def get_chapters(subject: str = "Science", class_grade: str = "10"):
 
     try:
         supabase = get_supabase()
-        result = apply_ncert_subject_filter(
-            supabase.table("ncert_chunks").select("chapter, book, chapter_type, chapter_order"), subject
-        ).eq("class_grade", class_grade).execute()
+        # All rows (a subject family can exceed PostgREST's 1000-row page, e.g. Class 11 Physics)
+        rows = fetch_all_rows(lambda: apply_ncert_subject_filter(
+            supabase.table("ncert_chunks").select("chapter, book, chapter_type, chapter_order, subject"), subject
+        ).eq("class_grade", class_grade).order("id"))
 
-        rows = result.data or []
-        chapters = sorted({row["chapter"].strip() for row in rows if row.get("chapter") and not row["chapter"].strip().isupper()})
+        # Families (Physics / Physics-I / Physics-II) hold the same book twice with different
+        # chapter spellings ("Alternating Current (AC)" vs "ALTERNATING CURRENT"). List the base
+        # subject's chapters when it has any for this class; the split books only as a fallback.
+        family = ncert_subject_names(subject)
+        if family and len(family) > 1:
+            base_rows = [r for r in rows if (r.get("subject") or "").lower() == family[0].lower()]
+            if base_rows:
+                rows = base_rows
+
+        # One entry per chapter, case-insensitively: CAPITALISED names used to be dropped entirely
+        # (empty dropdowns for Class 11/12 Maths, 10 Economics, 9 Geography; Class 11 Physics showed
+        # only "Answers/Index"). Prefer the mixed-case spelling when both exist (Physics vs Physics-I).
+        canonical: Dict[str, str] = {}
+        for row in rows:
+            name = (row.get("chapter") or "").strip()
+            if not name:
+                continue
+            k = chapter_key(name)
+            prev = canonical.get(k)
+            if prev is None or (prev == prev.upper() and name != name.upper()):
+                canonical[k] = name
+        chapters = sorted(canonical.values(), key=lambda n: chapter_display_name(n).lower())
+        labels = {n: chapter_display_name(n) for n in chapters}
 
         seen_chapters = {}
         for row in rows:
-            chapter = row.get("chapter")
+            chapter = canonical.get(chapter_key(row.get("chapter") or ""))
             book = row.get("book")
             ctype = row.get("chapter_type")
             order = row.get("chapter_order")
 
             if not chapter or not book or not ctype:
                 continue
-            if chapter.strip().isupper():
-                continue
 
             key = (chapter, book, ctype)
             if key not in seen_chapters:
-                seen_chapters[key] = {"name": chapter, "order": order}
+                seen_chapters[key] = {"name": chapter, "label": labels[chapter], "order": order}
 
         groups_dict = {}
         for (chapter, book, ctype), data in seen_chapters.items():
@@ -936,7 +958,8 @@ async def get_chapters(subject: str = "Science", class_grade: str = "10"):
             "ok": True,
             "subject": subject,
             "classGrade": class_grade,
-            "chapters": chapters,
+            "chapters": chapters,              # exact DB names — send these back in requests
+            "labels": labels,                  # what to show in the dropdown
             "groups": groups if groups else None,
             "count": len(chapters),
         }

@@ -19,7 +19,7 @@ from typing import List, Dict, Set, Tuple
 
 from app.core.config import settings
 from app.core.database import get_supabase
-from app.services.ncert_subjects import apply_ncert_subject_filter
+from app.services.ncert_subjects import apply_ncert_subject_filter, fetch_all_rows
 
 logger = logging.getLogger(__name__)
 
@@ -74,17 +74,9 @@ def _resolve_chapters(requested_chapters, subject, class_grade):
     if not db_chapters:
         supabase = get_supabase()
         try:
-            response = (
-                _ncert_select(supabase, "chapter", subject)
-                .eq("class_grade", str(class_grade))
-                .limit(1000)
-                .execute()
-            )
-            db_chapters = list({
-                row["chapter"]
-                for row in (response.data or [])
-                if row.get("chapter")
-            })
+            rows = fetch_all_rows(lambda: _ncert_select(supabase, "chapter", subject)
+                                  .eq("class_grade", str(class_grade)).order("id"))
+            db_chapters = list({row["chapter"] for row in rows if row.get("chapter")})
             logger.info(f"DB has {len(db_chapters)} chapters for {subject} class {class_grade}")
             if db_chapters:
                 _CHAPTERS_CACHE[cache_key] = (now, list(db_chapters))
@@ -132,6 +124,11 @@ def _resolve_chapters(requested_chapters, subject, class_grade):
     for req_ch in requested_chapters:
         req_norm = _normalize_chapter_name(req_ch)
         req_words = _word_set(req_norm)
+
+        # Strategy 0: the exact DB name (the dropdown sends DB names, incl. CAPITALISED ones)
+        if req_ch in db_chapters:
+            matched.append(req_ch)
+            continue
 
         # Strategy 1: Exact normalized match
         if req_norm in db_lookup:
@@ -212,6 +209,14 @@ def _sample_chapter(supabase, ch_name, subject, class_grade, quota, seen_ids):
         .execute()
     ).data or []
     rows = [r for r in rows if r["id"] not in seen_ids]
+    # Same book stored under two subject names (Physics + Physics-I) → identical chunks twice
+    unique, seen_text = [], set()
+    for r in rows:
+        key = (r.get("content") or "")[:200]
+        if key not in seen_text:
+            seen_text.add(key)
+            unique.append(r)
+    rows = unique
     if len(rows) > quota:
         skip_intro = min(2, len(rows) // 4)
         body = rows[skip_intro:]
