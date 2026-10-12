@@ -35,7 +35,7 @@ from app.models.test_generator import (
 from app.services.test_generator_service import generate_test, handle_feedback, verify_answer_key
 from app.api.v1.endpoints.chat import _SlidingWindow
 from starlette.concurrency import run_in_threadpool
-from app.services.rag_service import retrieve_context
+from app.services.rag_service import retrieve_context, retrieve_context_with_coverage
 from app.services.ncert_subjects import (
     apply_ncert_subject_filter, chapter_display_name, chapter_key, fetch_all_rows, is_junk_chapter,
     ncert_subject_names,
@@ -265,6 +265,8 @@ class FrontendGenerateResponse(BaseModel):
     generationTime: float
     status: str = "preview"
     meta: dict = {}
+    # Chosen chapters left out because there is no NCERT content for them (display names)
+    skipped_chapters: List[str] = []
 
 
 class ExportRequest(BaseModel):
@@ -568,13 +570,28 @@ async def generate_from_frontend(req: FrontendGenerateRequest, user: AuthUser = 
         if not topics:
             topics = real_chapters
 
+        skipped: List[str] = []
         if real_chapters:
-            context_chunks = retrieve_context(
+            context_chunks, skipped = retrieve_context_with_coverage(
                 real_chapters, topics,
                 backend_request.subject, backend_request.class_grade,
             )
         else:
             context_chunks = []
+
+        # Chapters without NCERT content are skipped (their questions used to be written from
+        # OTHER chapters' content). The paper is built from the rest; 422 only if nothing is left.
+        if skipped:
+            keep = [ch for ch in backend_request.chapters if ch.chapter not in skipped]
+            if not keep:
+                raise HTTPException(
+                    status_code=422,
+                    detail="Content is not available for the selected chapters: "
+                           + ", ".join(chapter_display_name(c) for c in skipped)
+                           + ". Please choose other chapters.",
+                )
+            logger.warning(f"Skipping chapters without content: {skipped}")
+            backend_request.chapters = keep
 
         resolved_subject = _resolve_subject(req.subject)
         is_accountancy = resolved_subject.lower() in ("accountancy", "accounts", "accounting")
@@ -586,6 +603,7 @@ async def generate_from_frontend(req: FrontendGenerateRequest, user: AuthUser = 
             backend_response = generate_test(backend_request, context_chunks, cbse_pattern=req.cbsePattern)
 
         frontend_response = _transform_backend_to_frontend(backend_response, req)
+        frontend_response.skipped_chapters = [chapter_display_name(c) for c in skipped]
 
         elapsed = round(time.time() - start, 2)
         frontend_response.generationTime = elapsed
@@ -645,7 +663,7 @@ async def generate_from_frontend(req: FrontendGenerateRequest, user: AuthUser = 
 
             if real_names:
                 raise HTTPException(
-                    status_code=404,
+                    status_code=422,
                     detail=f"Content not available for selected chapters. Try different chapters or contact support."
                 )
         logger.error(f"Frontend generate error: {e}", exc_info=True)

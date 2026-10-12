@@ -287,15 +287,22 @@ def keyword_search(keywords, subject, class_grade, chapters, limit=None):
         return []
 
 
-def retrieve_context(chapters, topics, subject, class_grade, max_chunks=None):
+def retrieve_context_with_coverage(chapters, topics, subject, class_grade):
     """
+    Like retrieve_context, plus the requested chapters that got NO chunks (no NCERT content for
+    them in this class/subject). Returns (chunks, missing_requested_chapters).
     Retrieval pipeline:
-      1. Resolve chapter names against DB
-      2. Build keywords ONLY from real topics (subtopics)
+      1. Resolve each chapter name against the DB (exact DB names are kept)
+      2. Keywords ONLY from real topics (subtopics)
       3. Each chapter gets up to PER_CHAPTER_CHUNKS chunks (total capped at MAX_TOTAL_CHUNKS)
-    `max_chunks` is kept for old callers; the per-chapter quota decides the size now.
     """
-    resolved_chapters = _resolve_chapters(chapters, subject, class_grade)
+    chapters = list(chapters or [])
+    # Resolve one by one so every requested name maps to exactly one DB name (list is cached)
+    mapping = {}
+    for ch in chapters:
+        res = _resolve_chapters([ch], subject, class_grade)
+        mapping[ch] = res[0] if res else ch
+    resolved_chapters = list(dict.fromkeys(mapping.values()))
     if resolved_chapters != chapters:
         logger.info(f"Chapter resolution: {chapters} -> {resolved_chapters}")
 
@@ -316,8 +323,17 @@ def retrieve_context(chapters, topics, subject, class_grade, max_chunks=None):
         subject=subject,
         class_grade=str(class_grade),
         chapters=resolved_chapters,
-        limit=max_chunks,
     )
-    chapter_set = set(r.get("chapter", "?") for r in final)
-    logger.info(f"Final: {len(final)} chunks from {len(chapter_set)} chapters")
-    return final
+    counts: Dict[str, int] = {}
+    for r in final:
+        counts[r.get("chapter")] = counts.get(r.get("chapter"), 0) + 1
+    missing = [ch for ch in chapters if counts.get(mapping[ch], 0) == 0]
+    logger.info(f"Final: {len(final)} chunks from {len(counts)} chapters; no content for {missing}")
+    return final, missing
+
+
+def retrieve_context(chapters, topics, subject, class_grade, max_chunks=None):
+    """Chunks for the chosen chapters (see retrieve_context_with_coverage). `max_chunks` is kept
+    for old callers; the per-chapter quota decides the size now."""
+    chunks, _missing = retrieve_context_with_coverage(chapters, topics, subject, class_grade)
+    return chunks
