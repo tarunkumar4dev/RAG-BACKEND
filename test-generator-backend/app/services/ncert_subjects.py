@@ -64,6 +64,17 @@ def chapter_display_name(name: str) -> str:
     return " ".join(out)
 
 
+# Back-matter of a textbook that was ingested like a chapter. Never offered as a chapter.
+_JUNK_CHAPTERS = {"answers", "answer", "appendices", "appendix", "index", "glossary",
+                  "bibliography", "contents", "table of contents", "preface", "foreword",
+                  "references", "acknowledgements", "acknowledgments"}
+
+
+def is_junk_chapter(name: str) -> bool:
+    key = chapter_key(name)
+    return key in _JUNK_CHAPTERS or key.startswith(("appendix ", "answers to "))
+
+
 def chapter_key(name: str) -> str:
     """Case/punctuation-insensitive identity, to merge "Electric Charges and Fields" (Physics)
     with "ELECTRIC CHARGES AND FIELDS" (Physics-I)."""

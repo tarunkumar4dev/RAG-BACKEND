@@ -37,7 +37,8 @@ from app.api.v1.endpoints.chat import _SlidingWindow
 from starlette.concurrency import run_in_threadpool
 from app.services.rag_service import retrieve_context
 from app.services.ncert_subjects import (
-    apply_ncert_subject_filter, chapter_display_name, chapter_key, fetch_all_rows, ncert_subject_names,
+    apply_ncert_subject_filter, chapter_display_name, chapter_key, fetch_all_rows, is_junk_chapter,
+    ncert_subject_names,
 )
 from app.core.auth import AuthUser, require_user
 from app.core.database import get_supabase, get_supabase_admin
@@ -902,7 +903,7 @@ async def get_chapters(subject: str = "Science", class_grade: str = "10"):
         canonical: Dict[str, str] = {}
         for row in rows:
             name = (row.get("chapter") or "").strip()
-            if not name:
+            if not name or is_junk_chapter(name):   # "Answers", "Appendices", "Index", …
                 continue
             k = chapter_key(name)
             prev = canonical.get(k)
