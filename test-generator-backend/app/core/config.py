@@ -47,7 +47,7 @@ class Settings:
     SUPABASE_URL: str = _require("SUPABASE_URL")
 
     # Supabase API keys (Oct 2026): new sb_publishable_… / sb_secret_… keys are read first, legacy JWT
-    # keys (anon / service_role) stay as fallback until they are disabled. supabase-py >= 2.32 accepts both
+    # keys (anon / service_role) stay as fallback until they are disabled. supabase-py >= 2.16 accepts both
     # (2.9 rejected any non-JWT key with "Invalid API key").
     # Anon / publishable key: respects RLS. Used for reads on behalf of a user.
     SUPABASE_ANON_KEY: str = _first_set("SUPABASE_PUBLISHABLE_KEY", "SUPABASE_ANON_KEY", "SUPABASE_KEY")
