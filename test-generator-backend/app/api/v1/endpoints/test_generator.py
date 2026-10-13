@@ -141,6 +141,80 @@ def record_usage(user_id: str) -> dict:
         return {"recorded": False}
 
 
+# ── Atomic quota: reserve before generating, refund on failure (product migration 19) ──
+# check_usage → generate → record_usage let parallel requests all pass the check before any was
+# counted. reserve_test_generation takes a per-user lock, checks the plan limit and counts the paper
+# in one transaction. Until 19 is applied the RPC doesn't exist → fall back to the old path
+# (reserved=False → the caller records after success), so deploy order doesn't matter.
+
+def _limit_reached(usage: dict) -> HTTPException:
+    return HTTPException(
+        status_code=403,
+        detail={
+            "error": "limit_reached",
+            "message": f"Monthly limit reached ({usage.get('used')}/{usage.get('limit')} tests). Upgrade your plan.",
+            "used": usage.get("used"),
+            "limit": usage.get("limit"),
+            "upgrade_url": "/pricing",
+        },
+    )
+
+
+def reserve_usage(user_id: str) -> dict:
+    """Counts one paper now. Returns the usage dict with reserved=True and the billing period, or
+    raises 403 limit_reached. Falls back to check_usage (reserved=False) if the RPC isn't deployed."""
+    if not user_id or user_id == "00000000-0000-0000-0000-000000000000":
+        return check_usage(user_id)  # dev bypass / 401, unchanged
+    try:
+        sanitize_uuid(user_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid user ID format")
+    try:
+        res = get_supabase_admin().rpc("reserve_test_generation", {"p_user_id": user_id}).execute()
+    except Exception as e:
+        msg = str(e)
+        if "reserve_test_generation" in msg and ("PGRST202" in msg or "Could not find the function" in msg):
+            logger.warning("reserve_test_generation not deployed yet (migration 19): using check_usage")
+            usage = check_usage(user_id)
+            usage["reserved"] = False
+            return usage
+        logger.error(f"Usage reserve error: {e}")
+        raise HTTPException(status_code=503, detail={
+            "error": "service_error", "message": "Unable to verify usage. Please try again later."})
+    usage = res.data if isinstance(res.data, dict) else {}
+    if not usage:
+        raise HTTPException(status_code=503, detail={
+            "error": "service_error", "message": "Unable to verify usage. Please try again later."})
+    if not usage.get("allowed"):
+        logger.info(f"Usage limit reached: user={user_id}")
+        raise _limit_reached(usage)
+    return usage
+
+
+def release_usage(user_id: str, usage: dict) -> None:
+    """Refund a reservation after a failed generation. Best effort: never raises."""
+    if not usage.get("reserved") or not usage.get("period"):
+        return
+    try:
+        get_supabase_admin().rpc("release_test_generation",
+                                 {"p_user_id": user_id, "p_period": usage["period"]}).execute()
+        logger.info(f"Usage refunded after failure: user={user_id}")
+    except Exception as e:
+        logger.error(f"Usage refund failed (user keeps one count): {e}")
+
+
+def finish_usage(user_id: str, usage: dict) -> dict:
+    """After a successful paper: nothing to do if reserved, else the legacy record_usage."""
+    if usage.get("reserved"):
+        return usage
+    recorded = record_usage(user_id)
+    usage.update(recorded)
+    # check_usage ran before this paper was counted; refresh "remaining" from the new count.
+    if isinstance(usage.get("limit"), int) and usage["limit"] >= 0 and isinstance(usage.get("used"), int):
+        usage["remaining"] = max(usage["limit"] - usage["used"], 0)
+    return usage
+
+
 # ═══════════════════════════════════════════════════════════════════════
 # SUBJECT ALIAS
 # ═══════════════════════════════════════════════════════════════════════
@@ -549,8 +623,10 @@ async def generate_from_frontend(req: FrontendGenerateRequest, user: AuthUser = 
     start = time.time()
     logger.info(f"Frontend generate: {req.subject} {req.classGrade}, {len(req.simpleData)} chapters")
 
+    usage: dict = {}
+    delivered = False
     try:
-        usage = check_usage(req.userId)
+        usage = reserve_usage(req.userId)
 
         backend_request = _transform_frontend_to_backend(req)
         total_q = sum(c.quantity for c in backend_request.chapters)
@@ -586,11 +662,8 @@ async def generate_from_frontend(req: FrontendGenerateRequest, user: AuthUser = 
         elapsed = round(time.time() - start, 2)
         frontend_response.generationTime = elapsed
 
-        recorded = record_usage(req.userId)
-        usage.update(recorded)
-        # check_usage ran before this paper was counted; refresh "remaining" from the new count.
-        if isinstance(usage.get("limit"), int) and usage["limit"] >= 0 and isinstance(usage.get("used"), int):
-            usage["remaining"] = max(usage["limit"] - usage["used"], 0)
+        usage = finish_usage(req.userId, usage)
+        delivered = True  # the paper exists; a failed tests-row insert below must not refund it
 
         # Insert test row
         try:
@@ -646,6 +719,9 @@ async def generate_from_frontend(req: FrontendGenerateRequest, user: AuthUser = 
                 )
         logger.error(f"Frontend generate error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Generation failed. Please try again.")
+    finally:
+        if not delivered:
+            release_usage(req.userId, usage)
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -1158,15 +1234,18 @@ async def _ncert_question_stats_impl(subject: str = "Science", class_grade: str 
 async def generate(request: TestGenerationRequest, user: AuthUser = Depends(require_user)):
     # Same plan quota as /generate-frontend: one AI paper per call, owner from the JWT.
     request.teacher_id = user.id
+    usage: dict = {}
+    delivered = False
     try:
-        check_usage(user.id)
+        usage = reserve_usage(user.id)
         chapters = [ch.chapter for ch in request.chapters]
         topics = [ch.topic for ch in request.chapters if ch.topic]
         if not topics:
             topics = chapters
         context_chunks = retrieve_context(chapters, topics, request.subject, request.class_grade)
         result = generate_test(request, context_chunks)
-        record_usage(user.id)
+        finish_usage(user.id, usage)
+        delivered = True
         return result
     except HTTPException:
         raise
@@ -1175,6 +1254,9 @@ async def generate(request: TestGenerationRequest, user: AuthUser = Depends(requ
     except Exception as e:
         logger.error(f"Generate error: {e}")
         raise HTTPException(status_code=500, detail="Generation failed.")
+    finally:
+        if not delivered:
+            release_usage(user.id, usage)
 
 
 class VerifyAnswersRequest(BaseModel):
