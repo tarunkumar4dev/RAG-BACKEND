@@ -38,7 +38,8 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 CHECKER_API_KEY = os.getenv("CHECKER_GEMINI_API_KEY")
-CHECKER_MODEL = os.getenv("CHECKER_GEMINI_MODEL", "gemini-3.6-flash")
+# gemini-3.6-flash retires 19 Nov 2026. Production also sets CHECKER_GEMINI_MODEL explicitly.
+CHECKER_MODEL = os.getenv("CHECKER_GEMINI_MODEL", "gemini-3.8-flash")
 
 _client: Optional[genai.Client] = None
 
@@ -55,10 +56,13 @@ def _get_client() -> genai.Client:
 
 # Tried in order when the primary model is overloaded (503) or out of quota (429)
 CHECKER_FALLBACK_MODELS = [
-    m.strip() for m in os.getenv("CHECKER_GEMINI_FALLBACK_MODELS", "gemini-3.8-flash,gemini-3-flash-preview").split(",")
+    m.strip() for m in os.getenv("CHECKER_GEMINI_FALLBACK_MODELS", "gemini-2.5-flash,gemini-3-flash-preview").split(",")
     if m.strip() and m.strip() != CHECKER_MODEL
 ]
 _OVERLOAD_CODES = {500, 503, 504}
+# A fallback that no longer exists for this key (retired / access restricted) must not end the chain —
+# gemini-2.5-flash is limited to earlier users since Sept 2026 and has returned 404 for some.
+_MODEL_GONE_CODES = {404}
 # Give up on a single generate call after this long (Gemini can take 20-50s just to return a 503)
 _GENERATE_DEADLINE_S = float(os.getenv("CHECKER_GEMINI_DEADLINE_S", "120"))
 
@@ -71,6 +75,7 @@ def _generate(client: genai.Client, contents: list, tag: str):
     generate_content with resilience against transient Gemini outages.
     Each round tries every model once (primary model first):
       5xx / 429 → move straight to the next model.
+      404 (model not available) → next model, and never retried in later rounds.
     If a whole round fails with 5xx, wait briefly and do another round until the deadline.
     Any other error is raised as-is.
     """
@@ -81,10 +86,11 @@ def _generate(client: genai.Client, contents: list, tag: str):
     deadline = time.time() + _GENERATE_DEADLINE_S
     last_error: Optional[Exception] = None
     round_no = 0
+    gone: set = set()
     while True:
         round_no += 1
         all_quota = True
-        for model in models:
+        for model in [m for m in models if m not in gone]:
             if time.time() > deadline:
                 break
             try:
@@ -100,13 +106,17 @@ def _generate(client: genai.Client, contents: list, tag: str):
                 return response
             except genai_errors.APIError as e:
                 last_error = e
+                if e.code in _MODEL_GONE_CODES:
+                    logger.warning(f"[{tag}] {model} not available ({e.code}), skipping it")
+                    gone.add(model)
+                    continue
                 if e.code not in _OVERLOAD_CODES and e.code != 429:
                     raise
                 all_quota = all_quota and e.code == 429
                 logger.warning(f"[{tag}] {model} unavailable ({e.code}), trying next model")
 
-        # Every model is out of quota, or we've run out of time → stop
-        if all_quota or time.time() + 5 > deadline:
+        # Every model is out of quota / gone, or we've run out of time → stop
+        if all_quota or len(gone) == len(models) or time.time() + 5 > deadline:
             break
         logger.warning(f"[{tag}] All models busy (round {round_no}), retrying in 5s")
         time.sleep(5)
