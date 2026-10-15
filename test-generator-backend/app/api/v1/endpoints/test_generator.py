@@ -1416,14 +1416,22 @@ async def add_manual_question(test_id: str, req: AddManualQuestionRequest, user:
 
 
 @router.post("/quiz/create")
-async def create_quiz(settings_req: QuizSettings):
+async def create_quiz(settings_req: QuizSettings, user: AuthUser = Depends(require_user)):
+    # Owner comes from the token; settings_req.teacher_id is ignored. Only the test's owner can make a quiz of it.
+    try:
+        test_id = sanitize_uuid(settings_req.test_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Test not found.")
+    owned = get_supabase_admin().table("tests").select("id").eq("id", test_id).eq("teacher_id", user.id).limit(1).execute()
+    if not owned.data:
+        raise HTTPException(status_code=404, detail="Test not found.")
     supabase = get_supabase()
     try:
         quiz_id = str(uuid.uuid4())
         supabase.table("quizzes").insert({
             "id": quiz_id,
-            "test_id": settings_req.test_id,
-            "teacher_id": settings_req.teacher_id,
+            "test_id": test_id,
+            "teacher_id": user.id,
             "duration_minutes": settings_req.duration_minutes,
             "max_marks": settings_req.max_marks,
             "passing_marks": settings_req.passing_marks,

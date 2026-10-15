@@ -7,14 +7,17 @@ FIXES:
   - Added input validation (storage_path sanitization, UUID check)
   - Removed str(e) from all error responses
   - Added length limits on string fields
+  - Every endpoint requires a verified Supabase token; the owner is always the token's user.
+    teacher_id / institute_id sent by the client are ignored (kept in the models only so old
+    clients don't get a 422), and storage paths must live under "<user id>/".
 """
 import logging
 from typing import Optional, List
-from fastapi import APIRouter, HTTPException, Header, Query, Depends
+from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel, ConfigDict, Field
 from app.services.module_service import ModuleService
+from app.core.auth import AuthUser, require_user
 from app.core.sanitize import sanitize_uuid
-from fastapi.responses import Response
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -32,10 +35,10 @@ class CreateModuleRequest(BaseModel):
     original_filename: str = Field(max_length=MAX_FILENAME_LENGTH)
     subject: str = Field(max_length=MAX_SUBJECT_LENGTH)
     class_level: str = Field(max_length=10)
-    teacher_id: Optional[str] = Field(default=None, max_length=50)
+    teacher_id: Optional[str] = Field(default=None, max_length=50)  # ignored — owner comes from the token
     file_type: str = Field(default="pdf", max_length=10)
     file_size_bytes: Optional[int] = Field(default=None, ge=0, le=50_000_000)  # 50MB max
-    institute_id: Optional[str] = Field(default=None, max_length=50)
+    institute_id: Optional[str] = Field(default=None, max_length=50)  # ignored — nothing reads it, and it was unverified
 
 
 class ProcessModuleRequest(BaseModel):
@@ -46,31 +49,34 @@ class ProcessModuleRequest(BaseModel):
 class GenerateTestRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    teacher_id: Optional[str] = Field(default=None, max_length=50)
+    teacher_id: Optional[str] = Field(default=None, max_length=50)  # ignored — owner comes from the token
     num_questions: int = Field(default=10, ge=1, le=100)
     question_types: Optional[List[str]] = None
     difficulty: str = Field(default="medium", max_length=20)
     topics: Optional[List[str]] = None
 
 
-def _validate_teacher_id(teacher_id: Optional[str]) -> str:
-    """Validate teacher_id is present and looks like a UUID."""
-    if not teacher_id or not teacher_id.strip():
-        raise HTTPException(400, "teacher_id required")
+def _module_id(module_id: Optional[str]) -> str:
+    """A malformed id can't be one of the caller's modules — 404, same as someone else's module."""
     try:
-        return sanitize_uuid(teacher_id.strip())
+        return sanitize_uuid((module_id or "").strip())
     except ValueError:
-        raise HTTPException(400, "Invalid teacher_id format")
+        raise HTTPException(404, "Module not found")
 
 
-def extract_teacher_id(teacher_id: Optional[str], authorization: Optional[str] = None) -> str:
-    """Extract and validate teacher_id from body or authorization header."""
-    if teacher_id and str(teacher_id).strip():
-        try:
-            return sanitize_uuid(str(teacher_id).strip())
-        except ValueError:
-            return str(teacher_id).strip()
-    return ""
+def _own_module(module_id: Optional[str], user: AuthUser) -> str:
+    """404 unless the module exists and belongs to the caller."""
+    mid = _module_id(module_id)
+    if not ModuleService.get_module(mid, user.id):
+        raise HTTPException(404, "Module not found")
+    return mid
+
+
+def _own_storage_path(path: str, user: AuthUser) -> str:
+    """Uploads go to "<user id>/..." in the Modules bucket; refuse anyone else's files."""
+    if not path or not path.startswith(f"{user.id}/") or ".." in path.split("/"):
+        raise HTTPException(403, "You can't use this file.")
+    return path
 
 
 def _validate_file_type(file_type: str) -> str:
@@ -83,23 +89,19 @@ def _validate_file_type(file_type: str) -> str:
 
 
 @router.post("/modules/create")
-async def create_module(req: CreateModuleRequest, authorization: Optional[str] = Header(None)):
-    teacher_id = _validate_teacher_id(req.teacher_id)
+async def create_module(req: CreateModuleRequest, user: AuthUser = Depends(require_user)):
     file_type = _validate_file_type(req.file_type)
-
-    # SECURITY: Prevent path traversal in storage_path
-    if ".." in req.storage_path or req.storage_path.startswith("/"):
-        raise HTTPException(400, "Invalid storage path")
+    storage_path = _own_storage_path(req.storage_path, user)
 
     module_id, error = ModuleService.create_module(
-        teacher_id=teacher_id,
-        storage_path=req.storage_path,
+        teacher_id=user.id,
+        storage_path=storage_path,
         original_filename=req.original_filename,
         subject=req.subject,
         class_level=req.class_level,
         file_type=file_type,
         file_size_bytes=req.file_size_bytes,
-        institute_id=req.institute_id,
+        institute_id=None,
     )
 
     if error:
@@ -115,11 +117,10 @@ async def create_module(req: CreateModuleRequest, authorization: Optional[str] =
 
 
 @router.post("/modules/process")
-async def process_module(req: ProcessModuleRequest):
-    if not req.module_id:
-        raise HTTPException(400, "module_id required")
+async def process_module(req: ProcessModuleRequest, user: AuthUser = Depends(require_user)):
+    module_id = _own_module(req.module_id, user)
 
-    result = ModuleService.process_module(req.module_id)
+    result = ModuleService.process_module(module_id)
 
     if result.get("success"):
         return result
@@ -132,28 +133,26 @@ async def process_module(req: ProcessModuleRequest):
 
 @router.get("/modules/list")
 async def list_modules(
-    teacher_id: str = Query(..., max_length=50),
     subject: Optional[str] = Query(None, max_length=MAX_SUBJECT_LENGTH),
     class_level: Optional[str] = Query(None, alias="class", max_length=10),
+    user: AuthUser = Depends(require_user),
 ):
-    teacher_id = _validate_teacher_id(teacher_id)
-    modules = ModuleService.list_modules(teacher_id, subject, class_level)
+    # a ?teacher_id= from old clients is ignored
+    modules = ModuleService.list_modules(user.id, subject, class_level)
     return {"success": True, "count": len(modules), "modules": modules}
 
 
 @router.get("/modules/{module_id}")
-async def get_module(module_id: str, teacher_id: str = Query(..., max_length=50)):
-    teacher_id = _validate_teacher_id(teacher_id)
-    module = ModuleService.get_module(module_id, teacher_id)
+async def get_module(module_id: str, user: AuthUser = Depends(require_user)):
+    module = ModuleService.get_module(_module_id(module_id), user.id)
     if not module:
         raise HTTPException(404, "Module not found")
     return {"success": True, **module}
 
 
 @router.delete("/modules/{module_id}")
-async def delete_module(module_id: str, teacher_id: str = Query(..., max_length=50)):
-    teacher_id = _validate_teacher_id(teacher_id)
-    success, error = ModuleService.delete_module(module_id, teacher_id)
+async def delete_module(module_id: str, user: AuthUser = Depends(require_user)):
+    success, error = ModuleService.delete_module(_module_id(module_id), user.id)
     if success:
         return {"success": True, "message": "Module deleted"}
     raise HTTPException(404, "Module not found or access denied")
@@ -163,9 +162,9 @@ async def delete_module(module_id: str, teacher_id: str = Query(..., max_length=
 async def generate_test_from_module(
     module_id: str,
     req: GenerateTestRequest,
-    authorization: Optional[str] = Header(None),
+    user: AuthUser = Depends(require_user),
 ):
-    teacher_id = _validate_teacher_id(req.teacher_id)
+    module_id = _module_id(module_id)
 
     # Validate difficulty
     valid_difficulties = {"easy", "medium", "hard", "mixed"}
@@ -174,7 +173,7 @@ async def generate_test_from_module(
 
     test_data, error = ModuleService.generate_test_from_module(
         module_id=module_id,
-        teacher_id=teacher_id,
+        teacher_id=user.id,
         num_questions=req.num_questions,
         question_types=req.question_types,
         difficulty=req.difficulty,
@@ -190,11 +189,10 @@ async def generate_test_from_module(
     
 
 @router.post("/modules/{module_id}/generate-worksheet")
-async def generate_worksheet(module_id: str, req: dict, authorization: Optional[str] = Header(None)):
+async def generate_worksheet(module_id: str, req: dict, user: AuthUser = Depends(require_user)):
     """Generate worksheet questions from module content."""
-    teacher_id = _validate_teacher_id(req.get("teacher_id"))
-    if not teacher_id:
-        raise HTTPException(400, "teacher_id required")
+    module_id = _module_id(module_id)
+    teacher_id = user.id  # a teacher_id in the body is ignored
 
     from app.services.worksheet_service import WorksheetService
 
@@ -217,11 +215,10 @@ async def generate_worksheet(module_id: str, req: dict, authorization: Optional[
 
 
 @router.post("/modules/{module_id}/download-worksheet")
-async def download_worksheet(module_id: str, req: dict, authorization: Optional[str] = Header(None)):
+async def download_worksheet(module_id: str, req: dict, user: AuthUser = Depends(require_user)):
     """Generate and download worksheet as PDF."""
-    teacher_id = _validate_teacher_id(req.get("teacher_id"))
-    if not teacher_id:
-        raise HTTPException(400, "teacher_id required")
+    module_id = _module_id(module_id)
+    teacher_id = user.id  # a teacher_id in the body is ignored
 
     from app.services.worksheet_service import WorksheetService
     import base64
@@ -281,18 +278,17 @@ async def download_worksheet(module_id: str, req: dict, authorization: Optional[
  
  
 @router.post("/worksheet/generate-direct")
-async def generate_worksheet_direct(req: dict, authorization: Optional[str] = Header(None)):
+async def generate_worksheet_direct(req: dict, user: AuthUser = Depends(require_user)):
     """Generate worksheet directly from uploaded PDF — no module needed."""
-    teacher_id = _validate_teacher_id(req.get("teacher_id"))
-    if not teacher_id:
-        raise HTTPException(400, "teacher_id required")
-
     from app.services.module_service import ModuleService, get_supabase, get_genai
     import tempfile, os, json
 
     storage_path = req.get("storage_path", "")
     if not storage_path:
         raise HTTPException(400, "storage_path required")
+    # the download below uses the service key, so the path is the only thing stopping
+    # one teacher from reading another's upload
+    storage_path = _own_storage_path(str(storage_path), user)
 
     try:
         sb = get_supabase()
@@ -447,7 +443,7 @@ Output ONLY valid JSON, no markdown, no backticks."""
 
 
 @router.post("/worksheet/download")
-async def download_worksheet_pdf(req: dict, authorization: Optional[str] = Header(None)):
+async def download_worksheet_pdf(req: dict, user: AuthUser = Depends(require_user)):
     """Download worksheet as PDF with optional school branding and date."""
     from app.services.worksheet_service import WorksheetService
     import base64
