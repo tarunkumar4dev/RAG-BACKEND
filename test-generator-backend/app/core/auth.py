@@ -2,7 +2,7 @@
 app/core/auth.py — Supabase JWT verification for FastAPI endpoints.
 
 verify_token() validates an access token against Supabase Auth (auth.get_user), so expired,
-revoked and signed-out sessions are rejected. Verified users are cached for up to 60 seconds
+revoked and signed-out sessions are rejected. Verified users are cached for up to 30 seconds
 (never beyond the token's own expiry) to keep per-request latency low.
 
 FastAPI dependencies:
@@ -28,7 +28,8 @@ from app.core.database import get_supabase
 
 logger = logging.getLogger(__name__)
 
-CACHE_TTL_SECONDS = 60
+# A revoked session ("log out from all devices", password change) stops working within this many seconds.
+CACHE_TTL_SECONDS = 30
 _CACHE_MAX_ENTRIES = 10_000
 _MAX_TOKEN_LENGTH = 8192
 
