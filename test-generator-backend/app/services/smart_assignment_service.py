@@ -70,6 +70,25 @@ _GENERATE_DEADLINE_S = float(os.getenv("CHECKER_GEMINI_DEADLINE_S", "120"))
 _preferred_model: Optional[str] = None
 
 
+def _log_usage(tag: str, model: str, response, seconds: float) -> None:
+    """One line per Gemini call: "[checker] grade tokens: input=… output=… thinking=…".
+    Production installs google-genai 0.8.0 (api/requirements.txt), whose usage_metadata has no
+    thoughts_token_count — thinking is then total - input - output."""
+    um = getattr(response, "usage_metadata", None)
+    if um is None:
+        return
+    inp = getattr(um, "prompt_token_count", 0) or 0
+    out = getattr(um, "candidates_token_count", 0) or 0
+    total = getattr(um, "total_token_count", 0) or 0
+    thinking = getattr(um, "thoughts_token_count", None)
+    if thinking is None:
+        thinking = max(total - inp - out, 0)
+    candidates = getattr(response, "candidates", None) or []
+    finish = getattr(candidates[0], "finish_reason", None) if candidates else None
+    logger.info(f"[checker] {tag.lower()} tokens: input={inp} output={out} thinking={thinking} "
+                f"model={model} time={seconds:.1f}s finish={finish}")
+
+
 def _generate(client: genai.Client, contents: list, tag: str):
     """
     generate_content with resilience against transient Gemini outages.
@@ -94,12 +113,14 @@ def _generate(client: genai.Client, contents: list, tag: str):
             if time.time() > deadline:
                 break
             try:
+                t_call = time.time()
                 response = client.models.generate_content(
                     model=model,
                     contents=contents,
                     # temperature 0 + fixed seed: the same sheet should get the same marks every time
                     config={"response_mime_type": "application/json", "temperature": 0, "seed": 7},
                 )
+                _log_usage(tag, model, response, time.time() - t_call)
                 if model != _preferred_model:
                     logger.info(f"[{tag}] Using {model}")
                 _preferred_model = model
