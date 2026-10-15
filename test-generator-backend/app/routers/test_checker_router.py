@@ -3,13 +3,11 @@ Test Checker API Router — v1.1
 
 v1.1 changes:
   - /check now accepts answer_key_file (PDF/image) instead of JSON string
-  - New /extract-key endpoint: upload answer key PDF → get structured JSON back
   - answer_key JSON field kept as optional fallback (if teacher already has JSON)
 
 Endpoints:
   POST /check              Upload answer sheet + answer key (both PDF/image) → grading
   POST /check-with-test    Upload answer sheet, pull answer key from saved test_id
-  POST /extract-key        Upload answer key PDF → get extracted JSON (preview before grading)
   GET  /results/{check_id} Retrieve a saved grading result
   GET  /history            List grading history for a teacher
 """
@@ -102,45 +100,6 @@ def _parse_answer_key_json(raw: str) -> dict:
             q["q_no"] = idx + 1
 
     return data
-
-
-# ═══════════════════════════════════════════════════════════════════════
-# ENDPOINT: Extract answer key from PDF (standalone preview)
-# ═══════════════════════════════════════════════════════════════════════
-
-@router.post("/extract-key")
-async def extract_key(
-    file: UploadFile = File(..., description="Answer key PDF or image"),
-):
-    """
-    Upload an answer key PDF/image → get structured JSON back.
-    Useful for teacher to preview/verify the extracted key before grading.
-    """
-    ext = _validate_file(file)
-    tmp_path = None
-
-    try:
-        tmp_path = await _save_temp_file(file, ext)
-        logger.info(f"Extracting answer key from: {file.filename}")
-
-        start = time.time()
-        key_data = extract_answer_key_from_pdf(tmp_path)
-        elapsed = round(time.time() - start, 2)
-
-        return {
-            "ok": True,
-            "extraction_time_seconds": elapsed,
-            "answer_key": key_data,
-        }
-
-    except ValueError as e:
-        raise HTTPException(status_code=422, detail=str(e))
-    except Exception as e:
-        logger.error(f"Extract key error: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Extraction failed: {str(e)}")
-    finally:
-        if tmp_path and os.path.exists(tmp_path):
-            os.unlink(tmp_path)
 
 
 # ═══════════════════════════════════════════════════════════════════════
