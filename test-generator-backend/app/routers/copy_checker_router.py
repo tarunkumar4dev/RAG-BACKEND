@@ -8,6 +8,9 @@ uploads page photos to the private 'answer-sheets' bucket. The backend only does
         source 'test'   → from the saved test in Test History (questions + answers from the DB)
         source 'upload' → from the uploaded question-paper photos (+ answer key, optional)
   POST /copy-checker/sheets/{sheet_id}/check        AI-grade one student's copy (all its pages)
+  PATCH /copy-checker/sheets/{sheet_id}/questions/{q_no}/marks   teacher overrides one question's marks
+        (the AI's marks stay in ai_result for comparison; every override is logged in
+        smart_assignment_checks with result_json.type = "teacher_override")
 
 Every row is read/written through a client bound to the caller's JWT (RLS = owner only). The
 service key is used only to download files, and only paths inside the caller's own folder.
@@ -15,7 +18,7 @@ service key is used only to download files, and only paths inside the caller's o
 
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 import logging
 import os
@@ -25,8 +28,8 @@ import uuid
 
 from app.core.database import get_supabase_admin
 from app.routers.smart_assignment_router import (
-    ALLOWED_EXTENSIONS, DAILY_LIMIT, MAX_FILE_SIZE, _Caller, _checks_today, _cleanup, _save_to_db,
-    require_caller, with_retry,
+    ALLOWED_EXTENSIONS, DAILY_LIMIT, MAX_FILE_SIZE, OVERRIDE_TYPE, TABLE as HISTORY_TABLE, _Caller,
+    _checks_today, _cleanup, _save_to_db, require_caller, with_retry,
 )
 from app.services.smart_assignment_service import build_rubric, grade_sheet, rubric_from_test_fast
 
@@ -224,4 +227,119 @@ async def check_sheet(sheet_id: str, c: _Caller = Depends(require_caller)):
     except Exception as e:
         logger.error(f"Copy check failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="AI check failed. Please try again.")
+    return {"ok": True, "sheet": sheet}
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# TEACHER OVERRIDE — one question's marks
+# ═══════════════════════════════════════════════════════════════════════
+
+class MarksOverride(BaseModel):
+    marks_awarded: float = Field(ge=0, le=1000)
+    teacher_note: str | None = Field(default=None, max_length=500)
+
+
+def _effective(gq: dict) -> float:
+    """Teacher's marks when overridden, else the AI's."""
+    t = gq.get("teacher_marks")
+    return float(t) if t is not None else float(gq.get("marks_awarded") or 0)
+
+
+def _apply_overrides(result: dict, rubric: dict | None) -> float:
+    """Re-decides which OR-alternatives count (best `attempt_count` by effective marks, same rule as
+    the AI scoring) and returns the sheet total with teacher overrides applied."""
+    graded = result.get("graded_questions") or []
+    attempt = {str(q.get("q_no")): int(q.get("attempt_count") or 0) or 1 for q in (rubric or {}).get("questions", [])}
+    groups: dict = {}
+    for gq in graded:
+        gq["counted"] = True
+        if gq.get("or_group"):
+            groups.setdefault(gq["or_group"], []).append(gq)
+    for members in groups.values():
+        need = attempt.get(str(members[0].get("q_no")), 1)
+        for gq in sorted(members, key=_effective, reverse=True)[need:]:
+            gq["counted"] = False
+    total = sum(_effective(gq) for gq in graded if gq.get("counted"))
+    max_marks = float(result.get("max_marks") or 0)
+    return round(min(total, max_marks) if max_marks else total, 2)
+
+
+def _override_marks(c: _Caller, sheet_id: str, q_no: str, body: MarksOverride) -> dict:
+    # RLS on check_sheets / check_sessions = owner only: someone else's sheet is simply "not found"
+    r = with_retry(lambda: c.db.table("check_sheets").select("*").eq("id", sheet_id).limit(1).execute())
+    if not r.data:
+        raise HTTPException(status_code=404, detail="Student copy not found.")
+    sheet = r.data[0]
+    result = sheet.get("ai_result") or {}
+    if sheet.get("status") not in ("checked", "approved") or not result.get("graded_questions"):
+        raise HTTPException(status_code=409, detail="This copy has no AI result to change yet.")
+    gq = next((g for g in result["graded_questions"] if str(g.get("q_no")) == q_no), None)
+    if gq is None:
+        raise HTTPException(status_code=404, detail=f"Question {q_no} is not in this copy's result.")
+    max_q = float(gq.get("max_marks") or 0)
+    new = round(float(body.marks_awarded), 2)
+    if new > max_q:
+        raise HTTPException(status_code=422, detail=f"Q{q_no} is out of {max_q:g} marks.")
+
+    session = _get_session(c, sheet["session_id"])
+    before_q = _effective(gq)
+    before_total = _apply_overrides(result, session.get("rubric"))
+    note = (body.teacher_note or "").strip() or None
+    if abs(new - float(gq.get("marks_awarded") or 0)) < 1e-9 and not note:
+        for k in ("teacher_marks", "teacher_note", "overridden_at"):   # back to the AI's marks
+            gq.pop(k, None)
+    else:
+        gq["teacher_marks"] = new
+        gq["teacher_note"] = note
+        gq["overridden_at"] = datetime.now(timezone.utc).isoformat()
+    total = _apply_overrides(result, session.get("rubric"))
+    result["teacher_total"] = total
+    result["overridden_questions"] = sum(1 for g in result["graded_questions"] if g.get("teacher_marks") is not None)
+
+    now = datetime.now(timezone.utc).isoformat()
+    fields = {"ai_result": result, "updated_at": now}
+    if sheet.get("status") == "approved":
+        fields["final_marks"] = total      # already approved → the approved marks follow the change
+    upd = with_retry(lambda: c.db.table("check_sheets").update(fields).eq("id", sheet_id).execute())
+    if not upd.data:
+        raise HTTPException(status_code=404, detail="Student copy not found.")
+
+    max_marks = float(result.get("max_marks") or 0)
+    audit = {
+        "id": str(uuid.uuid4()), "teacher_id": c.user.id, "check_sheet_id": sheet_id,
+        "student_name": sheet.get("student_name") or None, "student_roll": sheet.get("roll_no") or None,
+        "student_class": session.get("class_grade") or None, "class_grade": session.get("class_grade") or None,
+        "subject": (session.get("subject") or session.get("title") or "")[:100] or None,
+        "is_valid": True, "total_obtained": total, "max_marks": max_marks,
+        "percentage": round(total / max_marks * 100, 1) if max_marks else 0,
+        "needs_review_count": result.get("needs_review_count") or 0,
+        "strictness": session.get("strictness") or "medium",
+        "overall_remarks": f"Teacher changed Q{q_no}: {before_q:g} → {new:g}",
+        "result_json": {"type": OVERRIDE_TYPE, "q_no": q_no, "ai_marks": gq.get("marks_awarded"),
+                        "previous_marks": before_q, "new_marks": new, "max_marks": max_q,
+                        "teacher_note": note, "sheet_total_before": before_total, "sheet_total_after": total},
+    }
+    try:
+        with_retry(lambda: get_supabase_admin().table(HISTORY_TABLE).insert(audit).execute())
+    except Exception as e:  # the change is saved; a missing audit row must be visible in the logs
+        logger.error(f"Override audit row not saved for sheet {sheet_id} Q{q_no}: {e}")
+
+    s = upd.data[0]
+    return {"id": s["id"], "status": s["status"], "ai_marks": s.get("ai_marks"), "final_marks": s.get("final_marks"),
+            "max_marks": s.get("max_marks"), "ai_result": s.get("ai_result")}
+
+
+@router.patch("/sheets/{sheet_id}/questions/{q_no}/marks")
+async def override_question_marks(sheet_id: str, q_no: str, body: MarksOverride,
+                                  c: _Caller = Depends(require_caller)):
+    _uuid_or_404(sheet_id, "Student copy")
+    if not q_no or len(q_no) > 20:
+        raise HTTPException(status_code=404, detail="Question not found.")
+    try:
+        sheet = await run_in_threadpool(_override_marks, c, sheet_id, q_no, body)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Marks override failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Could not save the marks. Please try again.")
     return {"ok": True, "sheet": sheet}

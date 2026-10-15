@@ -40,6 +40,8 @@ ALLOWED_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg", ".webp"}
 # Every check is 2 Gemini calls on up to 60 MB of files → cap per teacher per day (UTC)
 DAILY_LIMIT = int(os.getenv("SMART_CHECKER_DAILY_LIMIT", "100"))
 TABLE = "smart_assignment_checks"
+# History rows written for a teacher's per-question marks change (not an AI check: not counted in DAILY_LIMIT)
+OVERRIDE_TYPE = "teacher_override"
 
 
 # ── Helpers ────────────────────────────────────────────────────────
@@ -105,7 +107,9 @@ def _cleanup(*paths):
 def _checks_today(user_id: str) -> int:
     start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
     r = (get_supabase_admin().table(TABLE).select("id", count="exact")
-         .eq("teacher_id", user_id).gte("created_at", start).limit(1).execute())
+         .eq("teacher_id", user_id).gte("created_at", start)
+         .or_(f"result_json->>type.is.null,result_json->>type.neq.{OVERRIDE_TYPE}")
+         .limit(1).execute())
     return r.count or 0
 
 
