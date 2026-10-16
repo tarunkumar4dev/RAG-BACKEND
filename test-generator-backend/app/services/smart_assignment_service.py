@@ -66,6 +66,9 @@ _MODEL_GONE_CODES = {404}
 # Give up on a single generate call after this long (Gemini can take 20-50s just to return a 503)
 _GENERATE_DEADLINE_S = float(os.getenv("CHECKER_GEMINI_DEADLINE_S", "120"))
 
+# "minimal" | "low" | "medium" | "high"; unset = model default. Needs google-genai >= 2.x (0.8.0 has no thinking_level).
+CHECKER_THINKING_LEVEL = os.getenv("CHECKER_THINKING_LEVEL", "").strip().lower() or None
+
 # Last model that answered successfully (only used to log when a fallback kicks in)
 _preferred_model: Optional[str] = None
 
@@ -101,6 +104,10 @@ def _generate(client: genai.Client, contents: list, tag: str):
     global _preferred_model
     # Always start with the primary model; fallbacks only when it is down
     models = [CHECKER_MODEL, *CHECKER_FALLBACK_MODELS]
+    # temperature 0 + fixed seed: the same sheet should get the same marks every time
+    config = {"response_mime_type": "application/json", "temperature": 0, "seed": 7}
+    if CHECKER_THINKING_LEVEL:
+        config["thinking_config"] = {"thinking_level": CHECKER_THINKING_LEVEL}
 
     deadline = time.time() + _GENERATE_DEADLINE_S
     last_error: Optional[Exception] = None
@@ -117,8 +124,7 @@ def _generate(client: genai.Client, contents: list, tag: str):
                 response = client.models.generate_content(
                     model=model,
                     contents=contents,
-                    # temperature 0 + fixed seed: the same sheet should get the same marks every time
-                    config={"response_mime_type": "application/json", "temperature": 0, "seed": 7},
+                    config=config,
                 )
                 _log_usage(tag, model, response, time.time() - t_call)
                 if model != _preferred_model:
