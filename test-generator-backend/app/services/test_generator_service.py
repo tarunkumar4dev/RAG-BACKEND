@@ -1889,11 +1889,14 @@ def _parse_batch(raw, chapter, request, section_key=None):
         correct = _clean_gemini_text((q.get("correct_answer") or "").strip())
         explanation = _clean_gemini_text((q.get("explanation") or "").strip())
 
-        # For writing/grammar questions, be more lenient on explanation length
+        # case_based answers live in sub_parts, so an absent explanation is fine.
+        # Writing/grammar questions are lenient too (short explanations are valid there).
         min_explanation = 10
-        if is_english_writing or is_english_grammar:
+        if fmt == "case_based":
+            min_explanation = 0
+        elif is_english_writing or is_english_grammar:
             min_explanation = 5
-        if not explanation or len(explanation) < min_explanation:
+        if len(explanation) < min_explanation:
             dropped += 1
             continue
 
