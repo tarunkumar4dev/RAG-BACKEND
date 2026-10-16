@@ -40,6 +40,14 @@ BUCKET = "answer-sheets"
 MAX_PAGES = int(os.getenv("COPY_CHECKER_MAX_PAGES", "16"))
 
 
+# What teachers see when the AI step fails for a reason that isn't theirs to fix (Gemini errors,
+# timeouts, parsing). The technical cause goes to the log only.
+RUBRIC_FAILED_MSG = "Could not prepare the marking scheme. Please try again."
+PAPER_UNREADABLE_MSG = "Could not read the question paper. Check that the photos are clear and try again."
+CHECK_FAILED_MSG = "AI check failed. Please try again."
+COPY_UNREADABLE_MSG = "Could not read this copy. Check that the photos are clear and try again."
+
+
 def _uuid_or_404(value: str, what: str) -> None:
     try:
         uuid.UUID(value)
@@ -121,7 +129,9 @@ def _build_session_rubric(c: _Caller, session_id: str, force: bool) -> dict:
         _update_session(c, session_id, {"rubric_status": "failed", "rubric_error": str(e.detail)[:300]})
         raise
     except Exception as e:
-        _update_session(c, session_id, {"rubric_status": "failed", "rubric_error": str(e)[:300]})
+        logger.warning(f"Rubric failed for session {session_id}: {e}")
+        msg = PAPER_UNREADABLE_MSG if isinstance(e, ValueError) else RUBRIC_FAILED_MSG
+        _update_session(c, session_id, {"rubric_status": "failed", "rubric_error": msg})
         raise
     finally:
         _cleanup(*paths)
@@ -146,10 +156,10 @@ async def session_rubric(session_id: str, body: RubricRequest = RubricRequest(),
     except HTTPException:
         raise
     except ValueError as e:
-        raise HTTPException(status_code=422, detail=f"Could not read the question paper: {e}")
+        raise HTTPException(status_code=422, detail=PAPER_UNREADABLE_MSG)
     except Exception as e:
         logger.error(f"Copy-check rubric failed: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Could not prepare the marking scheme. Please try again.")
+        raise HTTPException(status_code=500, detail=RUBRIC_FAILED_MSG)
     return {"ok": True, "rubric": _rubric_summary(s), "full_rubric": s.get("rubric")}
 
 
@@ -185,7 +195,11 @@ def _check_sheet(c: _Caller, sheet_id: str) -> dict:
         result["_meta"] = {"strictness": session.get("strictness") or "medium",
                            "grade_time_s": round(time.time() - start, 2), "pages": len(pages)}
     except Exception as e:
-        msg = e.detail if isinstance(e, HTTPException) else str(e)
+        if isinstance(e, HTTPException):
+            msg = e.detail
+        else:
+            logger.warning(f"Copy check failed for sheet {sheet_id}: {e}")
+            msg = COPY_UNREADABLE_MSG if isinstance(e, ValueError) else CHECK_FAILED_MSG
         with_retry(lambda: c.db.table("check_sheets").update({"status": "failed", "error": str(msg)[:300]})
                    .eq("id", sheet_id).execute())
         raise
@@ -222,11 +236,11 @@ async def check_sheet(sheet_id: str, c: _Caller = Depends(require_caller)):
         sheet = await run_in_threadpool(_check_sheet, c, sheet_id)
     except HTTPException:
         raise
-    except ValueError as e:
-        raise HTTPException(status_code=422, detail=str(e))
+    except ValueError:
+        raise HTTPException(status_code=422, detail=COPY_UNREADABLE_MSG)
     except Exception as e:
         logger.error(f"Copy check failed: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="AI check failed. Please try again.")
+        raise HTTPException(status_code=500, detail=CHECK_FAILED_MSG)
     return {"ok": True, "sheet": sheet}
 
 
