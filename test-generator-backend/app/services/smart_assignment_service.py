@@ -629,6 +629,9 @@ Rules:
   others attempted = false.
 - If you cannot read part of an answer, set legibility_issue = true and confidence = "low" for it.
 - Do NOT calculate marks. The server does that from your verdicts.
+- "page_index": 0-based index of the page where this answer starts (0 = first page).
+- "y_start": where on that page the answer starts, 0 (top of page) to 1000 (bottom of page).
+  Estimate visually. If you cannot tell, set null.
 
 RUBRIC:
 {rubric_json}
@@ -641,6 +644,7 @@ Respond ONLY with JSON (no markdown):
   "answers": [
     {{
       "q_no": "4", "sub_id": null, "attempted": true,
+      "page_index": 0, "y_start": 320,
       "student_answer": "Refraction is the bending of light when it goes from one medium to another. Law: sin i / sin r = constant.",
       "points": [
         {{"id": "4.1", "verdict": "mostly", "evidence": "bending of light when it goes from one medium to another", "reason": "Correct idea, 'obliquely' missing.", "borderline": false}},
@@ -652,7 +656,9 @@ Respond ONLY with JSON (no markdown):
       "legibility_issue": false
     }},
     {{
-      "q_no": "5", "sub_id": "5a", "attempted": true, "student_answer": "haemoglobin carries oxygen",
+      "q_no": "5", "sub_id": "5a", "attempted": true,
+      "page_index": 1, "y_start": 150,
+      "student_answer": "haemoglobin carries oxygen",
       "points": [{{"id": "5a.1", "verdict": "full", "evidence": "carries oxygen", "reason": "Correct.", "borderline": false}}],
       "feedback": "Correct.", "confidence": "high", "legibility_issue": false
     }}
@@ -711,6 +717,12 @@ def _score_leaf(leaf: dict, ans: Optional[dict], answer_type: str, scheme_source
     if scheme_source == "estimated" and attempted and 0 < awarded < leaf["marks"]:
         review_reasons.append("Marking split was estimated (not in the answer key)")
 
+    # page_index and y_start are best-effort position hints; null is fine if the model couldn't tell.
+    raw_pi = (ans or {}).get("page_index")
+    raw_ys = (ans or {}).get("y_start")
+    page_index = int(raw_pi) if isinstance(raw_pi, (int, float)) and raw_pi >= 0 else None
+    y_start = max(0, min(1000, int(raw_ys))) if isinstance(raw_ys, (int, float)) else None
+
     return {
         "max_marks": leaf["marks"],
         "marks_awarded": round(awarded, 2),
@@ -724,6 +736,8 @@ def _score_leaf(leaf: dict, ans: Optional[dict], answer_type: str, scheme_source
         "points": points_out,
         "needs_review": bool(review_reasons),
         "review_reasons": review_reasons,
+        "page_index": page_index,
+        "y_start": y_start,
     }
 
 
@@ -747,6 +761,11 @@ def _score(grading: dict, rubric: dict) -> dict:
                                 s.get("scheme_source") or q["scheme_source"])
                 r["sub_id"] = s["sub_id"]
                 subs.append(r)
+            # Position hint: use the first attempted sub-part that has a location.
+            first_pos = next(
+                (s for s in subs if s.get("page_index") is not None or s.get("y_start") is not None),
+                subs[0] if subs else {},
+            )
             gq = {
                 "q_no": q["q_no"], "max_marks": q["marks"],
                 "marks_awarded": round(min(sum(s["marks_awarded"] for s in subs), q["marks"]), 2),
@@ -759,6 +778,8 @@ def _score(grading: dict, rubric: dict) -> dict:
                 "has_subparts": True, "subpart_grades": subs, "points": [],
                 "needs_review": any(s["needs_review"] for s in subs),
                 "review_reasons": sorted({r for s in subs for r in s["review_reasons"]}),
+                "page_index": first_pos.get("page_index"),
+                "y_start": first_pos.get("y_start"),
             }
         else:
             gq = _score_leaf(q, by_key.get(q["q_no"]), atype, q["scheme_source"])
