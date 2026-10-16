@@ -184,7 +184,11 @@ def _check_sheet(c: _Caller, sheet_id: str) -> dict:
     if session.get("rubric_status") != "ready" or not session.get("rubric"):
         session = _build_session_rubric(c, sheet["session_id"], False)
 
-    with_retry(lambda: c.db.table("check_sheets").update({"status": "checking", "error": None}).eq("id", sheet_id).execute())
+    # updated_at = when checking started: the app treats a copy still "checking" after 6 min as failed
+    # (the request died, e.g. the 300 s function limit) and offers Retry instead of a locked copy.
+    started = datetime.now(timezone.utc).isoformat()
+    with_retry(lambda: c.db.table("check_sheets").update({"status": "checking", "error": None, "updated_at": started})
+               .eq("id", sheet_id).execute())
     files = []
     try:
         files = [_download_own(c, p, "ssheet_") for p in pages]
@@ -200,7 +204,8 @@ def _check_sheet(c: _Caller, sheet_id: str) -> dict:
         else:
             logger.warning(f"Copy check failed for sheet {sheet_id}: {e}")
             msg = COPY_UNREADABLE_MSG if isinstance(e, ValueError) else CHECK_FAILED_MSG
-        with_retry(lambda: c.db.table("check_sheets").update({"status": "failed", "error": str(msg)[:300]})
+        with_retry(lambda: c.db.table("check_sheets").update({"status": "failed", "error": str(msg)[:300],
+                                                             "updated_at": datetime.now(timezone.utc).isoformat()})
                    .eq("id", sheet_id).execute())
         raise
     finally:
