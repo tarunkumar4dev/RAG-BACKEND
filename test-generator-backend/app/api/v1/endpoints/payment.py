@@ -79,9 +79,18 @@ class CreateOrderRequest(BaseModel):
     payment_method: str = Field(default="upi", max_length=20)
     plan_slug: str = Field(max_length=50)
     billing_cycle: str = Field(default="monthly", max_length=10)
+    coupon_code: Optional[str] = Field(default=None, max_length=50)
     # Accepted for compatibility with older frontends; the buyer is the JWT user.
     user_id: Optional[str] = Field(default=None, max_length=50)
     vpa: Optional[str] = Field(default=None, max_length=100)
+
+
+class QuoteRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    plan_slug: str = Field(max_length=50)
+    billing_cycle: str = Field(default="monthly", max_length=10)
+    coupon_code: Optional[str] = Field(default=None, max_length=50)
 
 
 class VerifyPaymentRequest(BaseModel):
@@ -195,6 +204,62 @@ async def get_plan_status(user_id: str, user: AuthUser = Depends(require_user)):
         raise HTTPException(500, detail="Failed to fetch plan status")
 
 
+# ─── POST /quote ─────────────────────────────────────────
+@router.post("/quote")
+async def quote_price(req: QuoteRequest, user: AuthUser = Depends(require_user)):
+    """
+    Returns the authoritative quote for a plan, cycle and optional coupon code.
+    Single source of truth for the checkout pricing breakdown.
+    """
+    billing_cycle = _validate_billing_cycle(req.billing_cycle)
+    try:
+        db = get_supabase_admin()
+        plan = _fetch_online_plan(db, req.plan_slug)
+        coupon = req.coupon_code.strip() if req.coupon_code and req.coupon_code.strip() else None
+
+        quote_res = db.rpc(
+            "a4_quote_price",
+            {
+                "p_user_id": user.id,
+                "p_plan_slug": plan["slug"],
+                "p_cycle": billing_cycle,
+                "p_coupon_code": coupon,
+            },
+        ).execute()
+
+        quote = quote_res.data if isinstance(quote_res.data, dict) else {}
+        if not quote.get("ok"):
+            err = quote.get("error", "invalid_quote")
+            messages = {
+                "coupon_invalid": "Invalid coupon code.",
+                "coupon_expired": "This coupon code has expired.",
+                "coupon_used": "You have already redeemed this coupon.",
+                "coupon_limit_reached": "This coupon has reached its usage limit.",
+                "coupon_not_applicable": "This coupon is not applicable to the selected plan.",
+            }
+            return {
+                "success": False,
+                "error": err,
+                "message": messages.get(err, f"Coupon error: {err}"),
+            }
+
+        return {
+            "success": True,
+            "plan_slug": quote.get("plan_slug"),
+            "billing_cycle": quote.get("billing_cycle"),
+            "coupon_code": quote.get("coupon_code"),
+            "base_paise": quote.get("base_paise"),
+            "discount_paise": quote.get("discount_paise"),
+            "final_paise": quote.get("final_paise"),
+            "percent_off": quote.get("percent_off"),
+        }
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Quote price error for user=%s", user.id)
+        raise HTTPException(500, detail="Failed to calculate price quote")
+
+
 # ─── POST /create-order ──────────────────────────────────
 @router.post("/create-order")
 async def create_order(req: CreateOrderRequest, user: AuthUser = Depends(require_user)):
@@ -209,25 +274,68 @@ async def create_order(req: CreateOrderRequest, user: AuthUser = Depends(require
         db = get_supabase_admin()
         plan = _fetch_online_plan(db, req.plan_slug)
 
-        # Server decides the price. The client's amount is only checked so a
-        # stale pricing page produces a clear error instead of a wrong charge.
-        expected = _expected_amount_paise(plan, billing_cycle)
+        # Server decides the price using authoritative quote RPC.
+        # This handles base plan pricing and validates/applies coupons.
+        coupon = req.coupon_code.strip() if req.coupon_code and req.coupon_code.strip() else None
+        quote_res = db.rpc(
+            "a4_quote_price",
+            {
+                "p_user_id": user.id,
+                "p_plan_slug": plan["slug"],
+                "p_cycle": billing_cycle,
+                "p_coupon_code": coupon,
+            },
+        ).execute()
+
+        quote = quote_res.data if isinstance(quote_res.data, dict) else {}
+        if not quote.get("ok"):
+            err = quote.get("error", "invalid_quote")
+            messages = {
+                "coupon_invalid": "Invalid coupon code.",
+                "coupon_expired": "This coupon code has expired.",
+                "coupon_used": "You have already redeemed this coupon.",
+                "coupon_limit_reached": "This coupon has reached its usage limit.",
+                "coupon_not_applicable": "This coupon is not applicable to the selected plan.",
+            }
+            raise HTTPException(400, detail=messages.get(err, f"Coupon error: {err}"))
+
+        expected = int(quote["final_paise"])
         if req.amount != expected:
             logger.warning(
-                "Amount mismatch: got=%s expected=%s plan=%s cycle=%s user=%s",
-                req.amount, expected, req.plan_slug, billing_cycle, user.id,
+                "Amount mismatch: got=%s expected=%s plan=%s cycle=%s coupon=%s user=%s",
+                req.amount, expected, req.plan_slug, billing_cycle, coupon, user.id,
             )
-            raise HTTPException(400, detail="Pricing has changed. Please refresh and try again.")
+            raise HTTPException(400, detail="Pricing has changed or coupon was updated. Please refresh and try again.")
 
         _ensure_teacher_profile(db, user)
+
+        order_notes = {
+            "plan_slug": plan["slug"],
+            "billing_cycle": billing_cycle,
+            "user_id": user.id,
+        }
+        if coupon:
+            order_notes["coupon_code"] = coupon
 
         order = razorpay_client.order.create(
             {
                 "amount": expected,
                 "currency": "INR",
-                "notes": {"plan_slug": plan["slug"], "billing_cycle": billing_cycle, "user_id": user.id},
+                "notes": order_notes,
             }
         )
+
+        metadata = {
+            "payment_method": req.payment_method,
+            "billing_cycle": billing_cycle,
+            "plan_slug": plan["slug"],
+        }
+        if coupon:
+            metadata["coupon_code"] = coupon
+            metadata["base_paise"] = quote.get("base_paise")
+            metadata["discount_paise"] = quote.get("discount_paise")
+            metadata["final_paise"] = quote.get("final_paise")
+            metadata["percent_off"] = quote.get("percent_off")
 
         # This row is the binding record of what was actually bought.
         db.table("payments").insert(
@@ -237,17 +345,13 @@ async def create_order(req: CreateOrderRequest, user: AuthUser = Depends(require
                 "amount_paise": expected,
                 "status": "created",
                 "razorpay_order_id": order["id"],
-                "metadata": {
-                    "payment_method": req.payment_method,
-                    "billing_cycle": billing_cycle,
-                    "plan_slug": plan["slug"],
-                },
+                "metadata": metadata,
             }
         ).execute()
 
         logger.info(
-            "Order created: %s user=%s plan=%s cycle=%s amount=%s",
-            order["id"], user.id, plan["slug"], billing_cycle, expected,
+            "Order created: %s user=%s plan=%s cycle=%s amount=%s coupon=%s",
+            order["id"], user.id, plan["slug"], billing_cycle, expected, coupon,
         )
         return order
 
@@ -271,7 +375,7 @@ async def verify_payment(req: VerifyPaymentRequest, user: AuthUser = Depends(req
     try:
         pay_res = (
             db.table("payments")
-            .select("user_id, status")
+            .select("user_id, status, plan_id, metadata")
             .eq("razorpay_order_id", order_id)
             .limit(1)
             .execute()
@@ -297,6 +401,26 @@ async def verify_payment(req: VerifyPaymentRequest, user: AuthUser = Depends(req
         if not result.get("success"):
             logger.error("capture_payment refused: order=%s reason=%s", order_id, result.get("error"))
             raise HTTPException(500, detail="Activation failed. Contact support with your payment ID.")
+
+        # Ensure coupon redemption is recorded if coupon was used
+        try:
+            meta = pay_res.data[0].get("metadata") or {}
+            c_code = meta.get("coupon_code")
+            if c_code:
+                chk = db.table("coupon_redemptions").select("id").eq("razorpay_order_id", order_id).limit(1).execute()
+                if not chk.data:
+                    db.table("coupon_redemptions").insert({
+                        "coupon_code": c_code,
+                        "user_id": user.id,
+                        "razorpay_order_id": order_id,
+                        "plan_id": pay_res.data[0].get("plan_id"),
+                        "billing_cycle": meta.get("billing_cycle"),
+                        "base_paise": meta.get("base_paise"),
+                        "discount_paise": meta.get("discount_paise"),
+                        "final_paise": meta.get("final_paise"),
+                    }).execute()
+        except Exception as cr_err:
+            logger.warning("Coupon redemption logging failed: %s", cr_err)
 
         logger.info(
             "Payment verified: user=%s plan=%s order=%s replay=%s",
@@ -362,13 +486,37 @@ async def razorpay_webhook(request: Request):
         raise HTTPException(400, detail="Malformed payload")
 
     try:
-        result = _capture(get_supabase_admin(), order_id, payment_id, None)
+        db = get_supabase_admin()
+        result = _capture(db, order_id, payment_id, None)
         if result.get("error") == "order_not_found":
             logger.warning("Webhook for unknown order=%s", order_id)
             return {"status": "unknown_order"}
         if not result.get("success"):
             logger.error("Webhook capture refused: order=%s reason=%s", order_id, result.get("error"))
             return {"status": "refused", "reason": result.get("error")}
+
+        # Ensure coupon redemption is recorded if coupon was used
+        try:
+            pay_res = db.table("payments").select("id, user_id, plan_id, metadata").eq("razorpay_order_id", order_id).limit(1).execute()
+            if pay_res.data:
+                meta = pay_res.data[0].get("metadata") or {}
+                c_code = meta.get("coupon_code")
+                if c_code:
+                    chk = db.table("coupon_redemptions").select("id").eq("razorpay_order_id", order_id).limit(1).execute()
+                    if not chk.data:
+                        db.table("coupon_redemptions").insert({
+                            "coupon_code": c_code,
+                            "user_id": pay_res.data[0].get("user_id"),
+                            "razorpay_order_id": order_id,
+                            "plan_id": pay_res.data[0].get("plan_id"),
+                            "billing_cycle": meta.get("billing_cycle"),
+                            "base_paise": meta.get("base_paise"),
+                            "discount_paise": meta.get("discount_paise"),
+                            "final_paise": meta.get("final_paise"),
+                        }).execute()
+        except Exception as cr_err:
+            logger.warning("Webhook coupon redemption logging failed: %s", cr_err)
+
         logger.info(
             "Webhook capture: order=%s plan=%s replay=%s",
             order_id, result.get("plan"), result.get("already_processed"),

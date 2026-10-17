@@ -1,0 +1,104 @@
+{
+ "summary": {
+  "sheets": 4,
+  "errors": 0,
+  "identity_correct": "4/4",
+  "mae_per_question": 0.0,
+  "total_within_1": "2/2",
+  "avg_time_s": 74.6
+ },
+ "rows": [
+  {
+   "case": "science10_no_roll",
+   "time_s": 60.54,
+   "valid_ok": true,
+   "is_valid": false,
+   "needs_review": 0,
+   "run": 1
+  },
+  {
+   "case": "science10_no_roll",
+   "time_s": 41.95,
+   "valid_ok": true,
+   "is_valid": false,
+   "needs_review": 0,
+   "run": 2
+  },
+  {
+   "case": "science10_rahul",
+   "time_s": 78.07,
+   "valid_ok": true,
+   "is_valid": true,
+   "needs_review": 0,
+   "per_q": {
+    "1": {
+     "teacher": 1,
+     "ai": 1.0,
+     "err": 0.0
+    },
+    "2": {
+     "teacher": 1,
+     "ai": 1.0,
+     "err": 0.0
+    },
+    "3": {
+     "teacher": 2,
+     "ai": 2.0,
+     "err": 0.0
+    },
+    "4": {
+     "teacher": 2.5,
+     "ai": 2.5,
+     "err": 0.0
+    },
+    "5": {
+     "teacher": 3,
+     "ai": 3.0,
+     "err": 0.0
+    }
+   },
+   "total_teacher": 9.5,
+   "total_ai": 9.5,
+   "total_err": 0.0,
+   "run": 1
+  },
+  {
+   "case": "science10_rahul",
+   "time_s": 117.73,
+   "valid_ok": true,
+   "is_valid": true,
+   "needs_review": 0,
+   "per_q": {
+    "1": {
+     "teacher": 1,
+     "ai": 1.0,
+     "err": 0.0
+    },
+    "2": {
+     "teacher": 1,
+     "ai": 1.0,
+     "err": 0.0
+    },
+    "3": {
+     "teacher": 2,
+     "ai": 2.0,
+     "err": 0.0
+    },
+    "4": {
+     "teacher": 2.5,
+     "ai": 2.5,
+     "err": 0.0
+    },
+    "5": {
+     "teacher": 3,
+     "ai": 3.0,
+     "err": 0.0
+    }
+   },
+   "total_teacher": 9.5,
+   "total_ai": 9.5,
+   "total_err": 0.0,
+   "run": 2
+  }
+ ]
+}
