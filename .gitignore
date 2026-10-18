@@ -15,3 +15,7 @@ answer_check/sheets/*.pdf
 answer_check/results/
 # DB remediation backups (contain question data)
 test-generator-backend/scripts/backups/
+
+# Checker eval: run outputs (cache, rubrics, results) and REAL student copies never go in git
+test-generator-backend/scripts/eval_runs/*
+test-generator-backend/scripts/eval_cases_private/

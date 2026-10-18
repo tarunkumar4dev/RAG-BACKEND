@@ -1,0 +1,24 @@
+{
+  "synthetic": true,
+  "student": "Rohan Verma (fictional)",
+  "note": "SYNTHETIC copy (handwriting font, fictional name). Baseline: answers in order; Q13 and Q17 write '= RHS' after a wrong proof.",
+  "strictness": "medium",
+  "total": 28.5,
+  "groups": {
+    "A": {"questions": ["1", "2", "3", "4", "5", "6", "7", "8"], "marks": 6,
+          "note": "Section A MCQs, 1 mark each; which two are wrong is not recorded, so graded as one unit"}
+  },
+  "questions": {
+    "9":  {"marks": 2},
+    "10": {"marks": 1, "note": "2 tan²45° taken as (2×1)²"},
+    "11": {"marks": 2},
+    "12": {"marks": 2},
+    "13": {"marks": 1.5, "note": "cos²A written as 1 + sin²A, then '= RHS' anyway"},
+    "14": {"marks": 2.5, "note": "cot θ written as 5/12"},
+    "15": {"marks": 3},
+    "16": {"marks": 0.5, "note": "cos 60° used instead of sin 60°"},
+    "17": {"marks": 2, "note": "tan³θ − 1 factored wrongly, then '= RHS' anyway"},
+    "18": {"marks": 4},
+    "19": {"marks": 2, "note": "3x = 80 − x → 2x = 80 (algebra slip)"}
+  }
+}

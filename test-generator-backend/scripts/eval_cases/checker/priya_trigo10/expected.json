@@ -1,0 +1,23 @@
+{
+  "synthetic": true,
+  "student": "Priya Sharma (fictional)",
+  "note": "SYNTHETIC copy (handwriting font, fictional name). Out of order (D, C, B, A); Q17 split across pages 3–4 with 'contd.'; labels 'Ans 18', 'C-4' (= Q16), 'C-3' (= Q15); Q13 first attempt crossed out; Section A as a compact list.",
+  "strictness": "medium",
+  "total": 37.5,
+  "groups": {
+    "A": {"questions": ["1", "2", "3", "4", "5", "6", "7", "8"], "marks": 7, "note": "Q8 wrong (a)"}
+  },
+  "questions": {
+    "9":  {"marks": 2},
+    "10": {"marks": 2},
+    "11": {"marks": 0.5, "note": "cos(A+B) = 1/2 taken as A + B = 30°; only step 1 correct"},
+    "12": {"marks": 2},
+    "13": {"marks": 3, "expect": "crossed_out_zero", "note": "first attempt crossed out (must not count); second attempt correct"},
+    "14": {"marks": 3},
+    "15": {"marks": 3, "note": "labelled 'C-3'"},
+    "16": {"marks": 3, "note": "labelled 'C-4'; figure present, full marks"},
+    "17": {"marks": 4, "expect": "spans_pages", "pages": [3, 4], "note": "answer continues from page 3 to page 4 ('contd.')"},
+    "18": {"marks": 4, "note": "labelled 'Ans 18'"},
+    "19": {"marks": 4}
+  }
+}

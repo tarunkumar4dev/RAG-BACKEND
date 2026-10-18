@@ -1,0 +1,23 @@
+{
+  "synthetic": true,
+  "student": "Aman Gupta (fictional)",
+  "note": "SYNTHETIC copy (handwriting font, fictional name). Messy writing, smudge, strike-through; Q12 answer written under the label 'Q.13'; Q16 has no label; Q9, Q13, Q15, Q17, Q19 not attempted.",
+  "strictness": "medium",
+  "total": 18,
+  "groups": {
+    "A": {"questions": ["1", "2", "3", "4", "5", "6", "7", "8"], "marks": 5, "note": "Q2 (b), Q5 (a), Q7 (b) wrong"}
+  },
+  "questions": {
+    "9":  {"marks": 0, "note": "not attempted"},
+    "10": {"marks": 2},
+    "11": {"marks": 2},
+    "12": {"marks": 2, "expect_review": true, "note": "written under the label 'Q.13' — grade as Q12 by content AND flag for review"},
+    "13": {"marks": 0, "note": "not attempted (the 'Q.13' answer is really Q12)"},
+    "14": {"marks": 2, "expect": "crossed_out_zero", "note": "tan: wrote 5/12, STRUCK it, wrote 12/5 (wrong) — struck work gets no credit; cot 5/12 wrong. cos ½ + sin 1 + cosec ½"},
+    "15": {"marks": 0, "note": "not attempted"},
+    "16": {"marks": 3, "expect_review": true, "note": "no question label — match to Q16 by content AND flag for review"},
+    "17": {"marks": 0, "note": "not attempted"},
+    "18": {"marks": 2, "note": "figure 1 + x = 7 m 1; tan 60° used as 7/CE (wrong), final wrong"},
+    "19": {"marks": 0, "note": "not attempted"}
+  }
+}
