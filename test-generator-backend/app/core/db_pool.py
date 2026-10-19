@@ -12,25 +12,43 @@ logger = logging.getLogger(__name__)
 
 _pool = None
 
+# Direct Postgres is used only by Modules, Worksheet and the NCERT question stats.
+# Credentials come ONLY from the environment (this repo is public): DATABASE_URL, or DB_PASSWORD (+ optional
+# DB_HOST / DB_NAME / DB_USER / DB_PORT, whose defaults are not secret).
+MISSING_CONFIG_MSG = ("Direct DB is not configured: set DATABASE_URL (or DB_PASSWORD) in the environment. "
+                      "Modules, Worksheet and NCERT question stats will fail until it is set.")
+
+
+def config_error():
+    """None when credentials are configured, else the reason (logged at startup by app.main)."""
+    if os.getenv("DATABASE_URL") or os.getenv("DB_PASSWORD"):
+        return None
+    return MISSING_CONFIG_MSG
+
+
+def _connect_kwargs() -> dict:
+    db_url = os.getenv("DATABASE_URL")
+    if db_url:
+        return {"dsn": db_url, "sslmode": "require", "connect_timeout": 10}
+    password = os.getenv("DB_PASSWORD")
+    if not password:
+        raise RuntimeError(MISSING_CONFIG_MSG)
+    return {
+        "host": os.getenv("DB_HOST", "aws-0-ap-south-1.pooler.supabase.com"),
+        "database": os.getenv("DB_NAME", "postgres"),
+        "user": os.getenv("DB_USER", "postgres.dcmnzvjftmdbywrjkust"),
+        "password": password,
+        "port": int(os.getenv("DB_PORT", "6543")),
+        "sslmode": "require",
+        "connect_timeout": 10,
+    }
+
+
 def _get_pool():
     global _pool
     if _pool is None or _pool.closed:
         try:
-            db_url = os.getenv("DATABASE_URL")
-            if db_url:
-                _pool = ThreadedConnectionPool(minconn=1, maxconn=10, dsn=db_url, sslmode="require", connect_timeout=10)
-            else:
-                _pool = ThreadedConnectionPool(
-                    minconn=1,
-                    maxconn=10,
-                    host=os.getenv("DB_HOST", "aws-0-ap-south-1.pooler.supabase.com"),
-                    database=os.getenv("DB_NAME", "postgres"),
-                    user=os.getenv("DB_USER", "postgres.dcmnzvjftmdbywrjkust"),
-                    password=os.getenv("DB_PASSWORD", "a4ai2026securePass"),
-                    port=int(os.getenv("DB_PORT", "6543")),
-                    sslmode="require",
-                    connect_timeout=10,
-                )
+            _pool = ThreadedConnectionPool(minconn=1, maxconn=10, **_connect_kwargs())
             logger.info("ThreadedConnectionPool initialized (1-10 connections)")
         except Exception as e:
             logger.error(f"Failed to initialize ThreadedConnectionPool: {e}")
@@ -74,19 +92,7 @@ def get_db_connection():
     pool = _get_pool()
     if not pool:
         try:
-            db_url = os.getenv("DATABASE_URL")
-            if db_url:
-                conn = psycopg2.connect(db_url, sslmode="require", connect_timeout=10)
-            else:
-                conn = psycopg2.connect(
-                    host=os.getenv("DB_HOST", "aws-0-ap-south-1.pooler.supabase.com"),
-                    database=os.getenv("DB_NAME", "postgres"),
-                    user=os.getenv("DB_USER", "postgres.dcmnzvjftmdbywrjkust"),
-                    password=os.getenv("DB_PASSWORD", "a4ai2026securePass"),
-                    port=int(os.getenv("DB_PORT", "6543")),
-                    sslmode="require",
-                    connect_timeout=10,
-                )
+            conn = psycopg2.connect(**_connect_kwargs())
             conn.autocommit = True
             return conn
         except Exception as e:

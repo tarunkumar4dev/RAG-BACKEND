@@ -47,8 +47,12 @@ async def verify_webhook(
 ):
     """Meta webhook verification handshake."""
     import os
-    verify_token = os.environ.get("WHATSAPP_VERIFY_TOKEN", "msitdemo123").strip().strip('"').strip("'") or "msitdemo123"
-    
+    # No default: this repo is public, so a fallback token would let anyone complete the handshake.
+    verify_token = os.environ.get("WHATSAPP_VERIFY_TOKEN", "").strip().strip('"').strip("'")
+    if not verify_token:
+        logger.error("WHATSAPP_VERIFY_TOKEN is not set; refusing webhook verification")
+        raise HTTPException(status_code=403, detail="Invalid verification token")
+
     if hub_mode == "subscribe" and hub_verify_token and hub_verify_token.strip() == verify_token:
         logger.info("WhatsApp webhook verified successfully!")
         return Response(content=hub_challenge, media_type="text/plain")
