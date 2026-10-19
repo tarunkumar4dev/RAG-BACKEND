@@ -168,6 +168,31 @@ def _capture(db, order_id: str, payment_id: str, signature: Optional[str]) -> di
     return res.data if isinstance(res.data, dict) else {}
 
 
+HOLD_MESSAGES = {
+    "coupon_invalid": "Invalid coupon code.",
+    "coupon_used": "You have already redeemed this coupon.",
+    "coupon_limit_reached": "This coupon has reached its usage limit.",
+    "coupon_in_checkout": "This coupon is already open in another checkout. Finish that payment, or try again in 30 minutes.",
+}
+
+
+def _hold_coupon(db, user_id: str, coupon: str, plan_slug: str, cycle: str) -> dict:
+    """a4_hold_coupon() (supabase/migrations/20261019150000_coupon_holds.sql): one live checkout per
+    user + coupon, so two tabs cannot both pay the discounted price."""
+    try:
+        res = db.rpc("a4_hold_coupon", {"p_user_id": user_id, "p_coupon_code": coupon,
+                                        "p_plan_slug": plan_slug, "p_cycle": cycle}).execute()
+    except Exception:
+        # Fail closed: without the hold the per-user limit can be bypassed. Orders without a coupon are unaffected.
+        logger.exception("a4_hold_coupon failed (is migration 20261019150000 applied?)")
+        raise HTTPException(503, detail="Coupons are temporarily unavailable. Please try again shortly.")
+    hold = res.data if isinstance(res.data, dict) else {}
+    if not hold.get("ok"):
+        err = hold.get("error", "coupon_invalid")
+        raise HTTPException(409 if err == "coupon_in_checkout" else 400, detail=HOLD_MESSAGES.get(err, f"Coupon error: {err}"))
+    return hold
+
+
 # ─── GET /plans ───────────────────────────────────────────
 @router.get("/plans")
 async def get_plans():
@@ -309,6 +334,18 @@ async def create_order(req: CreateOrderRequest, user: AuthUser = Depends(require
 
         _ensure_teacher_profile(db, user)
 
+        hold = _hold_coupon(db, user.id, coupon, plan["slug"], billing_cycle) if coupon else None
+        if hold and hold.get("reuse_order_id"):
+            # Same user, same coupon, same plan + cycle already has an order: hand back THAT order.
+            # Razorpay accepts one successful payment per order, so the discount can be paid only once.
+            existing = razorpay_client.order.fetch(hold["reuse_order_id"])
+            if existing.get("status") == "paid":
+                raise HTTPException(409, detail="This coupon order is already paid. Refresh the page to see your plan.")
+            if int(existing.get("amount") or 0) != expected:
+                raise HTTPException(409, detail="Pricing changed for an open coupon checkout. Please try again in 30 minutes.")
+            logger.info("Order reused: %s user=%s coupon=%s", existing.get("id"), user.id, coupon)
+            return existing
+
         order_notes = {
             "plan_slug": plan["slug"],
             "billing_cycle": billing_cycle,
@@ -324,6 +361,12 @@ async def create_order(req: CreateOrderRequest, user: AuthUser = Depends(require
                 "notes": order_notes,
             }
         )
+
+        if hold:
+            try:
+                db.table("coupon_holds").update({"razorpay_order_id": order["id"]})                     .eq("id", hold["hold_id"]).is_("razorpay_order_id", "null").execute()
+            except Exception:
+                logger.exception("Could not attach order %s to coupon hold %s", order["id"], hold.get("hold_id"))
 
         metadata = {
             "payment_method": req.payment_method,
