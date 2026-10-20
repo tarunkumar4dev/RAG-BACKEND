@@ -40,6 +40,7 @@ from app.core.auth import AuthUser, require_user
 from app.core.database import get_supabase, get_supabase_admin
 from app.core.config import settings
 from app.core.sanitize import sanitize_like, sanitize_text, sanitize_uuid, validate_class_grade
+from app.services.ncert_cleanup import clean_question
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/test-generator", tags=["Test Generator"])
@@ -986,6 +987,24 @@ def _get_subject_sql_clause(subject: str) -> tuple[str, list]:
         return "LOWER(subject) = LOWER(%s)", [subject.strip()]
 
 
+# Migration 18 adds ncert_questions.quality_flag (duplicates / missing content). On a database
+# without it the filter fails, so fall back to the unfiltered query instead of an empty library.
+_quality_flag_column = True
+
+
+def _with_quality_flag_fallback(run):
+    global _quality_flag_column
+    if _quality_flag_column:
+        try:
+            return run(True)
+        except Exception as e:
+            if "quality_flag" not in str(e):
+                raise
+            logger.warning("ncert_questions.quality_flag missing (migration 18) — serving unfiltered rows")
+            _quality_flag_column = False
+    return run(False)
+
+
 async def _ncert_questions_impl(
     subject: str = "Science",
     class_grade: str = "10",
@@ -1004,27 +1023,33 @@ async def _ncert_questions_impl(
 
     try:
         supabase = get_supabase()
-        # count="exact" returns the total with the page — one Supabase round trip instead of two.
-        query = supabase.table("ncert_questions").select("*", count="exact").eq("class_grade", class_grade)
-        query = _apply_ncert_subject_filter(query, subject)
 
-        if chapter:
-            safe_chapter = sanitize_like(chapter, max_length=200)
-            query = query.ilike("chapter", f"%{safe_chapter}%")
-        if question_type and question_type.lower() != "all":
-            safe_qtype = sanitize_like(question_type, max_length=30)
-            query = query.eq("question_type", safe_qtype.lower())
-        if section:
-            safe_section = sanitize_like(section, max_length=100)
-            query = query.ilike("section", f"%{safe_section}%")
-        if search:
-            safe_search = sanitize_like(search, max_length=200)
-            query = query.ilike("question_text", f"%{safe_search}%")
+        def run_query(visible_only: bool):
+            # count="exact" returns the total with the page — one Supabase round trip instead of two.
+            query = supabase.table("ncert_questions").select("*", count="exact").eq("class_grade", class_grade)
+            query = _apply_ncert_subject_filter(query, subject)
+            if visible_only:
+                query = query.is_("quality_flag", "null")
 
-        result = query.order("section", desc=False) \
-            .order("question_number", desc=False) \
-            .range(offset, offset + limit - 1) \
-            .execute()
+            if chapter:
+                safe_chapter = sanitize_like(chapter, max_length=200)
+                query = query.ilike("chapter", f"%{safe_chapter}%")
+            if question_type and question_type.lower() != "all":
+                safe_qtype = sanitize_like(question_type, max_length=30)
+                query = query.eq("question_type", safe_qtype.lower())
+            if section:
+                safe_section = sanitize_like(section, max_length=100)
+                query = query.ilike("section", f"%{safe_section}%")
+            if search:
+                safe_search = sanitize_like(search, max_length=200)
+                query = query.ilike("question_text", f"%{safe_search}%")
+
+            return query.order("section", desc=False) \
+                .order("question_number", desc=False) \
+                .range(offset, offset + limit - 1) \
+                .execute()
+
+        result = _with_quality_flag_fallback(run_query)
 
         questions = result.data or []
         total_count = result.count if result.count is not None else offset + len(questions)
@@ -1035,6 +1060,8 @@ async def _ncert_questions_impl(
                     q["options"] = json.loads(q["options"])
                 except Exception:
                     q["options"] = []
+            # option labels, options repeated in the text, PDF glyph junk
+            clean_question(q)
 
         # Accountancy: send the same text/table segments the PDF exporter will print, so the
         # builder preview shows real ledgers/statements instead of flattened NCERT text.
@@ -1075,14 +1102,23 @@ async def _ncert_question_stats_impl(subject: str = "Science", class_grade: str 
             try:
                 where_sub, sub_params = _get_subject_sql_clause(subject)
                 cur = conn.cursor()
-                cur.execute(f"""
-                    SELECT chapter, COALESCE(section, 'Uncategorized'), COALESCE(question_type, 'exercise'), COUNT(*)
-                    FROM ncert_questions
-                    WHERE class_grade = %s AND {where_sub}
-                    GROUP BY chapter, section, question_type
-                    ORDER BY chapter;
-                """, [class_grade] + sub_params)
-                rows = cur.fetchall()
+
+                def count_rows(visible_only: bool):
+                    visible = "AND quality_flag IS NULL" if visible_only else ""
+                    try:
+                        cur.execute(f"""
+                            SELECT chapter, COALESCE(section, 'Uncategorized'), COALESCE(question_type, 'exercise'), COUNT(*)
+                            FROM ncert_questions
+                            WHERE class_grade = %s AND {where_sub} {visible}
+                            GROUP BY chapter, section, question_type
+                            ORDER BY chapter;
+                        """, [class_grade] + sub_params)
+                    except Exception:
+                        conn.rollback()  # a failed statement aborts the transaction
+                        raise
+                    return cur.fetchall()
+
+                rows = _with_quality_flag_fallback(count_rows)
                 cur.close()
                 conn.close()
 
@@ -1116,11 +1152,17 @@ async def _ncert_question_stats_impl(subject: str = "Science", class_grade: str 
     # 2. Fallback to Supabase client
     try:
         supabase = get_supabase()
-        base_query = supabase.table("ncert_questions") \
-            .select("chapter, section, question_type") \
-            .eq("class_grade", class_grade)
-        base_query = _apply_ncert_subject_filter(base_query, subject)
-        result = base_query.limit(5000).execute()
+
+        def run_query(visible_only: bool):
+            base_query = supabase.table("ncert_questions") \
+                .select("chapter, section, question_type") \
+                .eq("class_grade", class_grade)
+            base_query = _apply_ncert_subject_filter(base_query, subject)
+            if visible_only:
+                base_query = base_query.is_("quality_flag", "null")
+            return base_query.limit(5000).execute()
+
+        result = _with_quality_flag_fallback(run_query)
 
         rows = result.data or []
 

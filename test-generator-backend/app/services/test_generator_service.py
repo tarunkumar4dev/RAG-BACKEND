@@ -31,6 +31,7 @@ from google import genai
 from google.genai import types as genai_types
 
 from app.core.config import settings
+from app.services.ncert_cleanup import missing_items_reason
 from app.models.test_generator import (
     TestGenerationRequest,
     GeneratedQuestion,
@@ -116,8 +117,16 @@ QUESTION STEM TEMPLATES (rotate across questions, never repeat same template in 
   • "In the given experimental setup, [observation]. The reason is:"
   • "[Two contrasting situations]. The difference arises because:"
   • "Identify the correct sequence of steps in [process]."
-  • "Consider the following statements: (I)... (II)... (III)... Which are correct?"
-  • "Match the following: Column A... Column B... Choose the correct option."
+  • "Consider the following statements:\\n(i) <full statement>\\n(ii) <full statement>\\n(iii) <full statement>\\nWhich of these are correct?"
+    with options like "(i) and (ii) only"
+  • "Match Column I with Column II:\\nColumn I: (A) <item> (B) <item> (C) <item> (D) <item>\\nColumn II: (1) <item> (2) <item> (3) <item> (4) <item>"
+    with options like "A-2, B-1, C-4, D-3"
+
+"THE FOLLOWING" RULE (questions that break it are rejected):
+  • If the stem says "the following", "statements", "given below" or "match", EVERY statement / item /
+    reaction / column entry must be written out in full inside "text" — never only in the options,
+    never as "..." and never as a reference to a figure the student cannot see.
+  • Write chemical reactions/structures as text: "BF3 + NH3 → F3B·NH3", "CH3–CH2–OH".
 
 DISTRACTOR RULES (all 4 mandatory):
   • One distractor = common student MISCONCEPTION (the mistake students actually make)
@@ -1901,6 +1910,10 @@ def _parse_batch(raw, chapter, request, section_key=None):
             options = [_clean_gemini_text(o) for o in options]
 
         issue = _quality_issue(fmt, options, correct, explanation)
+        if not issue and fmt not in ("assertion_reason", "case_based"):
+            # "Consider the following statements … Which are correct?" with the statements missing
+            has_table = bool(q.get("question_table")) or _has_inline_table(text)
+            issue = missing_items_reason(text, options if isinstance(options, list) else None, has_table)
         if issue:
             logger.warning(f"  Dropped ({chapter.chapter}/{fmt}): {issue}")
             stats = _PAPER_STATS.get()
