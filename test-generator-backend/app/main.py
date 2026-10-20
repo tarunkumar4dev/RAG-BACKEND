@@ -29,6 +29,11 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+from app.core import db_pool  # noqa: E402
+
+if db_pool.config_error():
+    logger.error(db_pool.config_error())
+
 
 # ── FastAPI App ─────────────────────────────────────────────────────────
 
