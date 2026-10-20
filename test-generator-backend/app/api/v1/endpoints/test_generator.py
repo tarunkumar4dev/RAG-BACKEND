@@ -664,7 +664,7 @@ def _watermark_pdf(pdf_bytes: bytes, req, logo_b64: Optional[str]) -> bytes:
 
 
 @router.post("/export")
-async def export_test(req: ExportRequest):
+async def export_test(req: ExportRequest, user: AuthUser = Depends(require_user)):
     try:
         class_num = _extract_class_number(req.classGrade)
 
@@ -755,7 +755,7 @@ async def export_test(req: ExportRequest):
         raise HTTPException(status_code=500, detail="Export failed. Please try again.")
 
 @router.post("/export-answer-key")
-async def export_answer_key(req: AnswerKeyExportRequest):
+async def export_answer_key(req: AnswerKeyExportRequest, user: AuthUser = Depends(require_user)):
     """
     Standalone Answer Key download (separate PDF/DOCX file).
     Matches the sample PDF's clean institute-paper style.
@@ -1416,14 +1416,14 @@ async def add_manual_question(test_id: str, req: AddManualQuestionRequest, user:
 
 
 @router.post("/quiz/create")
-async def create_quiz(settings_req: QuizSettings):
-    supabase = get_supabase()
+async def create_quiz(settings_req: QuizSettings, user: AuthUser = Depends(require_user)):
+    supabase = get_supabase_admin()
     try:
         quiz_id = str(uuid.uuid4())
         supabase.table("quizzes").insert({
             "id": quiz_id,
             "test_id": settings_req.test_id,
-            "teacher_id": settings_req.teacher_id,
+            "teacher_id": user.id,
             "duration_minutes": settings_req.duration_minutes,
             "max_marks": settings_req.max_marks,
             "passing_marks": settings_req.passing_marks,

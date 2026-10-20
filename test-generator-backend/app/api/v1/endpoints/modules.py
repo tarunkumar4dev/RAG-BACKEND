@@ -10,9 +10,10 @@ FIXES:
 """
 import logging
 from typing import Optional, List
-from fastapi import APIRouter, HTTPException, Header, Query, Depends
+from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel, ConfigDict, Field
 from app.services.module_service import ModuleService
+from app.core.auth import AuthUser, require_user
 from app.core.sanitize import sanitize_uuid
 from fastapi.responses import Response
 
@@ -53,24 +54,18 @@ class GenerateTestRequest(BaseModel):
     topics: Optional[List[str]] = None
 
 
-def _validate_teacher_id(teacher_id: Optional[str]) -> str:
-    """Validate teacher_id is present and looks like a UUID."""
-    if not teacher_id or not teacher_id.strip():
-        raise HTTPException(400, "teacher_id required")
-    try:
-        return sanitize_uuid(teacher_id.strip())
-    except ValueError:
-        raise HTTPException(400, "Invalid teacher_id format")
+def _owned_storage_path(user_id: str, storage_path: str) -> str:
+    path = (storage_path or "").strip().replace("\\", "/")
+    if ".." in path or path.startswith("/") or not path.startswith(f"{user_id}/"):
+        raise HTTPException(403, "storage_path must be under your account folder")
+    return path
 
 
-def extract_teacher_id(teacher_id: Optional[str], authorization: Optional[str] = None) -> str:
-    """Extract and validate teacher_id from body or authorization header."""
-    if teacher_id and str(teacher_id).strip():
-        try:
-            return sanitize_uuid(str(teacher_id).strip())
-        except ValueError:
-            return str(teacher_id).strip()
-    return ""
+def _require_owned_module(module_id: str, teacher_id: str) -> dict:
+    module = ModuleService.get_module(module_id, teacher_id)
+    if not module:
+        raise HTTPException(404, "Module not found")
+    return module
 
 
 def _validate_file_type(file_type: str) -> str:
@@ -83,17 +78,14 @@ def _validate_file_type(file_type: str) -> str:
 
 
 @router.post("/modules/create")
-async def create_module(req: CreateModuleRequest, authorization: Optional[str] = Header(None)):
-    teacher_id = _validate_teacher_id(req.teacher_id)
+async def create_module(req: CreateModuleRequest, user: AuthUser = Depends(require_user)):
+    teacher_id = user.id
     file_type = _validate_file_type(req.file_type)
-
-    # SECURITY: Prevent path traversal in storage_path
-    if ".." in req.storage_path or req.storage_path.startswith("/"):
-        raise HTTPException(400, "Invalid storage path")
+    storage_path = _owned_storage_path(teacher_id, req.storage_path)
 
     module_id, error = ModuleService.create_module(
         teacher_id=teacher_id,
-        storage_path=req.storage_path,
+        storage_path=storage_path,
         original_filename=req.original_filename,
         subject=req.subject,
         class_level=req.class_level,
@@ -115,9 +107,10 @@ async def create_module(req: CreateModuleRequest, authorization: Optional[str] =
 
 
 @router.post("/modules/process")
-async def process_module(req: ProcessModuleRequest):
+async def process_module(req: ProcessModuleRequest, user: AuthUser = Depends(require_user)):
     if not req.module_id:
         raise HTTPException(400, "module_id required")
+    _require_owned_module(req.module_id, user.id)
 
     result = ModuleService.process_module(req.module_id)
 
@@ -132,28 +125,32 @@ async def process_module(req: ProcessModuleRequest):
 
 @router.get("/modules/list")
 async def list_modules(
-    teacher_id: str = Query(..., max_length=50),
+    user: AuthUser = Depends(require_user),
     subject: Optional[str] = Query(None, max_length=MAX_SUBJECT_LENGTH),
     class_level: Optional[str] = Query(None, alias="class", max_length=10),
+    teacher_id: Optional[str] = Query(None, max_length=50),  # ignored: owner is the JWT user
 ):
-    teacher_id = _validate_teacher_id(teacher_id)
-    modules = ModuleService.list_modules(teacher_id, subject, class_level)
+    modules = ModuleService.list_modules(user.id, subject, class_level)
     return {"success": True, "count": len(modules), "modules": modules}
 
 
 @router.get("/modules/{module_id}")
-async def get_module(module_id: str, teacher_id: str = Query(..., max_length=50)):
-    teacher_id = _validate_teacher_id(teacher_id)
-    module = ModuleService.get_module(module_id, teacher_id)
-    if not module:
-        raise HTTPException(404, "Module not found")
+async def get_module(
+    module_id: str,
+    user: AuthUser = Depends(require_user),
+    teacher_id: Optional[str] = Query(None, max_length=50),  # ignored
+):
+    module = _require_owned_module(module_id, user.id)
     return {"success": True, **module}
 
 
 @router.delete("/modules/{module_id}")
-async def delete_module(module_id: str, teacher_id: str = Query(..., max_length=50)):
-    teacher_id = _validate_teacher_id(teacher_id)
-    success, error = ModuleService.delete_module(module_id, teacher_id)
+async def delete_module(
+    module_id: str,
+    user: AuthUser = Depends(require_user),
+    teacher_id: Optional[str] = Query(None, max_length=50),  # ignored
+):
+    success, error = ModuleService.delete_module(module_id, user.id)
     if success:
         return {"success": True, "message": "Module deleted"}
     raise HTTPException(404, "Module not found or access denied")
@@ -163,9 +160,10 @@ async def delete_module(module_id: str, teacher_id: str = Query(..., max_length=
 async def generate_test_from_module(
     module_id: str,
     req: GenerateTestRequest,
-    authorization: Optional[str] = Header(None),
+    user: AuthUser = Depends(require_user),
 ):
-    teacher_id = _validate_teacher_id(req.teacher_id)
+    teacher_id = user.id
+    _require_owned_module(module_id, teacher_id)
 
     # Validate difficulty
     valid_difficulties = {"easy", "medium", "hard", "mixed"}
@@ -190,11 +188,10 @@ async def generate_test_from_module(
     
 
 @router.post("/modules/{module_id}/generate-worksheet")
-async def generate_worksheet(module_id: str, req: dict, authorization: Optional[str] = Header(None)):
+async def generate_worksheet(module_id: str, req: dict, user: AuthUser = Depends(require_user)):
     """Generate worksheet questions from module content."""
-    teacher_id = _validate_teacher_id(req.get("teacher_id"))
-    if not teacher_id:
-        raise HTTPException(400, "teacher_id required")
+    teacher_id = user.id
+    _require_owned_module(module_id, teacher_id)
 
     from app.services.worksheet_service import WorksheetService
 
@@ -217,11 +214,10 @@ async def generate_worksheet(module_id: str, req: dict, authorization: Optional[
 
 
 @router.post("/modules/{module_id}/download-worksheet")
-async def download_worksheet(module_id: str, req: dict, authorization: Optional[str] = Header(None)):
+async def download_worksheet(module_id: str, req: dict, user: AuthUser = Depends(require_user)):
     """Generate and download worksheet as PDF."""
-    teacher_id = _validate_teacher_id(req.get("teacher_id"))
-    if not teacher_id:
-        raise HTTPException(400, "teacher_id required")
+    teacher_id = user.id
+    _require_owned_module(module_id, teacher_id)
 
     from app.services.worksheet_service import WorksheetService
     import base64
@@ -281,18 +277,14 @@ async def download_worksheet(module_id: str, req: dict, authorization: Optional[
  
  
 @router.post("/worksheet/generate-direct")
-async def generate_worksheet_direct(req: dict, authorization: Optional[str] = Header(None)):
+async def generate_worksheet_direct(req: dict, user: AuthUser = Depends(require_user)):
     """Generate worksheet directly from uploaded PDF — no module needed."""
-    teacher_id = _validate_teacher_id(req.get("teacher_id"))
-    if not teacher_id:
-        raise HTTPException(400, "teacher_id required")
+    teacher_id = user.id
 
     from app.services.module_service import ModuleService, get_supabase, get_genai
     import tempfile, os, json
 
-    storage_path = req.get("storage_path", "")
-    if not storage_path:
-        raise HTTPException(400, "storage_path required")
+    storage_path = _owned_storage_path(teacher_id, req.get("storage_path", ""))
 
     try:
         sb = get_supabase()
@@ -447,7 +439,7 @@ Output ONLY valid JSON, no markdown, no backticks."""
 
 
 @router.post("/worksheet/download")
-async def download_worksheet_pdf(req: dict, authorization: Optional[str] = Header(None)):
+async def download_worksheet_pdf(req: dict, user: AuthUser = Depends(require_user)):
     """Download worksheet as PDF with optional school branding and date."""
     from app.services.worksheet_service import WorksheetService
     import base64

@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 
 # ============ CONFIG ============
-API_KEY = "AIzaSyD8z4kiwpNBdyBv9uYX9iTda6fRbqTL9dc"
+API_KEY = os.environ["GEMINI_API_KEY"]  # never hardcode keys (repo is public)
 MODEL = "gemini-2.5-flash" # Supports PDF natively
 # ================================
 

@@ -111,6 +111,7 @@ def _parse_answer_key_json(raw: str) -> dict:
 @router.post("/extract-key")
 async def extract_key(
     file: UploadFile = File(..., description="Answer key PDF or image"),
+    user: AuthUser = Depends(require_user),
 ):
     """
     Upload an answer key PDF/image → get structured JSON back.
