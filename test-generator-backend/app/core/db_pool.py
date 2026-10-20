@@ -12,8 +12,15 @@ logger = logging.getLogger(__name__)
 
 _pool = None
 
+def _has_db_credentials() -> bool:
+    return bool(os.getenv("DATABASE_URL") or os.getenv("DB_PASSWORD"))
+
+
 def _get_pool():
     global _pool
+    if not _has_db_credentials():
+        logger.error("DATABASE_URL / DB_PASSWORD not set — direct Postgres disabled")
+        return None
     if _pool is None or _pool.closed:
         try:
             db_url = os.getenv("DATABASE_URL")
@@ -26,7 +33,7 @@ def _get_pool():
                     host=os.getenv("DB_HOST", "aws-0-ap-south-1.pooler.supabase.com"),
                     database=os.getenv("DB_NAME", "postgres"),
                     user=os.getenv("DB_USER", "postgres.dcmnzvjftmdbywrjkust"),
-                    password=os.getenv("DB_PASSWORD", "a4ai2026securePass"),
+                    password=os.getenv("DB_PASSWORD"),  # no fallback: secrets come from env only
                     port=int(os.getenv("DB_PORT", "6543")),
                     sslmode="require",
                     connect_timeout=10,
@@ -73,6 +80,8 @@ def get_db_connection():
     """Returns a PooledConnectionProxy whose .close() returns connection to pool."""
     pool = _get_pool()
     if not pool:
+        if not _has_db_credentials():
+            return None
         try:
             db_url = os.getenv("DATABASE_URL")
             if db_url:
@@ -82,7 +91,7 @@ def get_db_connection():
                     host=os.getenv("DB_HOST", "aws-0-ap-south-1.pooler.supabase.com"),
                     database=os.getenv("DB_NAME", "postgres"),
                     user=os.getenv("DB_USER", "postgres.dcmnzvjftmdbywrjkust"),
-                    password=os.getenv("DB_PASSWORD", "a4ai2026securePass"),
+                    password=os.getenv("DB_PASSWORD"),  # no fallback: secrets come from env only
                     port=int(os.getenv("DB_PORT", "6543")),
                     sslmode="require",
                     connect_timeout=10,
