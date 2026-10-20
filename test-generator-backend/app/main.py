@@ -1,6 +1,8 @@
 """
 A4AI Test Generator Backend — FastAPI (Security Hardened)
 """
+import hmac
+import os
 import time
 import logging
 from collections import defaultdict
@@ -77,6 +79,17 @@ HIGH_THROUGHPUT_ENDPOINTS = {
     "/api/v1/test-generator/subjects": 1200,
 }
 
+# Load-test bypass: only on Vercel preview deployments AND only with the secret header.
+# Never set LOADTEST_BYPASS_TOKEN in production; remove it from preview after the test.
+_LOADTEST_TOKEN = os.getenv("LOADTEST_BYPASS_TOKEN", "")
+_LOADTEST_ENABLED = bool(_LOADTEST_TOKEN) and os.getenv("VERCEL_ENV") == "preview"
+
+
+def _is_loadtest_request(request: Request, path: str) -> bool:
+    if not _LOADTEST_ENABLED or path not in HIGH_THROUGHPUT_ENDPOINTS:
+        return False
+    return hmac.compare_digest(request.headers.get("x-loadtest-token", ""), _LOADTEST_TOKEN)
+
 
 @app.middleware("http")
 async def rate_limit_middleware(request: Request, call_next):
@@ -94,6 +107,9 @@ async def rate_limit_middleware(request: Request, call_next):
         path in ("/health", "/", "/openapi.json", "/docs", "/redoc", "/favicon.ico")
         or path.startswith("/api/v1/whatsapp")
     ):
+        return await call_next(request)
+
+    if _is_loadtest_request(request, path):
         return await call_next(request)
 
     client_ip = (
