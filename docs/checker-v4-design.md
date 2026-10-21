@@ -14,7 +14,7 @@ and the font spike. Branch `feat/checker-v4` (from `origin/main` 4ccc147).
 | Function config | Fluid compute on, default timeout **300 s** (Hobby max), memory "standard" (2 GB / 1 vCPU), region was **iad1** (US East) → **bom1 since 21 Oct** (7.2) | `vercel api /v9/projects/rag-backend` |
 | Python bundle limit | 500 MB uncompressed (other runtimes 250 MB) | Vercel docs, functions/limitations |
 | Request body | 4.5 MB per function request/response | Vercel docs |
-| PyMuPDF wheel | `pymupdf-2.0` manylinux: 69 MB wheel, **115.5 MB unzipped**. `api/requirements.txt` has it **unpinned** | `pip download` |
+| PyMuPDF | **Correction (22 Oct):** 2.0 is 115 MB itself AND pulls onnxruntime + numpy (~200 MB) → prod bundle **351.63 MB** ("exceeds the standard size; optimizing dependencies" in the build log) → dependencies installed at runtime on cold start (8–90 s, /tmp full under burst). Pinned to **1.28.2** (the version all code and tests run on) | build log dpl_4bDL…, fix/deps-region c2af51a |
 | rapidfuzz wheel | 3.14.6: 3 MB wheel, 12 MB unzipped (new dependency) | `pip download` |
 | Supabase | project `a4ai.in`, region **ap-south-1** (Mumbai), Postgres 15.8 | `supabase projects list` |
 | pg_net / pg_cron / pgmq | available, **not installed** | `pg_available_extensions` |
@@ -39,8 +39,8 @@ and the font spike. Branch `feat/checker-v4` (from `origin/main` 4ccc147).
 2. **Region mismatch.** Functions run in iad1 and the DB and Storage are in Mumbai. That is ~200–250 ms per
    round trip, and one sheet does ~20–30 DB/Storage calls plus page image transfers, i.e. several seconds per
    sheet. Proposal: set the function region to `bom1` (prod config change → owner).
-3. **Pin PyMuPDF** (`pymupdf==2.0.*`): 115 MB unzipped fits the 500 MB Python limit, but an unpinned major bump
-   can change rendering. Add `rapidfuzz==3.14.*`.
+3. **Pin PyMuPDF to 1.28.2** (corrected 22 Oct — 2.0 drags onnxruntime + numpy and blew the bundle to 351 MB).
+   Add `rapidfuzz==3.14.*` later only after measuring the bundle.
 4. **pg_net + pg_cron must be enabled** before G2 (owner action).
 5. **Storage growth.** Per copy ≈ norm pages 7 × ~200 KB + marked PDF ≤ 1.5 MB + summary ~0.3 MB ≈ 3–3.5 MB, so
    500 copies ≈ 1.7 GB. The project already holds ~1 GB. Check the Supabase plan (Free = 1 GB). Rendered files are
@@ -483,7 +483,7 @@ count only (no paths of minors' files in logs). Env: `CHECKER_RETENTION_DAYS`, `
 - **Proof:** `scripts/g1_marked_copy_demo.py` (mocked) → 35/40, all 17 questions = expected, flags raised, 1 + 1
   calls; frontend `buildMarkedCopyPdf` run in headless Chrome on that output → `docs/checker-v4/g1/*.png`.
 - **Tests:** `pytest` in `test-generator-backend` (33 tests, no API calls); preprocess tests also pass on
-  PyMuPDF 2.0. `api/requirements.txt` pins `PyMuPDF==2.0.*`.
+  PyMuPDF 2.0. `api/requirements.txt` pins `PyMuPDF==1.28.2` (2.0 bloats the bundle, see §1).
 
 ### 8.1 Before deploy (21 Oct)
 
