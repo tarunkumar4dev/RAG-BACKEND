@@ -20,11 +20,12 @@ import re
 import time
 import uuid
 from collections import Counter
-from urllib.parse import urlsplit
+from urllib.parse import urlencode, urlsplit
 
 import gevent
 import gevent.event
-from locust import HttpUser, between, events, task
+from locust import between, events, task
+from locust.contrib.fasthttp import FastHttpUser
 
 
 def _load_local_env():
@@ -260,8 +261,15 @@ def _report_cache(environment, **_):
                        "slow_requests": slow_requests}, f, indent=2)
 
 
-class _BuilderUser(HttpUser):
+class _BuilderUser(FastHttpUser):
+    # FastHttpUser (geventhttpclient): the requests-based HttpUser blocked the gevent loop on
+    # Windows under TLS load (p99 loop lag 3.5 s), which inflated every measured latency.
     abstract = True
+    network_timeout = 120.0  # default 60 s would turn the slow tail we are measuring into errors
+    connection_timeout = 30.0
+    # Never follow redirects: a 3xx means the protection bypass failed and must hard-stop.
+    # (max_redirects, not allow_redirects=False: the latter crashes in Locust 2.32.4's FastHttpSession.)
+    max_redirects = 0
     wait_time = between(2, 6)
     cache_bust = False
 
@@ -282,7 +290,6 @@ class _BuilderUser(HttpUser):
                 raise RuntimeError(f"BLOCKED: only GET allowed, got {method} {url}")
             _check_path(url)
             kwargs["headers"] = {**(kwargs.get("headers") or {}), **secret_headers}
-            kwargs["allow_redirects"] = False  # a redirect means protection bypass failed; see it
 
             return original(method, url, *args, **kwargs)
 
@@ -294,7 +301,8 @@ class _BuilderUser(HttpUser):
         if self.cache_bust:
             params = {**params, "_lt": uuid.uuid4().hex}
             name += " [bust]"
-        with self.client.get(path, params=params, name=name, catch_response=True) as resp:
+        url = f"{path}?{urlencode(params)}"  # FastHttpSession has no params= argument
+        with self.client.get(url, name=name, catch_response=True) as resp:
             if resp.status_code == 0:
                 resp.failure(f"connection error: {type(resp.error).__name__}")
                 return None
