@@ -8,7 +8,10 @@ DB-backed endpoints:
 
 The locustfile allowlists these two paths and GET only. Any other path, including every
 Gemini / export / payment / write endpoint, raises `BLOCKED` before a request is sent.
-Production hosts (`api.a4ai.in`, `rag-backend-kappa-three.vercel.app`) are refused at start.
+Hosts are allowlisted: only a branch preview alias `rag-backend-git-<branch>-taruns-projects-5d2bf9e6.vercel.app`
+(never `git-main`) or localhost. Every production alias and per-deploy URL is refused at start.
+
+Target for this test: `https://rag-backend-git-feat-loadtest-taruns-projects-5d2bf9e6.vercel.app`
 No login: both endpoints are public.
 
 ## Scenarios

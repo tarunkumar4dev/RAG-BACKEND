@@ -53,8 +53,11 @@ BLOCKED_PREFIXES = (
     "/api/v1/payment", "/api/v1/contest", "/api/v1/community", "/api/v1/test-checker",
     "/api/v1/copy-checker", "/api/v1/smart-assignment",
 )
-# Production hosts: never load test these.
-BLOCKED_HOSTS = {"api.a4ai.in", "a4ai.in", "www.a4ai.in", "rag-backend-kappa-three.vercel.app"}
+# Host allowlist: only a Vercel *branch* preview alias (never git-main), or a local mock.
+# Production has several aliases (kappa-three, rag-backend-<team>, git-main, api.a4ai.in) plus a
+# unique URL per deploy, so a blocklist can't cover it; an allowlist can.
+PREVIEW_HOST = re.compile(r"^rag-backend-git-(?!main-)[a-z0-9-]+-taruns-projects-5d2bf9e6\.vercel\.app$")
+LOCAL_HOSTS = {"127.0.0.1", "localhost"}
 
 PAGE_SIZE = 30  # same as TestBuilderPage.tsx
 
@@ -125,8 +128,9 @@ def _check_path(url: str) -> None:
 @events.test_start.add_listener
 def _check_host(environment, **_):
     host = urlsplit(environment.host or "").hostname or ""
-    if host in BLOCKED_HOSTS:
-        raise SystemExit(f"Refusing to load test production host {host!r}. Use the preview URL.")
+    if host not in LOCAL_HOSTS and not PREVIEW_HOST.match(host):
+        raise SystemExit(f"Refusing to load test {host!r}: only rag-backend-git-<branch>-... "
+                         "preview aliases (not main) or localhost are allowed.")
     if not os.getenv("LOADTEST_BYPASS_TOKEN"):
         print("WARNING: LOADTEST_BYPASS_TOKEN not set; expect 429s from the rate limiter.")
     gevent.spawn(_sample_cpu, environment)
