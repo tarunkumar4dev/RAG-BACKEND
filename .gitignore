@@ -15,3 +15,6 @@ answer_check/sheets/*.pdf
 answer_check/results/
 # DB remediation backups (contain question data)
 test-generator-backend/scripts/backups/
+
+# checker test/demo output
+test-generator-backend/tests/output/

@@ -10,5 +10,5 @@ reportlab
 python-docx
 razorpay
 psycopg2-binary
-PyMuPDF
+PyMuPDF==2.0.*
 pylatexenc

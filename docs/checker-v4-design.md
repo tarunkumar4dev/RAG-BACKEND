@@ -457,3 +457,30 @@ count only (no paths of minors' files in logs). Env: `CHECKER_RETENTION_DAYS`, `
   route + limit in the PR description).
 - **G2 start:** owner enables pg_net + pg_cron; restore `zshgoopqjdoilkwiuupu` for the load test; retention job.
 - **G5:** parent phone task (7.6).
+
+---
+
+## 8. G1 — implemented (21 Oct)
+
+- **Gemini calls (rule 2):** `_generate` = one attempt per model; fallback only on 404/503; 429/500/504 →
+  `GeminiBusy` (HTTP 503 "AI service is busy…" until G2 re-queues); `_generate_json` = at most 1 retry (2 s);
+  `usage_meter()` counts calls + tokens per sheet / rubric and raises `CallCapExceeded` at
+  `MAX_GEMINI_CALLS_PER_SHEET` (12). Request timeout `CHECKER_GEMINI_TIMEOUT_S` (90). Files go **inline** (no
+  Files API upload/delete — 14 fewer API calls for 7 pages, nothing kept at Google); Files API only above 14 MB.
+  `GEMINI_MOCK=1` + `GEMINI_MOCK_DIR` = recorded replies, zero cost.
+- **Stage A** (`answer_checker/preprocess.py`): PDF/photos → JPEG (150 dpi, ≤ 2000 px, q80), BadFile errors with
+  no Gemini call (empty, wrong type, corrupt, password, > 16 pages), blank pages (ink < 0.02 % after removing
+  ruled lines / margins / shadows) are not sent. Rotation + student page order come from the SAME grade call
+  (`page_meta=True`, no extra call); pages are turned upright, reordered, answer positions remapped, flags
+  `PAGES_REORDERED` / `PAGE_ROTATED` / `BLANK_PAGE`.
+- **Storage:** final pages at `answer-sheets/{uid}/{session}/{sheet}/norm/p{i}.jpg`; `ai_result.norm_pages`,
+  `ai_result.sheet_flags`, `ai_result.usage`. No migration in G1: these live in `ai_result` (JSON); G2's migration
+  adds the `norm_pages` column and backfills it.
+- **Stopgap red pen** (frontend): marks drawn on `norm_pages` (PDF uploads work, rotated pages are upright);
+  delivered as `…/{sheet}/rendered/marked_<ts>.pdf` (older ones removed) + 10-min signed URL with
+  `download=<file name>` — no `blob:` URL.
+- **Rate limiter:** `app/core/rate_limit.py`; route list + limits in `docs/checker-v4/g1-route-limits.md`.
+- **Proof:** `scripts/g1_marked_copy_demo.py` (mocked) → 35/40, all 17 questions = expected, flags raised, 1 + 1
+  calls; frontend `buildMarkedCopyPdf` run in headless Chrome on that output → `docs/checker-v4/g1/*.png`.
+- **Tests:** `pytest` in `test-generator-backend` (33 tests, no API calls); preprocess tests also pass on
+  PyMuPDF 2.0. `api/requirements.txt` pins `PyMuPDF==2.0.*`.
