@@ -9,6 +9,7 @@ backup_extra_files/
 
 .vercel
 .env*.local
+**/.env.loadtest
 answer_check/.env
 answer_check/sheets/*.jpg
 answer_check/sheets/*.pdf
