@@ -55,7 +55,8 @@ app.add_middleware(
     allow_origins=origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],  # PATCH: checker marks override
-    allow_headers=["Authorization", "Content-Type", "X-Requested-With"],
+    # X-Attempt-Id: contest submit sends it from the browser; without it the CORS preflight is rejected (400)
+    allow_headers=["Authorization", "Content-Type", "X-Requested-With", "X-Attempt-Id"],
 )
 
 app.add_middleware(GZipMiddleware, minimum_size=1000)
