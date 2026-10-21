@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 import pymupdf
+import pytest
 
 from tests.conftest import FIXTURES, ROOT
 
@@ -14,17 +15,23 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import anonymise_copies as anon  # noqa: E402
 
 
-def test_only_readme_and_anonymised_are_tracked():
+def test_only_the_readme_is_tracked():
     tracked = subprocess.run(["git", "ls-files", "tests/fixtures/real"], cwd=ROOT, capture_output=True, text=True,
                              check=True).stdout.split()
-    bad = [p for p in tracked if p != "tests/fixtures/real/README.md"
-           and not p.startswith("tests/fixtures/real/anonymised/")]
-    assert not bad, f"real student files tracked outside anonymised/: {bad}"
+    assert tracked == ["tests/fixtures/real/README.md"], f"real copies must never be in git: {tracked}"
 
 
-def test_raw_folder_is_ignored():
-    r = subprocess.run(["git", "check-ignore", "-q", "tests/fixtures/real/raw/anything.pdf"], cwd=ROOT)
-    assert r.returncode == 0
+@pytest.mark.parametrize("path", ["tests/fixtures/real/raw/x.pdf", "tests/fixtures/real/anonymised/copy_01/p01.jpg",
+                                  "tests/fixtures/real/anything.json"])
+def test_everything_but_the_readme_is_ignored(path):
+    assert subprocess.run(["git", "check-ignore", "-q", path], cwd=ROOT).returncode == 0
+
+
+def test_anonymiser_refuses_a_folder_inside_a_repo(monkeypatch):
+    monkeypatch.setattr(sys, "argv", ["anonymise_copies.py", "--raw", str(ROOT / "tests" / "fixtures" / "real" / "raw"),
+                                      "--out", str(ROOT / "tests" / "fixtures" / "real" / "anonymised")])
+    with pytest.raises(SystemExit, match="inside a git repo"):
+        anon.main()
 
 
 def test_anonymiser(tmp_path):
@@ -37,7 +44,7 @@ def test_anonymiser(tmp_path):
     (src / "redact.json").write_text(json.dumps([{"page": 3, "x0": 0.0, "y0": 0.8, "x1": 1.0, "y1": 1.0}]))
 
     sys.argv = ["anonymise_copies.py", "--raw", str(tmp_path / "raw"), "--out", str(tmp_path / "anon")]
-    anon.main()
+    anon.main()       # tmp_path is outside any repo
 
     out = tmp_path / "anon" / "copy_01"
     pages = sorted((out / "pages").glob("*.jpg"))

@@ -1,28 +1,27 @@
 # Real handwritten copies (G3 test set)
 
 Copies from partner institutes, used to measure the checker against **teacher marks**. These are minors' answer
-sheets: originals never leave this machine and are never committed.
+sheets: **they are never in git — not the originals, not the anonymised versions, not in any repo.** They live in
+a local folder outside the repo (backed up to the owner's Google Drive), pointed to by `REAL_COPIES_DIR`.
+This README and `scripts/anonymise_copies.py` are the only parts in the repo.
 
 ```
-tests/fixtures/real/
-  README.md
-  raw/                         ← ORIGINALS, git-ignored, never committed, never uploaded anywhere
-    <any folder name>/         one folder per student copy, exactly as received
-      pages/                   the copy: one PDF, or photos (jpg/png/webp) named in page order (01.jpg, 02.jpg …)
+$REAL_COPIES_DIR/              e.g. C:\Users\login\a4ai_real_copies  (NOT inside a repo folder — the script refuses)
+  raw/                         originals, exactly as received — never uploaded anywhere
+    <any folder name>/         one folder per student copy
+      pages/                   one PDF, or photos (jpg/png/webp) named in page order (01.jpg, 02.jpg …)
       rubric.json              marking scheme in the checker's rubric format   ─┐ one of
       test.json                {"test_id": "<uuid of the saved test in a4ai>"} ─┘ the two
       expected.json            teacher marks (format below)
       redact.json              optional: extra boxes to black out (format below)
-  anonymised/                  ← output of scripts/anonymise_copies.py — the ONLY part that is committed
+    _mapping.json              copy_NN → original folder name (written by the script)
+  anonymised/                  output of the script — what tests read
     copy_01/
       pages/p01.jpg …          normalised page images, name/roll box blacked out, no metadata
       rubric.json | test.json
       expected.json            student / teacher identifiers removed
       anonymise.json           what was blacked out (page + box), script version
 ```
-
-The mapping `copy_01 → original folder` is written to `raw/_mapping.json` (git-ignored) so a copy can be traced
-back locally, never from the repo.
 
 ## expected.json (teacher marks)
 
@@ -44,7 +43,7 @@ back locally, never from the repo.
 - `q` uses the paper's numbering ("15", "15-OR" for the internal-choice alternative that the student answered).
 - Marks are what the teacher actually gave (½ steps). Questions not attempted: `"marks": 0, "note": "not attempted"`.
 - No names, roll numbers, school names or teacher names anywhere in this file — the script also strips the keys
-  `name, student_name, roll, roll_no, school, institute, teacher, teacher_name, phone, email`.
+  `name, student_name, roll, roll_no, school, institute, teacher, teacher_name, phone, email, parent_*`.
 
 ## What gets blacked out
 
@@ -61,8 +60,13 @@ Boxes are filled solid (not blurred: blur can sometimes be read back). Pages are
 
 ## Workflow
 
-1. Put each copy in `raw/<folder>/` as above.
-2. `python scripts/anonymise_copies.py` (from `test-generator-backend/`).
-3. **Look at every `anonymised/copy_NN/pages/p01.jpg`** before committing — the header band is a default, not a
-   detector. Add a `redact.json` and re-run with `--force` if anything identifying is still visible.
-4. Commit `anonymised/` only. `tests/unit/test_real_fixtures_guard.py` fails if anything under `raw/` is tracked.
+1. PowerShell: `$env:REAL_COPIES_DIR = "C:\Users\login\a4ai_real_copies"` (any folder outside the repos).
+2. Put each copy in `$REAL_COPIES_DIR\raw\<folder>\` as above.
+3. `python scripts/anonymise_copies.py` (from `test-generator-backend/`).
+4. **Look at every `anonymised\copy_NN\pages\p01.jpg`** — the header band is a default, not a detector. Add a
+   `redact.json` and re-run with `--force` if anything identifying is still visible.
+5. Tests that use real copies read `$REAL_COPIES_DIR/anonymised` and are **skipped** when the variable is not set.
+
+Guards: `.gitignore` ignores everything in `tests/fixtures/real/` except this README; the script refuses a
+`REAL_COPIES_DIR` inside the repo; `tests/unit/test_real_fixtures_guard.py` fails if anything but this README is
+tracked here.

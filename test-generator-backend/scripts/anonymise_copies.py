@@ -1,7 +1,11 @@
 """
 Anonymise real handwritten copies for the G3 test set (tests/fixtures/real/README.md). No network, no Gemini.
 
+  $env:REAL_COPIES_DIR = "C:/Users/login/a4ai_real_copies"     # outside every repo
   python scripts/anonymise_copies.py [--raw DIR] [--out DIR] [--header 0.22] [--every-page-header] [--force]
+
+Defaults: --raw $REAL_COPIES_DIR/raw, --out $REAL_COPIES_DIR/anonymised. Refuses any folder inside a git repo:
+real copies are never committed, not even anonymised.
 
 For every folder in raw/: pages → normalised JPEGs (Stage A, same as the checker sees them), the page-1 header
 band (and any redact.json boxes) filled solid, metadata dropped, identifiers stripped from the JSON files.
@@ -10,6 +14,7 @@ Output folders are named copy_01, copy_02 …; the mapping to the original folde
 
 import argparse
 import json
+import os
 import shutil
 import sys
 from pathlib import Path
@@ -22,7 +27,6 @@ sys.path.insert(0, str(ROOT))
 from app.services.answer_checker import preprocess  # noqa: E402
 
 VERSION = "anonymise-1"
-REAL = ROOT / "tests" / "fixtures" / "real"
 PAGE_TYPES = {".pdf", ".jpg", ".jpeg", ".png", ".webp"}
 PII_KEYS = {"name", "student_name", "roll", "roll_no", "school", "institute", "teacher", "teacher_name",
             "phone", "email", "parent_phone", "parent_name"}
@@ -81,16 +85,27 @@ def anonymise_copy(src: Path, dst: Path, header: float, every_page: bool) -> dic
     return {"pages": len(pages)}
 
 
+def inside_git_repo(path: Path) -> bool:
+    p = path.resolve()
+    return any((d / ".git").exists() for d in [p, *p.parents])
+
+
 def main() -> None:
+    base = Path(os.environ["REAL_COPIES_DIR"]) if os.getenv("REAL_COPIES_DIR") else None
     ap = argparse.ArgumentParser()
-    ap.add_argument("--raw", type=Path, default=REAL / "raw")
-    ap.add_argument("--out", type=Path, default=REAL / "anonymised")
+    ap.add_argument("--raw", type=Path, default=base / "raw" if base else None)
+    ap.add_argument("--out", type=Path, default=base / "anonymised" if base else None)
     ap.add_argument("--header", type=float, default=0.22, help="share of page 1 height blacked out (0-1)")
     ap.add_argument("--every-page-header", action="store_true")
     ap.add_argument("--force", action="store_true", help="rebuild copies that already exist")
     args = ap.parse_args()
     if not 0 < args.header < 0.6:
         sys.exit("--header must be between 0 and 0.6")
+    if args.raw is None or args.out is None:
+        sys.exit("Set $env:REAL_COPIES_DIR (a folder outside the repos) or pass --raw and --out.")
+    for d in (args.raw, args.out):
+        if inside_git_repo(d):
+            sys.exit(f"{d} is inside a git repo. Real copies (even anonymised) never go in a repo.")
 
     mapping_path = args.raw / "_mapping.json"
     mapping = json.loads(mapping_path.read_text("utf-8")) if mapping_path.exists() else {}

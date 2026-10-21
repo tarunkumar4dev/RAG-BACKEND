@@ -19,5 +19,6 @@ test-generator-backend/scripts/backups/
 # checker test/demo output
 test-generator-backend/tests/output/
 
-# real student copies: originals never committed (only tests/fixtures/real/anonymised/)
-test-generator-backend/tests/fixtures/real/raw/
+# real student copies never live in the repo (REAL_COPIES_DIR outside it); only the README is tracked
+test-generator-backend/tests/fixtures/real/*
+!test-generator-backend/tests/fixtures/real/README.md

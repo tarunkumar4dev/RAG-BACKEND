@@ -519,6 +519,10 @@ page indexes stay global. Calls per sheet grow with chunks → counted against `
 
 ### 8.3 Real copies test set
 
+Real copies are **never in git** — not raw, not anonymised, not in a private repo (owner decision, 21 Oct). They
+live in `REAL_COPIES_DIR` (outside every repo, backed up to the owner's Google Drive). In the repo:
 `tests/fixtures/real/README.md` (layout + expected.json), `scripts/anonymise_copies.py` (page-1 header band +
-redact.json boxes filled solid, EXIF dropped, identifier keys stripped, folders renamed copy_NN, mapping kept
-in raw/), `.gitignore` for `tests/fixtures/real/raw/`, guard test `tests/unit/test_real_fixtures_guard.py`.
+redact.json boxes filled solid, EXIF dropped, identifier keys stripped, folders renamed copy_NN, mapping kept in
+raw/; refuses any folder inside a git repo), `tests/real/test_real_copies.py` (reads
+`$REAL_COPIES_DIR/anonymised`, skipped when unset), `.gitignore` for everything in `tests/fixtures/real/` except
+the README, guard test `tests/unit/test_real_fixtures_guard.py`.
