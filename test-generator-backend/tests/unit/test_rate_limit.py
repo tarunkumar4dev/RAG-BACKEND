@@ -55,6 +55,8 @@ def test_exempt_and_limits():
     assert rl.is_exempt("/health")
     assert not rl.is_exempt("/api/v1/copy-checker/sheets/x/check")
     assert rl.limit_for("POST", "/api/v1/copy-checker/sheets/{sheet_id}/check", 300) == 60
+    assert rl.limit_for("POST", "/api/v1/contests/{contest_id}/submit", 300, "att:x") == 30
+    assert rl.limit_for("POST", "/api/v1/contests/{contest_id}/submit", 300, "ip:1.2.3.4") == 1200
     assert rl.limit_for("GET", "/something/else", 300) == 300
 
 
@@ -74,10 +76,63 @@ def test_middleware_limits_per_user_across_ids(monkeypatch):
     main._rate_store.clear()
 
 
+def test_attempt_identity_and_ip_fallback():
+    tpl = "/api/v1/contests/{contest_id}/submit"
+    assert rl.checks("POST", tpl, None, "1.1.1.1", "att-1", 60) == [
+        ("att:att-1|POST " + tpl, 30), ("attip:1.1.1.1|POST " + tpl, rl.ATTEMPT_IP_CEILING)]
+    assert rl.checks("POST", tpl, None, "1.1.1.1", None, 60) == [("ip:1.1.1.1|POST " + tpl, 1200)]
+    # a logged-in student is counted as the user, not the attempt
+    assert rl.checks("POST", tpl, _token({"sub": "stu"}), "1.1.1.1", "att-1", 60)[0][0].startswith("u:stu|")
+    assert rl.attempt_id("bad id with spaces") is None
+
+
+def _client_with_limit(monkeypatch, limit: int, ceiling: int = None):
+    from fastapi.testclient import TestClient
+    from app import main
+    monkeypatch.setitem(rl.ROUTE_LIMITS, f"POST {rl.UNMATCHED}", limit)
+    if ceiling is not None:
+        monkeypatch.setattr(rl, "ATTEMPT_IP_CEILING", ceiling)
+    main._rate_store.clear()
+    return TestClient(main.app), main
+
+
+def test_50_students_one_school_ip_no_429(monkeypatch):
+    """40+ students behind one WiFi IP, no login: each counted by its attempt id. Unmatched path = no route
+    runs (no network); the per-identity limit is set to 5 so 5 requests each is exactly at the edge."""
+    client, main = _client_with_limit(monkeypatch, limit=5)
+    codes = [client.post(f"/nope/submit/{s}", headers={"X-Attempt-Id": f"attempt-{s}"}).status_code
+             for s in range(50) for _ in range(5)]
+    assert codes.count(429) == 0 and len(codes) == 250
+    # the same 250 requests without an attempt id would be one IP bucket → 429 after the 5th
+    main._rate_store.clear()
+    codes = [client.post("/nope/submit/x").status_code for _ in range(10)]
+    assert codes.count(429) == 5
+    # one student over their own limit is still stopped
+    main._rate_store.clear()
+    codes = [client.post("/nope/submit/x", headers={"X-Attempt-Id": "attempt-0"}).status_code for _ in range(6)]
+    assert codes[-1] == 429
+    main._rate_store.clear()
+
+
+def test_made_up_attempt_ids_hit_the_ip_ceiling(monkeypatch):
+    client, main = _client_with_limit(monkeypatch, limit=5, ceiling=20)
+    codes = [client.post("/nope/x", headers={"X-Attempt-Id": f"fake-{i}"}).status_code for i in range(25)]
+    assert codes.count(429) == 5
+    main._rate_store.clear()
+
+
 def test_every_configured_limit_is_a_real_route():
     """A typo in ROUTE_LIMITS would silently fall back to the default limit."""
     from app.main import app as real_app
     real = {f"{m} {r.path}" for r in real_app.router.routes if isinstance(r, APIRoute) for m in r.methods}
     future = {"GET /r/{token}"}                # G6 share page
-    missing = set(rl.ROUTE_LIMITS) - real - future
+    missing = (set(rl.ROUTE_LIMITS) | set(rl.IP_FALLBACK_LIMITS)) - real - future
     assert not missing, missing
+
+
+def test_cors_allows_the_attempt_header():
+    """Contest submit sends X-Attempt-Id from the browser; without it in allow_headers the preflight is a 400."""
+    from fastapi.middleware.cors import CORSMiddleware
+    from app import main
+    cors = next(m for m in main.app.user_middleware if m.cls is CORSMiddleware)
+    assert "X-Attempt-Id" in cors.kwargs["allow_headers"]

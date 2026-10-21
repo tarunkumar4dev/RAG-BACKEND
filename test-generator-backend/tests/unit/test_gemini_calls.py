@@ -9,8 +9,11 @@ from google.genai import errors as genai_errors
 from app.services import smart_assignment_service as svc
 
 
-def api_error(code: int) -> genai_errors.APIError:
-    return genai_errors.APIError(code, {"error": {"code": code, "message": "x", "status": "X"}})
+def api_error(code: int, headers: dict = None, retry_delay: str = None) -> genai_errors.APIError:
+    err = {"code": code, "message": "x", "status": "X"}
+    if retry_delay:
+        err["details"] = [{"@type": "type.googleapis.com/google.rpc.RetryInfo", "retryDelay": retry_delay}]
+    return genai_errors.APIError(code, {"error": err}, SimpleNamespace(headers=headers or {}))
 
 
 class FakeModels:
@@ -23,6 +26,8 @@ class FakeModels:
         item = self.script.pop(0)
         if isinstance(item, int):
             raise api_error(item)
+        if isinstance(item, Exception):
+            raise item
         return SimpleNamespace(text=item, usage_metadata=SimpleNamespace(
             prompt_token_count=100, candidates_token_count=20, total_token_count=130, thoughts_token_count=10),
             candidates=[])
@@ -43,13 +48,32 @@ def live(monkeypatch):
     return make
 
 
-def test_429_is_not_retried_and_not_sent_to_fallbacks(live):
-    client, models, slept = live([429])
+def test_429_one_retry_after_default_5s_never_to_fallbacks(live):
+    client, models, slept = live([429, 429])
     with pytest.raises(svc.GeminiBusy) as e:
         svc._generate_json(client, ["x"], "GRADE", max_retries=5)
     assert e.value.code == 429
-    assert models.calls == ["primary"]
-    assert slept == []
+    assert models.calls == ["primary", "primary"]
+    assert slept == [5.0]
+
+
+def test_429_then_success(live):
+    client, models, slept = live([429, json.dumps({"ok": 1})])
+    assert svc._generate_json(client, ["x"], "GRADE") == {"ok": 1}
+    assert slept == [5.0]
+
+
+@pytest.mark.parametrize("err,wait", [
+    (api_error(429, headers={"retry-after": "7"}), 7.0),
+    (api_error(429, retry_delay="12s"), 12.0),
+    (api_error(429, headers={"retry-after": "120"}), 30.0),          # capped (CHECKER_MAX_RETRY_WAIT_S)
+])
+def test_429_waits_what_gemini_asks(live, err, wait):
+    client, models, slept = live([err, err])
+    with pytest.raises(svc.GeminiBusy):
+        svc._generate_json(client, ["x"], "GRADE")
+    assert slept == [wait]
+    assert len(models.calls) == 2
 
 
 def test_503_falls_back_once_per_model(live):

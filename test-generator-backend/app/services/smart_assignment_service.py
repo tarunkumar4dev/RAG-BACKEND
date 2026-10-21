@@ -83,11 +83,37 @@ _preferred_model: Optional[str] = None
 
 
 class GeminiBusy(RuntimeError):
-    """Quota (429) or overload: retry later (re-queue), never in a hot loop."""
+    """Quota (429) or overload: retry later (re-queue), never in a hot loop. retry_after = seconds Gemini asked
+    us to wait (Retry-After header or RetryInfo.retryDelay), None if it didn't say."""
 
-    def __init__(self, code: int, message: str = ""):
+    def __init__(self, code: int, message: str = "", retry_after: Optional[float] = None):
         super().__init__(message or f"Gemini busy ({code})")
         self.code = code
+        self.retry_after = retry_after
+
+
+# 429: wait what Gemini asks (default 5 s), but never longer than this inside a request
+CHECKER_MAX_RETRY_WAIT_S = float(os.getenv("CHECKER_MAX_RETRY_WAIT_S", "30"))
+
+
+def _retry_after_s(e: Exception) -> Optional[float]:
+    """Seconds from the Retry-After header, else from the error's RetryInfo ("retryDelay": "27s")."""
+    headers = getattr(getattr(e, "response", None), "headers", None) or {}
+    try:
+        value = headers.get("retry-after") or headers.get("Retry-After")
+        if value is not None:
+            return max(0.0, float(value))
+    except (TypeError, ValueError, AttributeError):
+        pass
+    details = getattr(e, "details", None)
+    err = details.get("error", details) if isinstance(details, dict) else {}
+    for d in (err.get("details") or []) if isinstance(err, dict) else []:
+        if isinstance(d, dict) and str(d.get("@type", "")).endswith("RetryInfo"):
+            try:
+                return max(0.0, float(str(d.get("retryDelay", "")).rstrip("s")))
+            except ValueError:
+                return None
+    return None
 
 
 class CallCapExceeded(RuntimeError):
@@ -220,7 +246,7 @@ def _generate(client: genai.Client, contents: list, tag: str):
                 logger.warning(f"[{tag}] {model} unavailable ({e.code}), trying the next model")
                 continue
             if e.code == 429 or e.code in _TRANSIENT_CODES:
-                raise GeminiBusy(e.code) from e
+                raise GeminiBusy(e.code, retry_after=_retry_after_s(e)) from e
             raise
     # every model failed with 404/503: overloaded → retry later; all gone → configuration problem, raise as-is
     if getattr(last_error, "code", None) == 503:
@@ -229,11 +255,14 @@ def _generate(client: genai.Client, contents: list, tag: str):
 
 
 def _generate_json(client: genai.Client, contents: list, tag: str, max_retries: int = 2) -> dict:
-    """_generate + json.loads. At most ONE retry (after 2 s), and only for an unreadable reply or a transient
-    5xx; quota errors (429) and the call cap are never retried here."""
+    """_generate + json.loads with at most ONE retry:
+      429 (quota)         → wait Retry-After (5 s if Gemini didn't say, capped at CHECKER_MAX_RETRY_WAIT_S)
+      5xx / bad JSON      → wait 2 s
+    The call cap is never retried. A second failure raises (GeminiBusy → HTTP 503 AI_BUSY)."""
     attempts = max(1, min(max_retries, 2))
     last_error: Optional[Exception] = None
     for attempt in range(1, attempts + 1):
+        wait = 2.0
         try:
             response = _generate(client, contents, tag)
             data = json.loads(response.text)
@@ -244,12 +273,12 @@ def _generate_json(client: genai.Client, contents: list, tag: str, max_retries: 
             logger.warning(f"[{tag}] Attempt {attempt} unreadable reply: {type(e).__name__}")
             last_error = e
         except GeminiBusy as e:
-            if e.code == 429:
-                raise
-            logger.warning(f"[{tag}] Attempt {attempt} Gemini busy ({e.code})")
+            logger.warning(f"[{tag}] Attempt {attempt} Gemini busy ({e.code}, retry_after={e.retry_after})")
             last_error = e
+            if e.code == 429:
+                wait = min(e.retry_after if e.retry_after is not None else 5.0, CHECKER_MAX_RETRY_WAIT_S)
         if attempt < attempts:
-            time.sleep(2)
+            time.sleep(wait)
     if isinstance(last_error, GeminiBusy):
         raise last_error
     raise ValueError(f"{tag} failed: {type(last_error).__name__}")
@@ -260,15 +289,25 @@ def _generate_json(client: genai.Client, contents: list, tag: str, max_retries: 
 # parallel and always delete afterwards (student sheets are personal data; Gemini keeps uploads 48 h)
 # ═══════════════════════════════════════════════════════════════════════
 
-# Inline request limit is 20 MB; keep headroom for the prompt and base64 overhead
-_INLINE_MAX_BYTES = int(os.getenv("CHECKER_INLINE_MAX_BYTES", str(14 * 1024 * 1024)))
+# Gemini inline limit: the image-understanding docs say the whole request (prompt + inline bytes) must stay under
+# 20 MB; the newer file-input docs say 100 MB (50 MB for PDFs). We keep the stricter one: the base64-ENCODED
+# request ≤ 18 MB, with 1 MB reserved for the prompt (rubric JSON + instructions).
+INLINE_REQUEST_BUDGET = int(os.getenv("CHECKER_INLINE_BUDGET_BYTES", str(18_000_000)))
+PROMPT_RESERVE = 1_000_000
+INLINE_FILES_BUDGET = INLINE_REQUEST_BUDGET - PROMPT_RESERVE
+
+
+def b64_size(raw_bytes: int) -> int:
+    """Size of `raw_bytes` once base64-encoded in the JSON request."""
+    return 4 * ((raw_bytes + 2) // 3)
 _MIME = {".pdf": "application/pdf", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
-         ".webp": "image/webp"}
+         ".webp": "image/webp", ".txt": "text/plain"}   # .txt = typed portal answers
 
 
 def upload_files(paths: list) -> list:
-    """Request parts for these files: inline bytes when they fit, else Gemini Files API uploads."""
-    if GEMINI_MOCK or sum(os.path.getsize(p) for p in paths) <= _INLINE_MAX_BYTES:
+    """Request parts for these files: inline bytes when they fit the encoded budget, else Gemini Files API uploads
+    (answer sheets never get here oversized: copy_check.grade_copy downscales or refuses first)."""
+    if GEMINI_MOCK or sum(b64_size(os.path.getsize(p)) for p in paths) <= INLINE_FILES_BUDGET:
         return [genai_types.Part.from_bytes(data=Path(p).read_bytes(),
                                             mime_type=_MIME.get(Path(p).suffix.lower(), "application/octet-stream"))
                 for p in paths]

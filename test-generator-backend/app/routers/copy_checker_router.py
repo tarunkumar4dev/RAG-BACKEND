@@ -33,6 +33,7 @@ from app.routers.smart_assignment_router import (
 )
 from app.services.answer_checker import preprocess
 from app.services.answer_checker.copy_check import grade_copy
+from app.core.api_errors import AI_BUSY_MSG, ai_busy
 from app.services.smart_assignment_service import GeminiBusy, build_rubric, rubric_from_test_fast, usage_meter
 
 logger = logging.getLogger(__name__)
@@ -48,7 +49,7 @@ RUBRIC_FAILED_MSG = "Could not prepare the marking scheme. Please try again."
 PAPER_UNREADABLE_MSG = "Could not read the question paper. Check that the photos are clear and try again."
 CHECK_FAILED_MSG = "AI check failed. Please try again."
 COPY_UNREADABLE_MSG = "Could not read this copy. Check that the photos are clear and try again."
-BUSY_MSG = "The AI service is busy right now. Please retry in a minute."
+BUSY_MSG = AI_BUSY_MSG
 
 
 def _uuid_or_404(value: str, what: str) -> None:
@@ -163,7 +164,7 @@ async def session_rubric(session_id: str, body: RubricRequest = RubricRequest(),
     except HTTPException:
         raise
     except GeminiBusy:
-        raise HTTPException(status_code=503, detail=BUSY_MSG)
+        raise ai_busy()
     except ValueError as e:
         raise HTTPException(status_code=422, detail=PAPER_UNREADABLE_MSG)
     except Exception as e:
@@ -276,7 +277,7 @@ async def check_sheet(sheet_id: str, c: _Caller = Depends(require_caller)):
     except preprocess.BadFile as e:
         raise HTTPException(status_code=422, detail=str(e))
     except GeminiBusy:
-        raise HTTPException(status_code=503, detail=BUSY_MSG, headers={"Retry-After": "60"})
+        raise ai_busy()
     except ValueError:
         raise HTTPException(status_code=422, detail=COPY_UNREADABLE_MSG)
     except Exception as e:

@@ -19,7 +19,7 @@ from app.api.v1.endpoints.whatsapp import router as whatsapp_router
 from app.routers.test_checker_router import router as test_checker_router
 from app.api.v1.endpoints.chat import router as chat_router
 from app.core.config import settings
-from app.core import rate_limit
+from app.core import api_errors, rate_limit
 from app.routers.smart_assignment_router import router as smart_assignment_router
 from app.routers.copy_checker_router import router as copy_checker_router
 
@@ -109,30 +109,32 @@ async def rate_limit_middleware(request: Request, call_next):
             _rate_store.pop(k, None)
 
     template = rate_limit.route_template(app, request.method, path)
-    max_req = rate_limit.limit_for(request.method, template, RATE_LIMIT_DEFAULT)
-    key = rate_limit.bucket_key(request.method, template, request.headers.get("authorization"), client_ip)
-    active_requests = [t for t in _rate_store[key] if now - t < RATE_LIMIT_WINDOW]
-    _rate_store[key] = active_requests
+    buckets = rate_limit.checks(request.method, template, request.headers.get("authorization"), client_ip,
+                                request.headers.get("x-attempt-id"), RATE_LIMIT_DEFAULT)
+    for key, limit in buckets:
+        active_requests = [t for t in _rate_store[key] if now - t < RATE_LIMIT_WINDOW]
+        _rate_store[key] = active_requests
+        if len(active_requests) >= limit:
+            logger.warning(
+                f"Rate limit hit: {key.split('|')[0][:14]}… on {request.method} {template} "
+                f"({len(active_requests)}/{limit})"
+            )
+            origin = request.headers.get("origin", "*")
+            return JSONResponse(
+                status_code=429,
+                headers={
+                    "Retry-After": "60",
+                    "Access-Control-Allow-Origin": origin,
+                    "Access-Control-Allow-Credentials": "true",
+                    "X-RateLimit-Limit": str(limit),
+                    "X-RateLimit-Remaining": "0",
+                },
+                content={"detail": "Too many requests. Please wait a moment and try again."},
+            )
 
-    if len(active_requests) >= max_req:
-        logger.warning(
-            f"Rate limit hit: {key.split('|')[0][:14]}… on {request.method} {template} "
-            f"({len(active_requests)}/{max_req})"
-        )
-        origin = request.headers.get("origin", "*")
-        return JSONResponse(
-            status_code=429,
-            headers={
-                "Retry-After": "60",
-                "Access-Control-Allow-Origin": origin,
-                "Access-Control-Allow-Credentials": "true",
-                "X-RateLimit-Limit": str(max_req),
-                "X-RateLimit-Remaining": "0",
-            },
-            content={"detail": "Too many requests. Please wait a moment and try again."},
-        )
-
-    _rate_store[key].append(now)
+    for key, _ in buckets:
+        _rate_store[key].append(now)
+    key, max_req = buckets[0]
     response = await call_next(request)
     response.headers["X-RateLimit-Limit"] = str(max_req)
     response.headers["X-RateLimit-Remaining"] = str(max(0, max_req - len(_rate_store[key])))
@@ -185,6 +187,9 @@ async def log_requests_middleware(request: Request, call_next):
 
 
 # ── Global Error Handler ────────────────────────────────────────────────
+
+app.add_exception_handler(api_errors.ApiError, api_errors.api_error_handler)
+
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):

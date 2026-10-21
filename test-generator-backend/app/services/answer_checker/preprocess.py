@@ -25,9 +25,11 @@ MAX_LONG_EDGE = int(os.getenv("CHECKER_MAX_LONG_EDGE", "2000"))
 JPEG_QUALITY = 80
 MAX_PAGES = int(os.getenv("COPY_CHECKER_MAX_PAGES", "16"))
 # Blank page: less than this share of "ink" pixels after ruled lines / margins are removed. Kept very low on
-# purpose: a blank page is not sent to the grader, so a page with only "(c)" on it must never count as blank.
-# Fixture: written pages 0.0049–0.022, empty ruled page with shadow + stain 0.0000.
-BLANK_INK_RATIO = 0.0002
+# purpose: a blank page is not sent to the grader, so a page with only "(c)" on it must never count as blank
+# (sending an empty page costs a few tokens; skipping a written one loses an answer).
+# Measured: fixture pages 0.0051–0.022, a ruled page with only "(c)" 0.00017, empty ruled page with shadow +
+# stain 0.00000.
+BLANK_INK_RATIO = 0.00005
 
 _IMAGE_TYPES = {".png": "png", ".jpg": "jpeg", ".jpeg": "jpeg", ".webp": "webp"}
 
@@ -88,13 +90,13 @@ _TILE = 20            # px, local paper brightness per tile (shadows / stains do
 _INK_DROP = 45        # a pixel is ink when it is this much darker than its tile's paper
 
 
-def _ink_ratio(page: pymupdf.Page) -> float:
-    """Share of ink pixels on a small grayscale render. Ink = clearly darker than the local paper (90th
-    percentile of its tile), so shadows and stains don't count; rows/columns that are mostly dark (printed
-    ruled or margin lines, scan borders) are ignored — they are on every sheet, written or not."""
-    zoom = _INK_WIDTH / max(page.rect.width, 1)
-    pix = page.get_pixmap(matrix=pymupdf.Matrix(zoom, zoom), colorspace=pymupdf.csGRAY, alpha=False)
-    w, h, s = pix.width, pix.height, pix.samples
+def _ink_ratio(pix: pymupdf.Pixmap) -> float:
+    """Share of ink pixels on a small grayscale copy of the rendered page. Ink = clearly darker than the local
+    paper (90th percentile of its tile), so shadows and stains don't count; rows/columns that are mostly dark
+    (printed ruled or margin lines, scan borders) are ignored — they are on every sheet, written or not."""
+    gray = pymupdf.Pixmap(pymupdf.csGRAY, pix) if pix.n != 1 else pix
+    small = pymupdf.Pixmap(gray, _INK_WIDTH, max(1, round(_INK_WIDTH * pix.height / max(pix.width, 1))))
+    w, h, s = small.width, small.height, small.samples
     if w * h == 0:
         return 0.0
     paper = {}
@@ -116,16 +118,33 @@ def _ink_ratio(page: pymupdf.Page) -> float:
     return ink / (w * h)
 
 
-def _render(page: pymupdf.Page, native_long_px: float) -> tuple:
+def _render(page: pymupdf.Page, native_long_px: float, long_edge: int) -> pymupdf.Pixmap:
     long_pts = max(page.rect.width, page.rect.height)
-    target = min(MAX_LONG_EDGE, native_long_px)
+    target = min(long_edge, native_long_px)
     zoom = target / long_pts
-    pix = page.get_pixmap(matrix=pymupdf.Matrix(zoom, zoom), colorspace=pymupdf.csRGB, alpha=False)
-    return pix.tobytes("jpeg", jpg_quality=JPEG_QUALITY), pix.width, pix.height
+    return page.get_pixmap(matrix=pymupdf.Matrix(zoom, zoom), colorspace=pymupdf.csRGB, alpha=False)
 
 
-def normalize_sources(paths: list, max_pages: int = MAX_PAGES) -> list:
-    """PDF pages and photos (upload order) → NormPage list. Raises BadFile for unreadable input."""
+def downscale(pages: list, long_edge: int) -> list:
+    """Smaller copies of already-normalised pages (re-encodes the page JPEG; blank flags are kept)."""
+    out = []
+    for p in pages:
+        if max(p.w, p.h) <= long_edge:
+            out.append(p)
+            continue
+        doc = pymupdf.open(stream=p.jpeg, filetype="jpeg")
+        try:
+            pix = _render(doc[0], max(p.w, p.h), long_edge)
+            out.append(NormPage(source_index=p.source_index, jpeg=pix.tobytes("jpeg", jpg_quality=JPEG_QUALITY),
+                                w=pix.width, h=pix.height, blank=p.blank))
+        finally:
+            doc.close()
+    return out
+
+
+def normalize_sources(paths: list, max_pages: int = MAX_PAGES, long_edge: int = MAX_LONG_EDGE) -> list:
+    """PDF pages and photos (upload order) → NormPage list, long edge ≤ long_edge px.
+    Raises BadFile for unreadable input."""
     pages: list = []
     for path in paths:
         doc = _open(path)
@@ -139,14 +158,15 @@ def normalize_sources(paths: list, max_pages: int = MAX_PAGES) -> list:
                 pix = None
             for page in doc:
                 if len(pages) >= max_pages:
-                    raise BadFile(f"Too many pages (max {max_pages}).")
+                    raise BadFile(f"Too many pages in one copy, max {max_pages}. Split it into two copies.")
                 if is_pdf:
                     native = max(page.rect.width, page.rect.height) * RENDER_DPI / 72
                 else:
                     native = photo_px
-                jpeg, w, h = _render(page, native)
-                pages.append(NormPage(source_index=len(pages), jpeg=jpeg, w=w, h=h,
-                                      blank=_ink_ratio(page) < BLANK_INK_RATIO))
+                pix = _render(page, native, long_edge)
+                pages.append(NormPage(source_index=len(pages), jpeg=pix.tobytes("jpeg", jpg_quality=JPEG_QUALITY),
+                                      w=pix.width, h=pix.height, blank=_ink_ratio(pix) < BLANK_INK_RATIO))
+                pix = None
         finally:
             doc.close()
     if not pages:

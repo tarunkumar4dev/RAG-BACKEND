@@ -3,10 +3,14 @@ Rate limiting — who is counted and how much.
 
 Key  = route TEMPLATE (e.g. /api/v1/copy-checker/sheets/{sheet_id}/check, never the raw path — raw paths with
        ids gave every id its own bucket, i.e. no limit at all)
-     + the user id for requests with a bearer token (school WiFi = one IP for a whole class, so authenticated
-       routes must never be limited per IP), else the client IP.
-The user id is read from the JWT WITHOUT verifying it: it only picks the bucket. The route still verifies the
-token, so a forged `sub` gets its own bucket and then a 401.
+     + WHO, first match wins (school WiFi = one IP for a whole class, so a student or teacher identity always
+       beats the IP):
+         1. the user id of a bearer JWT
+         2. the X-Attempt-Id header (students without a login: contest / community-quiz attempt) — these
+            requests ALSO count against a per-IP ceiling (ATTEMPT_IP_CEILING) so made-up ids can't flood
+         3. the client IP
+The user id / attempt id is NOT verified here: it only picks the bucket. The route still verifies it, so a
+forged value gets its own bucket and then a 401 / 404.
 
 Limits are per minute. In-memory per instance (best effort on serverless; the money-relevant limits — daily
 checker quota, generator plan quota — live in the database).
@@ -64,18 +68,28 @@ ROUTE_LIMITS = {
     "GET /api/v1/test-generator/ncert-question-stats": 1200,
     "GET /api/v1/test-generator/chapters": 1200,
     "GET /api/v1/test-generator/templates": 1200,
-    # students taking a contest / quiz, often a whole class behind one school IP
+    # students taking a contest / quiz, often a whole class behind one school IP.
+    # No identity yet (join / fetch / results): per IP, high.
     "GET /api/v1/contests/{short_code}/info": 1200,
     "POST /api/v1/contests/{short_code}/start": 1200,
-    "POST /api/v1/contests/{contest_id}/submit": 1200,
     "GET /api/v1/contests/{contest_id}/leaderboard": 1200,
     "GET /api/v1/community-quizzes/q/{slug}": 1200,
     "POST /api/v1/community-quizzes/q/{slug}/start": 1200,
-    "POST /api/v1/community-quizzes/q/{slug}/submit": 1200,
     "GET /api/v1/community-quizzes/q/{slug}/leaderboard": 1200,
+    # submit: per attempt (X-Attempt-Id) — one student, a few tries; per IP (old clients without the header): high
+    "POST /api/v1/contests/{contest_id}/submit": 30,
+    "POST /api/v1/community-quizzes/q/{slug}/submit": 30,
     # public share page (G6): token guessing protection
     "GET /r/{token}": 30,
 }
+
+# Requests keyed by IP on routes whose per-identity limit is low (old clients that don't send X-Attempt-Id)
+IP_FALLBACK_LIMITS = {
+    "POST /api/v1/contests/{contest_id}/submit": 1200,
+    "POST /api/v1/community-quizzes/q/{slug}/submit": 1200,
+}
+# All attempt-keyed requests from one IP, per route per minute (made-up attempt ids can't bypass the limit)
+ATTEMPT_IP_CEILING = 3000
 
 UNMATCHED = "<unmatched>"
 _SUB_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
@@ -119,11 +133,40 @@ def is_exempt(path: str) -> bool:
     return path in EXEMPT_PATHS or path.startswith(EXEMPT_PREFIXES)
 
 
-def limit_for(method: str, template: str, default: int) -> int:
-    return ROUTE_LIMITS.get(f"{method} {template}", default)
+def attempt_id(header: Optional[str]) -> Optional[str]:
+    value = (header or "").strip()
+    return value if _SUB_RE.match(value) else None
 
 
-def bucket_key(method: str, template: str, authorization: Optional[str], client_ip: str) -> str:
+def identity(authorization: Optional[str], attempt_header: Optional[str], client_ip: str) -> str:
+    """'u:<user>' | 'att:<attempt>' | 'ip:<ip>' — who a request is counted against."""
     sub = jwt_subject(authorization)
-    who = f"u:{sub}" if sub else f"ip:{client_ip}"
-    return f"{who}|{method} {template}"
+    if sub:
+        return f"u:{sub}"
+    att = attempt_id(attempt_header)
+    if att:
+        return f"att:{att}"
+    return f"ip:{client_ip}"
+
+
+def limit_for(method: str, template: str, default: int, who: str = "") -> int:
+    route = f"{method} {template}"
+    if who.startswith("ip:") and route in IP_FALLBACK_LIMITS:
+        return IP_FALLBACK_LIMITS[route]
+    return ROUTE_LIMITS.get(route, default)
+
+
+def bucket_key(method: str, template: str, authorization: Optional[str], client_ip: str,
+               attempt_header: Optional[str] = None) -> str:
+    return f"{identity(authorization, attempt_header, client_ip)}|{method} {template}"
+
+
+def checks(method: str, template: str, authorization: Optional[str], client_ip: str,
+           attempt_header: Optional[str], default: int) -> list:
+    """(bucket key, limit) pairs a request must pass: its identity bucket, plus the per-IP ceiling for
+    attempt-keyed requests."""
+    who = identity(authorization, attempt_header, client_ip)
+    out = [(f"{who}|{method} {template}", limit_for(method, template, default, who))]
+    if who.startswith("att:"):
+        out.append((f"attip:{client_ip}|{method} {template}", ATTEMPT_IP_CEILING))
+    return out
