@@ -17,11 +17,13 @@ import json
 import os
 import random
 import re
+import time
 import uuid
 from collections import Counter
 from urllib.parse import urlsplit
 
 import gevent
+import gevent.event
 from locust import HttpUser, between, events, task
 
 
@@ -80,8 +82,21 @@ QUESTION_TYPES = ["exercise", "example", "intext"]
 
 vercel_cache = Counter()
 first_requests = []  # first 5 (name, status, x-vercel-cache), printed live and saved
-cpu_samples = []  # Locust's own CPU %, sampled every 5 s; > 90% means the generator is the bottleneck
+# Requests slower than SLOW_MS, with server-side timing, to tell code time from cold start/queue/network.
+# x-process-time-ms = time inside FastAPI (set by log_requests_middleware); it excludes cold-start
+# import time. x-vercel-id = "<edge>::<function region>::<id>", matches the Vercel runtime log.
+SLOW_MS = 3000
+slow_requests = []
+# Locust's own process CPU %, sampled every 5 s (runner.current_cpu_usage refreshes every 5 s)
+# from spawning_complete on, so the ramp-up/TLS-handshake spike is not counted.
+cpu_samples = []
 CPU_LIMIT = 90
+CPU_MAX_HOT_SAMPLES = 3  # generator-bound only if more than 3 samples (> 15 s) are above the limit
+_spawning_done = gevent.event.Event()
+_sampling_window = {"test_start": None, "first": None, "last": None}
+# gevent event-loop lag: a 1 s sleep that wakes late means the loop was blocked, which also
+# inflates every measured response time. p99 lag > 1 s => treat latencies as unreliable.
+loop_lags = []
 _env = None
 _hard_stopped = False
 
@@ -134,21 +149,59 @@ def _check_host(environment, **_):
     if not os.getenv("LOADTEST_BYPASS_TOKEN"):
         print("WARNING: LOADTEST_BYPASS_TOKEN not set; expect 429s from the rate limiter.")
     gevent.spawn(_sample_cpu, environment)
+    gevent.spawn(_probe_loop_lag, environment)
+
+
+@events.spawning_complete.add_listener
+def _on_spawning_complete(user_count, **_):
+    print(f"Spawning complete ({user_count} users): CPU sampling starts")
+    _spawning_done.set()
+
+
+def _running(environment):
+    return environment.runner and environment.runner.state not in ("stopping", "stopped", "quitting")
 
 
 def _sample_cpu(environment):
-    gevent.sleep(5)  # skip the import/spawn spike
-    while environment.runner and environment.runner.state not in ("stopping", "stopped", "quitting"):
+    _sampling_window["test_start"] = time.monotonic()
+    _spawning_done.wait()  # gevent wait: never blocks the users' greenlets
+    gevent.sleep(5)  # first reading after spawn would still cover the ramp-up window
+    while _running(environment):
         cpu_samples.append(environment.runner.current_cpu_usage)
+        now = time.monotonic()
+        _sampling_window["first"] = _sampling_window["first"] or now
+        _sampling_window["last"] = now
         gevent.sleep(5)
+
+
+def _probe_loop_lag(environment):
+    while _running(environment):
+        t = time.monotonic()
+        gevent.sleep(1)
+        loop_lags.append(time.monotonic() - t - 1)
+
+
+def _window_summary():
+    w = _sampling_window
+    if not w["first"]:
+        return {"cpu_from_s": None, "cpu_to_s": None}
+    return {"cpu_from_s": round(w["first"] - w["test_start"]), "cpu_to_s": round(w["last"] - w["test_start"])}
+
+
+def _lag_summary():
+    if not loop_lags:
+        return {"p50_ms": None, "p99_ms": None, "max_ms": None}
+    lags = sorted(loop_lags)
+    ms = lambda x: round(x * 1000)
+    return {"p50_ms": ms(lags[len(lags) // 2]), "p99_ms": ms(lags[int(len(lags) * 0.99)]), "max_ms": ms(lags[-1])}
 
 
 def _cpu_summary():
     if not cpu_samples:
-        return {"avg": None, "max": None, "generator_bound": False}
-    peak = max(cpu_samples)
-    return {"avg": round(sum(cpu_samples) / len(cpu_samples), 1), "max": round(peak, 1),
-            "generator_bound": peak > CPU_LIMIT}
+        return {"avg": None, "max": None, "samples": 0, "hot_samples": 0, "generator_bound": False}
+    hot = sum(1 for s in cpu_samples if s > CPU_LIMIT)
+    return {"avg": round(sum(cpu_samples) / len(cpu_samples), 1), "max": round(max(cpu_samples), 1),
+            "samples": len(cpu_samples), "hot_samples": hot, "generator_bound": hot > CPU_MAX_HOT_SAMPLES}
 
 
 @events.init.add_listener
@@ -158,9 +211,17 @@ def _keep_env(environment, **_):
 
 
 @events.request.add_listener
-def _on_request(name=None, response=None, **_):
+def _on_request(name=None, response=None, response_time=None, **_):
     if response is None or getattr(response, "headers", None) is None:
         return
+    if response_time and response_time > SLOW_MS:
+        process_ms = response.headers.get("x-process-time-ms")
+        slow_requests.append({
+            "name": name, "status": response.status_code, "total_ms": round(response_time),
+            "process_ms": float(process_ms) if process_ms else None,
+            "x-vercel-id": response.headers.get("x-vercel-id"),
+            "x-vercel-cache": response.headers.get("x-vercel-cache"),
+        })
     cache = response.headers.get("x-vercel-cache", "NONE")
     vercel_cache[cache] += 1
     if len(first_requests) < 5:
@@ -177,13 +238,26 @@ def _report_cache(environment, **_):
     summary = {k: f"{v} ({v * 100 / total:.0f}%)" for k, v in vercel_cache.most_common()}
     print(f"x-vercel-cache: {json.dumps(summary)}")
     cpu = _cpu_summary()
-    print(f"locust CPU %: avg={cpu['avg']} max={cpu['max']}"
+    if slow_requests:
+        print(f"slow requests (> {SLOW_MS} ms): {len(slow_requests)}")
+        for r in sorted(slow_requests, key=lambda r: -r["total_ms"])[:10]:
+            outside = r["total_ms"] - r["process_ms"] if r["process_ms"] is not None else None
+            print(f"  {r['total_ms']:>6} ms total | server code {r['process_ms']} ms | outside code {outside} ms"
+                  f" | {r['status']} {r['x-vercel-cache']} {r['x-vercel-id']} | {r['name']}")
+    print(f"locust CPU %: avg={cpu['avg']} peak={cpu['max']} "
+          f"({cpu['hot_samples']}/{cpu['samples']} samples >{CPU_LIMIT}%)"
           + ("  ** GENERATOR-BOUND, RESULT UNRELIABLE **" if cpu["generator_bound"] else ""))
+    window, lag = _window_summary(), _lag_summary()
+    print(f"CPU sampled from t={window['cpu_from_s']}s to t={window['cpu_to_s']}s | "
+          f"event-loop lag p50={lag['p50_ms']}ms p99={lag['p99_ms']}ms max={lag['max_ms']}ms"
+          + ("  ** LOOP BLOCKED, LATENCIES INFLATED **" if (lag["p99_ms"] or 0) > 1000 else ""))
     prefix = environment.parsed_options.csv_prefix if environment.parsed_options else None
     if prefix:
         with open(f"{prefix}_vercel_cache.json", "w", encoding="utf-8") as f:
             json.dump({"cache": dict(vercel_cache), "first_requests": first_requests,
-                       "hard_stopped": _hard_stopped, "locust_cpu": cpu}, f, indent=2)
+                       "hard_stopped": _hard_stopped, "locust_cpu": cpu,
+                       "cpu_window": _window_summary(), "loop_lag": _lag_summary(),
+                       "slow_requests": slow_requests}, f, indent=2)
 
 
 class _BuilderUser(HttpUser):
