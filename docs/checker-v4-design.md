@@ -484,3 +484,22 @@ count only (no paths of minors' files in logs). Env: `CHECKER_RETENTION_DAYS`, `
   calls; frontend `buildMarkedCopyPdf` run in headless Chrome on that output → `docs/checker-v4/g1/*.png`.
 - **Tests:** `pytest` in `test-generator-backend` (33 tests, no API calls); preprocess tests also pass on
   PyMuPDF 2.0. `api/requirements.txt` pins `PyMuPDF==2.0.*`.
+
+### 8.1 Before deploy (21 Oct)
+
+- **Gemini inline limit:** docs disagree — file-input page: 100 MB per request (50 MB PDFs, base64-encoded per
+  the Jan 2026 blog); image-understanding page: 20 MB total request with inline images. We use the stricter:
+  base64-encoded request ≤ 18 MB (`CHECKER_INLINE_BUDGET_BYTES`), 1 MB reserved for the prompt. Ladder 2000 →
+  1600 → 1280 px, then `BadFile("Too many pages in one copy, max N")`, no call. 20 real photo pages at 2000 px
+  = 4.2 MB encoded → the page cap (16) binds long before the size.
+- **429:** one retry after Retry-After / RetryInfo (default 5 s, cap `CHECKER_MAX_RETRY_WAIT_S` = 30), then
+  503 `{"detail": msg, "error": {"code": "AI_BUSY"}}` (copy checker + smart-assignment routes).
+- **Student routes** (no login): student portal (access code) = Supabase RPCs only (`get_student_by_code`,
+  `get_student_feed`, `submit_assignment`) + Storage upload — never the backend. Mega contests = Supabase
+  tables directly. Backend: contest `info` / `start` / `leaderboard` and quiz `q/{slug}` / `start` /
+  `leaderboard` → per IP 1200/min (no identity yet); contest + quiz **submit** → per `X-Attempt-Id` (30/min),
+  all attempts from one IP ≤ 3000/min, IP fallback 1200/min for clients without the header.
+- **Bug found:** backend CORS didn't allow `X-Attempt-Id`, so the browser preflight for contest submit got a
+  400 in production (checked 21 Oct). Fixed with this change.
+- **Prod env:** `RATE_LIMIT_PER_MINUTE` is not set → 60/min default. `CHECKER_GEMINI_MODEL` is a "sensitive"
+  var (value not readable via `env pull`).
