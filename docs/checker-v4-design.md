@@ -11,7 +11,7 @@ and the font spike. Branch `feat/checker-v4` (from `origin/main` 4ccc147).
 | Item | Finding | Source |
 |---|---|---|
 | Vercel plan | **Hobby**, team `taruns-projects-5d2bf9e6`, project `rag-backend` | `vercel api /v2/teams/…` |
-| Function config | Fluid compute on, default timeout **300 s** (Hobby max), memory "standard" (2 GB / 1 vCPU), region **iad1** (US East) | `vercel api /v9/projects/rag-backend` |
+| Function config | Fluid compute on, default timeout **300 s** (Hobby max), memory "standard" (2 GB / 1 vCPU), region was **iad1** (US East) → **bom1 since 21 Oct** (7.2) | `vercel api /v9/projects/rag-backend` |
 | Python bundle limit | 500 MB uncompressed (other runtimes 250 MB) | Vercel docs, functions/limitations |
 | Request body | 4.5 MB per function request/response | Vercel docs |
 | PyMuPDF wheel | `pymupdf-2.0` manylinux: 69 MB wheel, **115.5 MB unzipped**. `api/requirements.txt` has it **unpinned** | `pip download` |
@@ -87,11 +87,11 @@ Calls per sheet (for the Gemini RPM estimate): today 1 grade call (+ up to ~10 o
 -- ── queue ──────────────────────────────────────────────────────────────
 create table public.check_jobs (
   id              uuid primary key default gen_random_uuid(),
-  kind            text not null check (kind in ('check','export_zip')),
-  teacher_id      uuid not null references auth.users(id) on delete cascade,
+  kind            text not null check (kind in ('check','export_zip','retention')),
+  teacher_id      uuid references auth.users(id) on delete cascade,             -- null only for retention
   institute_id    uuid references public.institutes(id) on delete set null,
-  session_id      uuid not null references public.check_sessions(id) on delete cascade,
-  sheet_id        uuid references public.check_sheets(id) on delete cascade,   -- null for export_zip
+  session_id      uuid references public.check_sessions(id) on delete cascade,  -- null for retention
+  sheet_id        uuid references public.check_sheets(id) on delete cascade,    -- null for export_zip / retention
   status          text not null default 'queued'
                   check (status in ('queued','running','done','failed','blocked_quota','cancelled','paused')),
   attempts        int  not null default 0,
@@ -103,12 +103,15 @@ create table public.check_jobs (
   checkpoint      jsonb,
   idempotency_key text unique,          -- sha256(session_id + sorted file sha256s + mode)
   last_error_code text check (last_error_code in
-                  ('GEMINI_429','GEMINI_5XX','TIMEOUT','BAD_FILE','QUOTA','SCHEMA','CALL_CAP','PAUSED','UNKNOWN')),
+                  ('GEMINI_429','GEMINI_5XX','TIMEOUT','BAD_FILE','QUOTA','BUDGET','SCHEMA','CALL_CAP','PAUSED',
+                   'FILES_EXPIRED','UNKNOWN')),
   last_error      text,                 -- teacher-safe message only
   usage           jsonb not null default '{}'::jsonb,
   created_at      timestamptz not null default now(),
   updated_at      timestamptz not null default now(),
-  check (kind = 'export_zip' or sheet_id is not null)
+  check ((kind = 'check' and teacher_id is not null and sheet_id is not null and session_id is not null)
+      or (kind = 'export_zip' and teacher_id is not null and session_id is not null)
+      or (kind = 'retention' and teacher_id is null and session_id is null and sheet_id is null))
 );
 create index check_jobs_runnable on public.check_jobs (run_after) where status = 'queued';
 create index check_jobs_running  on public.check_jobs (locked_at) where status = 'running';
@@ -125,7 +128,8 @@ alter table public.check_sheets
   add column if not exists source_paths   text[],
   add column if not exists norm_pages     jsonb,      -- PageInfo[]
   add column if not exists student_match  jsonb,      -- {detected_name, detected_roll, confidence, confirmed_by, confirmed_at}
-  add column if not exists is_stale       boolean not null default false;
+  add column if not exists is_stale       boolean not null default false,
+  add column if not exists files_expired_at timestamptz;  -- source + norm pages deleted by retention → marked copy "expired"
 create index if not exists check_sheets_sha on public.check_sheets (teacher_id, file_sha256) where file_sha256 is not null;
 
 -- ── teacher overrides (separate from AI output) ────────────────────────
@@ -191,8 +195,17 @@ create table public.checker_usage_daily (
   sheets       int not null default 0,
   gemini_calls int not null default 0,
   tokens       bigint not null default 0,
+  est_cost_inr numeric(10,2) not null default 0,   -- from token counts × CHECKER_PRICE_* env (estimate, not the bill)
   primary key (scope_id, day)
 );
+create index checker_usage_daily_day on public.checker_usage_daily (day);
+
+-- month-to-date estimated spend (all scopes), checked at enqueue against CHECKER_MONTHLY_BUDGET_INR
+create or replace function public.checker_month_spend_inr() returns numeric
+language sql stable security definer set search_path = public as $$
+  select coalesce(sum(est_cost_inr), 0) from checker_usage_daily
+   where day >= date_trunc('month', now() at time zone 'Asia/Kolkata')::date
+$$;
 alter table public.checker_usage_daily enable row level security;  -- no policies
 
 create or replace function public.reserve_checker_quota(p_scope uuid, p_kind text, p_sheets int, p_cap int)
@@ -247,7 +260,11 @@ begin
   update check_jobs set status = 'failed', finished_at = now(), last_error_code = 'TIMEOUT',
          last_error = 'Checking took too long. Please retry.', updated_at = now()
    where status = 'running' and locked_at < now() - interval '6 minutes' and attempts >= max_attempts;
-  delete from rendered_files where created_at < now() - interval '30 days';   -- storage objects: worker deletes by path
+  -- retention: one job per hour; the worker deletes Storage objects (SQL can't), then the rows
+  if not exists (select 1 from check_jobs where kind = 'retention'
+                  and (status in ('queued','running') or created_at > now() - interval '1 hour')) then
+    insert into check_jobs (kind) values ('retention');
+  end if;
   if exists (select 1 from check_jobs where status = 'queued' and run_after <= now()) then
     perform checker_kick();
   end if;
@@ -255,9 +272,9 @@ end $$;
 select cron.schedule('checker-sweeper', '* * * * *', $$select public.checker_sweep()$$);
 
 revoke all on function public.claim_check_job(int), public.reserve_checker_quota(uuid,text,int,int),
-  public.checker_kick(), public.checker_sweep() from public, anon, authenticated;
-grant execute on function public.claim_check_job(int), public.reserve_checker_quota(uuid,text,int,int)
-  to service_role;
+  public.checker_kick(), public.checker_sweep(), public.checker_month_spend_inr() from public, anon, authenticated;
+grant execute on function public.claim_check_job(int), public.reserve_checker_quota(uuid,text,int,int),
+  public.checker_month_spend_inr() to service_role;
 
 -- ── realtime (status only) ─────────────────────────────────────────────
 alter publication supabase_realtime add table
@@ -265,8 +282,7 @@ alter publication supabase_realtime add table
 ```
 
 Notes:
-- The rendered_files cleanup in the sweeper must remove the Storage objects too. The worker does that (it lists
-  expired rows before the delete), so the SQL `delete` above moves to the worker in G4.
+- Retention rules: section 7.4. Budget / spend: section 7.5.
 - `MAX_RUNNING_JOBS` (env, default 10) is passed to `claim_check_job`. Kill switch `CHECKER_ENABLED=0` → enqueue
   writes `paused`; daily cap → `blocked_quota`.
 
@@ -306,12 +322,138 @@ Gotchas found (now rules for G4):
 
 ---
 
-## 6. Open questions for the owner
+## 6. Owner decisions (21 Oct)
 
-1. Vercel Hobby (non-commercial terms + monthly caps) — stay on Hobby through G2's load test, or move to Pro?
-2. Move the function region iad1 → bom1?
-3. Enable pg_net + pg_cron (before G2).
-4. Supabase plan / storage quota (1.03 GB used today).
-5. Gemini tier: RPM/TPM for `CHECKER_GEMINI_MODEL` from AI Studio → Usage & tiers.
-6. Android wrapper: does it implement `DownloadListener` (https downloads) and/or `blob:` downloads? Where is its source?
-7. OK to restore the paused project `zshgoopqjdoilkwiuupu` as the G2 load-test database?
+| # | Question | Decision |
+|---|---|---|
+| 1 | Vercel plan | Hobby through G1–G3. Pro decided before launching to paying institutes (terms + compute). Usage estimate in 7.1 |
+| 2 | Region | **Switched to bom1 on 21 Oct** (project setting + redeploy of the same commit 4ccc147). Results in 7.2 |
+| 3 | pg_net + pg_cron | Owner enables them at the **start of G2** — remind then, never enable from code/CLI |
+| 4 | Supabase | **Free plan**, storage 1.03 GB (over 1 GB). Cleanup proposal 7.3 (nothing deleted yet), retention 7.4 |
+| 5 | Gemini | Owner sends RPM/TPM. Paid project capped at ₹5,000/month; checker must stay under `CHECKER_MONTHLY_BUDGET_INR` (default 3000) → 7.5 |
+| 6 | Android downloads | Rule: every download is an **https signed URL** with `Content-Disposition: attachment` and a proper filename. **Never `blob:` URLs.** Owner will share the wrapper location |
+| 7 | Load test DB | Restore `zshgoopqjdoilkwiuupu` for the G2 load test only. Never load-test prod |
+
+---
+
+## 7. Addendum (21 Oct)
+
+### 7.1 Vercel usage and the 500-copy evening
+
+Current month (1–21 Oct, whole team, almost all functions = rag-backend; `vercel api /v2/usage?type=requests`):
+
+| Metric | Value |
+|---|---|
+| Function execution | **1.64 GB-h** (peak day 17 Oct: 0.66 GB-h); 0 timeouts, 0 throttles |
+| Function invocations | 1,785 ok, 7 errors |
+| Edge requests | 136,129 (99 % the a4ai frontend) |
+| Outgoing bandwidth | 12.55 GB |
+
+Hobby's included limits can't be read via the API (usage-limits endpoint is Pro-only) → check the dashboard Usage page.
+
+Estimate for one 500-copy evening (v4 pipeline, ~75 s wall time per sheet, mostly waiting on Gemini, 2 GB instances):
+- worst case (every job on its own instance): 500 × 75 s × 2 GB = **≈ 21 GB-h**
+- expected with fluid concurrency (~4 jobs sharing an instance, `MAX_RUNNING_JOBS=10`): ≈ 2.6 instance-h × 2 GB = **≈ 5 GB-h**
+- renders on demand: ~1–3 s × 2 GB each → +0.5–1 GB-h if every copy is downloaded once
+
+So one busy evening ≈ 3–13× everything the backend used this month so far. G2's load test (mocked, on the test
+project) measures the real number from the Vercel usage API before/after.
+
+Supabase egress (Free plan has a monthly egress cap — check the dashboard): per 500 copies ≈ worker reads of
+sources + norm pages (~1.4 GB) + one download of each marked copy and summary (~0.9 GB) ≈ **2.3 GB**.
+
+### 7.2 Region switch iad1 → bom1 (21 Oct)
+
+Side-effect-free probe `test-generator-backend/scripts/latency_probe.py` (no Gemini, no payments, no writes), 7 runs after a warm-up, from India:
+
+| Probe | iad1 median | bom1 median |
+|---|---|---|
+| `/health` (no DB) | 323 ms | 328 ms |
+| `GET /test-generator/chapters` (DB read) | 955 ms | **177 ms** |
+| `POST /copy-checker/sheets/…/check` with an invalid JWT (Supabase Auth round trip → 401) | 942 ms | **152 ms** |
+
+Deployment `rag-backend-9iqow8gr9` (regions `['bom1']`, commit 4ccc147) is aliased to rag-backend-kappa-three.vercel.app.
+Authenticated smoke tests (login, test generation, payment order creation, checker) need a real session → owner,
+in the browser.
+
+### 7.3 Storage (Free plan, 1,027.9 MB) — cleanup proposal (NOT executed)
+
+| Bucket | Files | MB |
+|---|---|---|
+| Modules (private) | 1,277 | 944.3 |
+| ncert-diagrams | 448 | 53.8 |
+| faiss-index | 2 | 9.0 |
+| notes | 11 | 6.8 |
+| assignments | 15 | 5.3 |
+| institute-assets | 6 | 5.2 |
+| answer-sheets | 18 | 2.3 |
+| others (submissions, resumes, question-images, branding) | 19 | 1.2 |
+
+Modules bucket by kind (vs `public.modules.storage_path`, 52 rows):
+
+| Kind | Files | MB | Read again after use? |
+|---|---|---|---|
+| `{uid}/worksheets/*` — worksheet generator uploads | 85 | 333.8 | **No.** `/worksheet/generate-direct` downloads once, nothing stores the path |
+| module source referenced by a `modules` row | 52 | 304.1 | Yes (keep) |
+| module source **not** referenced by any `modules` row (failed / abandoned creates) | 76 | 283.3 | **No** |
+| `{uid}/{module}/images/*` | 1,064 | 23.1 | Yes (keep) |
+
+Exact duplicates by eTag: 143 groups, 846 MB of extra copies (same PDFs uploaded again and again).
+
+**Proposal (owner approves, then a one-off script deletes through the Storage API):**
+- B: all 85 worksheet uploads (333.8 MB)
+- C: all 76 unreferenced module sources (283.3 MB) — only those older than 7 days at deletion time, so an upload
+  in progress is never touched
+- → 161 files / **617 MB**, storage ≈ 1,028 → **≈ 411 MB**
+- Full list: `storage_cleanup_candidates_2026-10-21.csv` (bucket, path, MB, created, reason) — shared with the owner, not committed.
+
+Code follow-ups (outside the checker, separate PRs): worksheet generator deletes its upload after generation;
+ModuleCreator deletes the upload when `/modules/create` fails; dedupe module uploads by hash.
+
+### 7.4 Retention policy (checker files)
+
+| What | Kept | Then |
+|---|---|---|
+| Source uploads (`…/{sheet}/source/*`) | `CHECKER_RETENTION_DAYS` (default **90**) after the sheet's `checked_at` (or `created_at` if never checked) | deleted |
+| Normalised pages (`…/{sheet}/norm/*`) | same | deleted; `check_sheets.files_expired_at = now()` |
+| Marked copy render (`rendered/…_marked.pdf`) | cache, 30 days after creation | deleted; re-rendered on demand from norm pages while they exist; after `files_expired_at` the download API returns `FILES_EXPIRED` and the UI shows "Marked copy expired (photos are deleted after 90 days)" |
+| Student summary render (`…_summary.pdf`) | **kept** (no images, ~50–300 KB) | — |
+| Class summary + ZIP | class summary kept; ZIP 7 days | ZIP deleted (re-export is a new job) |
+| Result JSON, overrides, marks | kept | — |
+| Old v1 photos (`{uid}/{session}/{folder}/…`) | same 90-day rule, by `check_sheets.created_at` | deleted, `files_expired_at` set |
+
+Implementation (G2): the sweeper enqueues one `retention` job per hour; the worker deletes up to 500 objects per
+run through the Storage API (SQL can't delete Storage objects), then updates the rows. Deletions are logged by
+count only (no paths of minors' files in logs). Env: `CHECKER_RETENTION_DAYS`, `CHECKER_RENDER_CACHE_DAYS=30`,
+`CHECKER_ZIP_DAYS=7`.
+
+### 7.5 Spend control (`CHECKER_MONTHLY_BUDGET_INR`, default 3000)
+
+- After every Gemini call the worker adds `gemini_calls`, `tokens` and `est_cost_inr` to the scope's
+  `checker_usage_daily` row. Price per 1M input/output tokens comes from env (`CHECKER_PRICE_IN_PER_M_INR`,
+  `CHECKER_PRICE_OUT_PER_M_INR`) so a model/price change is config, not code.
+- At enqueue: if `checker_month_spend_inr() + est_cost_per_sheet × n > CHECKER_MONTHLY_BUDGET_INR` → jobs are
+  created as `paused` with `BUDGET` ("Monthly checking budget reached"). `est_cost_per_sheet` = rolling average of
+  the last 50 sheets (fallback: env `CHECKER_EST_COST_PER_SHEET_INR`).
+- The worker re-checks before every Gemini call; at ≥ 100 % it stops after the current stage and re-queues.
+- Daily per-scope cap (`reserve_checker_quota`, default 200 sheets/day) stays as the second guard.
+- The ₹5,000 project cap in Google stays the last line of defence; the checker budget is below it so test
+  generation and chat keep working.
+
+### 7.6 Parent phone
+
+- `students.parent_phone` exists (0 / 43 filled). The untracked frontend migration
+  `20261020000000_add_parent_phone.sql` was **deleted** (21 Oct): its `add column` (no `if not exists`) would fail,
+  and its format check `^\+91[6-9]\d{9}$` would break BulkStudentUpload and the teacher "Add student" form,
+  which save the number as typed (only StudentProfilePage saves `+91XXXXXXXXXX`).
+- **G5 task:** parent phone in the roster form + CSV import with Indian-mobile validation and normalisation to
+  `+91XXXXXXXXXX` in every writer (StudentProfilePage, TeacherStudentsTab add/edit, BulkStudentUpload); report
+  invalid rows instead of failing the import; then a migration adds the check as `NOT VALID`, normalises existing
+  rows, and `VALIDATE CONSTRAINT`.
+
+### 7.7 Reminders by gate
+
+- **G1:** rate limiter app-wide (route template + user id; IP only for public routes; `/internal/*` exempt; every
+  route + limit in the PR description).
+- **G2 start:** owner enables pg_net + pg_cron; restore `zshgoopqjdoilkwiuupu` for the load test; retention job.
+- **G5:** parent phone task (7.6).
