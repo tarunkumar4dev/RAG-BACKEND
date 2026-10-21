@@ -503,3 +503,22 @@ count only (no paths of minors' files in logs). Env: `CHECKER_RETENTION_DAYS`, `
   400 in production (checked 21 Oct). Fixed with this change.
 - **Prod env:** `RATE_LIMIT_PER_MINUTE` is not set → 60/min default. `CHECKER_GEMINI_MODEL` is a "sensitive"
   var (value not readable via `env pull`).
+
+### 8.2 Page cap (21 Oct)
+
+The old 16-page cap had no size basis (it dates from Check Copies P1, when a whole copy went to Gemini through the
+Files API). Now: the inline budget decides (`fit_pages`: 18 MB base64, 2000 → 1600 → 1280 px), with a hard
+maximum of **30 pages** (`COPY_CHECKER_MAX_PAGES`, capped at 30; frontend `MAX_PAGES` = 30). One router + one
+preprocess constant. 20 phone-photo pages at 2000 px ≈ 4.2 MB → a 30-page copy fits at full size in normal cases.
+
+**G3 task — long copies in chunks:** a copy whose pages don't fit one call's budget (or > ~12 pages, to keep the
+Stage B/D replies short and the latency bounded) is split into chunks of 10–12 consecutive pages. Each chunk gets
+the same rubric; Stage C merges segments across chunk boundaries (continuations, a question started in chunk 1
+and finished in chunk 2) before grading, so grading still sees whole answers. Chunk results merge by question;
+page indexes stay global. Calls per sheet grow with chunks → counted against `MAX_GEMINI_CALLS_PER_SHEET`.
+
+### 8.3 Real copies test set
+
+`tests/fixtures/real/README.md` (layout + expected.json), `scripts/anonymise_copies.py` (page-1 header band +
+redact.json boxes filled solid, EXIF dropped, identifier keys stripped, folders renamed copy_NN, mapping kept
+in raw/), `.gitignore` for `tests/fixtures/real/raw/`, guard test `tests/unit/test_real_fixtures_guard.py`.

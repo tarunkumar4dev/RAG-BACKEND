@@ -40,7 +40,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/copy-checker", tags=["Copy Checker"])
 
 BUCKET = "answer-sheets"
-MAX_PAGES = int(os.getenv("COPY_CHECKER_MAX_PAGES", "16"))
+MAX_PAGES = preprocess.MAX_PAGES   # one place for the page cap
 
 
 # What teachers see when the AI step fails for a reason that isn't theirs to fix (Gemini errors,
@@ -206,7 +206,7 @@ def _check_sheet(c: _Caller, sheet_id: str) -> dict:
     if not pages:
         raise HTTPException(status_code=400, detail="Add at least one page photo first.")
     if len(pages) > MAX_PAGES:
-        raise HTTPException(status_code=400, detail=f"Too many pages (max {MAX_PAGES}).")
+        raise HTTPException(status_code=400, detail=f"Too many pages in one copy, max {MAX_PAGES}.")
 
     session = _get_session(c, sheet["session_id"])
     if session.get("rubric_status") != "ready" or not session.get("rubric"):

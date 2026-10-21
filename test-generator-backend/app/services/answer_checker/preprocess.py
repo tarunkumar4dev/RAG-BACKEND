@@ -23,7 +23,9 @@ logger = logging.getLogger(__name__)
 RENDER_DPI = 150
 MAX_LONG_EDGE = int(os.getenv("CHECKER_MAX_LONG_EDGE", "2000"))
 JPEG_QUALITY = 80
-MAX_PAGES = int(os.getenv("COPY_CHECKER_MAX_PAGES", "16"))
+# Hard cap. The real limit is the inline request budget (copy_check.fit_pages): 20 phone-photo pages at
+# 2000 px are ~4 MB of the 18 MB budget, so most copies are limited by this cap, not by size.
+MAX_PAGES = min(30, int(os.getenv("COPY_CHECKER_MAX_PAGES", "30")))
 # Blank page: less than this share of "ink" pixels after ruled lines / margins are removed. Kept very low on
 # purpose: a blank page is not sent to the grader, so a page with only "(c)" on it must never count as blank
 # (sending an empty page costs a few tokens; skipping a written one loses an answer).
