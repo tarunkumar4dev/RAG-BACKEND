@@ -352,10 +352,11 @@ class JobWorker:
                 # no question paper attached: the answer key usually prints the questions too
                 rubric = svc.build_rubric(qp or [temps[0]], [temps[0]] if qp else None)
             self._run_usage = add_usage(self._run_usage, meter.as_dict())
-        except svc.GeminiBusy:
-            self.store.rubric_failed(session["id"], MSG["GEMINI_429"])
-            raise
         except Exception as e:
+            code, msg, _ = self._classify(e)
+            if code in ("GEMINI_429", "GEMINI_5XX", "TIMEOUT"):     # Gemini's problem, not the key's: retry later
+                self.store.rubric_failed(session["id"], msg)
+                raise
             logger.warning(f"[jobs] rubric for session {str(session['id'])[:8]} failed: {type(e).__name__}")
             self.store.rubric_failed(session["id"], MSG["KEY_UNREADABLE"])
             raise JobError("KEY_MISSING", MSG["KEY_UNREADABLE"])

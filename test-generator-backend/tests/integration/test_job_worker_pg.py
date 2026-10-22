@@ -444,3 +444,15 @@ def test_regrade_after_key_change_keeps_old_marks_in_audit(db, storage, grades):
 
     again = regrade(JobStore(db.connect), A1, [sub], T1, _unpublish_as_teacher(db))
     assert again["queued"] == [] and again["skipped"] == [{"id": sub, "reason": "key_unchanged"}]
+
+
+def test_rubric_timeout_is_retried_not_key_missing(db, storage, monkeypatch):
+    import httpx
+    def hang(*a, **kw):
+        raise httpx.ReadTimeout("model did not answer")
+    monkeypatch.setattr(svc, "build_rubric", hang)
+    sub, job = make_attempt(db, storage, [(SHEET, "pdf", "application/pdf")])
+    worker(db, storage).run()
+    j = db.job(job)
+    assert j["state"] == "queued" and j["last_error_code"] == "TIMEOUT"
+    assert db.sub(sub)["status"] == "queued"
