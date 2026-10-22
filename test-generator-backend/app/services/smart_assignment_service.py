@@ -26,6 +26,7 @@ Key rules enforced SERVER-SIDE (not trusted from the LLM):
 import json
 import logging
 import math
+import re
 import time
 import os
 from concurrent.futures import ThreadPoolExecutor
@@ -213,6 +214,8 @@ STEP A — QUESTION PAPER STRUCTURE
    (e.g. "12"), q_no "12" and "12-OR". For "attempt any 4 of 6" give all 6 the same or_group and
    set "attempt_count": 4 on each. Otherwise or_group = null.
 5. stated_max_marks = the maximum marks printed on the paper ("Max. Marks: 80", "M.M. 50"), else null.
+6. section = the section the question is printed under, as its letter or short name ("A", "B", "C"),
+   null when the paper has no sections. Students may write "C-4" for the 4th question of Section C.
 
 STEP B — MARKING POINTS from the ANSWER KEY
 For every question WITHOUT sub-parts, and for every SUB-PART, list "points": the separate things the
@@ -234,6 +237,7 @@ Respond ONLY with JSON (no markdown):
   "questions": [
     {
       "q_no": "4",
+      "section": "A",
       "question_text": "What is refraction of light? State the two laws of refraction.",
       "marks": 4,
       "answer_type": "descriptive",
@@ -249,7 +253,7 @@ Respond ONLY with JSON (no markdown):
       "subparts": []
     },
     {
-      "q_no": "5", "question_text": "Write the function of ...", "marks": 2, "answer_type": "short",
+      "q_no": "5", "section": "A", "question_text": "Write the function of ...", "marks": 2, "answer_type": "short",
       "or_group": null, "attempt_count": null, "scheme_source": "key", "model_answer": "See sub-parts", "points": [],
       "subparts": [
         {"sub_id": "5a", "text": "haemoglobin", "marks": 1, "answer_type": "short", "scheme_source": "key",
@@ -339,6 +343,8 @@ def _validate_rubric(rubric: dict) -> dict:
     for q in questions:
         q["q_no"] = str(q.get("q_no") or "").strip() or "?"
         q["marks"] = _num(q.get("marks"), 1.0)
+        sec = str(q.get("section") or "").strip()
+        q["section"] = re.sub(r"(?i)^section\s*", "", sec).upper() or None
         q["or_group"] = str(q["or_group"]) if q.get("or_group") not in (None, "", "null") else None
         subs = [s for s in (q.get("subparts") or []) if isinstance(s, dict)]
         if subs:

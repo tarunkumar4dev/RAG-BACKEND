@@ -1,0 +1,3528 @@
+{
+ "pipeline": "v3",
+ "model": "gemini-3.8-flash",
+ "rubric_calls": [
+  {
+   "tag": "rubric",
+   "input": 4003,
+   "output": 7313,
+   "thinking": 2525,
+   "model": "gemini-3.8-flash",
+   "seconds": 56.0,
+   "thread": 21236
+  }
+ ],
+ "copies": [
+  {
+   "file": "Rohan_Verma_answer_sheet.pdf",
+   "wall_s": 86.8,
+   "error": null,
+   "calls": 1,
+   "tokens": {
+    "input": 11273,
+    "output": 7039,
+    "thinking": 4885
+   },
+   "inr": 4.68,
+   "rows": [
+    {
+     "q": "A",
+     "expected": 6,
+     "ai": 6.0,
+     "diff": 0.0,
+     "flag": null
+    },
+    {
+     "q": "9",
+     "expected": 2,
+     "ai": 2.0,
+     "diff": 0.0,
+     "flag": null
+    },
+    {
+     "q": "10",
+     "expected": 1,
+     "ai": 1.0,
+     "diff": 0.0,
+     "flag": null
+    },
+    {
+     "q": "11",
+     "expected": 2,
+     "ai": 2.0,
+     "diff": 0.0,
+     "flag": null
+    },
+    {
+     "q": "12",
+     "expected": 2,
+     "ai": 2.0,
+     "diff": 0.0,
+     "flag": null
+    },
+    {
+     "q": "13",
+     "expected": 1.5,
+     "ai": 1.5,
+     "diff": 0.0,
+     "flag": null
+    },
+    {
+     "q": "14",
+     "expected": 2.5,
+     "ai": 2.5,
+     "diff": 0.0,
+     "flag": null
+    },
+    {
+     "q": "15",
+     "expected": 3,
+     "ai": 3.0,
+     "diff": 0.0,
+     "flag": null
+    },
+    {
+     "q": "16",
+     "expected": 0.5,
+     "ai": 0.5,
+     "diff": 0.0,
+     "flag": null
+    },
+    {
+     "q": "17",
+     "expected": 2,
+     "ai": 2.0,
+     "diff": 0.0,
+     "flag": null
+    },
+    {
+     "q": "18",
+     "expected": 4,
+     "ai": 4.0,
+     "diff": 0.0,
+     "flag": null
+    },
+    {
+     "q": "19",
+     "expected": 2,
+     "ai": 2.5,
+     "diff": 0.5,
+     "flag": null
+    }
+   ],
+   "total_ai": 29.0,
+   "total_expected": 28.5,
+   "total_diff": 0.5,
+   "questions_off": 1,
+   "questions_off_by_more_than_1": 0,
+   "expected_flags": {},
+   "unassigned": [],
+   "result": {
+    "student_info": {
+     "name": "Rohan Verma",
+     "class": "X - B",
+     "roll_no": "17",
+     "missing_fields": []
+    },
+    "overall_remarks": "Good overall effort with neat presentation and diagrams. However, review your algebraic formulas (such as a³ − b³ and transposition of terms) and ensure you choose the correct trigonometric ratio for heights and distances.",
+    "readability_score": "good",
+    "_grade_time_s": 86.82,
+    "is_valid": true,
+    "graded_questions": [
+     {
+      "max_marks": 1.0,
+      "marks_awarded": 1.0,
+      "student_answer_summary": "(a) 4/5",
+      "key_concepts_found": [
+       "Correct option"
+      ],
+      "key_concepts_missed": [],
+      "feedback": "Correct.",
+      "confidence": "high",
+      "legibility_issue": false,
+      "not_attempted": false,
+      "points": [
+       {
+        "id": "1.1",
+        "text": "Correct option",
+        "expected": "(a) 4/5",
+        "max_marks": 1.0,
+        "marks_awarded": 1.0,
+        "verdict": "full",
+        "evidence": "(a) 4/5",
+        "reason": "Correct option selected.",
+        "borderline": false
+       }
+      ],
+      "needs_review": false,
+      "review_reasons": [],
+      "q_no": "1",
+      "has_subparts": false,
+      "subpart_grades": [],
+      "or_group": null,
+      "scheme_source": "key",
+      "counted": true
+     },
+     {
+      "max_marks": 1.0,
+      "marks_awarded": 1.0,
+      "student_answer_summary": "(c) 1",
+      "key_concepts_found": [
+       "Correct option"
+      ],
+      "key_concepts_missed": [],
+      "feedback": "Correct.",
+      "confidence": "high",
+      "legibility_issue": false,
+      "not_attempted": false,
+      "points": [
+       {
+        "id": "2.1",
+        "text": "Correct option",
+        "expected": "(c) 1",
+        "max_marks": 1.0,
+        "marks_awarded": 1.0,
+        "verdict": "full",
+        "evidence": "(c) 1",
+        "reason": "Correct option selected.",
+        "borderline": false
+       }
+      ],
+      "needs_review": false,
+      "review_reasons": [],
+      "q_no": "2",
+      "has_subparts": false,
+      "subpart_grades": [],
+      "or_group": null,
+      "scheme_source": "key",
+      "counted": true
+     },
+     {
+      "max_marks": 1.0,
+      "marks_awarded": 0.0,
+      "student_answer_summary": "(b) cosec²A",
+      "key_concepts_found": [],
+      "key_concepts_missed": [
+       "Correct option"
+      ],
+      "feedback": "Incorrect. The identity is 1 + tan²A = sec²A.",
+      "confidence": "high",
+      "legibility_issue": false,
+      "not_attempted": false,
+      "points": [
+       {
+        "id": "3.1",
+        "text": "Correct option",
+        "expected": "(a) sec²A",
+        "max_marks": 1.0,
+        "marks_awarded": 0.0,
+        "verdict": "none",
+        "evidence": "(b) cosec²A",
+        "reason": "Incorrect option; 1 + tan²A = sec²A.",
+        "borderline": false
+       }
+      ],
+      "needs_review": false,
+      "review_reasons": [],
+      "q_no": "3",
+      "has_subparts": false,
+      "subpart_grades": [],
+      "or_group": null,
+      "scheme_source": "key",
+      "counted": true
+     },
+     {
+      "max_marks": 1.0,
+      "marks_awarded": 1.0,
+      "student_answer_summary": "(b) 45°",
+      "key_concepts_found": [
+       "Correct option"
+      ],
+      "key_concepts_missed": [],
+      "feedback": "Correct.",
+      "confidence": "high",
+      "legibility_issue": false,
+      "not_attempted": false,
+      "points": [
+       {
+        "id": "4.1",
+        "text": "Correct option",
+        "expected": "(b) 45°",
+        "max_marks": 1.0,
+        "marks_awarded": 1.0,
+        "verdict": "full",
+        "evidence": "(b) 45°",
+        "reason": "Correct option selected.",
+        "borderline": false
+       }
+      ],
+      "needs_review": false,
+      "review_reasons": [],
+      "q_no": "4",
+      "has_subparts": false,
+      "subpart_grades": [],
+      "or_group": null,
+      "scheme_source": "key",
+      "counted": true
+     },
+     {
+      "max_marks": 1.0,
+      "marks_awarded": 1.0,
+      "student_answer_summary": "(b) 9",
+      "key_concepts_found": [
+       "Correct option"
+      ],
+      "key_concepts_missed": [],
+      "feedback": "Correct.",
+      "confidence": "high",
+      "legibility_issue": false,
+      "not_attempted": false,
+      "points": [
+       {
+        "id": "5.1",
+        "text": "Correct option",
+        "expected": "(b) 9",
+        "max_marks": 1.0,
+        "marks_awarded": 1.0,
+        "verdict": "full",
+        "evidence": "(b) 9",
+        "reason": "Correct option selected.",
+        "borderline": false
+       }
+      ],
+      "needs_review": false,
+      "review_reasons": [],
+      "q_no": "5",
+      "has_subparts": false,
+      "subpart_grades": [],
+      "or_group": null,
+      "scheme_source": "key",
+      "counted": true
+     },
+     {
+      "max_marks": 1.0,
+      "marks_awarded": 0.0,
+      "student_answer_summary": "(c) √3",
+      "key_concepts_found": [],
+      "key_concepts_missed": [
+       "Correct option"
+      ],
+      "feedback": "Incorrect. tan 60° = √3 and cot 30° = √3, so their quotient is 1.",
+      "confidence": "high",
+      "legibility_issue": false,
+      "not_attempted": false,
+      "points": [
+       {
+        "id": "6.1",
+        "text": "Correct option",
+        "expected": "(b) 1",
+        "max_marks": 1.0,
+        "marks_awarded": 0.0,
+        "verdict": "none",
+        "evidence": "(c) √3",
+        "reason": "Incorrect option; tan 60° / cot 30° = √3 / √3 = 1.",
+        "borderline": false
+       }
+      ],
+      "needs_review": false,
+      "review_reasons": [],
+      "q_no": "6",
+      "has_subparts": false,
+      "subpart_grades": [],
+      "or_group": null,
+      "scheme_source": "key",
+      "counted": true
+     },
+     {
+      "max_marks": 1.0,
+      "marks_awarded": 1.0,
+      "student_answer_summary": "(c) 30√3 m",
+      "key_concepts_found": [
+       "Correct option"
+      ],
+      "key_concepts_missed": [],
+      "feedback": "Correct.",
+      "confidence": "high",
+      "legibility_issue": false,
+      "not_attempted": false,
+      "points": [
+       {
+        "id": "7.1",
+        "text": "Correct option",
+        "expected": "(c) 30√3 m",
+        "max_marks": 1.0,
+        "marks_awarded": 1.0,
+        "verdict": "full",
+        "evidence": "(c) 30√3 m",
+        "reason": "Correct option selected.",
+        "borderline": false
+       }
+      ],
+      "needs_review": false,
+      "review_reasons": [],
+      "q_no": "7",
+      "has_subparts": false,
+      "subpart_grades": [],
+      "or_group": null,
+      "scheme_source": "key",
+      "counted": true
+     },
+     {
+      "max_marks": 1.0,
+      "marks_awarded": 1.0,
+      "student_answer_summary": "(c) √3",
+      "key_concepts_found": [
+       "Correct option"
+      ],
+      "key_concepts_missed": [],
+      "feedback": "Correct.",
+      "confidence": "high",
+      "legibility_issue": false,
+      "not_attempted": false,
+      "points": [
+       {
+        "id": "8.1",
+        "text": "Correct option",
+        "expected": "(c) √3",
+        "max_marks": 1.0,
+        "marks_awarded": 1.0,
+        "verdict": "full",
+        "evidence": "(c) √3",
+        "reason": "Correct option selected.",
+        "borderline": false
+       }
+      ],
+      "needs_review": false,
+      "review_reasons": [],
+      "q_no": "8",
+      "has_subparts": false,
+      "subpart_grades": [],
+      "or_group": null,
+      "scheme_source": "key",
+      "counted": true
+     },
+     {
+      "max_marks": 2.0,
+      "marks_awarded": 2.0,
+      "student_answer_summary": "3 cot A = 4 => cot A = 4/3\ntan A = 1/cot A = 3/4 , tan²A = 9/16\n(1 - tan²A)/(1 + tan²A) = (1 - 9/16)/(1 + 9/16) = (7/16)/(25/16) = 7/25\nAns = 7/25",
+      "key_concepts_found": [
+       "Value of tan A",
+       "Value of tan²A",
+       "Substitution and simplification",
+       "Final value"
+      ],
+      "key_concepts_missed": [],
+      "feedback": "Well done, all steps are clear and correct.",
+      "confidence": "high",
+      "legibility_issue": false,
+      "not_attempted": false,
+      "points": [
+       {
+        "id": "9.1",
+        "text": "Value of tan A",
+        "expected": "cot A = 4/3, so tan A = 3/4",
+        "max_marks": 0.5,
+        "marks_awarded": 0.5,
+        "verdict": "full",
+        "evidence": "3 cot A = 4 => cot A = 4/3\ntan A = 1/cot A = 3/4",
+        "reason": "Correctly determined cot A and tan A.",
+        "borderline": false
+       },
+       {
+        "id": "9.2",
+        "text": "Value of tan²A",
+        "expected": "tan²A = 9/16",
+        "max_marks": 0.5,
+        "marks_awarded": 0.5,
+        "verdict": "full",
+        "evidence": "tan²A = 9/16",
+        "reason": "Correctly squared tan A.",
+        "borderline": false
+       },
+       {
+        "id": "9.3",
+        "text": "Substitution and simplification",
+        "expected": "Substitution: (1 − 9/16) / (1 + 9/16) = (7/16) / (25/16)",
+        "max_marks": 0.5,
+        "marks_awarded": 0.5,
+        "verdict": "full",
+        "evidence": "(1 - 9/16)/(1 + 9/16) = (7/16)/(25/16)",
+        "reason": "Correct substitution into the expression.",
+        "borderline": false
+       },
+       {
+        "id": "9.4",
+        "text": "Final value",
+        "expected": "= 7/25",
+        "max_marks": 0.5,
+        "marks_awarded": 0.5,
+        "verdict": "full",
+        "evidence": "= 7/25\nAns = 7/25",
+        "reason": "Correct final value obtained.",
+        "borderline": false
+       }
+      ],
+      "needs_review": false,
+      "review_reasons": [],
+      "q_no": "9",
+      "has_subparts": false,
+      "subpart_grades": [],
+      "or_group": null,
+      "scheme_source": "key",
+      "counted": true
+     },
+     {
+      "max_marks": 2.0,
+      "marks_awarded": 1.0,
+      "student_answer_summary": "tan 45° = 1 , cos 30° = √3/2 , sin 60° = √3/2\n2 tan²45° = (2 × 1)² = 4\n= 4 + (√3/2)² - (√3/2)²\n= 4 + 3/4 - 3/4 = 4",
+      "key_concepts_found": [
+       "Values of trigonometric ratios"
+      ],
+      "key_concepts_missed": [
+       "Substitution into expression",
+       "Final evaluated value"
+      ],
+      "feedback": "Be careful: 2 tan²45° means 2 × (tan 45°)², which is 2 × 1 = 2, not (2 × 1)² = 4.",
+      "confidence": "high",
+      "legibility_issue": false,
+      "not_attempted": false,
+      "points": [
+       {
+        "id": "10.1",
+        "text": "Values of trigonometric ratios",
+        "expected": "tan 45° = 1, cos 30° = √3/2, sin 60° = √3/2 (all three values correct)",
+        "max_marks": 1.0,
+        "marks_awarded": 1.0,
+        "verdict": "full",
+        "evidence": "tan 45° = 1 , cos 30° = √3/2 , sin 60° = √3/2",
+        "reason": "All trigonometric values are correctly stated.",
+        "borderline": false
+       },
+       {
+        "id": "10.2",
+        "text": "Substitution into expression",
+        "expected": "2(1)² + (√3/2)² − (√3/2)² = 2 + 3/4 − 3/4",
+        "max_marks": 0.5,
+        "marks_awarded": 0.0,
+        "verdict": "partial",
+        "evidence": "2 tan²45° = (2 × 1)² = 4\n= 4 + (√3/2)² - (√3/2)²",
+        "reason": "Incorrectly squared (2 × 1) instead of 2(1)², though trigonometric values were correctly placed.",
+        "borderline": false
+       },
+       {
+        "id": "10.3",
+        "text": "Final evaluated value",
+        "expected": "= 2",
+        "max_marks": 0.5,
+        "marks_awarded": 0.0,
+        "verdict": "none",
+        "evidence": "= 4 + 3/4 - 3/4 = 4",
+        "reason": "Final answer is incorrect due to the calculation error in the first term.",
+        "borderline": false
+       }
+      ],
+      "needs_review": false,
+      "review_reasons": [],
+      "q_no": "10",
+      "has_subparts": false,
+      "subpart_grades": [],
+      "or_group": null,
+      "scheme_source": "key",
+      "counted": true
+     },
+     {
+      "max_marks": 2.0,
+      "marks_awarded": 2.0,
+      "student_answer_summary": "sin (A - B) = 1/2 = sin 30°\nA - B = 30° ...(1)\ncos (A + B) = 1/2 = cos 60°\nA + B = 60° ...(2)\nadding (1) and (2) => 2A = 90° => A = 45°\nB = 60° - 45° = 15°",
+      "key_concepts_found": [
+       "Equation from sin (A − B)",
+       "Equation from cos (A + B)",
+       "Solving for A",
+       "Solving for B"
+      ],
+      "key_concepts_missed": [],
+      "feedback": "Excellent work, completely correct.",
+      "confidence": "high",
+      "legibility_issue": false,
+      "not_attempted": false,
+      "points": [
+       {
+        "id": "11.1",
+        "text": "Equation from sin (A − B)",
+        "expected": "sin (A − B) = 1/2 = sin 30° ⇒ A − B = 30°",
+        "max_marks": 0.5,
+        "marks_awarded": 0.5,
+        "verdict": "full",
+        "evidence": "sin (A - B) = 1/2 = sin 30°\nA - B = 30° ...(1)",
+        "reason": "Correct equation obtained from sin(A - B).",
+        "borderline": false
+       },
+       {
+        "id": "11.2",
+        "text": "Equation from cos (A + B)",
+        "expected": "cos (A + B) = 1/2 = cos 60° ⇒ A + B = 60°",
+        "max_marks": 0.5,
+        "marks_awarded": 0.5,
+        "verdict": "full",
+        "evidence": "cos (A + B) = 1/2 = cos 60°\nA + B = 60° ...(2)",
+        "reason": "Correct equation obtained from cos(A + B).",
+        "borderline": false
+       },
+       {
+        "id": "11.3",
+        "text": "Solving for A",
+        "expected": "Adding (i) and (ii): 2A = 90° ⇒ A = 45°",
+        "max_marks": 0.5,
+        "marks_awarded": 0.5,
+        "verdict": "full",
+        "evidence": "adding (1) and (2) => 2A = 90° => A = 45°",
+        "reason": "Correctly solved for A.",
+        "borderline": false
+       },
+       {
+        "id": "11.4",
+        "text": "Solving for B",
+        "expected": "B = 60° − 45° = 15°",
+        "max_marks": 0.5,
+        "marks_awarded": 0.5,
+        "verdict": "full",
+        "evidence": "B = 60° - 45° = 15°",
+        "reason": "Correctly solved for B.",
+        "borderline": false
+       }
+      ],
+      "needs_review": false,
+      "review_reasons": [],
+      "q_no": "11",
+      "has_subparts": false,
+      "subpart_grades": [],
+      "or_group": null,
+      "scheme_source": "key",
+      "counted": true
+     },
+     {
+      "max_marks": 2.0,
+      "marks_awarded": 2.0,
+      "student_answer_summary": "LHS = (sinθ + cosθ)² + (sinθ - cosθ)²\n= sin²θ + cos²θ + 2sinθcosθ + sin²θ + cos²θ - 2sinθcosθ\n= 2 sin²θ + 2 cos²θ = 2 (sin²θ + cos²θ)\n= 2 × 1 = 2 = RHS Hence proved",
+      "key_concepts_found": [
+       "Expansion of squares",
+       "Addition and cancellation of middle terms",
+       "Application of identity to reach RHS"
+      ],
+      "key_concepts_missed": [],
+      "feedback": "Perfect proof.",
+      "confidence": "high",
+      "legibility_issue": false,
+      "not_attempted": false,
+      "points": [
+       {
+        "id": "12.1",
+        "text": "Expansion of squares",
+        "expected": "(sin θ + cos θ)² = sin²θ + cos²θ + 2 sin θ cos θ and (sin θ − cos θ)² = sin²θ + cos²θ − 2 sin θ cos θ",
+        "max_marks": 1.0,
+        "marks_awarded": 1.0,
+        "verdict": "full",
+        "evidence": "sin²θ + cos²θ + 2sinθcosθ + sin²θ + cos²θ - 2sinθcosθ",
+        "reason": "Correctly expanded both squared binomials.",
+        "borderline": false
+       },
+       {
+        "id": "12.2",
+        "text": "Addition and cancellation of middle terms",
+        "expected": "Adding: 2(sin²θ + cos²θ)",
+        "max_marks": 0.5,
+        "marks_awarded": 0.5,
+        "verdict": "full",
+        "evidence": "= 2 sin²θ + 2 cos²θ = 2 (sin²θ + cos²θ)",
+        "reason": "Combined like terms and factored out 2.",
+        "borderline": false
+       },
+       {
+        "id": "12.3",
+        "text": "Application of identity to reach RHS",
+        "expected": "= 2 × 1 = 2 = RHS (using sin²θ + cos²θ = 1)",
+        "max_marks": 0.5,
+        "marks_awarded": 0.5,
+        "verdict": "full",
+        "evidence": "= 2 × 1 = 2 = RHS Hence proved",
+        "reason": "Correctly applied the identity sin²θ + cos²θ = 1 to obtain RHS.",
+        "borderline": false
+       }
+      ],
+      "needs_review": false,
+      "review_reasons": [],
+      "q_no": "12",
+      "has_subparts": false,
+      "subpart_grades": [],
+      "or_group": null,
+      "scheme_source": "key",
+      "counted": true
+     },
+     {
+      "max_marks": 3.0,
+      "marks_awarded": 1.5,
+      "student_answer_summary": "LHS = (sec A - tan A)²\n= (1/cos A - sin A/cos A)²\n= (1 - sin A)² / cos²A\n= (1 - sin A)² / (1 + sin²A)\n= (1 - sin A) / (1 + sin A) = RHS",
+      "key_concepts_found": [
+       "Converting to sin and cos",
+       "Expressing numerator and denominator"
+      ],
+      "key_concepts_missed": [
+       "Applying identity cos²A = 1 − sin²A and factoring",
+       "Cancelling common factor to obtain RHS"
+      ],
+      "feedback": "Note that cos²A = 1 − sin²A = (1 − sin A)(1 + sin A), not 1 + sin²A.",
+      "confidence": "high",
+      "legibility_issue": false,
+      "not_attempted": false,
+      "points": [
+       {
+        "id": "13.1",
+        "text": "Converting to sin and cos",
+        "expected": "LHS = (1/cos A − sin A/cos A)²",
+        "max_marks": 1.0,
+        "marks_awarded": 1.0,
+        "verdict": "full",
+        "evidence": "= (1/cos A - sin A/cos A)²",
+        "reason": "Correctly expressed sec A and tan A in terms of sin and cos.",
+        "borderline": false
+       },
+       {
+        "id": "13.2",
+        "text": "Expressing numerator and denominator",
+        "expected": "= (1 − sin A)² / cos²A",
+        "max_marks": 0.5,
+        "marks_awarded": 0.5,
+        "verdict": "full",
+        "evidence": "= (1 - sin A)² / cos²A",
+        "reason": "Correctly combined the fractions and applied the square.",
+        "borderline": false
+       },
+       {
+        "id": "13.3",
+        "text": "Applying identity cos²A = 1 − sin²A and factoring",
+        "expected": "cos²A = 1 − sin²A = (1 − sin A)(1 + sin A)",
+        "max_marks": 1.0,
+        "marks_awarded": 0.0,
+        "verdict": "none",
+        "evidence": "= (1 - sin A)² / (1 + sin²A)",
+        "reason": "Incorrect identity used; cos²A is 1 - sin²A, not 1 + sin²A.",
+        "borderline": false
+       },
+       {
+        "id": "13.4",
+        "text": "Cancelling common factor to obtain RHS",
+        "expected": "Cancelling (1 − sin A): = (1 − sin A)/(1 + sin A) = RHS",
+        "max_marks": 0.5,
+        "marks_awarded": 0.0,
+        "verdict": "none",
+        "evidence": "= (1 - sin A) / (1 + sin A) = RHS",
+        "reason": "Invalid cancellation fudged to match RHS.",
+        "borderline": false
+       }
+      ],
+      "needs_review": false,
+      "review_reasons": [],
+      "q_no": "13",
+      "has_subparts": false,
+      "subpart_grades": [],
+      "or_group": null,
+      "scheme_source": "key",
+      "counted": true
+     },
+     {
+      "max_marks": 3.0,
+      "marks_awarded": 2.5,
+      "student_answer_summary": "sec θ = 13/12 => cos θ = 12/13\nsin θ = √(1 - cos²θ) = √(1 - 144/169) = √(25/169) = 5/13\ntan θ = sinθ/cosθ = 5/12\ncot θ = 5/12\ncosec θ = 13/5",
+      "key_concepts_found": [
+       "Value of cos θ",
+       "Value of sin θ",
+       "Value of tan θ",
+       "Value of cosec θ"
+      ],
+      "key_concepts_missed": [
+       "Value of cot θ"
+      ],
+      "feedback": "cot θ is 1/tan θ = 12/5, not 5/12. Other ratios are correct.",
+      "confidence": "high",
+      "legibility_issue": false,
+      "not_attempted": false,
+      "points": [
+       {
+        "id": "14.1",
+        "text": "Value of cos θ",
+        "expected": "cos θ = 1/sec θ = 12/13",
+        "max_marks": 0.5,
+        "marks_awarded": 0.5,
+        "verdict": "full",
+        "evidence": "cos θ = 12/13",
+        "reason": "Correct value for cos θ.",
+        "borderline": false
+       },
+       {
+        "id": "14.2",
+        "text": "Value of sin θ",
+        "expected": "sin θ = √(1 − 144/169) = √(25/169) = 5/13",
+        "max_marks": 1.0,
+        "marks_awarded": 1.0,
+        "verdict": "full",
+        "evidence": "sin θ = √(1 - cos²θ) = √(1 - 144/169) = √(25/169) = 5/13",
+        "reason": "Correctly calculated sin θ.",
+        "borderline": false
+       },
+       {
+        "id": "14.3",
+        "text": "Value of tan θ",
+        "expected": "tan θ = sin θ / cos θ = 5/12",
+        "max_marks": 0.5,
+        "marks_awarded": 0.5,
+        "verdict": "full",
+        "evidence": "tan θ = sinθ/cosθ = 5/12",
+        "reason": "Correct value for tan θ.",
+        "borderline": false
+       },
+       {
+        "id": "14.4",
+        "text": "Value of cot θ",
+        "expected": "cot θ = 12/5",
+        "max_marks": 0.5,
+        "marks_awarded": 0.0,
+        "verdict": "none",
+        "evidence": "cot θ = 5/12",
+        "reason": "Incorrect value; cot θ is the reciprocal of tan θ, so it should be 12/5.",
+        "borderline": false
+       },
+       {
+        "id": "14.5",
+        "text": "Value of cosec θ",
+        "expected": "cosec θ = 13/5",
+        "max_marks": 0.5,
+        "marks_awarded": 0.5,
+        "verdict": "full",
+        "evidence": "cosec θ = 13/5",
+        "reason": "Correct value for cosec θ.",
+        "borderline": false
+       }
+      ],
+      "needs_review": false,
+      "review_reasons": [],
+      "q_no": "14",
+      "has_subparts": false,
+      "subpart_grades": [],
+      "or_group": null,
+      "scheme_source": "key",
+      "counted": true
+     },
+     {
+      "max_marks": 3.0,
+      "marks_awarded": 3.0,
+      "student_answer_summary": "LHS = cos A / (1 + sin A) + (1 + sin A) / cos A\n= [cos²A + (1 + sin A)²] / [cos A (1 + sin A)]\n= [cos²A + 1 + sin²A + 2 sin A] / [cos A (1 + sin A)]\n= (2 + 2 sin A) / [cos A (1 + sin A)] = 2(1 + sin A) / [cos A (1 + sin A)]\n= 2/cos A = 2 sec A = RHS",
+      "key_concepts_found": [
+       "Taking LCM of denominators",
+       "Expanding numerator",
+       "Using identity sin²A + cos²A = 1 and factoring",
+       "Cancelling (1 + sin A)",
+       "Final simplification to RHS"
+      ],
+      "key_concepts_missed": [],
+      "feedback": "Nicely done! Step-by-step simplification is completely accurate.",
+      "confidence": "high",
+      "legibility_issue": false,
+      "not_attempted": false,
+      "points": [
+       {
+        "id": "15.1",
+        "text": "Taking LCM of denominators",
+        "expected": "LHS = [cos²A + (1 + sin A)²] / [cos A (1 + sin A)]",
+        "max_marks": 1.0,
+        "marks_awarded": 1.0,
+        "verdict": "full",
+        "evidence": "= [cos²A + (1 + sin A)²] / [cos A (1 + sin A)]",
+        "reason": "Correct common denominator and numerator.",
+        "borderline": false
+       },
+       {
+        "id": "15.2",
+        "text": "Expanding numerator",
+        "expected": "Numerator = cos²A + 1 + 2 sin A + sin²A",
+        "max_marks": 0.5,
+        "marks_awarded": 0.5,
+        "verdict": "full",
+        "evidence": "= [cos²A + 1 + sin²A + 2 sin A] / [cos A (1 + sin A)]",
+        "reason": "Correct expansion of (1 + sin A)².",
+        "borderline": false
+       },
+       {
+        "id": "15.3",
+        "text": "Using identity sin²A + cos²A = 1 and factoring",
+        "expected": "= 1 + 1 + 2 sin A = 2(1 + sin A)",
+        "max_marks": 0.5,
+        "marks_awarded": 0.5,
+        "verdict": "full",
+        "evidence": "= (2 + 2 sin A) / [cos A (1 + sin A)] = 2(1 + sin A) / [cos A (1 + sin A)]",
+        "reason": "Correctly simplified numerator using sin²A + cos²A = 1 and factored out 2.",
+        "borderline": false
+       },
+       {
+        "id": "15.4",
+        "text": "Cancelling (1 + sin A)",
+        "expected": "= 2(1 + sin A) / [cos A (1 + sin A)] = 2/cos A",
+        "max_marks": 0.5,
+        "marks_awarded": 0.5,
+        "verdict": "full",
+        "evidence": "= 2/cos A",
+        "reason": "Correctly cancelled common factor (1 + sin A).",
+        "borderline": false
+       },
+       {
+        "id": "15.5",
+        "text": "Final simplification to RHS",
+        "expected": "= 2 sec A = RHS",
+        "max_marks": 0.5,
+        "marks_awarded": 0.5,
+        "verdict": "full",
+        "evidence": "= 2 sec A = RHS",
+        "reason": "Correctly concluded with 2 sec A = RHS.",
+        "borderline": false
+       }
+      ],
+      "needs_review": false,
+      "review_reasons": [],
+      "q_no": "15",
+      "has_subparts": false,
+      "subpart_grades": [],
+      "or_group": null,
+      "scheme_source": "key",
+      "counted": true
+     },
+     {
+      "max_marks": 3.0,
+      "marks_awarded": 0.5,
+      "student_answer_summary": "Let length of string AC = L\ncos 60° = AB / AC\n1/2 = 60 / L\nL = 120 m",
+      "key_concepts_found": [
+       "Figure"
+      ],
+      "key_concepts_missed": [
+       "Trigonometric relation",
+       "Substitution and expression for L",
+       "Final answer with unit"
+      ],
+      "feedback": "The height AB is opposite to 60°, so you should use sin 60° = AB/AC = 60/L, giving L = 40√3 m.",
+      "confidence": "high",
+      "legibility_issue": false,
+      "not_attempted": false,
+      "points": [
+       {
+        "id": "16.1",
+        "text": "Figure",
+        "expected": "Correct figure: right triangle, height 60 m, angle 60° at ground, string = hypotenuse L",
+        "max_marks": 0.5,
+        "marks_awarded": 0.5,
+        "verdict": "full",
+        "evidence": "Diagram drawn showing right triangle with height 60 m, hypotenuse L, and 60° at ground.",
+        "reason": "Correct right triangle diagram drawn with proper labels.",
+        "borderline": false
+       },
+       {
+        "id": "16.2",
+        "text": "Trigonometric relation",
+        "expected": "sin 60° = 60 / L (perpendicular/hypotenuse)",
+        "max_marks": 1.0,
+        "marks_awarded": 0.0,
+        "verdict": "none",
+        "evidence": "cos 60° = AB / AC",
+        "reason": "Used cos 60° instead of sin 60° for perpendicular/hypotenuse.",
+        "borderline": false
+       },
+       {
+        "id": "16.3",
+        "text": "Substitution and expression for L",
+        "expected": "√3/2 = 60/L ⇒ L = 120/√3",
+        "max_marks": 0.5,
+        "marks_awarded": 0.0,
+        "verdict": "none",
+        "evidence": "1/2 = 60 / L",
+        "reason": "Incorrect trigonometric relationship leads to wrong algebraic equation.",
+        "borderline": false
+       },
+       {
+        "id": "16.4",
+        "text": "Final answer with unit",
+        "expected": "L = 40√3 m (≈ 69.28 m)",
+        "max_marks": 1.0,
+        "marks_awarded": 0.0,
+        "verdict": "none",
+        "evidence": "L = 120 m",
+        "reason": "Incorrect value for the length of the string.",
+        "borderline": false
+       }
+      ],
+      "needs_review": false,
+      "review_reasons": [],
+      "q_no": "16",
+      "has_subparts": false,
+      "subpart_grades": [],
+      "or_group": null,
+      "scheme_source": "key",
+      "counted": true
+     },
+     {
+      "max_marks": 4.0,
+      "marks_awarded": 2.0,
+      "student_answer_summary": "LHS = tanθ/(1 - cotθ) + cotθ/(1 - tanθ)\n= tanθ/(1 - 1/tanθ) + (1/tanθ)/(1 - tanθ)\n= tan²θ/(tanθ - 1) - 1/[tanθ(tanθ - 1)]\n= (tan³θ - 1) / [tanθ(tanθ - 1)]\n= (tan²θ + 1)/tanθ = sec²θ/tanθ\n= 1/(sinθcosθ) = secθ cosecθ = RHS",
+      "key_concepts_found": [
+       "Expressing cot θ in terms of tan θ",
+       "Simplifying and combining fractions"
+      ],
+      "key_concepts_missed": [
+       "Factoring using a³ − b³",
+       "Splitting and converting to sin/cos to reach RHS"
+      ],
+      "feedback": "Remember that a³ − b³ = (a − b)(a² + ab + b²), so tan³θ − 1 = (tan θ − 1)(tan²θ + tan θ + 1). You missed the middle term.",
+      "confidence": "high",
+      "legibility_issue": false,
+      "not_attempted": false,
+      "points": [
+       {
+        "id": "17.1",
+        "text": "Expressing cot θ in terms of tan θ",
+        "expected": "Writing cot θ = 1/tan θ: LHS = tan θ / (1 − 1/tan θ) + (1/tan θ) / (1 − tan θ)",
+        "max_marks": 1.0,
+        "marks_awarded": 1.0,
+        "verdict": "full",
+        "evidence": "= tanθ/(1 - 1/tanθ) + (1/tanθ)/(1 - tanθ)",
+        "reason": "Correctly converted cot θ into 1/tan θ.",
+        "borderline": false
+       },
+       {
+        "id": "17.2",
+        "text": "Simplifying and combining fractions",
+        "expected": "= tan²θ/(tan θ − 1) − 1/[tan θ (tan θ − 1)] = (tan³θ − 1) / [tan θ (tan θ − 1)]",
+        "max_marks": 1.0,
+        "marks_awarded": 1.0,
+        "verdict": "full",
+        "evidence": "= tan²θ/(tanθ - 1) - 1/[tanθ(tanθ - 1)]\n= (tan³θ - 1) / [tanθ(tanθ - 1)]",
+        "reason": "Correctly combined terms over a common denominator.",
+        "borderline": false
+       },
+       {
+        "id": "17.3",
+        "text": "Factoring using a³ − b³",
+        "expected": "Using a³ − b³ = (a − b)(a² + ab + b²): = (tan²θ + tan θ + 1) / tan θ",
+        "max_marks": 1.0,
+        "marks_awarded": 0.0,
+        "verdict": "none",
+        "evidence": "= (tan²θ + 1)/tanθ",
+        "reason": "Incorrectly factored tan³θ - 1, omitting the middle term tan θ.",
+        "borderline": false
+       },
+       {
+        "id": "17.4",
+        "text": "Splitting and converting to sin/cos to reach RHS",
+        "expected": "= tan θ + 1 + cot θ = 1 + (sin²θ + cos²θ)/(sin θ cos θ) = 1 + sec θ cosec θ = RHS",
+        "max_marks": 1.0,
+        "marks_awarded": 0.0,
+        "verdict": "none",
+        "evidence": "= 1/(sinθcosθ) = secθ cosecθ = RHS",
+        "reason": "Failed to prove 1 + sec θ cosec θ (missed the '1 +' term completely).",
+        "borderline": false
+       }
+      ],
+      "needs_review": false,
+      "review_reasons": [],
+      "q_no": "17",
+      "has_subparts": false,
+      "subpart_grades": [],
+      "or_group": null,
+      "scheme_source": "key",
+      "counted": true
+     },
+     {
+      "max_marks": 4.0,
+      "marks_awarded": 4.0,
+      "student_answer_summary": "AB = 7 m , let BD = AE = x\nIn ΔABD , tan 45° = AB/BD\n1 = 7/x => x = 7 m\nIn ΔAEC , tan 60° = CE/AE\n√3 = CE/7 => CE = 7√3 m\nHeight of tower CD = CE + ED = 7√3 + 7 = 7(√3 + 1) = 7 × 2.732 = 19.124 m\nHeight of tower = 19.12 m (approx)",
+      "key_concepts_found": [
+       "Correct labelled figure",
+       "Finding distance x using △ABD",
+       "Finding CE using △AEC",
+       "Total height of tower"
+      ],
+      "key_concepts_missed": [],
+      "feedback": "Excellent work, clear presentation and correct final answer.",
+      "confidence": "high",
+      "legibility_issue": false,
+      "not_attempted": false,
+      "points": [
+       {
+        "id": "18.1",
+        "text": "Correct labelled figure",
+        "expected": "Correct figure: building AB = 7 m, tower CD, BD = AE = x, angle of depression 45°, elevation 60°",
+        "max_marks": 1.0,
+        "marks_awarded": 1.0,
+        "verdict": "full",
+        "evidence": "Diagram drawn showing building AB, tower CD, angles 45° and 60°.",
+        "reason": "Correct figure drawn and labeled.",
+        "borderline": false
+       },
+       {
+        "id": "18.2",
+        "text": "Finding distance x using △ABD",
+        "expected": "In △ABD: tan 45° = AB/BD = 7/x ⇒ x = 7 m",
+        "max_marks": 1.0,
+        "marks_awarded": 1.0,
+        "verdict": "full",
+        "evidence": "In ΔABD , tan 45° = AB/BD\n1 = 7/x => x = 7 m",
+        "reason": "Correctly found horizontal distance x = 7 m.",
+        "borderline": false
+       },
+       {
+        "id": "18.3",
+        "text": "Finding CE using △AEC",
+        "expected": "In △AEC: tan 60° = CE/AE ⇒ CE = 7√3 m",
+        "max_marks": 1.0,
+        "marks_awarded": 1.0,
+        "verdict": "full",
+        "evidence": "In ΔAEC , tan 60° = CE/AE\n√3 = CE/7 => CE = 7√3 m",
+        "reason": "Correctly found CE = 7√3 m.",
+        "borderline": false
+       },
+       {
+        "id": "18.4",
+        "text": "Total height of tower",
+        "expected": "Height of tower CD = CE + ED = 7√3 + 7 = 7(√3 + 1) ≈ 19.12 m",
+        "max_marks": 1.0,
+        "marks_awarded": 1.0,
+        "verdict": "full",
+        "evidence": "Height of tower CD = CE + ED = 7√3 + 7 = 7(√3 + 1) = 7 × 2.732 = 19.124 m\nHeight of tower = 19.12 m (approx)",
+        "reason": "Correctly calculated total height of the tower.",
+        "borderline": false
+       }
+      ],
+      "needs_review": false,
+      "review_reasons": [],
+      "q_no": "18",
+      "has_subparts": false,
+      "subpart_grades": [],
+      "or_group": null,
+      "scheme_source": "key",
+      "counted": true
+     },
+     {
+      "max_marks": 4.0,
+      "marks_awarded": 2.5,
+      "student_answer_summary": "Let BP = x, then PD = 80 - x , AB = CD = h\nIn ΔABP , tan 60° = h/x => h = √3 x ...(1)\nIn ΔCDP , tan 30° = h/(80 - x) => h = (80 - x)/√3 ...(2)\nfrom (1) and (2) , √3 x = (80 - x)/√3\n3x = 80 - x\n2x = 80\nx = 40 m\nh = √3 × 40 = 40√3 = 69.28 m\nHeight of poles = 69.28 m\nDistances of point from poles = 40 m and 40 m",
+      "key_concepts_found": [
+       "Correct labelled figure",
+       "Forming trigonometric equations for both poles"
+      ],
+      "key_concepts_missed": [
+       "Solving for distance x",
+       "Height of poles and distances from both poles"
+      ],
+      "feedback": "Watch out for simple algebra errors: 3x = 80 − x implies 3x + x = 4x = 80, giving x = 20 m.",
+      "confidence": "high",
+      "legibility_issue": false,
+      "not_attempted": false,
+      "points": [
+       {
+        "id": "19.1",
+        "text": "Correct labelled figure",
+        "expected": "Correct figure: poles AB and CD, height h, point P on road, BP = x, PD = 80 − x",
+        "max_marks": 1.0,
+        "marks_awarded": 1.0,
+        "verdict": "full",
+        "evidence": "Diagram drawn showing two poles AB and CD of height h, point P, angles 60° and 30°.",
+        "reason": "Correct and labeled diagram provided.",
+        "borderline": false
+       },
+       {
+        "id": "19.2",
+        "text": "Forming trigonometric equations for both poles",
+        "expected": "tan 60° = h/x ⇒ h = √3 x ; tan 30° = h/(80 − x) ⇒ h = (80 − x)/√3",
+        "max_marks": 1.0,
+        "marks_awarded": 1.0,
+        "verdict": "full",
+        "evidence": "tan 60° = h/x => h = √3 x ...(1)\ntan 30° = h/(80 - x) => h = (80 - x)/√3 ...(2)",
+        "reason": "Correct trigonometric equations set up for both triangles.",
+        "borderline": false
+       },
+       {
+        "id": "19.3",
+        "text": "Solving for distance x",
+        "expected": "√3 x = (80 − x)/√3 ⇒ 3x = 80 − x ⇒ x = 20 m",
+        "max_marks": 1.0,
+        "marks_awarded": 0.5,
+        "verdict": "partial",
+        "evidence": "√3 x = (80 - x)/√3\n3x = 80 - x\n2x = 80\nx = 40 m",
+        "reason": "Equated correctly to get 3x = 80 - x, but made an algebraic error writing 2x = 80 instead of 4x = 80.",
+        "borderline": false
+       },
+       {
+        "id": "19.4",
+        "text": "Height of poles and distances from both poles",
+        "expected": "h = 20√3 m ≈ 34.64 m; distances from poles: 20 m and 60 m",
+        "max_marks": 1.0,
+        "marks_awarded": 0.0,
+        "verdict": "none",
+        "evidence": "Height of poles = 69.28 m\nDistances of point from poles = 40 m and 40 m",
+        "reason": "Incorrect final height and distances due to the arithmetic error.",
+        "borderline": false
+       }
+      ],
+      "needs_review": false,
+      "review_reasons": [],
+      "q_no": "19",
+      "has_subparts": false,
+      "subpart_grades": [],
+      "or_group": null,
+      "scheme_source": "key",
+      "counted": true
+     }
+    ],
+    "total_marks_awarded": 29.0,
+    "max_marks": 40.0,
+    "percentage": 72.5,
+    "needs_review_count": 0
+   }
+  },
+  {
+   "file": "Priya_Sharma_answer_sheet.pdf",
+   "wall_s": 77.2,
+   "error": null,
+   "calls": 1,
+   "tokens": {
+    "input": 12365,
+    "output": 6489,
+    "thinking": 3765
+   },
+   "inr": 4.2,
+   "rows": [
+    {
+     "q": "A",
+     "expected": 7,
+     "ai": 7.0,
+     "diff": 0.0,
+     "flag": null
+    },
+    {
+     "q": "9",
+     "expected": 2,
+     "ai": 2.0,
+     "diff": 0.0,
+     "flag": null
+    },
+    {
+     "q": "10",
+     "expected": 2,
+     "ai": 2.0,
+     "diff": 0.0,
+     "flag": null
+    },
+    {
+     "q": "11",
+     "expected": 0.5,
+     "ai": 0.5,
+     "diff": 0.0,
+     "flag": null
+    },
+    {
+     "q": "12",
+     "expected": 2,
+     "ai": 2.0,
+     "diff": 0.0,
+     "flag": null
+    },
+    {
+     "q": "13",
+     "expected": 3,
+     "ai": 3.0,
+     "diff": 0.0,
+     "flag": null
+    },
+    {
+     "q": "14",
+     "expected": 3,
+     "ai": 3.0,
+     "diff": 0.0,
+     "flag": null
+    },
+    {
+     "q": "15",
+     "expected": 3,
+     "ai": 3.0,
+     "diff": 0.0,
+     "flag": null
+    },
+    {
+     "q": "16",
+     "expected": 3,
+     "ai": 3.0,
+     "diff": 0.0,
+     "flag": null
+    },
+    {
+     "q": "17",
+     "expected": 4,
+     "ai": 4.0,
+     "diff": 0.0,
+     "flag": null
+    },
+    {
+     "q": "18",
+     "expected": 4,
+     "ai": 4.0,
+     "diff": 0.0,
+     "flag": null
+    },
+    {
+     "q": "19",
+     "expected": 4,
+     "ai": 4.0,
+     "diff": 0.0,
+     "flag": null
+    }
+   ],
+   "total_ai": 37.5,
+   "total_expected": 37.5,
+   "total_diff": 0.0,
+   "questions_off": 0,
+   "questions_off_by_more_than_1": 0,
+   "expected_flags": {},
+   "unassigned": [],
+   "result": {
+    "student_info": {
+     "name": "Priya Sharma",
+     "class": "X - B",
+     "roll_no": "05",
+     "missing_fields": []
+    },
+    "overall_remarks": "Excellent presentation, diagram drawing, and mastery of trigonometric identities and applications. Be careful with specific trigonometric standard values to avoid errors like in Q8 and Q11 (cos 60° = 1/2, not cos 30°).",
+    "readability_score": "good",
+    "_grade_time_s": 77.15,
+    "is_valid": true,
+    "graded_questions": [
+     {
+      "max_marks": 1.0,
+      "marks_awarded": 1.0,
+      "student_answer_summary": "1 - (a)",
+      "key_concepts_found": [
+       "Correct option"
+      ],
+      "key_concepts_missed": [],
+      "feedback": "Correct answer.",
+      "confidence": "high",
+      "legibility_issue": false,
+      "not_attempted": false,
+      "points": [
+       {
+        "id": "1.1",
+        "text": "Correct option",
+        "expected": "(a) 4/5",
+        "max_marks": 1.0,
+        "marks_awarded": 1.0,
+        "verdict": "full",
+        "evidence": "1 - (a)",
+        "reason": "Correct option selected.",
+        "borderline": false
+       }
+      ],
+      "needs_review": false,
+      "review_reasons": [],
+      "q_no": "1",
+      "has_subparts": false,
+      "subpart_grades": [],
+      "or_group": null,
+      "scheme_source": "key",
+      "counted": true
+     },
+     {
+      "max_marks": 1.0,
+      "marks_awarded": 1.0,
+      "student_answer_summary": "2 - (c)",
+      "key_concepts_found": [
+       "Correct option"
+      ],
+      "key_concepts_missed": [],
+      "feedback": "Correct answer.",
+      "confidence": "high",
+      "legibility_issue": false,
+      "not_attempted": false,
+      "points": [
+       {
+        "id": "2.1",
+        "text": "Correct option",
+        "expected": "(c) 1",
+        "max_marks": 1.0,
+        "marks_awarded": 1.0,
+        "verdict": "full",
+        "evidence": "2 - (c)",
+        "reason": "Correct option selected.",
+        "borderline": false
+       }
+      ],
+      "needs_review": false,
+      "review_reasons": [],
+      "q_no": "2",
+      "has_subparts": false,
+      "subpart_grades": [],
+      "or_group": null,
+      "scheme_source": "key",
+      "counted": true
+     },
+     {
+      "max_marks": 1.0,
+      "marks_awarded": 1.0,
+      "student_answer_summary": "3 - (a)",
+      "key_concepts_found": [
+       "Correct option"
+      ],
+      "key_concepts_missed": [],
+      "feedback": "Correct answer.",
+      "confidence": "high",
+      "legibility_issue": false,
+      "not_attempted": false,
+      "points": [
+       {
+        "id": "3.1",
+        "text": "Correct option",
+        "expected": "(a) sec²A",
+        "max_marks": 1.0,
+        "marks_awarded": 1.0,
+        "verdict": "full",
+        "evidence": "3 - (a)",
+        "reason": "Correct option selected.",
+        "borderline": false
+       }
+      ],
+      "needs_review": false,
+      "review_reasons": [],
+      "q_no": "3",
+      "has_subparts": false,
+      "subpart_grades": [],
+      "or_group": null,
+      "scheme_source": "key",
+      "counted": true
+     },
+     {
+      "max_marks": 1.0,
+      "marks_awarded": 1.0,
+      "student_answer_summary": "4 - (b)",
+      "key_concepts_found": [
+       "Correct option"
+      ],
+      "key_concepts_missed": [],
+      "feedback": "Correct answer.",
+      "confidence": "high",
+      "legibility_issue": false,
+      "not_attempted": false,
+      "points": [
+       {
+        "id": "4.1",
+        "text": "Correct option",
+        "expected": "(b) 45°",
+        "max_marks": 1.0,
+        "marks_awarded": 1.0,
+        "verdict": "full",
+        "evidence": "4 - (b)",
+        "reason": "Correct option selected.",
+        "borderline": false
+       }
+      ],
+      "needs_review": false,
+      "review_reasons": [],
+      "q_no": "4",
+      "has_subparts": false,
+      "subpart_grades": [],
+      "or_group": null,
+      "scheme_source": "key",
+      "counted": true
+     },
+     {
+      "max_marks": 1.0,
+      "marks_awarded": 1.0,
+      "student_answer_summary": "5 - (b)",
+      "key_concepts_found": [
+       "Correct option"
+      ],
+      "key_concepts_missed": [],
+      "feedback": "Correct answer.",
+      "confidence": "high",
+      "legibility_issue": false,
+      "not_attempted": false,
+      "points": [
+       {
+        "id": "5.1",
+        "text": "Correct option",
+        "expected": "(b) 9",
+        "max_marks": 1.0,
+        "marks_awarded": 1.0,
+        "verdict": "full",
+        "evidence": "5 - (b)",
+        "reason": "Correct option selected.",
+        "borderline": false
+       }
+      ],
+      "needs_review": false,
+      "review_reasons": [],
+      "q_no": "5",
+      "has_subparts": false,
+      "subpart_grades": [],
+      "or_group": null,
+      "scheme_source": "key",
+      "counted": true
+     },
+     {
+      "max_marks": 1.0,
+      "marks_awarded": 1.0,
+      "student_answer_summary": "6 - (b)",
+      "key_concepts_found": [
+       "Correct option"
+      ],
+      "key_concepts_missed": [],
+      "feedback": "Correct answer.",
+      "confidence": "high",
+      "legibility_issue": false,
+      "not_attempted": false,
+      "points": [
+       {
+        "id": "6.1",
+        "text": "Correct option",
+        "expected": "(b) 1",
+        "max_marks": 1.0,
+        "marks_awarded": 1.0,
+        "verdict": "full",
+        "evidence": "6 - (b)",
+        "reason": "Correct option selected.",
+        "borderline": false
+       }
+      ],
+      "needs_review": false,
+      "review_reasons": [],
+      "q_no": "6",
+      "has_subparts": false,
+      "subpart_grades": [],
+      "or_group": null,
+      "scheme_source": "key",
+      "counted": true
+     },
+     {
+      "max_marks": 1.0,
+      "marks_awarded": 1.0,
+      "student_answer_summary": "7 - (c)",
+      "key_concepts_found": [
+       "Correct option"
+      ],
+      "key_concepts_missed": [],
+      "feedback": "Correct answer.",
+      "confidence": "high",
+      "legibility_issue": false,
+      "not_attempted": false,
+      "points": [
+       {
+        "id": "7.1",
+        "text": "Correct option",
+        "expected": "(c) 30√3 m",
+        "max_marks": 1.0,
+        "marks_awarded": 1.0,
+        "verdict": "full",
+        "evidence": "7 - (c)",
+        "reason": "Correct option selected.",
+        "borderline": false
+       }
+      ],
+      "needs_review": false,
+      "review_reasons": [],
+      "q_no": "7",
+      "has_subparts": false,
+      "subpart_grades": [],
+      "or_group": null,
+      "scheme_source": "key",
+      "counted": true
+     },
+     {
+      "max_marks": 1.0,
+      "marks_awarded": 0.0,
+      "student_answer_summary": "8 - (a)",
+      "key_concepts_found": [],
+      "key_concepts_missed": [
+       "Correct option"
+      ],
+      "feedback": "Incorrect option. If cos A = 1/2, then A = 60°, so tan A = √3, which corresponds to (c).",
+      "confidence": "high",
+      "legibility_issue": false,
+      "not_attempted": false,
+      "points": [
+       {
+        "id": "8.1",
+        "text": "Correct option",
+        "expected": "(c) √3",
+        "max_marks": 1.0,
+        "marks_awarded": 0.0,
+        "verdict": "none",
+        "evidence": "8 - (a)",
+        "reason": "Incorrect option; correct is (c) √3.",
+        "borderline": false
+       }
+      ],
+      "needs_review": false,
+      "review_reasons": [],
+      "q_no": "8",
+      "has_subparts": false,
+      "subpart_grades": [],
+      "or_group": null,
+      "scheme_source": "key",
+      "counted": true
+     },
+     {
+      "max_marks": 2.0,
+      "marks_awarded": 2.0,
+      "student_answer_summary": "cot A = 4/3 , tan A = 3/4 , tan²A = 9/16\n(1 - 9/16) / (1 + 9/16) = (7/16) / (25/16) = 7/25",
+      "key_concepts_found": [
+       "Value of tan A",
+       "Value of tan²A",
+       "Substitution and simplification",
+       "Final value"
+      ],
+      "key_concepts_missed": [],
+      "feedback": "Nicely solved with clear steps.",
+      "confidence": "high",
+      "legibility_issue": false,
+      "not_attempted": false,
+      "points": [
+       {
+        "id": "9.1",
+        "text": "Value of tan A",
+        "expected": "cot A = 4/3, so tan A = 3/4",
+        "max_marks": 0.5,
+        "marks_awarded": 0.5,
+        "verdict": "full",
+        "evidence": "cot A = 4/3 , tan A = 3/4",
+        "reason": "Correctly determined tan A.",
+        "borderline": false
+       },
+       {
+        "id": "9.2",
+        "text": "Value of tan²A",
+        "expected": "tan²A = 9/16",
+        "max_marks": 0.5,
+        "marks_awarded": 0.5,
+        "verdict": "full",
+        "evidence": "tan²A = 9/16",
+        "reason": "Correctly calculated tan²A.",
+        "borderline": false
+       },
+       {
+        "id": "9.3",
+        "text": "Substitution and simplification",
+        "expected": "Substitution: (1 − 9/16) / (1 + 9/16) = (7/16) / (25/16)",
+        "max_marks": 0.5,
+        "marks_awarded": 0.5,
+        "verdict": "full",
+        "evidence": "(1 - 9/16) / (1 + 9/16) = (7/16) / (25/16)",
+        "reason": "Correct substitution and simplification.",
+        "borderline": false
+       },
+       {
+        "id": "9.4",
+        "text": "Final value",
+        "expected": "= 7/25",
+        "max_marks": 0.5,
+        "marks_awarded": 0.5,
+        "verdict": "full",
+        "evidence": "= 7/25",
+        "reason": "Correct final value.",
+        "borderline": false
+       }
+      ],
+      "needs_review": false,
+      "review_reasons": [],
+      "q_no": "9",
+      "has_subparts": false,
+      "subpart_grades": [],
+      "or_group": null,
+      "scheme_source": "key",
+      "counted": true
+     },
+     {
+      "max_marks": 2.0,
+      "marks_awarded": 2.0,
+      "student_answer_summary": "2(1)² + (√3/2)² - (√3/2)² = 2 + 3/4 - 3/4 = 2",
+      "key_concepts_found": [
+       "Values of trigonometric ratios",
+       "Substitution into expression",
+       "Final evaluated value"
+      ],
+      "key_concepts_missed": [],
+      "feedback": "Correct evaluation.",
+      "confidence": "high",
+      "legibility_issue": false,
+      "not_attempted": false,
+      "points": [
+       {
+        "id": "10.1",
+        "text": "Values of trigonometric ratios",
+        "expected": "tan 45° = 1, cos 30° = √3/2, sin 60° = √3/2 (all three values correct)",
+        "max_marks": 1.0,
+        "marks_awarded": 1.0,
+        "verdict": "full",
+        "evidence": "2(1)² + (√3/2)² - (√3/2)²",
+        "reason": "All trigonometric values correctly identified.",
+        "borderline": false
+       },
+       {
+        "id": "10.2",
+        "text": "Substitution into expression",
+        "expected": "2(1)² + (√3/2)² − (√3/2)² = 2 + 3/4 − 3/4",
+        "max_marks": 0.5,
+        "marks_awarded": 0.5,
+        "verdict": "full",
+        "evidence": "= 2 + 3/4 - 3/4",
+        "reason": "Correct expansion of terms.",
+        "borderline": false
+       },
+       {
+        "id": "10.3",
+        "text": "Final evaluated value",
+        "expected": "= 2",
+        "max_marks": 0.5,
+        "marks_awarded": 0.5,
+        "verdict": "full",
+        "evidence": "= 2",
+        "reason": "Correct final answer.",
+        "borderline": false
+       }
+      ],
+      "needs_review": false,
+      "review_reasons": [],
+      "q_no": "10",
+      "has_subparts": false,
+      "subpart_grades": [],
+      "or_group": null,
+      "scheme_source": "key",
+      "counted": true
+     },
+     {
+      "max_marks": 2.0,
+      "marks_awarded": 0.5,
+      "student_answer_summary": "sin (A - B) = 1/2 => A - B = 30°\ncos (A + B) = 1/2 => A + B = 30°\n2A = 60° => A = 30° , B = 0°",
+      "key_concepts_found": [
+       "Equation from sin (A − B)"
+      ],
+      "key_concepts_missed": [
+       "Equation from cos (A + B)",
+       "Solving for A",
+       "Solving for B"
+      ],
+      "feedback": "Remember that cos 60° = 1/2, so A + B = 60°, not 30°.",
+      "confidence": "high",
+      "legibility_issue": false,
+      "not_attempted": false,
+      "points": [
+       {
+        "id": "11.1",
+        "text": "Equation from sin (A − B)",
+        "expected": "sin (A − B) = 1/2 = sin 30° ⇒ A − B = 30°",
+        "max_marks": 0.5,
+        "marks_awarded": 0.5,
+        "verdict": "full",
+        "evidence": "sin (A - B) = 1/2 => A - B = 30°",
+        "reason": "Correct equation for A - B.",
+        "borderline": false
+       },
+       {
+        "id": "11.2",
+        "text": "Equation from cos (A + B)",
+        "expected": "cos (A + B) = 1/2 = cos 60° ⇒ A + B = 60°",
+        "max_marks": 0.5,
+        "marks_awarded": 0.0,
+        "verdict": "none",
+        "evidence": "cos (A + B) = 1/2 => A + B = 30°",
+        "reason": "Incorrect; cos 60° = 1/2, so A + B should be 60°.",
+        "borderline": false
+       },
+       {
+        "id": "11.3",
+        "text": "Solving for A",
+        "expected": "Adding (i) and (ii): 2A = 90° ⇒ A = 45°",
+        "max_marks": 0.5,
+        "marks_awarded": 0.0,
+        "verdict": "none",
+        "evidence": "2A = 60° => A = 30°",
+        "reason": "Incorrect value for A due to prior error.",
+        "borderline": false
+       },
+       {
+        "id": "11.4",
+        "text": "Solving for B",
+        "expected": "B = 60° − 45° = 15°",
+        "max_marks": 0.5,
+        "marks_awarded": 0.0,
+        "verdict": "none",
+        "evidence": "B = 0°",
+        "reason": "Incorrect value for B.",
+        "borderline": false
+       }
+      ],
+      "needs_review": false,
+      "review_reasons": [],
+      "q_no": "11",
+      "has_subparts": false,
+      "subpart_grades": [],
+      "or_group": null,
+      "scheme_source": "key",
+      "counted": true
+     },
+     {
+      "max_marks": 2.0,
+      "marks_awarded": 2.0,
+      "student_answer_summary": "(sinθ + cosθ)² + (sinθ - cosθ)²\n= sin²θ + cos²θ + 2sinθcosθ + sin²θ + cos²θ - 2sinθcosθ\n= 2 (sin²θ + cos²θ) = 2 x 1 = 2 = RHS",
+      "key_concepts_found": [
+       "Expansion of squares",
+       "Addition and cancellation of middle terms",
+       "Application of identity to reach RHS"
+      ],
+      "key_concepts_missed": [],
+      "feedback": "Perfect proof.",
+      "confidence": "high",
+      "legibility_issue": false,
+      "not_attempted": false,
+      "points": [
+       {
+        "id": "12.1",
+        "text": "Expansion of squares",
+        "expected": "(sin θ + cos θ)² = sin²θ + cos²θ + 2 sin θ cos θ and (sin θ − cos θ)² = sin²θ + cos²θ − 2 sin θ cos θ",
+        "max_marks": 1.0,
+        "marks_awarded": 1.0,
+        "verdict": "full",
+        "evidence": "= sin²θ + cos²θ + 2sinθcosθ + sin²θ + cos²θ - 2sinθcosθ",
+        "reason": "Correctly expanded both binomial squares.",
+        "borderline": false
+       },
+       {
+        "id": "12.2",
+        "text": "Addition and cancellation of middle terms",
+        "expected": "Adding: 2(sin²θ + cos²θ)",
+        "max_marks": 0.5,
+        "marks_awarded": 0.5,
+        "verdict": "full",
+        "evidence": "= 2 (sin²θ + cos²θ)",
+        "reason": "Correct simplification by grouping terms.",
+        "borderline": false
+       },
+       {
+        "id": "12.3",
+        "text": "Application of identity to reach RHS",
+        "expected": "= 2 × 1 = 2 = RHS (using sin²θ + cos²θ = 1)",
+        "max_marks": 0.5,
+        "marks_awarded": 0.5,
+        "verdict": "full",
+        "evidence": "= 2 x 1 = 2 = RHS",
+        "reason": "Identity applied correctly to reach RHS.",
+        "borderline": false
+       }
+      ],
+      "needs_review": false,
+      "review_reasons": [],
+      "q_no": "12",
+      "has_subparts": false,
+      "subpart_grades": [],
+      "or_group": null,
+      "scheme_source": "key",
+      "counted": true
+     },
+     {
+      "max_marks": 3.0,
+      "marks_awarded": 3.0,
+      "student_answer_summary": "LHS = (1/cos A - sin A/cos A)² = (1 - sin A)² / cos²A\n= (1 - sin A)² / (1 - sin²A) = (1 - sin A)² / [(1 - sin A)(1 + sin A)] = (1 - sin A) / (1 + sin A)",
+      "key_concepts_found": [
+       "Converting to sin and cos",
+       "Expressing numerator and denominator",
+       "Applying identity cos²A = 1 − sin²A and factoring",
+       "Cancelling common factor to obtain RHS"
+      ],
+      "key_concepts_missed": [],
+      "feedback": "Very clear and neat proof.",
+      "confidence": "high",
+      "legibility_issue": false,
+      "not_attempted": false,
+      "points": [
+       {
+        "id": "13.1",
+        "text": "Converting to sin and cos",
+        "expected": "LHS = (1/cos A − sin A/cos A)²",
+        "max_marks": 1.0,
+        "marks_awarded": 1.0,
+        "verdict": "full",
+        "evidence": "LHS = (1/cos A - sin A/cos A)²",
+        "reason": "Correctly converted sec and tan to sin and cos.",
+        "borderline": false
+       },
+       {
+        "id": "13.2",
+        "text": "Expressing numerator and denominator",
+        "expected": "= (1 − sin A)² / cos²A",
+        "max_marks": 0.5,
+        "marks_awarded": 0.5,
+        "verdict": "full",
+        "evidence": "= (1 - sin A)² / cos²A",
+        "reason": "Combined fractions correctly.",
+        "borderline": false
+       },
+       {
+        "id": "13.3",
+        "text": "Applying identity cos²A = 1 − sin²A and factoring",
+        "expected": "cos²A = 1 − sin²A = (1 − sin A)(1 + sin A)",
+        "max_marks": 1.0,
+        "marks_awarded": 1.0,
+        "verdict": "full",
+        "evidence": "= (1 - sin A)² / (1 - sin²A) = (1 - sin A)² / (1 - sin A)(1 + sin A)",
+        "reason": "Applied cos²A = 1 - sin²A and factored.",
+        "borderline": false
+       },
+       {
+        "id": "13.4",
+        "text": "Cancelling common factor to obtain RHS",
+        "expected": "Cancelling (1 − sin A): = (1 − sin A)/(1 + sin A) = RHS",
+        "max_marks": 0.5,
+        "marks_awarded": 0.5,
+        "verdict": "full",
+        "evidence": "= 1 - sin A / 1 + sin A",
+        "reason": "Correctly cancelled common factor.",
+        "borderline": false
+       }
+      ],
+      "needs_review": false,
+      "review_reasons": [],
+      "q_no": "13",
+      "has_subparts": false,
+      "subpart_grades": [],
+      "or_group": null,
+      "scheme_source": "key",
+      "counted": true
+     },
+     {
+      "max_marks": 3.0,
+      "marks_awarded": 3.0,
+      "student_answer_summary": "sec θ = 13/12 => cos θ = 12/13\nsin θ = √(1 - 144/169) = 5/13\ntan θ = 5/12 , cot θ = 12/5 , cosec θ = 13/5",
+      "key_concepts_found": [
+       "Value of cos θ",
+       "Value of sin θ",
+       "Value of tan θ",
+       "Value of cot θ",
+       "Value of cosec θ"
+      ],
+      "key_concepts_missed": [],
+      "feedback": "All trigonometric ratios correctly determined.",
+      "confidence": "high",
+      "legibility_issue": false,
+      "not_attempted": false,
+      "points": [
+       {
+        "id": "14.1",
+        "text": "Value of cos θ",
+        "expected": "cos θ = 1/sec θ = 12/13",
+        "max_marks": 0.5,
+        "marks_awarded": 0.5,
+        "verdict": "full",
+        "evidence": "cos θ = 12/13",
+        "reason": "Correct value of cos θ.",
+        "borderline": false
+       },
+       {
+        "id": "14.2",
+        "text": "Value of sin θ",
+        "expected": "sin θ = √(1 − 144/169) = √(25/169) = 5/13",
+        "max_marks": 1.0,
+        "marks_awarded": 1.0,
+        "verdict": "full",
+        "evidence": "sin θ = √(1 - 144/169) = 5/13",
+        "reason": "Correct calculation for sin θ.",
+        "borderline": false
+       },
+       {
+        "id": "14.3",
+        "text": "Value of tan θ",
+        "expected": "tan θ = sin θ / cos θ = 5/12",
+        "max_marks": 0.5,
+        "marks_awarded": 0.5,
+        "verdict": "full",
+        "evidence": "tan θ = 5/12",
+        "reason": "Correct value of tan θ.",
+        "borderline": false
+       },
+       {
+        "id": "14.4",
+        "text": "Value of cot θ",
+        "expected": "cot θ = 12/5",
+        "max_marks": 0.5,
+        "marks_awarded": 0.5,
+        "verdict": "full",
+        "evidence": "cot θ = 12/5",
+        "reason": "Correct value of cot θ.",
+        "borderline": false
+       },
+       {
+        "id": "14.5",
+        "text": "Value of cosec θ",
+        "expected": "cosec θ = 13/5",
+        "max_marks": 0.5,
+        "marks_awarded": 0.5,
+        "verdict": "full",
+        "evidence": "cosec θ = 13/5",
+        "reason": "Correct value of cosec θ.",
+        "borderline": false
+       }
+      ],
+      "needs_review": false,
+      "review_reasons": [],
+      "q_no": "14",
+      "has_subparts": false,
+      "subpart_grades": [],
+      "or_group": null,
+      "scheme_source": "key",
+      "counted": true
+     },
+     {
+      "max_marks": 3.0,
+      "marks_awarded": 3.0,
+      "student_answer_summary": "C-3. LHS = cos A / (1 + sin A) + (1 + sin A) / cos A\n= [cos²A + (1 + sin A)²] / [cos A (1 + sin A)] = [cos²A + 1 + 2sinA + sin²A] / [cos A (1 + sin A)]\n= (2 + 2 sin A) / [cos A (1 + sin A)] = 2(1 + sin A) / [cos A (1 + sin A)] = 2 sec A = RHS",
+      "key_concepts_found": [
+       "Taking LCM of denominators",
+       "Expanding numerator",
+       "Using identity sin²A + cos²A = 1 and factoring",
+       "Cancelling (1 + sin A)",
+       "Final simplification to RHS"
+      ],
+      "key_concepts_missed": [],
+      "feedback": "Excellent step-by-step proof.",
+      "confidence": "high",
+      "legibility_issue": false,
+      "not_attempted": false,
+      "points": [
+       {
+        "id": "15.1",
+        "text": "Taking LCM of denominators",
+        "expected": "LHS = [cos²A + (1 + sin A)²] / [cos A (1 + sin A)]",
+        "max_marks": 1.0,
+        "marks_awarded": 1.0,
+        "verdict": "full",
+        "evidence": "= cos²A + (1 + sin A)² / cos A (1 + sin A)",
+        "reason": "Correct common denominator and numerator.",
+        "borderline": false
+       },
+       {
+        "id": "15.2",
+        "text": "Expanding numerator",
+        "expected": "Numerator = cos²A + 1 + 2 sin A + sin²A",
+        "max_marks": 0.5,
+        "marks_awarded": 0.5,
+        "verdict": "full",
+        "evidence": "= cos²A + 1 + 2sinA + sin²A / cos A (1 + sin A)",
+        "reason": "Correct expansion of numerator.",
+        "borderline": false
+       },
+       {
+        "id": "15.3",
+        "text": "Using identity sin²A + cos²A = 1 and factoring",
+        "expected": "= 1 + 1 + 2 sin A = 2(1 + sin A)",
+        "max_marks": 0.5,
+        "marks_awarded": 0.5,
+        "verdict": "full",
+        "evidence": "= 2 + 2 sin A / cos A (1 + sin A) = 2 (1 + sin A)",
+        "reason": "Correctly used identity and factored out 2.",
+        "borderline": false
+       },
+       {
+        "id": "15.4",
+        "text": "Cancelling (1 + sin A)",
+        "expected": "= 2(1 + sin A) / [cos A (1 + sin A)] = 2/cos A",
+        "max_marks": 0.5,
+        "marks_awarded": 0.5,
+        "verdict": "full",
+        "evidence": "= 2 (1 + sin A) / cos A (1 + sin A) = 2 sec A",
+        "reason": "Cancelled factor leaving 2/cos A, which equals 2 sec A.",
+        "borderline": false
+       },
+       {
+        "id": "15.5",
+        "text": "Final simplification to RHS",
+        "expected": "= 2 sec A = RHS",
+        "max_marks": 0.5,
+        "marks_awarded": 0.5,
+        "verdict": "full",
+        "evidence": "= 2 sec A = RHS",
+        "reason": "Correctly obtained RHS.",
+        "borderline": false
+       }
+      ],
+      "needs_review": false,
+      "review_reasons": [],
+      "q_no": "15",
+      "has_subparts": false,
+      "subpart_grades": [],
+      "or_group": null,
+      "scheme_source": "key",
+      "counted": true
+     },
+     {
+      "max_marks": 3.0,
+      "marks_awarded": 3.0,
+      "student_answer_summary": "C-4. AB = 60 m (height) , AC = L (string)\nsin 60° = AB/AC = 60/L\n√3/2 = 60/L => L = 120/√3 = 40√3 m",
+      "key_concepts_found": [
+       "Figure",
+       "Trigonometric relation",
+       "Substitution and expression for L",
+       "Final answer with unit"
+      ],
+      "key_concepts_missed": [],
+      "feedback": "Well done with a clear diagram and accurate calculation.",
+      "confidence": "high",
+      "legibility_issue": false,
+      "not_attempted": false,
+      "points": [
+       {
+        "id": "16.1",
+        "text": "Figure",
+        "expected": "Correct figure: right triangle, height 60 m, angle 60° at ground, string = hypotenuse L",
+        "max_marks": 0.5,
+        "marks_awarded": 0.5,
+        "verdict": "full",
+        "evidence": "Correct right-angled triangle diagram with 60 m, 60°, L",
+        "reason": "Correct figure drawn and labeled.",
+        "borderline": false
+       },
+       {
+        "id": "16.2",
+        "text": "Trigonometric relation",
+        "expected": "sin 60° = 60 / L (perpendicular/hypotenuse)",
+        "max_marks": 1.0,
+        "marks_awarded": 1.0,
+        "verdict": "full",
+        "evidence": "sin 60° = AB / AC = 60 / L",
+        "reason": "Correct trigonometric ratio set up.",
+        "borderline": false
+       },
+       {
+        "id": "16.3",
+        "text": "Substitution and expression for L",
+        "expected": "√3/2 = 60/L ⇒ L = 120/√3",
+        "max_marks": 0.5,
+        "marks_awarded": 0.5,
+        "verdict": "full",
+        "evidence": "√3 / 2 = 60 / L => L = 120 / √3",
+        "reason": "Correct substitution and solving for L.",
+        "borderline": false
+       },
+       {
+        "id": "16.4",
+        "text": "Final answer with unit",
+        "expected": "L = 40√3 m (≈ 69.28 m)",
+        "max_marks": 1.0,
+        "marks_awarded": 1.0,
+        "verdict": "full",
+        "evidence": "= 40√3 m",
+        "reason": "Rationalized and found correct length.",
+        "borderline": false
+       }
+      ],
+      "needs_review": false,
+      "review_reasons": [],
+      "q_no": "16",
+      "has_subparts": false,
+      "subpart_grades": [],
+      "or_group": null,
+      "scheme_source": "key",
+      "counted": true
+     },
+     {
+      "max_marks": 4.0,
+      "marks_awarded": 4.0,
+      "student_answer_summary": "LHS = tan θ / (1 - cot θ) + cot θ / (1 - tan θ)\n= tan θ / (1 - 1/tan θ) + (1/tan θ) / (1 - tan θ)\n= tan²θ / (tan θ - 1) - 1 / [tan θ (tan θ - 1)]\n= (tan³θ - 1) / [tan θ (tan θ - 1)]\n= (tan θ - 1)(tan²θ + tan θ + 1) / [tan θ (tan θ - 1)]\n= (tan²θ + tan θ + 1) / tan θ = tan θ + 1 + cot θ\n= 1 + sin θ / cos θ + cos θ / sin θ = 1 + (sin²θ + cos²θ)/(sin θ cos θ)\n= 1 + 1/(sin θ cos θ) = 1 + sec θ cosec θ = RHS",
+      "key_concepts_found": [
+       "Expressing cot θ in terms of tan θ",
+       "Simplifying and combining fractions",
+       "Factoring using a³ − b³",
+       "Splitting and converting to sin/cos to reach RHS"
+      ],
+      "key_concepts_missed": [],
+      "feedback": "Outstanding work on a difficult trigonometric identity.",
+      "confidence": "high",
+      "legibility_issue": false,
+      "not_attempted": false,
+      "points": [
+       {
+        "id": "17.1",
+        "text": "Expressing cot θ in terms of tan θ",
+        "expected": "Writing cot θ = 1/tan θ: LHS = tan θ / (1 − 1/tan θ) + (1/tan θ) / (1 − tan θ)",
+        "max_marks": 1.0,
+        "marks_awarded": 1.0,
+        "verdict": "full",
+        "evidence": "= tan θ / (1 - 1/tanθ) + 1/tanθ / (1 - tanθ)",
+        "reason": "Correctly converted cot θ into 1/tan θ.",
+        "borderline": false
+       },
+       {
+        "id": "17.2",
+        "text": "Simplifying and combining fractions",
+        "expected": "= tan²θ/(tan θ − 1) − 1/[tan θ (tan θ − 1)] = (tan³θ − 1) / [tan θ (tan θ − 1)]",
+        "max_marks": 1.0,
+        "marks_awarded": 1.0,
+        "verdict": "full",
+        "evidence": "= tan²θ / (tanθ - 1) - 1 / tanθ (tanθ - 1) = tan³θ - 1 / tanθ (tanθ - 1)",
+        "reason": "Correct common denominator and numerator.",
+        "borderline": false
+       },
+       {
+        "id": "17.3",
+        "text": "Factoring using a³ − b³",
+        "expected": "Using a³ − b³ = (a − b)(a² + ab + b²): = (tan²θ + tan θ + 1) / tan θ",
+        "max_marks": 1.0,
+        "marks_awarded": 1.0,
+        "verdict": "full",
+        "evidence": "= (tanθ - 1)(tan²θ + tanθ + 1) / tanθ (tanθ - 1) [a³ - b³]",
+        "reason": "Applied algebraic formula a³ - b³ correctly.",
+        "borderline": false
+       },
+       {
+        "id": "17.4",
+        "text": "Splitting and converting to sin/cos to reach RHS",
+        "expected": "= tan θ + 1 + cot θ = 1 + (sin²θ + cos²θ)/(sin θ cos θ) = 1 + sec θ cosec θ = RHS",
+        "max_marks": 1.0,
+        "marks_awarded": 1.0,
+        "verdict": "full",
+        "evidence": "= 1 + 1 / sinθ cosθ = 1 + secθ cosecθ = RHS",
+        "reason": "Correctly completed proof to RHS.",
+        "borderline": false
+       }
+      ],
+      "needs_review": false,
+      "review_reasons": [],
+      "q_no": "17",
+      "has_subparts": false,
+      "subpart_grades": [],
+      "or_group": null,
+      "scheme_source": "key",
+      "counted": true
+     },
+     {
+      "max_marks": 4.0,
+      "marks_awarded": 4.0,
+      "student_answer_summary": "Let AB = 7 m be the building , CD the tower , BD = AE = x\nIn △ABD , tan 45° = AB/BD => 1 = 7/x => x = 7 m\nIn △AEC , tan 60° = CE/AE => √3 = CE/7 => CE = 7√3 m\nCD = CE + ED = 7√3 + 7 = 7(√3 + 1) = 7 x 2.732 = 19.12 m\nHeight of tower = 19.12 m",
+      "key_concepts_found": [
+       "Correct labelled figure",
+       "Finding distance x using △ABD",
+       "Finding CE using △AEC",
+       "Total height of tower"
+      ],
+      "key_concepts_missed": [],
+      "feedback": "Flawless solution and clear diagram.",
+      "confidence": "high",
+      "legibility_issue": false,
+      "not_attempted": false,
+      "points": [
+       {
+        "id": "18.1",
+        "text": "Correct labelled figure",
+        "expected": "Correct figure: building AB = 7 m, tower CD, BD = AE = x, angle of depression 45°, elevation 60°",
+        "max_marks": 1.0,
+        "marks_awarded": 1.0,
+        "verdict": "full",
+        "evidence": "Figure with building AB=7m, tower CD, angles 45° and 60°",
+        "reason": "Figure correctly drawn and labeled.",
+        "borderline": false
+       },
+       {
+        "id": "18.2",
+        "text": "Finding distance x using △ABD",
+        "expected": "In △ABD: tan 45° = AB/BD = 7/x ⇒ x = 7 m",
+        "max_marks": 1.0,
+        "marks_awarded": 1.0,
+        "verdict": "full",
+        "evidence": "In △ABD , tan 45° = AB / BD\n1 = 7/x => x = 7 m",
+        "reason": "Correctly found horizontal distance x = 7 m.",
+        "borderline": false
+       },
+       {
+        "id": "18.3",
+        "text": "Finding CE using △AEC",
+        "expected": "In △AEC: tan 60° = CE/AE ⇒ CE = 7√3 m",
+        "max_marks": 1.0,
+        "marks_awarded": 1.0,
+        "verdict": "full",
+        "evidence": "In △AEC , tan 60° = CE / AE\n√3 = CE/7 => CE = 7√3 m",
+        "reason": "Correctly found height of upper tower part CE.",
+        "borderline": false
+       },
+       {
+        "id": "18.4",
+        "text": "Total height of tower",
+        "expected": "Height of tower CD = CE + ED = 7√3 + 7 = 7(√3 + 1) ≈ 19.12 m",
+        "max_marks": 1.0,
+        "marks_awarded": 1.0,
+        "verdict": "full",
+        "evidence": "CD = CE + ED = 7√3 + 7 = 7 (√3 + 1) = 7 x 2.732 = 19.12 m",
+        "reason": "Total height correctly calculated with decimals.",
+        "borderline": false
+       }
+      ],
+      "needs_review": false,
+      "review_reasons": [],
+      "q_no": "18",
+      "has_subparts": false,
+      "subpart_grades": [],
+      "or_group": null,
+      "scheme_source": "key",
+      "counted": true
+     },
+     {
+      "max_marks": 4.0,
+      "marks_awarded": 4.0,
+      "student_answer_summary": "Let BP = x , PD = 80 - x , AB = CD = h\nIn △ABP : tan 60° = h/x => h = √3 x ...(i)\nIn △CDP : tan 30° = h/(80 - x) => h = (80 - x)/√3 ...(ii)\n(i) = (ii) : √3 x = (80 - x)/√3 => 3x = 80 - x => 4x = 80 => x = 20 m\nh = 20√3 = 20 x 1.732 = 34.64 m\nHeight of each pole = 34.64 m\nDistances : BP = 20 m , PD = 80 - 20 = 60 m",
+      "key_concepts_found": [
+       "Correct labelled figure",
+       "Forming trigonometric equations for both poles",
+       "Solving for distance x",
+       "Height of poles and distances from both poles"
+      ],
+      "key_concepts_missed": [],
+      "feedback": "Comprehensive and fully correct answer.",
+      "confidence": "high",
+      "legibility_issue": false,
+      "not_attempted": false,
+      "points": [
+       {
+        "id": "19.1",
+        "text": "Correct labelled figure",
+        "expected": "Correct figure: poles AB and CD, height h, point P on road, BP = x, PD = 80 − x",
+        "max_marks": 1.0,
+        "marks_awarded": 1.0,
+        "verdict": "full",
+        "evidence": "Figure with poles AB, CD of height h, point P on road, 60° and 30°",
+        "reason": "Correct diagram with all labels.",
+        "borderline": false
+       },
+       {
+        "id": "19.2",
+        "text": "Forming trigonometric equations for both poles",
+        "expected": "tan 60° = h/x ⇒ h = √3 x ; tan 30° = h/(80 − x) ⇒ h = (80 − x)/√3",
+        "max_marks": 1.0,
+        "marks_awarded": 1.0,
+        "verdict": "full",
+        "evidence": "tan 60° = h/x => h = √3 x ... tan 30° = h / 80 - x => h = 80 - x / √3",
+        "reason": "Both equations set up correctly.",
+        "borderline": false
+       },
+       {
+        "id": "19.3",
+        "text": "Solving for distance x",
+        "expected": "√3 x = (80 − x)/√3 ⇒ 3x = 80 − x ⇒ x = 20 m",
+        "max_marks": 1.0,
+        "marks_awarded": 1.0,
+        "verdict": "full",
+        "evidence": "3x = 80 - x => 4x = 80 => x = 20 m",
+        "reason": "Correctly equated and solved for x.",
+        "borderline": false
+       },
+       {
+        "id": "19.4",
+        "text": "Height of poles and distances from both poles",
+        "expected": "h = 20√3 m ≈ 34.64 m; distances from poles: 20 m and 60 m",
+        "max_marks": 1.0,
+        "marks_awarded": 1.0,
+        "verdict": "full",
+        "evidence": "h = 20√3 = 20 x 1.732 = 34.64 m ... Distances : BP = 20 m , PD = 80 - 20 = 60 m",
+        "reason": "Found height of poles and both distances accurately.",
+        "borderline": false
+       }
+      ],
+      "needs_review": false,
+      "review_reasons": [],
+      "q_no": "19",
+      "has_subparts": false,
+      "subpart_grades": [],
+      "or_group": null,
+      "scheme_source": "key",
+      "counted": true
+     }
+    ],
+    "total_marks_awarded": 37.5,
+    "max_marks": 40.0,
+    "percentage": 93.8,
+    "needs_review_count": 0
+   }
+  },
+  {
+   "file": "Aman_Gupta_answer_sheet.pdf",
+   "wall_s": 58.5,
+   "error": null,
+   "calls": 1,
+   "tokens": {
+    "input": 7997,
+    "output": 4989,
+    "thinking": 2958
+   },
+   "inr": 3.15,
+   "rows": [
+    {
+     "q": "A",
+     "expected": 5,
+     "ai": 5.0,
+     "diff": 0.0,
+     "flag": null
+    },
+    {
+     "q": "9",
+     "expected": 0,
+     "ai": 0.0,
+     "diff": 0.0,
+     "flag": null
+    },
+    {
+     "q": "10",
+     "expected": 2,
+     "ai": 2.0,
+     "diff": 0.0,
+     "flag": null
+    },
+    {
+     "q": "11",
+     "expected": 2,
+     "ai": 2.0,
+     "diff": 0.0,
+     "flag": null
+    },
+    {
+     "q": "12",
+     "expected": 2,
+     "ai": 2.0,
+     "diff": 0.0,
+     "flag": null
+    },
+    {
+     "q": "13",
+     "expected": 0,
+     "ai": 0.0,
+     "diff": 0.0,
+     "flag": null
+    },
+    {
+     "q": "14",
+     "expected": 2,
+     "ai": 2.0,
+     "diff": 0.0,
+     "flag": null
+    },
+    {
+     "q": "15",
+     "expected": 0,
+     "ai": 0.0,
+     "diff": 0.0,
+     "flag": null
+    },
+    {
+     "q": "16",
+     "expected": 3,
+     "ai": 3.0,
+     "diff": 0.0,
+     "flag": null
+    },
+    {
+     "q": "17",
+     "expected": 0,
+     "ai": 0.0,
+     "diff": 0.0,
+     "flag": null
+    },
+    {
+     "q": "18",
+     "expected": 2,
+     "ai": 3.0,
+     "diff": 1.0,
+     "flag": [
+      "Borderline answer — teacher's call"
+     ]
+    },
+    {
+     "q": "19",
+     "expected": 0,
+     "ai": 0.0,
+     "diff": 0.0,
+     "flag": null
+    }
+   ],
+   "total_ai": 19.0,
+   "total_expected": 18,
+   "total_diff": 1.0,
+   "questions_off": 1,
+   "questions_off_by_more_than_1": 0,
+   "expected_flags": {
+    "12": false,
+    "16": false
+   },
+   "unassigned": [],
+   "result": {
+    "student_info": {
+     "name": "aman gupta",
+     "class": "X-B",
+     "roll_no": "31",
+     "missing_fields": []
+    },
+    "overall_remarks": "Good understanding of basic trigonometric values and clean presentation with helpful diagrams. Make sure to double check ratio definitions (perpendicular over base) to avoid inversions like in Q14 and Q18, and attempt all questions.",
+    "readability_score": "good",
+    "_grade_time_s": 58.45,
+    "is_valid": true,
+    "graded_questions": [
+     {
+      "max_marks": 1.0,
+      "marks_awarded": 1.0,
+      "student_answer_summary": "1) a",
+      "key_concepts_found": [
+       "Correct option"
+      ],
+      "key_concepts_missed": [],
+      "feedback": "Correct option selected.",
+      "confidence": "high",
+      "legibility_issue": false,
+      "not_attempted": false,
+      "points": [
+       {
+        "id": "1.1",
+        "text": "Correct option",
+        "expected": "(a) 4/5",
+        "max_marks": 1.0,
+        "marks_awarded": 1.0,
+        "verdict": "full",
+        "evidence": "1) a",
+        "reason": "Correct option selected.",
+        "borderline": false
+       }
+      ],
+      "needs_review": false,
+      "review_reasons": [],
+      "q_no": "1",
+      "has_subparts": false,
+      "subpart_grades": [],
+      "or_group": null,
+      "scheme_source": "key",
+      "counted": true
+     },
+     {
+      "max_marks": 1.0,
+      "marks_awarded": 0.0,
+      "student_answer_summary": "2) b",
+      "key_concepts_found": [],
+      "key_concepts_missed": [
+       "Correct option"
+      ],
+      "feedback": "Incorrect option; sin 30° cos 60° + cos 30° sin 60° = 1/4 + 3/4 = 1 (c).",
+      "confidence": "high",
+      "legibility_issue": false,
+      "not_attempted": false,
+      "points": [
+       {
+        "id": "2.1",
+        "text": "Correct option",
+        "expected": "(c) 1",
+        "max_marks": 1.0,
+        "marks_awarded": 0.0,
+        "verdict": "none",
+        "evidence": "2) b",
+        "reason": "Incorrect option chosen; correct option is (c).",
+        "borderline": false
+       }
+      ],
+      "needs_review": false,
+      "review_reasons": [],
+      "q_no": "2",
+      "has_subparts": false,
+      "subpart_grades": [],
+      "or_group": null,
+      "scheme_source": "key",
+      "counted": true
+     },
+     {
+      "max_marks": 1.0,
+      "marks_awarded": 1.0,
+      "student_answer_summary": "3) a",
+      "key_concepts_found": [
+       "Correct option"
+      ],
+      "key_concepts_missed": [],
+      "feedback": "Correct option selected.",
+      "confidence": "high",
+      "legibility_issue": false,
+      "not_attempted": false,
+      "points": [
+       {
+        "id": "3.1",
+        "text": "Correct option",
+        "expected": "(a) sec²A",
+        "max_marks": 1.0,
+        "marks_awarded": 1.0,
+        "verdict": "full",
+        "evidence": "3) a",
+        "reason": "Correct option selected.",
+        "borderline": false
+       }
+      ],
+      "needs_review": false,
+      "review_reasons": [],
+      "q_no": "3",
+      "has_subparts": false,
+      "subpart_grades": [],
+      "or_group": null,
+      "scheme_source": "key",
+      "counted": true
+     },
+     {
+      "max_marks": 1.0,
+      "marks_awarded": 1.0,
+      "student_answer_summary": "4) b",
+      "key_concepts_found": [
+       "Correct option"
+      ],
+      "key_concepts_missed": [],
+      "feedback": "Correct option selected.",
+      "confidence": "high",
+      "legibility_issue": false,
+      "not_attempted": false,
+      "points": [
+       {
+        "id": "4.1",
+        "text": "Correct option",
+        "expected": "(b) 45°",
+        "max_marks": 1.0,
+        "marks_awarded": 1.0,
+        "verdict": "full",
+        "evidence": "4) b",
+        "reason": "Correct option selected.",
+        "borderline": false
+       }
+      ],
+      "needs_review": false,
+      "review_reasons": [],
+      "q_no": "4",
+      "has_subparts": false,
+      "subpart_grades": [],
+      "or_group": null,
+      "scheme_source": "key",
+      "counted": true
+     },
+     {
+      "max_marks": 1.0,
+      "marks_awarded": 0.0,
+      "student_answer_summary": "5) a",
+      "key_concepts_found": [],
+      "key_concepts_missed": [
+       "Correct option"
+      ],
+      "feedback": "Incorrect option; 9 sec²A − 9 tan²A = 9(1) = 9 (b).",
+      "confidence": "high",
+      "legibility_issue": false,
+      "not_attempted": false,
+      "points": [
+       {
+        "id": "5.1",
+        "text": "Correct option",
+        "expected": "(b) 9",
+        "max_marks": 1.0,
+        "marks_awarded": 0.0,
+        "verdict": "none",
+        "evidence": "5) a",
+        "reason": "Incorrect option; 9(sec²A − tan²A) = 9, so (b) is correct.",
+        "borderline": false
+       }
+      ],
+      "needs_review": false,
+      "review_reasons": [],
+      "q_no": "5",
+      "has_subparts": false,
+      "subpart_grades": [],
+      "or_group": null,
+      "scheme_source": "key",
+      "counted": true
+     },
+     {
+      "max_marks": 1.0,
+      "marks_awarded": 1.0,
+      "student_answer_summary": "6) b",
+      "key_concepts_found": [
+       "Correct option"
+      ],
+      "key_concepts_missed": [],
+      "feedback": "Correct option selected.",
+      "confidence": "high",
+      "legibility_issue": false,
+      "not_attempted": false,
+      "points": [
+       {
+        "id": "6.1",
+        "text": "Correct option",
+        "expected": "(b) 1",
+        "max_marks": 1.0,
+        "marks_awarded": 1.0,
+        "verdict": "full",
+        "evidence": "6) b",
+        "reason": "Correct option selected.",
+        "borderline": false
+       }
+      ],
+      "needs_review": false,
+      "review_reasons": [],
+      "q_no": "6",
+      "has_subparts": false,
+      "subpart_grades": [],
+      "or_group": null,
+      "scheme_source": "key",
+      "counted": true
+     },
+     {
+      "max_marks": 1.0,
+      "marks_awarded": 0.0,
+      "student_answer_summary": "7) b",
+      "key_concepts_found": [],
+      "key_concepts_missed": [
+       "Correct option"
+      ],
+      "feedback": "Incorrect option; tan 30° = 30/d gives d = 30√3 m (c).",
+      "confidence": "high",
+      "legibility_issue": false,
+      "not_attempted": false,
+      "points": [
+       {
+        "id": "7.1",
+        "text": "Correct option",
+        "expected": "(c) 30√3 m",
+        "max_marks": 1.0,
+        "marks_awarded": 0.0,
+        "verdict": "none",
+        "evidence": "7) b",
+        "reason": "Incorrect option; distance is 30√3 m (c).",
+        "borderline": false
+       }
+      ],
+      "needs_review": false,
+      "review_reasons": [],
+      "q_no": "7",
+      "has_subparts": false,
+      "subpart_grades": [],
+      "or_group": null,
+      "scheme_source": "key",
+      "counted": true
+     },
+     {
+      "max_marks": 1.0,
+      "marks_awarded": 1.0,
+      "student_answer_summary": "8) c",
+      "key_concepts_found": [
+       "Correct option"
+      ],
+      "key_concepts_missed": [],
+      "feedback": "Correct option selected.",
+      "confidence": "high",
+      "legibility_issue": false,
+      "not_attempted": false,
+      "points": [
+       {
+        "id": "8.1",
+        "text": "Correct option",
+        "expected": "(c) √3",
+        "max_marks": 1.0,
+        "marks_awarded": 1.0,
+        "verdict": "full",
+        "evidence": "8) c",
+        "reason": "Correct option selected.",
+        "borderline": false
+       }
+      ],
+      "needs_review": false,
+      "review_reasons": [],
+      "q_no": "8",
+      "has_subparts": false,
+      "subpart_grades": [],
+      "or_group": null,
+      "scheme_source": "key",
+      "counted": true
+     },
+     {
+      "max_marks": 2.0,
+      "marks_awarded": 0.0,
+      "student_answer_summary": "",
+      "key_concepts_found": [],
+      "key_concepts_missed": [
+       "Value of tan A",
+       "Value of tan²A",
+       "Substitution and simplification",
+       "Final value"
+      ],
+      "feedback": "Question not attempted.",
+      "confidence": "high",
+      "legibility_issue": false,
+      "not_attempted": true,
+      "points": [
+       {
+        "id": "9.1",
+        "text": "Value of tan A",
+        "expected": "cot A = 4/3, so tan A = 3/4",
+        "max_marks": 0.5,
+        "marks_awarded": 0.0,
+        "verdict": "none",
+        "evidence": "",
+        "reason": "Not attempted.",
+        "borderline": false
+       },
+       {
+        "id": "9.2",
+        "text": "Value of tan²A",
+        "expected": "tan²A = 9/16",
+        "max_marks": 0.5,
+        "marks_awarded": 0.0,
+        "verdict": "none",
+        "evidence": "",
+        "reason": "Not attempted.",
+        "borderline": false
+       },
+       {
+        "id": "9.3",
+        "text": "Substitution and simplification",
+        "expected": "Substitution: (1 − 9/16) / (1 + 9/16) = (7/16) / (25/16)",
+        "max_marks": 0.5,
+        "marks_awarded": 0.0,
+        "verdict": "none",
+        "evidence": "",
+        "reason": "Not attempted.",
+        "borderline": false
+       },
+       {
+        "id": "9.4",
+        "text": "Final value",
+        "expected": "= 7/25",
+        "max_marks": 0.5,
+        "marks_awarded": 0.0,
+        "verdict": "none",
+        "evidence": "",
+        "reason": "Not attempted.",
+        "borderline": false
+       }
+      ],
+      "needs_review": false,
+      "review_reasons": [],
+      "q_no": "9",
+      "has_subparts": false,
+      "subpart_grades": [],
+      "or_group": null,
+      "scheme_source": "key",
+      "counted": true
+     },
+     {
+      "max_marks": 2.0,
+      "marks_awarded": 2.0,
+      "student_answer_summary": "tan45 = 1, cos30 = √3/2, sin60 = √3/2\n2 x 1 + 3/4 - 3/4\n= 2",
+      "key_concepts_found": [
+       "Values of trigonometric ratios",
+       "Substitution into expression",
+       "Final evaluated value"
+      ],
+      "key_concepts_missed": [],
+      "feedback": "Fully correct working and evaluation.",
+      "confidence": "high",
+      "legibility_issue": false,
+      "not_attempted": false,
+      "points": [
+       {
+        "id": "10.1",
+        "text": "Values of trigonometric ratios",
+        "expected": "tan 45° = 1, cos 30° = √3/2, sin 60° = √3/2 (all three values correct)",
+        "max_marks": 1.0,
+        "marks_awarded": 1.0,
+        "verdict": "full",
+        "evidence": "tan45 = 1, cos30 = √3/2, sin60 = √3/2",
+        "reason": "All trigonometric values correctly stated.",
+        "borderline": false
+       },
+       {
+        "id": "10.2",
+        "text": "Substitution into expression",
+        "expected": "2(1)² + (√3/2)² − (√3/2)² = 2 + 3/4 − 3/4",
+        "max_marks": 0.5,
+        "marks_awarded": 0.5,
+        "verdict": "full",
+        "evidence": "2 x 1 + 3/4 - 3/4",
+        "reason": "Correct substitution and squaring.",
+        "borderline": false
+       },
+       {
+        "id": "10.3",
+        "text": "Final evaluated value",
+        "expected": "= 2",
+        "max_marks": 0.5,
+        "marks_awarded": 0.5,
+        "verdict": "full",
+        "evidence": "= 2",
+        "reason": "Correct final value.",
+        "borderline": false
+       }
+      ],
+      "needs_review": false,
+      "review_reasons": [],
+      "q_no": "10",
+      "has_subparts": false,
+      "subpart_grades": [],
+      "or_group": null,
+      "scheme_source": "key",
+      "counted": true
+     },
+     {
+      "max_marks": 2.0,
+      "marks_awarded": 2.0,
+      "student_answer_summary": "A - B = 30° (sin30 = 1/2)\nA + B = 60° (cos60 = 1/2)\n2A = 90 A = 45°\nB = 15°",
+      "key_concepts_found": [
+       "Equation from sin (A − B)",
+       "Equation from cos (A + B)",
+       "Solving for A",
+       "Solving for B"
+      ],
+      "key_concepts_missed": [],
+      "feedback": "Nicely solved with correct steps.",
+      "confidence": "high",
+      "legibility_issue": false,
+      "not_attempted": false,
+      "points": [
+       {
+        "id": "11.1",
+        "text": "Equation from sin (A − B)",
+        "expected": "sin (A − B) = 1/2 = sin 30° ⇒ A − B = 30°",
+        "max_marks": 0.5,
+        "marks_awarded": 0.5,
+        "verdict": "full",
+        "evidence": "A - B = 30° (sin30 = 1/2)",
+        "reason": "Correct equation formed from sin(A - B) = 1/2.",
+        "borderline": false
+       },
+       {
+        "id": "11.2",
+        "text": "Equation from cos (A + B)",
+        "expected": "cos (A + B) = 1/2 = cos 60° ⇒ A + B = 60°",
+        "max_marks": 0.5,
+        "marks_awarded": 0.5,
+        "verdict": "full",
+        "evidence": "A + B = 60° (cos60 = 1/2)",
+        "reason": "Correct equation formed from cos(A + B) = 1/2.",
+        "borderline": false
+       },
+       {
+        "id": "11.3",
+        "text": "Solving for A",
+        "expected": "Adding (i) and (ii): 2A = 90° ⇒ A = 45°",
+        "max_marks": 0.5,
+        "marks_awarded": 0.5,
+        "verdict": "full",
+        "evidence": "2A = 90 A = 45°",
+        "reason": "Correctly solved for A.",
+        "borderline": false
+       },
+       {
+        "id": "11.4",
+        "text": "Solving for B",
+        "expected": "B = 60° − 45° = 15°",
+        "max_marks": 0.5,
+        "marks_awarded": 0.5,
+        "verdict": "full",
+        "evidence": "B = 15°",
+        "reason": "Correct value of B obtained.",
+        "borderline": false
+       }
+      ],
+      "needs_review": false,
+      "review_reasons": [],
+      "q_no": "11",
+      "has_subparts": false,
+      "subpart_grades": [],
+      "or_group": null,
+      "scheme_source": "key",
+      "counted": true
+     },
+     {
+      "max_marks": 2.0,
+      "marks_awarded": 2.0,
+      "student_answer_summary": "(sinθ + cosθ)² + (sinθ - cosθ)²\n= sin²θ + cos²θ + 2sinθcosθ + sin²θ + cos²θ - 2sinθcosθ\n= 2sin²θ + 2cos²θ = 2(1) = 2",
+      "key_concepts_found": [
+       "Expansion of squares",
+       "Addition and cancellation of middle terms",
+       "Application of identity to reach RHS"
+      ],
+      "key_concepts_missed": [],
+      "feedback": "Correct proof, although it was mislabeled as Q.13 on your answer sheet.",
+      "confidence": "high",
+      "legibility_issue": false,
+      "not_attempted": false,
+      "points": [
+       {
+        "id": "12.1",
+        "text": "Expansion of squares",
+        "expected": "(sin θ + cos θ)² = sin²θ + cos²θ + 2 sin θ cos θ and (sin θ − cos θ)² = sin²θ + cos²θ − 2 sin θ cos θ",
+        "max_marks": 1.0,
+        "marks_awarded": 1.0,
+        "verdict": "full",
+        "evidence": "sin²θ + cos²θ + 2sinθcosθ + sin²θ + cos²θ - 2sinθcosθ",
+        "reason": "Correctly expanded both squares.",
+        "borderline": false
+       },
+       {
+        "id": "12.2",
+        "text": "Addition and cancellation of middle terms",
+        "expected": "Adding: 2(sin²θ + cos²θ)",
+        "max_marks": 0.5,
+        "marks_awarded": 0.5,
+        "verdict": "full",
+        "evidence": "= 2sin²θ + 2cos²θ",
+        "reason": "Correct simplification by grouping terms.",
+        "borderline": false
+       },
+       {
+        "id": "12.3",
+        "text": "Application of identity to reach RHS",
+        "expected": "= 2 × 1 = 2 = RHS (using sin²θ + cos²θ = 1)",
+        "max_marks": 0.5,
+        "marks_awarded": 0.5,
+        "verdict": "full",
+        "evidence": "= 2(1) = 2",
+        "reason": "Correctly applied identity sin²θ + cos²θ = 1 to obtain 2.",
+        "borderline": false
+       }
+      ],
+      "needs_review": false,
+      "review_reasons": [],
+      "q_no": "12",
+      "has_subparts": false,
+      "subpart_grades": [],
+      "or_group": null,
+      "scheme_source": "key",
+      "counted": true
+     },
+     {
+      "max_marks": 3.0,
+      "marks_awarded": 0.0,
+      "student_answer_summary": "",
+      "key_concepts_found": [],
+      "key_concepts_missed": [
+       "Converting to sin and cos",
+       "Expressing numerator and denominator",
+       "Applying identity cos²A = 1 − sin²A and factoring",
+       "Cancelling common factor to obtain RHS"
+      ],
+      "feedback": "Question not attempted.",
+      "confidence": "high",
+      "legibility_issue": false,
+      "not_attempted": true,
+      "points": [
+       {
+        "id": "13.1",
+        "text": "Converting to sin and cos",
+        "expected": "LHS = (1/cos A − sin A/cos A)²",
+        "max_marks": 1.0,
+        "marks_awarded": 0.0,
+        "verdict": "none",
+        "evidence": "",
+        "reason": "Not attempted.",
+        "borderline": false
+       },
+       {
+        "id": "13.2",
+        "text": "Expressing numerator and denominator",
+        "expected": "= (1 − sin A)² / cos²A",
+        "max_marks": 0.5,
+        "marks_awarded": 0.0,
+        "verdict": "none",
+        "evidence": "",
+        "reason": "Not attempted.",
+        "borderline": false
+       },
+       {
+        "id": "13.3",
+        "text": "Applying identity cos²A = 1 − sin²A and factoring",
+        "expected": "cos²A = 1 − sin²A = (1 − sin A)(1 + sin A)",
+        "max_marks": 1.0,
+        "marks_awarded": 0.0,
+        "verdict": "none",
+        "evidence": "",
+        "reason": "Not attempted.",
+        "borderline": false
+       },
+       {
+        "id": "13.4",
+        "text": "Cancelling common factor to obtain RHS",
+        "expected": "Cancelling (1 − sin A): = (1 − sin A)/(1 + sin A) = RHS",
+        "max_marks": 0.5,
+        "marks_awarded": 0.0,
+        "verdict": "none",
+        "evidence": "",
+        "reason": "Not attempted.",
+        "borderline": false
+       }
+      ],
+      "needs_review": false,
+      "review_reasons": [],
+      "q_no": "13",
+      "has_subparts": false,
+      "subpart_grades": [],
+      "or_group": null,
+      "scheme_source": "key",
+      "counted": true
+     },
+     {
+      "max_marks": 3.0,
+      "marks_awarded": 2.0,
+      "student_answer_summary": "cosθ = 12/13\nsinθ = √(1 - 144/169) = √(25/169) = 5/13\ntanθ = 12/5\ncotθ = 5/12\ncosecθ = 13/5",
+      "key_concepts_found": [
+       "Value of cos θ",
+       "Value of sin θ",
+       "Value of cosec θ"
+      ],
+      "key_concepts_missed": [
+       "Value of tan θ",
+       "Value of cot θ"
+      ],
+      "feedback": "You calculated sin θ and cos θ correctly, but inverted tan θ and cot θ.",
+      "confidence": "high",
+      "legibility_issue": false,
+      "not_attempted": false,
+      "points": [
+       {
+        "id": "14.1",
+        "text": "Value of cos θ",
+        "expected": "cos θ = 1/sec θ = 12/13",
+        "max_marks": 0.5,
+        "marks_awarded": 0.5,
+        "verdict": "full",
+        "evidence": "cosθ = 12/13",
+        "reason": "Correctly found cos θ.",
+        "borderline": false
+       },
+       {
+        "id": "14.2",
+        "text": "Value of sin θ",
+        "expected": "sin θ = √(1 − 144/169) = √(25/169) = 5/13",
+        "max_marks": 1.0,
+        "marks_awarded": 1.0,
+        "verdict": "full",
+        "evidence": "sinθ = √(1 - 144/169) = √(25/169) = 5/13",
+        "reason": "Correctly calculated sin θ.",
+        "borderline": false
+       },
+       {
+        "id": "14.3",
+        "text": "Value of tan θ",
+        "expected": "tan θ = sin θ / cos θ = 5/12",
+        "max_marks": 0.5,
+        "marks_awarded": 0.0,
+        "verdict": "none",
+        "evidence": "tanθ = 12/5",
+        "reason": "Incorrect value for tan θ; crossed out 5/12 and wrote 12/5.",
+        "borderline": false
+       },
+       {
+        "id": "14.4",
+        "text": "Value of cot θ",
+        "expected": "cot θ = 12/5",
+        "max_marks": 0.5,
+        "marks_awarded": 0.0,
+        "verdict": "none",
+        "evidence": "cotθ = 5/12",
+        "reason": "Incorrect value for cot θ; should be 12/5.",
+        "borderline": false
+       },
+       {
+        "id": "14.5",
+        "text": "Value of cosec θ",
+        "expected": "cosec θ = 13/5",
+        "max_marks": 0.5,
+        "marks_awarded": 0.5,
+        "verdict": "full",
+        "evidence": "cosecθ = 13/5",
+        "reason": "Correctly found cosec θ.",
+        "borderline": false
+       }
+      ],
+      "needs_review": false,
+      "review_reasons": [],
+      "q_no": "14",
+      "has_subparts": false,
+      "subpart_grades": [],
+      "or_group": null,
+      "scheme_source": "key",
+      "counted": true
+     },
+     {
+      "max_marks": 3.0,
+      "marks_awarded": 0.0,
+      "student_answer_summary": "",
+      "key_concepts_found": [],
+      "key_concepts_missed": [
+       "Taking LCM of denominators",
+       "Expanding numerator",
+       "Using identity sin²A + cos²A = 1 and factoring",
+       "Cancelling (1 + sin A)",
+       "Final simplification to RHS"
+      ],
+      "feedback": "Question not attempted.",
+      "confidence": "high",
+      "legibility_issue": false,
+      "not_attempted": true,
+      "points": [
+       {
+        "id": "15.1",
+        "text": "Taking LCM of denominators",
+        "expected": "LHS = [cos²A + (1 + sin A)²] / [cos A (1 + sin A)]",
+        "max_marks": 1.0,
+        "marks_awarded": 0.0,
+        "verdict": "none",
+        "evidence": "",
+        "reason": "Not attempted.",
+        "borderline": false
+       },
+       {
+        "id": "15.2",
+        "text": "Expanding numerator",
+        "expected": "Numerator = cos²A + 1 + 2 sin A + sin²A",
+        "max_marks": 0.5,
+        "marks_awarded": 0.0,
+        "verdict": "none",
+        "evidence": "",
+        "reason": "Not attempted.",
+        "borderline": false
+       },
+       {
+        "id": "15.3",
+        "text": "Using identity sin²A + cos²A = 1 and factoring",
+        "expected": "= 1 + 1 + 2 sin A = 2(1 + sin A)",
+        "max_marks": 0.5,
+        "marks_awarded": 0.0,
+        "verdict": "none",
+        "evidence": "",
+        "reason": "Not attempted.",
+        "borderline": false
+       },
+       {
+        "id": "15.4",
+        "text": "Cancelling (1 + sin A)",
+        "expected": "= 2(1 + sin A) / [cos A (1 + sin A)] = 2/cos A",
+        "max_marks": 0.5,
+        "marks_awarded": 0.0,
+        "verdict": "none",
+        "evidence": "",
+        "reason": "Not attempted.",
+        "borderline": false
+       },
+       {
+        "id": "15.5",
+        "text": "Final simplification to RHS",
+        "expected": "= 2 sec A = RHS",
+        "max_marks": 0.5,
+        "marks_awarded": 0.0,
+        "verdict": "none",
+        "evidence": "",
+        "reason": "Not attempted.",
+        "borderline": false
+       }
+      ],
+      "needs_review": false,
+      "review_reasons": [],
+      "q_no": "15",
+      "has_subparts": false,
+      "subpart_grades": [],
+      "or_group": null,
+      "scheme_source": "key",
+      "counted": true
+     },
+     {
+      "max_marks": 3.0,
+      "marks_awarded": 3.0,
+      "student_answer_summary": "[Figure: triangle with height 60 m, angle 60°, hypotenuse L]\nsin60 = 60/L\n√3/2 = 60/L\nL = 120/√3 = 40√3 m",
+      "key_concepts_found": [
+       "Figure",
+       "Trigonometric relation",
+       "Substitution and expression for L",
+       "Final answer with unit"
+      ],
+      "key_concepts_missed": [],
+      "feedback": "Correct figure, setup, and final answer.",
+      "confidence": "high",
+      "legibility_issue": false,
+      "not_attempted": false,
+      "points": [
+       {
+        "id": "16.1",
+        "text": "Figure",
+        "expected": "Correct figure: right triangle, height 60 m, angle 60° at ground, string = hypotenuse L",
+        "max_marks": 0.5,
+        "marks_awarded": 0.5,
+        "verdict": "full",
+        "evidence": "[Triangle ABC with height 60 m, angle 60°]",
+        "reason": "Correct triangle diagram drawn with appropriate labels.",
+        "borderline": false
+       },
+       {
+        "id": "16.2",
+        "text": "Trigonometric relation",
+        "expected": "sin 60° = 60 / L (perpendicular/hypotenuse)",
+        "max_marks": 1.0,
+        "marks_awarded": 1.0,
+        "verdict": "full",
+        "evidence": "sin60 = 60/L",
+        "reason": "Correct trigonometric ratio set up.",
+        "borderline": false
+       },
+       {
+        "id": "16.3",
+        "text": "Substitution and expression for L",
+        "expected": "√3/2 = 60/L ⇒ L = 120/√3",
+        "max_marks": 0.5,
+        "marks_awarded": 0.5,
+        "verdict": "full",
+        "evidence": "√3/2 = 60/L L = 120/√3",
+        "reason": "Correct algebraic manipulation.",
+        "borderline": false
+       },
+       {
+        "id": "16.4",
+        "text": "Final answer with unit",
+        "expected": "L = 40√3 m (≈ 69.28 m)",
+        "max_marks": 1.0,
+        "marks_awarded": 1.0,
+        "verdict": "full",
+        "evidence": "= 40√3 m",
+        "reason": "Correct final length with units.",
+        "borderline": false
+       }
+      ],
+      "needs_review": false,
+      "review_reasons": [],
+      "q_no": "16",
+      "has_subparts": false,
+      "subpart_grades": [],
+      "or_group": null,
+      "scheme_source": "key",
+      "counted": true
+     },
+     {
+      "max_marks": 4.0,
+      "marks_awarded": 0.0,
+      "student_answer_summary": "",
+      "key_concepts_found": [],
+      "key_concepts_missed": [
+       "Expressing cot θ in terms of tan θ",
+       "Simplifying and combining fractions",
+       "Factoring using a³ − b³",
+       "Splitting and converting to sin/cos to reach RHS"
+      ],
+      "feedback": "Question not attempted.",
+      "confidence": "high",
+      "legibility_issue": false,
+      "not_attempted": true,
+      "points": [
+       {
+        "id": "17.1",
+        "text": "Expressing cot θ in terms of tan θ",
+        "expected": "Writing cot θ = 1/tan θ: LHS = tan θ / (1 − 1/tan θ) + (1/tan θ) / (1 − tan θ)",
+        "max_marks": 1.0,
+        "marks_awarded": 0.0,
+        "verdict": "none",
+        "evidence": "",
+        "reason": "Not attempted.",
+        "borderline": false
+       },
+       {
+        "id": "17.2",
+        "text": "Simplifying and combining fractions",
+        "expected": "= tan²θ/(tan θ − 1) − 1/[tan θ (tan θ − 1)] = (tan³θ − 1) / [tan θ (tan θ − 1)]",
+        "max_marks": 1.0,
+        "marks_awarded": 0.0,
+        "verdict": "none",
+        "evidence": "",
+        "reason": "Not attempted.",
+        "borderline": false
+       },
+       {
+        "id": "17.3",
+        "text": "Factoring using a³ − b³",
+        "expected": "Using a³ − b³ = (a − b)(a² + ab + b²): = (tan²θ + tan θ + 1) / tan θ",
+        "max_marks": 1.0,
+        "marks_awarded": 0.0,
+        "verdict": "none",
+        "evidence": "",
+        "reason": "Not attempted.",
+        "borderline": false
+       },
+       {
+        "id": "17.4",
+        "text": "Splitting and converting to sin/cos to reach RHS",
+        "expected": "= tan θ + 1 + cot θ = 1 + (sin²θ + cos²θ)/(sin θ cos θ) = 1 + sec θ cosec θ = RHS",
+        "max_marks": 1.0,
+        "marks_awarded": 0.0,
+        "verdict": "none",
+        "evidence": "",
+        "reason": "Not attempted.",
+        "borderline": false
+       }
+      ],
+      "needs_review": false,
+      "review_reasons": [],
+      "q_no": "17",
+      "has_subparts": false,
+      "subpart_grades": [],
+      "or_group": null,
+      "scheme_source": "key",
+      "counted": true
+     },
+     {
+      "max_marks": 4.0,
+      "marks_awarded": 3.0,
+      "student_answer_summary": "tan45 = 7/x\n1 = 7/x x = 7m\ntan60 = 7/CE\n√3 = 7/CE CE = 7/√3 = 4.04\nheight = 7 + 4.04 = 11.04 m\n[Figure drawn]",
+      "key_concepts_found": [
+       "Correct labelled figure",
+       "Finding distance x using △ABD"
+      ],
+      "key_concepts_missed": [
+       "Finding CE using △AEC",
+       "Total height of tower"
+      ],
+      "feedback": "Good diagram and initial step. However, tan 60° = CE/AE (perpendicular/base), not 7/CE. Be careful when setting up trigonometric ratios.",
+      "confidence": "high",
+      "legibility_issue": false,
+      "not_attempted": false,
+      "points": [
+       {
+        "id": "18.1",
+        "text": "Correct labelled figure",
+        "expected": "Correct figure: building AB = 7 m, tower CD, BD = AE = x, angle of depression 45°, elevation 60°",
+        "max_marks": 1.0,
+        "marks_awarded": 1.0,
+        "verdict": "full",
+        "evidence": "[Figure showing building 7m, tower CD, angles 60° and 45°]",
+        "reason": "Correct figure showing elevations and depressions.",
+        "borderline": false
+       },
+       {
+        "id": "18.2",
+        "text": "Finding distance x using △ABD",
+        "expected": "In △ABD: tan 45° = AB/BD = 7/x ⇒ x = 7 m",
+        "max_marks": 1.0,
+        "marks_awarded": 1.0,
+        "verdict": "full",
+        "evidence": "tan45 = 7/x 1 = 7/x x = 7m",
+        "reason": "Correctly determined the distance between building and tower as 7 m.",
+        "borderline": false
+       },
+       {
+        "id": "18.3",
+        "text": "Finding CE using △AEC",
+        "expected": "In △AEC: tan 60° = CE/AE ⇒ CE = 7√3 m",
+        "max_marks": 1.0,
+        "marks_awarded": 0.5,
+        "verdict": "partial",
+        "evidence": "tan60 = 7/CE CE = 7/√3 = 4.04",
+        "reason": "Ratio is inverted; tan 60° should be CE/7, giving CE = 7√3.",
+        "borderline": true
+       },
+       {
+        "id": "18.4",
+        "text": "Total height of tower",
+        "expected": "Height of tower CD = CE + ED = 7√3 + 7 = 7(√3 + 1) ≈ 19.12 m",
+        "max_marks": 1.0,
+        "marks_awarded": 0.5,
+        "verdict": "partial",
+        "evidence": "height = 7 + 4.04 = 11.04 m",
+        "reason": "Method of adding building height to CE is correct, but value is incorrect due to earlier error.",
+        "borderline": true
+       }
+      ],
+      "needs_review": true,
+      "review_reasons": [
+       "Borderline answer — teacher's call"
+      ],
+      "q_no": "18",
+      "has_subparts": false,
+      "subpart_grades": [],
+      "or_group": null,
+      "scheme_source": "key",
+      "counted": true
+     },
+     {
+      "max_marks": 4.0,
+      "marks_awarded": 0.0,
+      "student_answer_summary": "",
+      "key_concepts_found": [],
+      "key_concepts_missed": [
+       "Correct labelled figure",
+       "Forming trigonometric equations for both poles",
+       "Solving for distance x",
+       "Height of poles and distances from both poles"
+      ],
+      "feedback": "Question not attempted.",
+      "confidence": "high",
+      "legibility_issue": false,
+      "not_attempted": true,
+      "points": [
+       {
+        "id": "19.1",
+        "text": "Correct labelled figure",
+        "expected": "Correct figure: poles AB and CD, height h, point P on road, BP = x, PD = 80 − x",
+        "max_marks": 1.0,
+        "marks_awarded": 0.0,
+        "verdict": "none",
+        "evidence": "",
+        "reason": "Not attempted.",
+        "borderline": false
+       },
+       {
+        "id": "19.2",
+        "text": "Forming trigonometric equations for both poles",
+        "expected": "tan 60° = h/x ⇒ h = √3 x ; tan 30° = h/(80 − x) ⇒ h = (80 − x)/√3",
+        "max_marks": 1.0,
+        "marks_awarded": 0.0,
+        "verdict": "none",
+        "evidence": "",
+        "reason": "Not attempted.",
+        "borderline": false
+       },
+       {
+        "id": "19.3",
+        "text": "Solving for distance x",
+        "expected": "√3 x = (80 − x)/√3 ⇒ 3x = 80 − x ⇒ x = 20 m",
+        "max_marks": 1.0,
+        "marks_awarded": 0.0,
+        "verdict": "none",
+        "evidence": "",
+        "reason": "Not attempted.",
+        "borderline": false
+       },
+       {
+        "id": "19.4",
+        "text": "Height of poles and distances from both poles",
+        "expected": "h = 20√3 m ≈ 34.64 m; distances from poles: 20 m and 60 m",
+        "max_marks": 1.0,
+        "marks_awarded": 0.0,
+        "verdict": "none",
+        "evidence": "",
+        "reason": "Not attempted.",
+        "borderline": false
+       }
+      ],
+      "needs_review": false,
+      "review_reasons": [],
+      "q_no": "19",
+      "has_subparts": false,
+      "subpart_grades": [],
+      "or_group": null,
+      "scheme_source": "key",
+      "counted": true
+     }
+    ],
+    "total_marks_awarded": 19.0,
+    "max_marks": 40.0,
+    "percentage": 47.5,
+    "needs_review_count": 1
+   }
+  }
+ ]
+}
