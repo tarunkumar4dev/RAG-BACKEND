@@ -31,13 +31,16 @@ from app.routers.smart_assignment_router import (
     ALLOWED_EXTENSIONS, DAILY_LIMIT, MAX_FILE_SIZE, OVERRIDE_TYPE, TABLE as HISTORY_TABLE, _Caller,
     _checks_today, _cleanup, _save_to_db, require_caller, with_retry,
 )
-from app.services.smart_assignment_service import build_rubric, grade_sheet, rubric_from_test_fast
+from app.services.answer_checker import preprocess
+from app.services.answer_checker.copy_check import grade_copy
+from app.core.api_errors import AI_BUSY_MSG, ai_busy
+from app.services.smart_assignment_service import GeminiBusy, build_rubric, rubric_from_test_fast, usage_meter
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/copy-checker", tags=["Copy Checker"])
 
 BUCKET = "answer-sheets"
-MAX_PAGES = int(os.getenv("COPY_CHECKER_MAX_PAGES", "16"))
+MAX_PAGES = preprocess.MAX_PAGES   # one place for the page cap
 
 
 # What teachers see when the AI step fails for a reason that isn't theirs to fix (Gemini errors,
@@ -46,6 +49,7 @@ RUBRIC_FAILED_MSG = "Could not prepare the marking scheme. Please try again."
 PAPER_UNREADABLE_MSG = "Could not read the question paper. Check that the photos are clear and try again."
 CHECK_FAILED_MSG = "AI check failed. Please try again."
 COPY_UNREADABLE_MSG = "Could not read this copy. Check that the photos are clear and try again."
+BUSY_MSG = AI_BUSY_MSG
 
 
 def _uuid_or_404(value: str, what: str) -> None:
@@ -124,13 +128,17 @@ def _build_session_rubric(c: _Caller, session_id: str, force: bool) -> dict:
             qp = [_download_own(c, p, "qpaper_") for p in s["qp_paths"][:MAX_PAGES]]
             key = [_download_own(c, p, "akey_") for p in (s.get("key_paths") or [])[:MAX_PAGES]]
             paths = qp + key
-            rubric = build_rubric(qp, key)
+            with usage_meter() as meter:
+                rubric = build_rubric(qp, key)
+            rubric["_usage"] = meter.as_dict()
+            logger.info(f"[checker] rubric usage: {meter.as_dict()}")
     except HTTPException as e:
         _update_session(c, session_id, {"rubric_status": "failed", "rubric_error": str(e.detail)[:300]})
         raise
     except Exception as e:
-        logger.warning(f"Rubric failed for session {session_id}: {e}")
-        msg = PAPER_UNREADABLE_MSG if isinstance(e, ValueError) else RUBRIC_FAILED_MSG
+        logger.warning(f"Rubric failed for session {session_id}: {type(e).__name__}")
+        msg = (BUSY_MSG if isinstance(e, GeminiBusy) else
+               PAPER_UNREADABLE_MSG if isinstance(e, ValueError) else RUBRIC_FAILED_MSG)
         _update_session(c, session_id, {"rubric_status": "failed", "rubric_error": msg})
         raise
     finally:
@@ -155,18 +163,38 @@ async def session_rubric(session_id: str, body: RubricRequest = RubricRequest(),
         s = await run_in_threadpool(_build_session_rubric, c, session_id, body.force)
     except HTTPException:
         raise
+    except GeminiBusy:
+        raise ai_busy()
     except ValueError as e:
         raise HTTPException(status_code=422, detail=PAPER_UNREADABLE_MSG)
     except Exception as e:
-        logger.error(f"Copy-check rubric failed: {e}", exc_info=True)
+        logger.error(f"Copy-check rubric failed: {type(e).__name__}", exc_info=True)
         raise HTTPException(status_code=500, detail=RUBRIC_FAILED_MSG)
     return {"ok": True, "rubric": _rubric_summary(s), "full_rubric": s.get("rubric")}
 
 
 def _compact(result: dict) -> dict:
     keep = ("graded_questions", "total_marks_awarded", "max_marks", "percentage", "overall_remarks",
-            "readability_score", "needs_review_count")
-    return {k: result.get(k) for k in keep}
+            "readability_score", "needs_review_count", "norm_pages", "sheet_flags", "usage")
+    return {k: result.get(k) for k in keep if k in result}
+
+
+def _save_norm_pages(c: _Caller, session_id: str, sheet_id: str, ordered: list) -> list:
+    """Final (upright, student-ordered) pages → answer-sheets/<uid>/<session>/<sheet>/norm/p<i>.jpg.
+    The marked copy is drawn on exactly these images, so its positions match the grader's."""
+    folder = f"{c.user.id}/{session_id}/{sheet_id}/norm"
+    store = get_supabase_admin().storage.from_(BUCKET)
+    old = {f"{folder}/{o['name']}" for o in (with_retry(lambda: store.list(folder)) or []) if o.get("name")}
+    out = []
+    for i, p in enumerate(ordered):
+        path = f"{folder}/p{i}.jpg"
+        with_retry(lambda: store.upload(path, p.jpeg, {"content-type": "image/jpeg", "upsert": "true"}))
+        out.append({"index": i, "source_index": p.source_index, "student_page_no": p.student_page_no,
+                    "rotation": p.rotation, "blank": p.blank, "path": path, "w": p.w, "h": p.h})
+    stale = sorted(old - {o["path"] for o in out})
+    if stale:
+        with_retry(lambda: store.remove(stale))
+    return out
 
 
 def _check_sheet(c: _Caller, sheet_id: str) -> dict:
@@ -178,7 +206,7 @@ def _check_sheet(c: _Caller, sheet_id: str) -> dict:
     if not pages:
         raise HTTPException(status_code=400, detail="Add at least one page photo first.")
     if len(pages) > MAX_PAGES:
-        raise HTTPException(status_code=400, detail=f"Too many pages (max {MAX_PAGES}).")
+        raise HTTPException(status_code=400, detail=f"Too many pages in one copy, max {MAX_PAGES}.")
 
     session = _get_session(c, sheet["session_id"])
     if session.get("rubric_status") != "ready" or not session.get("rubric"):
@@ -193,16 +221,21 @@ def _check_sheet(c: _Caller, sheet_id: str) -> dict:
     try:
         files = [_download_own(c, p, "ssheet_") for p in pages]
         start = time.time()
-        result = grade_sheet(files, session["rubric"], session.get("strictness") or "medium",
-                             require_identity=False)
-        result.pop("_grade_time_s", None)
+        result, ordered, usage = grade_copy(files, session["rubric"], session.get("strictness") or "medium")
+        result["norm_pages"] = _save_norm_pages(c, sheet["session_id"], sheet_id, ordered)
+        result["usage"] = usage
         result["_meta"] = {"strictness": session.get("strictness") or "medium",
-                           "grade_time_s": round(time.time() - start, 2), "pages": len(pages)}
+                           "grade_time_s": round(time.time() - start, 2), "pages": usage["pages"]}
+        logger.info(f"[checker] sheet usage: {usage}")
     except Exception as e:
         if isinstance(e, HTTPException):
             msg = e.detail
+        elif isinstance(e, preprocess.BadFile):
+            msg = str(e)
+        elif isinstance(e, GeminiBusy):
+            msg = BUSY_MSG
         else:
-            logger.warning(f"Copy check failed for sheet {sheet_id}: {e}")
+            logger.warning(f"Copy check failed for sheet {sheet_id}: {type(e).__name__}")
             msg = COPY_UNREADABLE_MSG if isinstance(e, ValueError) else CHECK_FAILED_MSG
         with_retry(lambda: c.db.table("check_sheets").update({"status": "failed", "error": str(msg)[:300],
                                                              "updated_at": datetime.now(timezone.utc).isoformat()})
@@ -241,10 +274,14 @@ async def check_sheet(sheet_id: str, c: _Caller = Depends(require_caller)):
         sheet = await run_in_threadpool(_check_sheet, c, sheet_id)
     except HTTPException:
         raise
+    except preprocess.BadFile as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except GeminiBusy:
+        raise ai_busy()
     except ValueError:
         raise HTTPException(status_code=422, detail=COPY_UNREADABLE_MSG)
     except Exception as e:
-        logger.error(f"Copy check failed: {e}", exc_info=True)
+        logger.error(f"Copy check failed: {type(e).__name__}", exc_info=True)
         raise HTTPException(status_code=500, detail=CHECK_FAILED_MSG)
     return {"ok": True, "sheet": sheet}
 

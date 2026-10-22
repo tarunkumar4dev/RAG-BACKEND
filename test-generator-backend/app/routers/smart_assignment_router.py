@@ -30,7 +30,8 @@ import time
 from app.core.auth import AuthUser, require_user
 from app.core.config import settings
 from app.core.database import get_supabase_admin, get_supabase_for_user
-from app.services.smart_assignment_service import build_rubric, check_assignment, grade_sheet
+from app.core.api_errors import AI_BUSY_MSG, ai_busy
+from app.services.smart_assignment_service import GeminiBusy, build_rubric, check_assignment, grade_sheet
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/smart-assignment-checker", tags=["Smart Assignment Checker"])
@@ -186,10 +187,12 @@ async def check(
 
     except HTTPException:
         raise
+    except GeminiBusy:
+        raise ai_busy()
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
-        logger.error(f"Smart assignment check error: {e}", exc_info=True)
+        logger.error(f"Smart assignment check error: {type(e).__name__}", exc_info=True)
         raise HTTPException(status_code=500, detail="Grading failed. Please try again.")
     finally:
         _cleanup(qp_path, ak_path, ss_path)
@@ -407,6 +410,8 @@ async def assignment_rubric(assignment_id: str, body: RubricRequest = RubricRequ
         _, key = await run_in_threadpool(_ensure_rubric, c, assignment_id, body.force)
     except HTTPException:
         raise
+    except GeminiBusy:
+        raise ai_busy()
     except ValueError as e:
         raise HTTPException(status_code=422, detail=f"Could not read the question paper / answer key: {e}")
     except Exception as e:
@@ -455,7 +460,9 @@ def _check_submission(c: _Caller, assignment_id: str, submission_id: str) -> dic
         result["_meta"] = {"strictness": key.get("strictness") or "medium",
                            "grade_time_s": result.pop("_grade_time_s", round(time.time() - start, 2))}
     except Exception as e:
-        with_retry(lambda: c.db.table("submissions").update({"ai_status": "failed", "ai_error": str(e)[:300]})
+        safe = (AI_BUSY_MSG if isinstance(e, GeminiBusy) else e.detail if isinstance(e, HTTPException)
+                else str(e) if isinstance(e, ValueError) else "AI check failed. Please try again.")
+        with_retry(lambda: c.db.table("submissions").update({"ai_status": "failed", "ai_error": str(safe)[:300]})
                    .eq("id", submission_id).execute())
         raise
     finally:
@@ -502,9 +509,11 @@ async def check_submission(assignment_id: str, submission_id: str, c: _Caller = 
         result = await run_in_threadpool(_check_submission, c, assignment_id, submission_id)
     except HTTPException:
         raise
+    except GeminiBusy:
+        raise ai_busy()
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
-        logger.error(f"Submission check failed: {e}", exc_info=True)
+        logger.error(f"Submission check failed: {type(e).__name__}", exc_info=True)
         raise HTTPException(status_code=500, detail="AI check failed. Please try again.")
     return {"ok": True, "result": result}
