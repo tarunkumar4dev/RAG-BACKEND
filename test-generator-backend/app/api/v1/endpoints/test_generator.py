@@ -986,6 +986,61 @@ def _get_subject_sql_clause(subject: str) -> tuple[str, list]:
         return "LOWER(subject) = LOWER(%s)", [subject.strip()]
 
 
+# Migration 19: the quality pass marks copies `duplicate` and empty rows `junk` — hidden. NULL = not audited
+# yet (every class except Class 10 Maths today) and stays visible exactly as before.
+_NCERT_VISIBLE_OR = "quality_status.is.null,quality_status.not.in.(duplicate,junk)"
+_NCERT_VISIBLE_SQL = "(quality_status IS NULL OR quality_status NOT IN ('duplicate', 'junk'))"
+# "figure missing" = no image although the row is a diagram question or names a figure (badge and filter agree)
+_NCERT_FIGURE_MISSING_OR = "question_type.eq.diagram,figure_ref.not.is.null"  # together with image_url IS NULL
+_NCERT_FIGURE_OK_OR = "image_url.not.is.null,and(question_type.neq.diagram,figure_ref.is.null)"
+# audit bookkeeping, not for teachers (no "needs review" anywhere in the UI)
+_NCERT_INTERNAL_FIELDS = ("quality_status", "quality_flags", "duplicate_of", "hash_version", "quality_rank")
+_OPTION_LABEL = re.compile(r"^\s*(?:\(\s*([A-Fa-f])\s*\)|([A-Fa-f])\s*[.)])\s*")
+_SECTION_CHAPTER_NO = re.compile(r"(\d{1,2})\.\d+")
+
+
+def _decode_options(raw) -> list:
+    """options is jsonb, but most rows hold a JSON *string* of the list ("[\\"(A) 60°\\", …]"). Accept both."""
+    value = raw
+    for _ in range(3):
+        if not isinstance(value, str):
+            break
+        try:
+            value = json.loads(value)
+        except Exception:
+            return []
+    return [str(o) for o in value] if isinstance(value, list) else []
+
+
+def _strip_option_labels(options: list) -> list:
+    """'(A) 60°' → '60°' when the label is that option's own letter — the builder and the PDF add A/B/C/D."""
+    out = []
+    for i, opt in enumerate(options):
+        m = _OPTION_LABEL.match(opt)
+        letter = (m.group(1) or m.group(2)).upper() if m else None
+        rest = opt[m.end():] if m else opt
+        out.append(rest if letter == chr(65 + i) and rest.strip() else opt)
+    return out
+
+
+def _figure_missing(q: dict) -> bool:
+    return not q.get("image_url") and (q.get("question_type") == "diagram" or bool(q.get("figure_ref")))
+
+
+def _chapter_number(sections: dict) -> Optional[int]:
+    """Chapter number from section names ("EXERCISE 5.2", "5.3 nth Term") weighted by row count; None
+    unless one number has a clear majority (English / History chapters have no numbered sections)."""
+    votes: dict = {}
+    for name, count in sections.items():
+        m = _SECTION_CHAPTER_NO.search(name or "")
+        if m:
+            votes[int(m.group(1))] = votes.get(int(m.group(1)), 0) + count
+    if not votes:
+        return None
+    number, n = max(votes.items(), key=lambda kv: kv[1])
+    return number if n * 2 > sum(votes.values()) else None
+
+
 async def _ncert_questions_impl(
     subject: str = "Science",
     class_grade: str = "10",
@@ -995,6 +1050,7 @@ async def _ncert_questions_impl(
     search: Optional[str] = None,
     limit: int = 50,
     offset: int = 0,
+    figure: Optional[str] = None,
 ):
     # SECURITY: Sanitize ALL inputs + cap limit/offset
     subject = sanitize_like(_resolve_subject(subject), max_length=50)
@@ -1007,6 +1063,11 @@ async def _ncert_questions_impl(
         # count="exact" returns the total with the page — one Supabase round trip instead of two.
         query = supabase.table("ncert_questions").select("*", count="exact").eq("class_grade", class_grade)
         query = _apply_ncert_subject_filter(query, subject)
+        query = query.or_(_NCERT_VISIBLE_OR)
+        if figure == "missing":
+            query = query.is_("image_url", "null").or_(_NCERT_FIGURE_MISSING_OR)
+        elif figure == "hide":
+            query = query.or_(_NCERT_FIGURE_OK_OR)
 
         if chapter:
             # Exact match: the builder sends the chapter name from /ncert-question-stats. ILIKE '%x%'
@@ -1022,8 +1083,10 @@ async def _ncert_questions_impl(
             safe_search = sanitize_like(search, max_length=200)
             query = query.ilike("question_text", f"%{safe_search}%")
 
-        # id breaks ties: without it rows with the same section + number could repeat or vanish across pages
-        result = query.order("section", desc=False) \
+        # quality_rank first: clean / fixed (and unaudited) before needs_review; all 0 for unaudited classes,
+        # so their order is unchanged. id breaks ties: without it rows could repeat or vanish across pages.
+        result = query.order("quality_rank", desc=False) \
+            .order("section", desc=False) \
             .order("question_number", desc=False) \
             .order("id", desc=False) \
             .range(offset, offset + limit - 1) \
@@ -1033,11 +1096,10 @@ async def _ncert_questions_impl(
         total_count = result.count if result.count is not None else offset + len(questions)
 
         for q in questions:
-            if isinstance(q.get("options"), str):
-                try:
-                    q["options"] = json.loads(q["options"])
-                except Exception:
-                    q["options"] = []
+            q["options"] = _strip_option_labels(_decode_options(q.get("options")))
+            q["figure_missing"] = _figure_missing(q)
+            for field in _NCERT_INTERNAL_FIELDS:
+                q.pop(field, None)
 
         # Accountancy: send the same text/table segments the PDF exporter will print, so the
         # builder preview shows real ledgers/statements instead of flattened NCERT text.
@@ -1081,7 +1143,7 @@ async def _ncert_question_stats_impl(subject: str = "Science", class_grade: str 
                 cur.execute(f"""
                     SELECT chapter, COALESCE(section, 'Uncategorized'), COALESCE(question_type, 'exercise'), COUNT(*)
                     FROM ncert_questions
-                    WHERE class_grade = %s AND {where_sub}
+                    WHERE class_grade = %s AND {where_sub} AND {_NCERT_VISIBLE_SQL}
                     GROUP BY chapter, section, question_type
                     ORDER BY chapter;
                 """, [class_grade] + sub_params)
@@ -1099,6 +1161,7 @@ async def _ncert_question_stats_impl(subject: str = "Science", class_grade: str 
 
                 stats_list = sorted(chapter_stats.values(), key=lambda x: x["chapter"])
                 for stat in stats_list:
+                    stat["chapter_no"] = _chapter_number(stat["sections"])
                     stat["sections"] = [{"name": k, "count": v} for k, v in sorted(stat["sections"].items())]
                     stat["types"] = [{"name": k, "count": v} for k, v in sorted(stat["types"].items())]
 
@@ -1127,7 +1190,7 @@ async def _ncert_question_stats_impl(subject: str = "Science", class_grade: str 
             base_query = supabase.table("ncert_questions") \
                 .select("chapter, section, question_type") \
                 .eq("class_grade", class_grade)
-            base_query = _apply_ncert_subject_filter(base_query, subject)
+            base_query = _apply_ncert_subject_filter(base_query, subject).or_(_NCERT_VISIBLE_OR)
             page = base_query.order("id").range(len(rows), len(rows) + page_size - 1).execute().data or []
             rows.extend(page)
             if len(page) < page_size or len(rows) >= 200_000:
@@ -1146,6 +1209,7 @@ async def _ncert_question_stats_impl(subject: str = "Science", class_grade: str 
 
         stats_list = sorted(chapter_stats.values(), key=lambda x: x["chapter"])
         for stat in stats_list:
+            stat["chapter_no"] = _chapter_number(stat["sections"])
             stat["sections"] = [{"name": k, "count": v} for k, v in sorted(stat["sections"].items())]
             stat["types"] = [{"name": k, "count": v} for k, v in sorted(stat["types"].items())]
 
@@ -1492,11 +1556,14 @@ async def get_ncert_questions(
     search: Optional[str] = None,
     limit: int = 50,
     offset: int = 0,
+    figure: Optional[str] = None,  # "missing" = only questions whose figure is missing, "hide" = without them
 ):
-    key = "ncertq:" + json.dumps([subject, class_grade, chapter, question_type, section, search, limit, offset])
+    figure = figure if figure in ("missing", "hide") else None
+    key = "ncertq:" + json.dumps([subject, class_grade, chapter, question_type, section, search, limit, offset, figure])
     data = api_cache.get(key)
     if data is None:
-        data = await _ncert_questions_impl(subject, class_grade, chapter, question_type, section, search, limit, offset)
+        data = await _ncert_questions_impl(subject, class_grade, chapter, question_type, section, search, limit, offset,
+                                           figure)
         if data.get("ok"):
             api_cache.set(key, data, ttl=600)
     if data.get("ok"):
