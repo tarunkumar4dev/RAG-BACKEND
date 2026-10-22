@@ -12,3 +12,4 @@ razorpay
 psycopg2-binary
 PyMuPDF==1.28.2
 pylatexenc
+pillow-heif==1.8.1

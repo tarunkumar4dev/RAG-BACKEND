@@ -22,6 +22,7 @@ from app.core.config import settings
 from app.core import api_errors, rate_limit
 from app.routers.smart_assignment_router import router as smart_assignment_router
 from app.routers.copy_checker_router import router as copy_checker_router
+from app.routers.internal_jobs_router import router as internal_jobs_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -217,6 +218,8 @@ app.include_router(chat_router, prefix="/api/v1")
 app.include_router(whatsapp_router, prefix="/api/v1")
 app.include_router(smart_assignment_router, prefix="/api/v1")
 app.include_router(copy_checker_router, prefix="/api/v1")
+# no prefix: the Supabase vault calls exactly /internal/jobs/run
+app.include_router(internal_jobs_router)
 
 
 @app.get("/health")

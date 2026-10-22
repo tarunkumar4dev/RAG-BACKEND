@@ -10,6 +10,7 @@ answer positions always agree.
 """
 
 import hashlib
+import io
 import logging
 import os
 import re
@@ -34,6 +35,8 @@ MAX_PAGES = min(30, int(os.getenv("COPY_CHECKER_MAX_PAGES", "30")))
 BLANK_INK_RATIO = 0.00005
 
 _IMAGE_TYPES = {".png": "png", ".jpg": "jpeg", ".jpeg": "jpeg", ".webp": "webp"}
+# iPhone photos. MuPDF can't read HEIC, so they are converted to JPEG with pillow-heif first.
+HEIC_EXTENSIONS = {".heic", ".heif"}
 
 
 class BadFile(ValueError):
@@ -63,6 +66,22 @@ def sha256_files(paths: list) -> str:
     return h.hexdigest()
 
 
+def heic_to_jpeg(path: str) -> bytes:
+    """HEIC/HEIF photo → upright JPEG bytes (EXIF orientation applied, metadata dropped)."""
+    from PIL import Image, ImageOps
+    import pillow_heif
+
+    pillow_heif.register_heif_opener()
+    try:
+        with Image.open(path) as im:
+            im = ImageOps.exif_transpose(im).convert("RGB")
+            buf = io.BytesIO()
+            im.save(buf, format="JPEG", quality=92)
+            return buf.getvalue()
+    except Exception:
+        raise BadFile("A HEIC photo could not be opened (it may be damaged). Please upload it again.")
+
+
 def _open(path: str) -> pymupdf.Document:
     ext = os.path.splitext(path)[1].lower()
     if os.path.getsize(path) == 0:
@@ -72,8 +91,10 @@ def _open(path: str) -> pymupdf.Document:
             doc = pymupdf.open(path, filetype="pdf")
         elif ext in _IMAGE_TYPES:
             doc = pymupdf.open(path, filetype=_IMAGE_TYPES[ext])
+        elif ext in HEIC_EXTENSIONS:
+            doc = pymupdf.open(stream=heic_to_jpeg(path), filetype="jpeg")
         else:
-            raise BadFile(f"Unsupported file type '{ext}'. Upload a PDF or photos (JPG/PNG/WEBP).")
+            raise BadFile(f"Unsupported file type '{ext}'. Upload a PDF or photos (JPG/PNG/WEBP/HEIC).")
     except BadFile:
         raise
     except Exception:
@@ -120,6 +141,18 @@ def _ink_ratio(pix: pymupdf.Pixmap) -> float:
     return ink / (w * h)
 
 
+def _photo_long_px(path: str) -> int:
+    if os.path.splitext(path)[1].lower() in HEIC_EXTENSIONS:
+        from PIL import Image
+        import pillow_heif
+
+        pillow_heif.register_heif_opener()
+        with Image.open(path) as im:
+            return max(im.size)
+    pix = pymupdf.Pixmap(path)
+    return max(pix.width, pix.height)
+
+
 def _render(page: pymupdf.Page, native_long_px: float, long_edge: int) -> pymupdf.Pixmap:
     long_pts = max(page.rect.width, page.rect.height)
     target = min(long_edge, native_long_px)
@@ -155,9 +188,7 @@ def normalize_sources(paths: list, max_pages: int = MAX_PAGES, long_edge: int = 
             photo_px = None
             if not is_pdf:
                 # photos: never upscale. page.rect of an image document depends on its DPI tag, not its pixels
-                pix = pymupdf.Pixmap(path)
-                photo_px = max(pix.width, pix.height)
-                pix = None
+                photo_px = _photo_long_px(path)
             for page in doc:
                 if len(pages) >= max_pages:
                     raise BadFile(f"Too many pages in one copy, max {max_pages}. Split it into two copies.")

@@ -130,10 +130,11 @@ class UsageMeter:
     output_tokens: int = 0
     thinking_tokens: int = 0
     ms_by_tag: dict = field(default_factory=dict)
+    model: Optional[str] = None       # model that answered the last call (stored as model_version)
 
     def as_dict(self) -> dict:
         return {"gemini_calls": self.calls, "input_tokens": self.input_tokens, "output_tokens": self.output_tokens,
-                "thinking_tokens": self.thinking_tokens, "ms_by_tag": dict(self.ms_by_tag)}
+                "thinking_tokens": self.thinking_tokens, "ms_by_tag": dict(self.ms_by_tag), "model": self.model}
 
 
 _meter: contextvars.ContextVar[Optional[UsageMeter]] = contextvars.ContextVar("checker_meter", default=None)
@@ -157,6 +158,7 @@ def _log_usage(tag: str, model: str, response, seconds: float) -> None:
     meter = _meter.get()
     if meter is not None:
         meter.ms_by_tag[tag] = meter.ms_by_tag.get(tag, 0) + int(seconds * 1000)
+        meter.model = model
     um = getattr(response, "usage_metadata", None)
     if um is None:
         return

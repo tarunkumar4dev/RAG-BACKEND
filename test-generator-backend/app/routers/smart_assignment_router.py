@@ -15,7 +15,7 @@ The service key is only used to download files after that check passes.
         AI-grade one submission → submissions.ai_* (teacher approves later; student sees nothing yet)
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File, Form
 from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
@@ -43,6 +43,11 @@ DAILY_LIMIT = int(os.getenv("SMART_CHECKER_DAILY_LIMIT", "100"))
 TABLE = "smart_assignment_checks"
 # History rows written for a teacher's per-question marks change (not an AI check: not counted in DAILY_LIMIT)
 OVERRIDE_TYPE = "teacher_override"
+# Every history row with one of these result_json.type values is an audit event, not an AI check: publishing a
+# class must not use up the teacher's daily limit (18_upload_flow writes publish / auto_publish / unpublish rows,
+# the job worker writes regrade rows).
+NOT_A_CHECK_TYPES = (OVERRIDE_TYPE, "publish", "auto_publish", "unpublish", "regrade")
+IST = timezone(timedelta(hours=5, minutes=30))
 
 
 # ── Helpers ────────────────────────────────────────────────────────
@@ -105,11 +110,17 @@ def _cleanup(*paths):
             pass
 
 
+def day_start_ist() -> datetime:
+    """Start of today in India. The daily limit resets at IST midnight, the same moment a quota-blocked job
+    (a4_finish_check_job 'QUOTA') becomes due again."""
+    return datetime.now(IST).replace(hour=0, minute=0, second=0, microsecond=0)
+
+
 def _checks_today(user_id: str) -> int:
-    start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+    start = day_start_ist().isoformat()
     r = (get_supabase_admin().table(TABLE).select("id", count="exact")
          .eq("teacher_id", user_id).gte("created_at", start)
-         .or_(f"result_json->>type.is.null,result_json->>type.neq.{OVERRIDE_TYPE}")
+         .or_(f"result_json->>type.is.null,result_json->>type.not.in.({','.join(NOT_A_CHECK_TYPES)})")
          .limit(1).execute())
     return r.count or 0
 
