@@ -1009,8 +1009,9 @@ async def _ncert_questions_impl(
         query = _apply_ncert_subject_filter(query, subject)
 
         if chapter:
-            safe_chapter = sanitize_like(chapter, max_length=200)
-            query = query.ilike("chapter", f"%{safe_chapter}%")
+            # Exact match: the builder sends the chapter name from /ncert-question-stats. ILIKE '%x%'
+            # pulled "Areas Related to Circles" into "Circles", and sanitize_like broke "Introduction_2".
+            query = query.eq("chapter", chapter.strip()[:200])
         if question_type and question_type.lower() != "all":
             safe_qtype = sanitize_like(question_type, max_length=30)
             query = query.eq("question_type", safe_qtype.lower())
@@ -1021,8 +1022,10 @@ async def _ncert_questions_impl(
             safe_search = sanitize_like(search, max_length=200)
             query = query.ilike("question_text", f"%{safe_search}%")
 
+        # id breaks ties: without it rows with the same section + number could repeat or vanish across pages
         result = query.order("section", desc=False) \
             .order("question_number", desc=False) \
+            .order("id", desc=False) \
             .range(offset, offset + limit - 1) \
             .execute()
 
@@ -1116,13 +1119,19 @@ async def _ncert_question_stats_impl(subject: str = "Science", class_grade: str 
     # 2. Fallback to Supabase client
     try:
         supabase = get_supabase()
-        base_query = supabase.table("ncert_questions") \
-            .select("chapter, section, question_type") \
-            .eq("class_grade", class_grade)
-        base_query = _apply_ncert_subject_filter(base_query, subject)
-        result = base_query.limit(5000).execute()
-
-        rows = result.data or []
+        # Page through every row: a single .limit(5000) undercounted big subjects (Class 10 Maths has
+        # 10,793 rows) and the counts no longer matched the question list.
+        rows = []
+        page_size = 1000
+        while True:
+            base_query = supabase.table("ncert_questions") \
+                .select("chapter, section, question_type") \
+                .eq("class_grade", class_grade)
+            base_query = _apply_ncert_subject_filter(base_query, subject)
+            page = base_query.order("id").range(len(rows), len(rows) + page_size - 1).execute().data or []
+            rows.extend(page)
+            if len(page) < page_size or len(rows) >= 200_000:
+                break
 
         chapter_stats = {}
         for row in rows:
