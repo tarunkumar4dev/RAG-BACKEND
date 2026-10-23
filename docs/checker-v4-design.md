@@ -465,7 +465,7 @@ count only (no paths of minors' files in logs). Env: `CHECKER_RETENTION_DAYS`, `
 - **Gemini calls (rule 2):** `_generate` = one attempt per model; fallback only on 404/503; 429/500/504 →
   `GeminiBusy` (HTTP 503 "AI service is busy…" until G2 re-queues); `_generate_json` = at most 1 retry (2 s);
   `usage_meter()` counts calls + tokens per sheet / rubric and raises `CallCapExceeded` at
-  `MAX_GEMINI_CALLS_PER_SHEET` (12). Request timeout `CHECKER_GEMINI_TIMEOUT_S` (90). Files go **inline** (no
+  `MAX_GEMINI_CALLS_PER_SHEET` (12). Request timeout `CHECKER_GEMINI_TIMEOUT_S` (60, was 90 until 23 Oct). Files go **inline** (no
   Files API upload/delete — 14 fewer API calls for 7 pages, nothing kept at Google); Files API only above 14 MB.
   `GEMINI_MOCK=1` + `GEMINI_MOCK_DIR` = recorded replies, zero cost.
 - **Stage A** (`answer_checker/preprocess.py`): PDF/photos → JPEG (150 dpi, ≤ 2000 px, q80), BadFile errors with

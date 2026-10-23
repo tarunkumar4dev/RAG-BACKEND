@@ -47,8 +47,9 @@ logger = logging.getLogger(__name__)
 CHECKER_API_KEY = os.getenv("CHECKER_GEMINI_API_KEY")
 # gemini-3.6-flash retires 19 Nov 2026. Production also sets CHECKER_GEMINI_MODEL explicitly.
 CHECKER_MODEL = os.getenv("CHECKER_GEMINI_MODEL", "gemini-3.8-flash")
-# One HTTP request to Gemini never waits longer than this
-CHECKER_TIMEOUT_S = float(os.getenv("CHECKER_GEMINI_TIMEOUT_S", "90"))
+# One HTTP request to Gemini never waits longer than this. 60 s since 23 Oct: an overloaded model held calls for
+# ~90 s and then answered 504, which ate most of a 240 s job budget (the timeout → TIMEOUT retry with backoff).
+CHECKER_TIMEOUT_S = float(os.getenv("CHECKER_GEMINI_TIMEOUT_S", "60"))
 # Hard cap on generate calls for one sheet (or one rubric), fallbacks and retries included
 MAX_GEMINI_CALLS_PER_SHEET = int(os.getenv("MAX_GEMINI_CALLS_PER_SHEET", "12"))
 # GEMINI_MOCK=1: every call returns a recorded response from GEMINI_MOCK_DIR (tests / load tests, zero cost)
