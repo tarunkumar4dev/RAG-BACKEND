@@ -10,5 +10,6 @@ reportlab
 python-docx
 razorpay
 psycopg2-binary
-PyMuPDF
+PyMuPDF==1.28.2
 pylatexenc
+pillow-heif==1.8.1

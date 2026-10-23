@@ -1,0 +1,5 @@
+-r ../api/requirements.txt
+pytest
+# tests/integration (job worker on the real 18_upload_flow.sql, local throw-away Postgres)
+pgserver
+tzdata

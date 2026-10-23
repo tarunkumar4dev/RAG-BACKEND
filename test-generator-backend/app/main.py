@@ -19,8 +19,10 @@ from app.api.v1.endpoints.whatsapp import router as whatsapp_router
 from app.routers.test_checker_router import router as test_checker_router
 from app.api.v1.endpoints.chat import router as chat_router
 from app.core.config import settings
+from app.core import api_errors, rate_limit
 from app.routers.smart_assignment_router import router as smart_assignment_router
 from app.routers.copy_checker_router import router as copy_checker_router
+from app.routers.internal_jobs_router import router as internal_jobs_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -66,27 +68,13 @@ app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 _rate_store: dict[str, list[float]] = defaultdict(list)
 _last_rate_prune: float = 0.0
-RATE_LIMIT_WINDOW = 60
+RATE_LIMIT_WINDOW = rate_limit.WINDOW_S
 RATE_LIMIT_DEFAULT = settings.RATE_LIMIT_PER_MINUTE  # 300 req/min
-
-HEAVY_ENDPOINTS = {
-    "/api/v1/test-generator/generate-frontend": 20,
-    "/api/v1/test-generator/export": 30,
-    "/api/v1/test-generator/export-answer-key": 30,
-    "/api/v1/modules/generate": 20,
-}
-
-HIGH_THROUGHPUT_ENDPOINTS = {
-    "/api/v1/test-generator/ncert-questions": 1200,
-    "/api/v1/test-generator/ncert-question-stats": 1200,
-    "/api/v1/test-generator/chapters": 1200,
-    "/api/v1/test-generator/subjects": 1200,
-}
 
 
 @app.middleware("http")
 async def rate_limit_middleware(request: Request, call_next):
-    """IP-based rate limiting designed for high scale (10,000+ req/min)."""
+    """Per route template; per user for authenticated requests, per IP otherwise (app/core/rate_limit.py)."""
     global _last_rate_prune
 
     # CRITICAL: Always bypass CORS preflight OPTIONS requests immediately
@@ -95,11 +83,8 @@ async def rate_limit_middleware(request: Request, call_next):
 
     path = request.url.path
 
-    # Bypass static / health / docs / webhook endpoints
-    if (
-        path in ("/health", "/", "/openapi.json", "/docs", "/redoc", "/favicon.ico")
-        or path.startswith("/api/v1/whatsapp")
-    ):
+    # Bypass health / docs / provider webhooks / internal worker calls
+    if rate_limit.is_exempt(path):
         return await call_next(request)
 
     client_ip = (
@@ -124,37 +109,33 @@ async def rate_limit_middleware(request: Request, call_next):
         for k in dead_keys:
             _rate_store.pop(k, None)
 
-    # Resolve tiered endpoint limit
-    if path in HEAVY_ENDPOINTS:
-        max_req = HEAVY_ENDPOINTS[path]
-    elif path in HIGH_THROUGHPUT_ENDPOINTS:
-        max_req = HIGH_THROUGHPUT_ENDPOINTS[path]
-    else:
-        max_req = RATE_LIMIT_DEFAULT
+    template = rate_limit.route_template(app, request.method, path)
+    buckets = rate_limit.checks(request.method, template, request.headers.get("authorization"), client_ip,
+                                request.headers.get("x-attempt-id"), RATE_LIMIT_DEFAULT)
+    for key, limit in buckets:
+        active_requests = [t for t in _rate_store[key] if now - t < RATE_LIMIT_WINDOW]
+        _rate_store[key] = active_requests
+        if len(active_requests) >= limit:
+            logger.warning(
+                f"Rate limit hit: {key.split('|')[0][:14]}… on {request.method} {template} "
+                f"({len(active_requests)}/{limit})"
+            )
+            origin = request.headers.get("origin", "*")
+            return JSONResponse(
+                status_code=429,
+                headers={
+                    "Retry-After": "60",
+                    "Access-Control-Allow-Origin": origin,
+                    "Access-Control-Allow-Credentials": "true",
+                    "X-RateLimit-Limit": str(limit),
+                    "X-RateLimit-Remaining": "0",
+                },
+                content={"detail": "Too many requests. Please wait a moment and try again."},
+            )
 
-    # Rate limiting key per client IP + base endpoint
-    key = f"{client_ip}:{path}"
-    active_requests = [t for t in _rate_store[key] if now - t < RATE_LIMIT_WINDOW]
-    _rate_store[key] = active_requests
-
-    if len(active_requests) >= max_req:
-        logger.warning(
-            f"Rate limit hit: {client_ip} on {path} ({len(active_requests)}/{max_req})"
-        )
-        origin = request.headers.get("origin", "*")
-        return JSONResponse(
-            status_code=429,
-            headers={
-                "Retry-After": "60",
-                "Access-Control-Allow-Origin": origin,
-                "Access-Control-Allow-Credentials": "true",
-                "X-RateLimit-Limit": str(max_req),
-                "X-RateLimit-Remaining": "0",
-            },
-            content={"detail": "Too many requests. Please wait a moment and try again."},
-        )
-
-    _rate_store[key].append(now)
+    for key, _ in buckets:
+        _rate_store[key].append(now)
+    key, max_req = buckets[0]
     response = await call_next(request)
     response.headers["X-RateLimit-Limit"] = str(max_req)
     response.headers["X-RateLimit-Remaining"] = str(max(0, max_req - len(_rate_store[key])))
@@ -208,6 +189,9 @@ async def log_requests_middleware(request: Request, call_next):
 
 # ── Global Error Handler ────────────────────────────────────────────────
 
+app.add_exception_handler(api_errors.ApiError, api_errors.api_error_handler)
+
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     """Catch unhandled exceptions — NEVER leak internals."""
@@ -234,6 +218,8 @@ app.include_router(chat_router, prefix="/api/v1")
 app.include_router(whatsapp_router, prefix="/api/v1")
 app.include_router(smart_assignment_router, prefix="/api/v1")
 app.include_router(copy_checker_router, prefix="/api/v1")
+# no prefix: the Supabase vault calls exactly /internal/jobs/run
+app.include_router(internal_jobs_router)
 
 
 @app.get("/health")

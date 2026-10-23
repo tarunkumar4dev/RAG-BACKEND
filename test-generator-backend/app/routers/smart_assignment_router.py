@@ -15,7 +15,7 @@ The service key is only used to download files after that check passes.
         AI-grade one submission → submissions.ai_* (teacher approves later; student sees nothing yet)
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File, Form
 from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
@@ -30,7 +30,8 @@ import time
 from app.core.auth import AuthUser, require_user
 from app.core.config import settings
 from app.core.database import get_supabase_admin, get_supabase_for_user
-from app.services.smart_assignment_service import build_rubric, check_assignment, grade_sheet
+from app.core.api_errors import AI_BUSY_MSG, ai_busy
+from app.services.smart_assignment_service import GeminiBusy, build_rubric, check_assignment, grade_sheet
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/smart-assignment-checker", tags=["Smart Assignment Checker"])
@@ -42,6 +43,11 @@ DAILY_LIMIT = int(os.getenv("SMART_CHECKER_DAILY_LIMIT", "100"))
 TABLE = "smart_assignment_checks"
 # History rows written for a teacher's per-question marks change (not an AI check: not counted in DAILY_LIMIT)
 OVERRIDE_TYPE = "teacher_override"
+# Every history row with one of these result_json.type values is an audit event, not an AI check: publishing a
+# class must not use up the teacher's daily limit (18_upload_flow writes publish / auto_publish / unpublish rows,
+# the job worker writes regrade rows).
+NOT_A_CHECK_TYPES = (OVERRIDE_TYPE, "publish", "auto_publish", "unpublish", "regrade")
+IST = timezone(timedelta(hours=5, minutes=30))
 
 
 # ── Helpers ────────────────────────────────────────────────────────
@@ -104,11 +110,17 @@ def _cleanup(*paths):
             pass
 
 
+def day_start_ist() -> datetime:
+    """Start of today in India. The daily limit resets at IST midnight, the same moment a quota-blocked job
+    (a4_finish_check_job 'QUOTA') becomes due again."""
+    return datetime.now(IST).replace(hour=0, minute=0, second=0, microsecond=0)
+
+
 def _checks_today(user_id: str) -> int:
-    start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+    start = day_start_ist().isoformat()
     r = (get_supabase_admin().table(TABLE).select("id", count="exact")
          .eq("teacher_id", user_id).gte("created_at", start)
-         .or_(f"result_json->>type.is.null,result_json->>type.neq.{OVERRIDE_TYPE}")
+         .or_(f"result_json->>type.is.null,result_json->>type.not.in.({','.join(NOT_A_CHECK_TYPES)})")
          .limit(1).execute())
     return r.count or 0
 
@@ -186,10 +198,12 @@ async def check(
 
     except HTTPException:
         raise
+    except GeminiBusy:
+        raise ai_busy()
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
-        logger.error(f"Smart assignment check error: {e}", exc_info=True)
+        logger.error(f"Smart assignment check error: {type(e).__name__}", exc_info=True)
         raise HTTPException(status_code=500, detail="Grading failed. Please try again.")
     finally:
         _cleanup(qp_path, ak_path, ss_path)
@@ -407,6 +421,8 @@ async def assignment_rubric(assignment_id: str, body: RubricRequest = RubricRequ
         _, key = await run_in_threadpool(_ensure_rubric, c, assignment_id, body.force)
     except HTTPException:
         raise
+    except GeminiBusy:
+        raise ai_busy()
     except ValueError as e:
         raise HTTPException(status_code=422, detail=f"Could not read the question paper / answer key: {e}")
     except Exception as e:
@@ -455,7 +471,9 @@ def _check_submission(c: _Caller, assignment_id: str, submission_id: str) -> dic
         result["_meta"] = {"strictness": key.get("strictness") or "medium",
                            "grade_time_s": result.pop("_grade_time_s", round(time.time() - start, 2))}
     except Exception as e:
-        with_retry(lambda: c.db.table("submissions").update({"ai_status": "failed", "ai_error": str(e)[:300]})
+        safe = (AI_BUSY_MSG if isinstance(e, GeminiBusy) else e.detail if isinstance(e, HTTPException)
+                else str(e) if isinstance(e, ValueError) else "AI check failed. Please try again.")
+        with_retry(lambda: c.db.table("submissions").update({"ai_status": "failed", "ai_error": str(safe)[:300]})
                    .eq("id", submission_id).execute())
         raise
     finally:
@@ -502,9 +520,11 @@ async def check_submission(assignment_id: str, submission_id: str, c: _Caller = 
         result = await run_in_threadpool(_check_submission, c, assignment_id, submission_id)
     except HTTPException:
         raise
+    except GeminiBusy:
+        raise ai_busy()
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
-        logger.error(f"Submission check failed: {e}", exc_info=True)
+        logger.error(f"Submission check failed: {type(e).__name__}", exc_info=True)
         raise HTTPException(status_code=500, detail="AI check failed. Please try again.")
     return {"ok": True, "result": result}

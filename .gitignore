@@ -15,3 +15,10 @@ answer_check/sheets/*.pdf
 answer_check/results/
 # DB remediation backups (contain question data)
 test-generator-backend/scripts/backups/
+
+# checker test/demo output
+test-generator-backend/tests/output/
+
+# real student copies never live in the repo (REAL_COPIES_DIR outside it); only the README is tracked
+test-generator-backend/tests/fixtures/real/*
+!test-generator-backend/tests/fixtures/real/README.md
