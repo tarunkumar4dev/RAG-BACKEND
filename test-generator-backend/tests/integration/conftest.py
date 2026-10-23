@@ -31,8 +31,10 @@ FILES = [TESTS / "00_supabase_stub.sql", TESTS / "01_baseline_from_audit.sql",
          *(MIG / f for f in ("01_access_helpers.sql", "02_rls_policies.sql", "05_student_portal.sql",
                              "05b_drop_anon_policies.sql", "10_smart_assignment_checks.sql", "11_assignment_ai_check.sql",
                              "12_copy_checker.sql", "17_check_copies_student_scope.sql", "18_upload_flow.sql"))]
-if (MIG / "19_upload_link_portal.sql").exists():       # retry_checks (teacher Retry), applied on live 23 Oct
-    FILES.append(MIG / "19_upload_link_portal.sql")
+# 19+ (retry_checks, link pages, 22 drops the baseline's legacy submissions_status_check …): every numbered
+# migration after 18, in order, like on live
+FILES += sorted((f for f in MIG.glob("[0-9][0-9]_*.sql")
+                 if int(f.name[:2]) > 18 and "rollback" not in f.name.lower()), key=lambda f: f.name)
 PSQL = pathlib.Path(pgserver.__file__).parent / "pginstall" / "bin" / "psql"
 
 # fixtures of 18_upload_flow_test.sql (institute I1, teacher T1, batch B1, students S1/S2, assignments A1..A12)

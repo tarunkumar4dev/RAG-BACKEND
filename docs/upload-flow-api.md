@@ -312,6 +312,14 @@ Where the backend differs from 4.1–4.3 above (the owner's fixed facts win):
   `CHECKER_PRICE_IN_PER_M_INR` / `CHECKER_PRICE_OUT_PER_M_INR`): over it the worker claims nothing (jobs stay `queued`) and logs
   `ALERT`; it resumes by itself on the next IST day or when the cap is raised. `BUDGET` / `PAUSED` are not used.
 - **Unreadable answer key / question paper** → `KEY_MISSING` (attempt goes to `waiting_key`, re-queued when the key is saved).
+- **Rubric = its own job (23 Oct).** One job per assignment + `answer_key_version` (`kind='check'`, `submission_id` null,
+  `checkpoint.stage='rubric'`, key `rubric:<session>:k<version>`), own invocation, per-call timeout
+  `CHECKER_RUBRIC_TIMEOUT_S` (180 s); result cached in `check_sessions.rubric`. Copy jobs never build it: they wait
+  (`queued`, no retry used) and are woken when it is ready. Rubric job failed for good → copies `KEY_MISSING` →
+  `waiting_key`, error "Marking scheme could not be built (…). Attach the answer key again to retry."; a new key version
+  re-queues them. Grade calls: `CHECKER_GRADE_TIMEOUT_S` (150 s). Budget 270 s per kick, claim only with ≥ 200 s left.
+- **Logs:** every line carries `job=<first 8 of id>`: `stage=<name> <s>` per stage, one line per Gemini call (tokens + time,
+  or `failed after <s>: <error>`), and a run summary; the last run's stage timings are also in `check_jobs.usage.stages`.
 - **Re-grade:** `POST /internal/regrade {assignment_id, submission_ids[]}` with the teacher's Supabase JWT (`a4_can_grade_assignment`).
   Attempts in `checked | needs_review | published | failed` whose `answer_key_version` is older than the key get a new job via
   `a4_enqueue_submission`; old marks go to `smart_assignment_checks` (`type: regrade`, previous marks / per_question / key version);

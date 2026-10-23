@@ -63,7 +63,7 @@ def test_copy_is_checked_and_marks_stored(db, storage, grades):
     sub, job = make_attempt(db, storage, [(SHEET, "pdf", "application/pdf")])
     assert db.sub(sub)["status"] == "queued"
     stats = worker(db, storage).run()
-    assert stats["jobs"] == 1 and grades == [7]
+    assert stats["jobs"] == 3 and grades == [7]          # copy waits → rubric job → copy
     j, s, sh = db.job(job), db.sub(sub), db.sheet(sub)
     assert j["state"] == "done" and j["checkpoint"]["graded"] is True
     assert sh["status"] == "checked" and sh["ai_marks"] is not None and sh["model_version"] == "mock"
@@ -85,7 +85,7 @@ def test_retry_after_saved_marks_does_not_call_gemini_again(db, storage, grades,
         pass
 
     def crash_once(self, job_id, ok, *a, **kw):
-        if ok and not crashed:
+        if ok and str(job_id) == job and not crashed:      # the copy's finish (the rubric job finishes normally)
             crashed.append(1)
             raise Died()
         return real_finish(self, job_id, ok, *a, **kw)
@@ -143,7 +143,8 @@ def test_two_parallel_run_calls_check_each_job_once(db, storage, grades, monkeyp
         t.join(300)
     assert codes == [202, 202]
     assert len(grades) == 4                                              # 4 jobs, each graded exactly once
-    assert db.one("select count(*) from check_jobs where state = 'done'") == 5
+    assert db.one("select count(*) from check_jobs where state = 'done' and submission_id is not null") == 5
+    assert db.one("select count(*) from check_jobs where idempotency_key like 'rubric:%%'") == 1
     assert db.one("select max(retries) from check_jobs") == 1            # nobody claimed a job twice
     assert db.one("select count(*) from smart_assignment_checks") == 5
 
@@ -301,7 +302,8 @@ def test_20_page_copy_is_checked_in_2_chunks_and_merged(db, storage, grades):
 def test_parked_long_copy_shows_checking(db, storage, grades, monkeypatch):
     sub, job = make_attempt(db, storage, [(pdf_pages(20), "pdf", "application/pdf")])
     w = worker(db, storage)
-    w.handle(w.store.claim(5))                                           # only the split
+    for _ in range(3):                                                   # copy waits → rubric job → copy splits
+        w.handle(w.store.claim(5))
     assert db.job(job)["state"] == "queued" and db.sub(sub)["status"] == "checking"
 
 
@@ -374,7 +376,9 @@ def test_job_usage_carries_an_estimated_cost(db, storage):
     _, job = make_attempt(db, storage, [(SHEET, "pdf", "application/pdf")])
     worker(db, storage).run()
     u = db.job(job)["usage"]
-    assert u["gemini_calls"] >= 2 and "est_cost_inr" in u              # rubric + grade
+    assert u["gemini_calls"] == 1 and "est_cost_inr" in u              # the grade call only
+    ru = db.one("select usage from check_jobs where idempotency_key like 'rubric:%%'")
+    assert ru["gemini_calls"] == 1 and "est_cost_inr" in ru            # the rubric call, on its own job
 
 
 # ── retention ────────────────────────────────────────────────────────
@@ -453,8 +457,10 @@ def test_rubric_timeout_is_retried_not_key_missing(db, storage, monkeypatch):
     monkeypatch.setattr(svc, "build_rubric", hang)
     sub, job = make_attempt(db, storage, [(SHEET, "pdf", "application/pdf")])
     worker(db, storage).run()
-    j = db.job(job)
-    assert j["state"] == "queued" and j["last_error_code"] == "TIMEOUT"
+    rj = db.one("select row_to_json(j) from check_jobs j where idempotency_key like 'rubric:%%'")
+    assert rj["state"] == "queued" and rj["last_error_code"] == "TIMEOUT" and rj["retries"] == 1
+    j = db.job(job)                                       # the copy waits; none of its retries used
+    assert j["state"] == "queued" and j["retries"] == 0 and j["last_error_code"] is None
     assert db.sub(sub)["status"] == "queued"
 
 
@@ -491,3 +497,79 @@ def test_teacher_retry_restarts_a_long_copy_whose_chunk_failed(db, storage, grad
     assert db.job(job)["state"] == "done", db.job(job)
     assert db.sub(sub)["status"] in ("checked", "needs_review")
     assert db.sheet(sub)["ai_result"]["meta"]["chunks"] == 2
+
+
+
+# ── rubric = its own job, once per assignment + key version ──────────
+
+def test_rubric_is_built_once_for_many_copies(db, storage, grades, monkeypatch):
+    builds = []
+    real = svc.build_rubric
+
+    def counting(*a, **kw):
+        builds.append(svc._call_timeout.get())
+        return real(*a, **kw)
+
+    monkeypatch.setattr(svc, "build_rubric", counting)
+    subs = [make_attempt(db, storage, [(SHEET, "pdf", "application/pdf")], student=st)[0] for st in (S1, S2, S1)]
+    worker(db, storage).run()
+    assert builds == [job_worker.RUBRIC_CALL_TIMEOUT_S]                 # once, with the rubric stage timeout
+    assert all(db.sub(s)["status"] in ("checked", "needs_review") for s in subs) and len(grades) == 3
+    assert db.one("select max(retries) from check_jobs where submission_id is not null") == 1
+    rj = db.one("select row_to_json(j) from check_jobs j where idempotency_key like 'rubric:%%'")
+    version = db.one("select version from assignment_ai_keys where assignment_id = %s", (A1,))
+    assert rj["state"] == "done" and rj["checkpoint"]["key_version"] == version and rj["submission_id"] is None
+
+
+def test_grade_call_uses_the_grade_stage_timeout(db, storage, monkeypatch):
+    seen = []
+    real = copy_check.grade_copy
+
+    def spy(*a, **kw):
+        seen.append(svc._call_timeout.get())
+        return real(*a, **kw)
+
+    monkeypatch.setattr(copy_check, "grade_copy", spy)
+    make_attempt(db, storage, [(SHEET, "pdf", "application/pdf")])
+    worker(db, storage).run()
+    assert seen == [job_worker.GRADE_CALL_TIMEOUT_S]
+    assert job_worker.WORK_BUDGET_S - job_worker.MIN_LEFT_TO_CLAIM_S + job_worker.RUBRIC_CALL_TIMEOUT_S < 300
+
+
+def test_failed_rubric_sends_copies_to_waiting_key_then_new_key_checks_them(db, storage, grades):
+    storage.buckets["answer-keys"].clear()                       # key file unreadable → rubric fails for good
+    v1 = db.one("select version from assignment_ai_keys where assignment_id = %s", (A1,))
+    subs = [make_attempt(db, storage, [(SHEET, "pdf", "application/pdf")], student=st) for st in (S1, S2)]
+    worker(db, storage).run()
+    rj = db.one("select row_to_json(j) from check_jobs j where idempotency_key like 'rubric:%%'")
+    assert rj["state"] == "failed" and rj["last_error_code"] == "KEY_MISSING"
+    for sub, job in subs:
+        assert db.sub(sub)["status"] == "waiting_key"
+        j = db.job(job)
+        assert j["error"] == "Marking scheme could not be built (key unreadable). Attach the answer key again to retry."
+        assert db.sheet(sub)["error"] == j["error"]               # the teacher sees why
+    assert grades == []
+
+    storage.put("answer-keys", "00000000-0000-0000-0000-0000000000a2/key-new.pdf",
+                (FIXTURES / "answer_key.pdf").read_bytes())
+    db.q("update assignment_ai_keys set answer_key_path = '00000000-0000-0000-0000-0000000000a2/key-new.pdf' "
+         "where assignment_id = %s", (A1,))                     # version 2 → 18's trigger re-queues waiting_key
+    worker(db, storage).run()
+    assert all(db.sub(sub)["status"] in ("checked", "needs_review") for sub, _ in subs) and len(grades) == 2
+    assert db.one("select count(*) from check_jobs where idempotency_key like %s and state = 'done'",
+                  (f"rubric:%:k{v1 + 1}",)) == 1
+
+
+def test_stage_timings_are_logged_with_the_job_id(db, storage, caplog):
+    _, job = make_attempt(db, storage, [(SHEET, "pdf", "application/pdf")])
+    with caplog.at_level(logging.INFO):
+        worker(db, storage).run()
+    tag = f"job={job[:8]}"
+    rj = db.one("select id::text from check_jobs where idempotency_key like 'rubric:%%'")
+    lines = [r.getMessage() for r in caplog.records]
+    assert any(f"job={rj[:8]} stage=rubric_gemini" in m for m in lines)
+    assert any(f"job={rj[:8]} rubric tokens" in m for m in lines)       # the Gemini call line carries the job id
+    for name in ("download_validate", "grade page_prep=", "save"):
+        assert any(f"{tag} stage={name}" in m for m in lines), name
+    assert any(f"{tag} grade tokens" in m for m in lines)
+    assert {"download_validate", "page_prep", "gemini_grade", "grade_total"} <= set(db.job(job)["usage"]["stages"])
