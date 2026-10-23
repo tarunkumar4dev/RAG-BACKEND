@@ -491,8 +491,17 @@ class JobWorker:
     def _collect(self, job, cp, sheet, sub, asg, session) -> None:
         chunks = self.store.chunks_of(job["id"])
         failed = [c for c in chunks if c["state"] in ("failed", "cancelled")]
+        if failed and cp.get("chunk_failed"):
+            # the copy already failed because of these chunks and was re-opened (teacher Retry: retry_checks →
+            # a4_enqueue_submission resets the job but not its checkpoint) → give the failed chunks a new start
+            self.store.restart_chunks([c["id"] for c in failed])
+            cp = {k: v for k, v in cp.items() if k != "chunk_failed"}
+            self.store.requeue_unchanged(job["id"], PARK_RECHECK_S, cp)
+            self.store.show_checking(sub["id"])
+            return
         if failed:          # the chunk already used its own retries: the copy fails with its reason
             c = failed[0]
+            self.store.set_checkpoint(job["id"], {**cp, "chunk_failed": True})
             self.store.use_up_retries(job["id"])
             code = c.get("last_error_code") or "UNKNOWN"
             raise JobError(code, c.get("error") or MSG.get(code) or MSG["UNKNOWN"], final=True)

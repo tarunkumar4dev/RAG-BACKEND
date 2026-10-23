@@ -456,3 +456,38 @@ def test_rubric_timeout_is_retried_not_key_missing(db, storage, monkeypatch):
     j = db.job(job)
     assert j["state"] == "queued" and j["last_error_code"] == "TIMEOUT"
     assert db.sub(sub)["status"] == "queued"
+
+
+def test_teacher_retry_restarts_a_long_copy_whose_chunk_failed(db, storage, grades, monkeypatch):
+    """19_upload_link_portal.retry_checks re-opens the copy's job but keeps its checkpoint (stage 'chunks')."""
+    if not db.one("select to_regprocedure('public.retry_checks(uuid[])') is not null"):
+        pytest.skip("migration 19 not in this checkout")
+    sub, job = make_attempt(db, storage, [(pdf_pages(20), "pdf", "application/pdf")])
+    real = copy_check.grade_copy
+    calls = {"n": 0}
+
+    def second_chunk_breaks(paths, rubric, strictness="medium"):
+        calls["n"] += 1
+        if calls["n"] == 2:
+            raise svc.CallCapExceeded("cap")                 # final for that chunk
+        return real(paths, rubric, strictness)
+
+    monkeypatch.setattr(copy_check, "grade_copy", second_chunk_breaks)
+    worker(db, storage).run()
+    assert db.sub(sub)["status"] == "failed" and db.job(job)["state"] == "failed"
+
+    conn = db.connect()
+    try:
+        cur = conn.cursor()
+        cur.execute("begin; select tst.as_user(%s)", (T1,))
+        cur.execute("select public.retry_checks(%s::uuid[])", ([sub],))
+        r = cur.fetchone()[0]
+        cur.execute("commit")
+    finally:
+        conn.close()
+    assert r["queued"] == [sub]
+    monkeypatch.setattr(copy_check, "grade_copy", real)
+    worker(db, storage).run()
+    assert db.job(job)["state"] == "done", db.job(job)
+    assert db.sub(sub)["status"] in ("checked", "needs_review")
+    assert db.sheet(sub)["ai_result"]["meta"]["chunks"] == 2

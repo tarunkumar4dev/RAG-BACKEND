@@ -114,6 +114,13 @@ class JobStore:
                              ch["state"], ch["state"], f"chunk:{parent['id']}:{ch['checkpoint']['chunk']}",
                              Json(ch["checkpoint"])))
 
+    def restart_chunks(self, job_ids: list) -> None:
+        with self._cur() as cur:
+            cur.execute("""update public.check_jobs
+                              set state = 'queued', retries = 0, next_run_at = now(), locked_at = null, finished_at = null,
+                                  last_error_code = null, error = null, updated_at = now()
+                            where id = any(%s::uuid[]) and state in ('failed', 'cancelled')""", (list(job_ids),))
+
     def chunks_of(self, parent_id: str) -> list:
         return self._all("""select row_to_json(j) from public.check_jobs j
                              where kind = 'check' and submission_id is null and checkpoint ->> 'parent' = %s
