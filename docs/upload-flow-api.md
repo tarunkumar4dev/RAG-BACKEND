@@ -295,7 +295,7 @@ Where the backend differs from 4.1–4.3 above (the owner's fixed facts win):
   service key. Checked from their bytes before any Gemini call: magic bytes vs name/mime, PDF password (`needs_pass`) and page
   count (cap = `assignments.max_pages`, hard 30), photo readable, EXIF/GPS removed (the original in Storage is overwritten
   without it), sha256 duplicates (same file twice / same as another student: teacher-only `sheet_flags`). Problems →
-  `BAD_FILE`; `reject_reasons` gets one Hinglish entry per file `{code, page_order, message}`.
+  `BAD_FILE`; `reject_reasons` gets one entry per file `{code, page_order, message}`; every message the worker writes (reject reasons, job errors, review notes) is short plain English.
 - **HEIC:** `preprocess.py` reads HEIC/HEIF (pillow-heif), so `image/heic` may be added to a link's `allowed_mimes`. The portal
   still converts HEIC to JPEG in the browser.
 - **Long copies:** > 12 pages → Stage A once, pages saved to `answer-sheets/<teacher>/<session>/<sheet>/src/`, then chunk jobs of

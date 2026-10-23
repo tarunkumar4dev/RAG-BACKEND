@@ -19,7 +19,7 @@ Rules
   * Marks are stored once. A job whose checkpoint says graded (or a chunk with a stored result) is finished
     without calling Gemini again.
   * Errors go to a4_finish_check_job with an error code (retry with backoff / waiting_quota / rejected / failed)
-    and a teacher-safe Hinglish message. Logs carry ids and counts, student names only masked.
+    and a short teacher-safe English message. Logs carry ids and counts, student names only masked.
 """
 
 import logging
@@ -57,17 +57,16 @@ _RETRY_CODES = {"GEMINI_429", "GEMINI_5XX", "TIMEOUT", "UNKNOWN"}
 _MIME = {"pdf": "application/pdf", "jpeg": "image/jpeg", "png": "image/png", "webp": "image/webp", "heic": "image/heic"}
 
 MSG = {
-    "QUOTA": "Teacher ki aaj ki AI checking limit ({limit} copies) poori ho gayi. Copy kal apne aap check hogi.",
-    "KEY_MISSING": "Answer key abhi attach nahi hai. Key milte hi copy apne aap check hogi.",
-    "KEY_UNREADABLE": "Question paper / answer key padhi nahi ja saki. Teacher answer key dobara attach karein; "
-                      "copy uske baad apne aap check hogi.",
-    "GEMINI_429": "AI abhi busy hai. Copy thodi der mein apne aap dobara check hogi.",
-    "GEMINI_5XX": "AI service abhi down hai. Copy thodi der mein apne aap dobara check hogi.",
-    "TIMEOUT": "Checking mein zyada time laga. Copy apne aap dobara check hogi.",
-    "UNKNOWN": "Copy check karte waqt error aaya. Apne aap dobara try ho raha hai.",
-    "FINAL": "{n} baar try karne ke baad bhi copy check nahi ho payi ({why}). Teacher 'Re-check' se dobara chala sakte hain.",
-    "CALL_CAP": "Is copy pe AI calls ki limit poori ho gayi. Teacher ise khud check karein.",
-    "SCHEMA": "Is copy ka data adhoora hai, check nahi ho sakti.",
+    "QUOTA": "Daily AI check limit reached ({limit} copies). This copy will be checked tomorrow.",
+    "KEY_MISSING": "No answer key yet. The copy will be checked once a key is attached.",
+    "KEY_UNREADABLE": "Could not read the question paper or answer key. Attach the key again.",
+    "GEMINI_429": "AI is busy. Retrying automatically.",
+    "GEMINI_5XX": "AI service is down. Retrying automatically.",
+    "TIMEOUT": "Checking took too long. Retrying automatically.",
+    "UNKNOWN": "Error while checking. Retrying automatically.",
+    "FINAL": "Not checked after {n} tries ({why}). Use Retry to check again.",
+    "CALL_CAP": "AI call limit reached for this copy. Please check it manually.",
+    "SCHEMA": "Copy data is incomplete; it cannot be checked.",
 }
 _WHY = {"GEMINI_429": "AI busy", "GEMINI_5XX": "AI down", "TIMEOUT": "time limit", "UNKNOWN": "error"}
 
@@ -193,7 +192,7 @@ class JobWorker:
         if isinstance(e, JobError):
             return e.code, e.message, None
         if isinstance(e, preprocess.BadFile):
-            return "BAD_FILE", upload_validation.hinglish_bad_file(e), None
+            return "BAD_FILE", upload_validation.bad_file_message(e), None
         if isinstance(e, svc.GeminiBusy):
             code = "GEMINI_429" if e.code == 429 else "GEMINI_5XX"
             return code, MSG[code], e.retry_after
@@ -275,7 +274,7 @@ class JobWorker:
             meta = {"pages": gusage.get("pages"), "grade_time_s": round(time.time() - t0, 2), "chunks": 1}
             self._save(job, sheet, sub, session, key, rubric, result, flags, meta)
         except preprocess.BadFile as e:
-            msg = upload_validation.hinglish_bad_file(e)
+            msg = upload_validation.bad_file_message(e)
             return self._reject(job, sheet, sub, [{"code": "bad_file", "page_order": 0, "message": msg}], msg)
         finally:
             _cleanup(temps)

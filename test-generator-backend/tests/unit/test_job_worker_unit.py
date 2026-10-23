@@ -3,6 +3,7 @@ log masking. The queue itself is tested on real SQL in tests/integration/test_jo
 
 import io
 import logging
+import re
 from pathlib import Path
 
 import pymupdf
@@ -115,8 +116,8 @@ def test_page_cap_is_the_assignment_setting_and_never_above_30():
         doc.new_page()
     e = [_entry(1, "pdf", "application/pdf")]
     blobs = {e[0]["storage_path"]: doc.tobytes()}
-    assert "max 30 pages" in uv.validate(e, blobs, ["application/pdf"], 50).summary()
-    assert "max 10 pages" in uv.validate(e, blobs, ["application/pdf"], 10).summary()
+    assert "max 30 allowed" in uv.validate(e, blobs, ["application/pdf"], 50).summary()
+    assert "max 10 allowed" in uv.validate(e, blobs, ["application/pdf"], 10).summary()
 
 
 def test_empty_missing_corrupt_and_not_allowed_files():
@@ -221,3 +222,37 @@ def test_pii_filter_masks_emails_and_phones_in_log_lines(caplog):
     assert "asha.verma@" not in text and "a***@gmail.com" in text
     assert "9876543210" not in text and "98765-43210" not in text and "******3210" in text
     assert "12345678901234" in text                   # long ids are not phone numbers
+
+
+# ── every string the worker writes for people is short plain English ──
+_HINGLISH = re.compile(r"\b(hai|hain|nahi|karo|karein|baar|apne|aap|mein|ki|ka|ke|dobara|khaali|pehle|hogi|gayi|"
+                       r"raha|abhi|kal|aaj|lag|saaf|badli|wali|chuno)\b", re.I)
+
+
+def _user_strings() -> list:
+    from app.services import job_worker, regrade
+    doc = pymupdf.open()
+    for _ in range(31):
+        doc.new_page()
+    locked = pymupdf.open(stream=SHEET, filetype="pdf").tobytes(encryption=pymupdf.PDF_ENCRYPT_AES_256,
+                                                                 user_pw="1", owner_pw="2")
+    kinds = [("jpg", "image/jpeg"), ("jpg", "image/jpeg"), ("pdf", "application/pdf"), ("pdf", "application/pdf"),
+             ("png", "image/png"), ("jpg", "image/jpeg"), ("jpg", "image/jpeg")]
+    e = [_entry(i, ext, mime) for i, (ext, mime) in enumerate(kinds, 1)]
+    blobs = {e[0]["storage_path"]: b"", e[1]["storage_path"]: SHEET, e[2]["storage_path"]: b"%PDF-1.7 broken",
+             e[3]["storage_path"]: locked, e[4]["storage_path"]: b"\x89PNG\r\n\x1a\n", e[5]["storage_path"]: b"MZ??"}
+    probs = [p.message for p in uv.validate(e, blobs, ["image/jpeg", "application/pdf"], 30).problems]
+    probs += [p.message for p in uv.validate([_entry(1, "pdf", "application/pdf")], {"i/a/s/1.pdf": doc.tobytes()},
+                                             ["application/pdf"], 30).problems]
+    bad = [uv.bad_file_message(preprocess.BadFile(m)) for m in
+           ("Every page of this copy is blank.", "Too many pages in one copy, max 9.", "password", "other")]
+    return [*job_worker.MSG.values(), *probs, *bad, regrade.UNPUBLISH_REASON]
+
+
+def test_user_facing_strings_are_short_plain_english():
+    strings = _user_strings()
+    assert len(strings) > 20
+    for s in strings:
+        assert not _HINGLISH.search(s), s
+        assert s.isascii(), s
+        assert len(s) <= 110, s

@@ -180,10 +180,10 @@ def test_gemini_429_backs_off_then_fails_after_3_runs(db, storage, monkeypatch):
     w.run()
     j = db.job(job)
     assert j["state"] == "failed" and j["retries"] == 3 and j["last_error_code"] == "GEMINI_429"
-    assert "3 baar" in j["error"]
+    assert j["error"] == "Not checked after 3 tries (AI busy). Use Retry to check again."
     assert db.sub(sub)["status"] == "failed"
     sh = db.sheet(sub)
-    assert sh["status"] == "failed" and "3 baar" in sh["error"]          # the teacher sees why
+    assert sh["status"] == "failed" and sh["error"] == j["error"]          # the teacher sees why
 
 
 def test_retry_after_from_gemini_is_respected(db, storage, monkeypatch):
@@ -205,8 +205,8 @@ def test_31_page_pdf_is_rejected(db, storage, grades):
     sub, job = make_attempt(db, storage, [(pdf_pages(31), "pdf", "application/pdf")])
     worker(db, storage).run()
     reasons = _rejected(db, sub)
-    assert reasons[0]["code"] == "too_many_pages" and "31 pages" in reasons[0]["message"]
-    assert "max 30" in reasons[0]["message"]
+    assert reasons[0] == {"code": "too_many_pages", "page_order": 0,
+                          "message": "The copy has 31 pages; max 30 allowed. Remove extra pages and upload again."}
     assert db.job(job)["last_error_code"] == "BAD_FILE" and grades == []
 
 
@@ -214,7 +214,7 @@ def test_page_cap_follows_the_assignment(db, storage, grades):
     db.q("update assignments set max_pages = 5 where id = %s", (A1,))
     sub, _ = make_attempt(db, storage, [(SHEET, "pdf", "application/pdf")])
     worker(db, storage).run()
-    assert "max 5 pages" in _rejected(db, sub)[0]["message"]
+    assert "max 5 allowed" in _rejected(db, sub)[0]["message"]
 
 
 def test_fake_jpg_with_pdf_inside_is_rejected(db, storage, grades):
@@ -222,7 +222,7 @@ def test_fake_jpg_with_pdf_inside_is_rejected(db, storage, grades):
     worker(db, storage).run()
     reasons = _rejected(db, sub)
     assert [r["page_order"] for r in reasons] == [2]                     # page 1 was fine
-    assert ".jpg" in reasons[0]["message"] and "PDF" in reasons[0]["message"]
+    assert reasons[0]["message"] == "Page 2: named .jpg but is a PDF. Upload the original file without renaming it."
     assert grades == []
 
 
@@ -231,7 +231,7 @@ def test_password_pdf_is_rejected(db, storage, grades):
     locked = doc.tobytes(encryption=pymupdf.PDF_ENCRYPT_AES_256, user_pw="1234", owner_pw="owner")
     sub, _ = make_attempt(db, storage, [(locked, "pdf", "application/pdf")])
     worker(db, storage).run()
-    assert "password" in _rejected(db, sub)[0]["message"]
+    assert _rejected(db, sub)[0]["message"] == "Page 1: the PDF is password-protected. Upload it without a password."
     assert grades == []
 
 

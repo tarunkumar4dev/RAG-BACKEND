@@ -8,7 +8,7 @@ the sha256 in submissions.files were all written by the client. Here the real by
   * Pillow       → photo opens; EXIF (GPS, phone model, time) is removed and the photo turned upright
   * sha256       → of the real bytes, for duplicate flags
 
-Every problem is reported per file in Hinglish (students and teachers read it), all problems at once, so a
+Every problem is reported per file in short plain English (students and teachers read it), all problems at once, so a
 student fixes everything in one re-upload.
 """
 
@@ -126,13 +126,13 @@ def _pdf_pages(data: bytes, label: str) -> tuple:
     try:
         doc = pymupdf.open(stream=data, filetype="pdf")
     except Exception:
-        return 0, f"{label} ki PDF khul nahi rahi (file kharab lag rahi hai). Dobara save karke upload karo."
+        return 0, f"{label}: the PDF could not be opened (damaged file). Save it again and re-upload."
     try:
         # needs_pass only: a PDF with just an owner password (print/copy restrictions) opens fine and is graded
         if doc.needs_pass:
-            return 0, f"{label} ki PDF password-protected hai. Bina password wali PDF upload karo."
+            return 0, f"{label}: the PDF is password-protected. Upload it without a password."
         if doc.page_count == 0:
-            return 0, f"{label} ki PDF mein koi page nahi hai."
+            return 0, f"{label}: the PDF has no pages."
         return doc.page_count, None
     finally:
         doc.close()
@@ -153,26 +153,26 @@ def validate(entries: list, blobs: dict, allowed_mimes: list, max_pages: int) ->
         label = f"Page {order}"
         data = blobs.get(path)
         if data is None:
-            v.problems.append(FileProblem(order, "not_uploaded", f"{label} ki file server pe nahi mili. Dobara upload karo."))
+            v.problems.append(FileProblem(order, "not_uploaded", f"{label}: file not found. Upload it again."))
             continue
         if len(data) == 0:
-            v.problems.append(FileProblem(order, "empty_file", f"{label} ki file khaali hai (0 bytes). Dobara upload karo."))
+            v.problems.append(FileProblem(order, "empty_file", f"{label}: file is empty (0 bytes). Upload it again."))
             continue
         kind = sniff(data)
         ext = path.rsplit(".", 1)[-1].lower() if "." in path else ""
         if kind is None:
             v.problems.append(FileProblem(order, "bad_format",
-                                          f"{label} ki file PDF ya photo (JPG/PNG/WEBP/HEIC) nahi hai. Sahi file upload karo."))
+                                          f"{label}: not a PDF or photo (JPG/PNG/WEBP/HEIC)."))
             continue
         mime, exts = KINDS[kind]
         if ext not in exts or str(e.get("mime") or "").lower() != mime:
             v.problems.append(FileProblem(order, "bad_format",
-                                          f"{label} ki file ka naam .{ext or '?'} hai par andar {_KIND_LABEL[kind]} hai. "
-                                          f"Asli file seedha upload karo (naam badal kar nahi)."))
+                                          f"{label}: named .{ext or '?'} but is a {_KIND_LABEL[kind]}. "
+                                          f"Upload the original file without renaming it."))
             continue
         if allowed and mime not in allowed:
             v.problems.append(FileProblem(order, "bad_format",
-                                          f"{label}: is assignment mein {_KIND_LABEL[kind]} allowed nahi hai."))
+                                          f"{label}: {_KIND_LABEL[kind]} is not allowed for this assignment."))
             continue
 
         sha = hashlib.sha256(data).hexdigest()
@@ -188,26 +188,25 @@ def validate(entries: list, blobs: dict, allowed_mimes: list, max_pages: int) ->
                 data, removed = _strip_photo(data, kind)
             except Exception:
                 v.problems.append(FileProblem(order, "bad_image",
-                                              f"{label} ki photo khul nahi rahi (file kharab lag rahi hai). Dobara photo lo."))
+                                              f"{label}: the photo could not be opened (damaged file). Take it again."))
                 continue
         v.files.append(CheckedFile(order, path, kind, data, pages, sha, e.get("sha256"), removed))
         v.total_pages += pages
 
     if v.total_pages > cap:
         v.problems.append(FileProblem(0, "too_many_pages",
-                                      f"Copy mein {v.total_pages} pages hain, is assignment mein max {cap} pages allowed hain. "
-                                      f"Extra pages hata kar dobara upload karo."))
+                                      f"The copy has {v.total_pages} pages; max {cap} allowed. "
+                                      f"Remove extra pages and upload again."))
     return v
 
 
-# Stage A / grading messages (English, from preprocess / copy_check) → what the student reads
-def hinglish_bad_file(e: preprocess.BadFile) -> str:
+# Stage A / grading messages (from preprocess / copy_check) → the short line the student reads
+def bad_file_message(e: preprocess.BadFile) -> str:
     msg = str(e)
     if "blank" in msg.lower():
-        return "Copy ke saare pages khaali (blank) lag rahe hain. Likhe hue pages ki saaf photo upload karo."
+        return "All pages look blank. Upload clear photos of the written pages."
     if "Too many pages" in msg:
-        return ("Copy ki photos bahut badi hain, ek saath check nahi ho sakti. Photos thodi chhoti karke "
-                "ya kam pages mein dobara upload karo.")
+        return "The copy is too large to check at once. Upload smaller photos or fewer pages."
     if "password" in msg.lower():
-        return "PDF password-protected hai. Bina password wali PDF upload karo."
-    return "Copy ki file padhi nahi ja saki. Saaf photo / PDF dobara upload karo."
+        return "The PDF is password-protected. Upload it without a password."
+    return "The copy could not be read. Upload a clear photo or PDF again."

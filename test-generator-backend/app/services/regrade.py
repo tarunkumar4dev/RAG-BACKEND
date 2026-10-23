@@ -10,14 +10,14 @@ from typing import Callable
 # Attempts that already have a result (or gave up) can be re-graded. Queued / checking ones will use the new key
 # anyway (the key trigger re-pins them); rejected ones have a file problem, not a key problem.
 REGRADABLE = ("checked", "needs_review", "published", "failed")
-UNPUBLISH_REASON = "Re-grade: answer key badli"
+UNPUBLISH_REASON = "Re-grade: answer key changed"
 
 
 def regrade(store, assignment_id: str, submission_ids: list, teacher_id: str,
             unpublish: Callable[[list, str], dict]) -> dict:
     key = store.row("assignment_ai_keys", assignment_id, key="assignment_id")
     if not key:
-        return {"state": "key_missing", "message": "Pehle is assignment ki answer key attach karo."}
+        return {"state": "key_missing", "message": "Attach an answer key to this assignment first."}
     skipped, picked = [], []
     for sid in dict.fromkeys(str(s) for s in submission_ids):
         sub = store.row("submissions", sid)
