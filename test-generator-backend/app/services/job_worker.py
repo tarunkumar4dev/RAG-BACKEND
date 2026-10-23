@@ -330,7 +330,7 @@ class JobWorker:
         if sheet.get("source_bucket") != SUBMISSIONS_BUCKET:
             raise JobError("SCHEMA", MSG["SCHEMA"])
         entries = sub.get("files") or []
-        folder = f"{asg['institute_id']}/{asg['id']}/{sub['student_id']}/"
+        folder = _owner_folder(asg, sub)
         allowed = set(sheet.get("pages") or [])
         blobs = {}
         for e in entries:
@@ -359,7 +359,8 @@ class JobWorker:
                 pages = ", ".join(str(f.page_order) for f in v.files if f.sha256 == sha)
                 flags.append({"code": "DUPLICATE_PAGE", "page": None, "message": f"Pages {pages} are the same file."})
         try:
-            others = set(self.store.other_students_with(asg["id"], sub["student_id"], list(seen)))
+            others = set(self.store.other_students_with(asg["id"], sub.get("student_id"), sub.get("submitter_key"),
+                                                        list(seen)))
         except Exception:
             others = set()
         for f in v.files:
@@ -630,6 +631,17 @@ class JobWorker:
 
     def _temp_files(self, files: list) -> list:
         return [_write_temp(f.data, "." + f.ext, f"p{f.page_order}_") for f in files]
+
+
+def _owner_folder(asg: dict, sub: dict) -> str:
+    """Storage folder the attempt's files must be in: {inst}/{asg}/{student_id}/ for access-code attempts,
+    {inst}/{asg}/guest/{submitter_key}/ for guest attempts on an open link (23_open_link: student_id null)."""
+    base = f"{asg['institute_id']}/{asg['id']}/"
+    if sub.get("student_id"):
+        return f"{base}{sub['student_id']}/"
+    if sub.get("submitter_key"):
+        return f"{base}guest/{sub['submitter_key']}/"
+    raise JobError("SCHEMA", MSG["SCHEMA"])          # neither owner: never read any file
 
 
 def _write_temp(data: bytes, ext: str, prefix: str) -> str:

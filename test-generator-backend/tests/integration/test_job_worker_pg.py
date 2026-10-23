@@ -4,6 +4,7 @@ submission status triggers, quota, budget, chunks, retention, regrade.
 """
 
 import io
+import uuid
 import logging
 import threading
 import time
@@ -573,3 +574,52 @@ def test_stage_timings_are_logged_with_the_job_id(db, storage, caplog):
         assert any(f"{tag} stage={name}" in m for m in lines), name
     assert any(f"{tag} grade tokens" in m for m in lines)
     assert {"download_validate", "page_prep", "gemini_grade", "grade_total"} <= set(db.job(job)["usage"]["stages"])
+
+
+
+# ── guest attempts on an open link (23_open_link: student_id null, owner = submitter_key) ──
+
+def test_guest_submission_rubric_check_publish(db, storage, grades):
+    from tests.integration.conftest import make_guest_attempt
+    sub, job, key = make_guest_attempt(db, storage, [(SHEET, "pdf", "application/pdf")])
+    s = db.sub(sub)
+    assert s["student_id"] is None and s["status"] == "queued"
+    worker(db, storage).run()
+    rj = db.one("select row_to_json(j) from check_jobs j where idempotency_key like 'rubric:%%'")
+    assert rj["state"] == "done"                                          # rubric job first …
+    j, sh = db.job(job), db.sheet(sub)
+    assert j["state"] == "done" and grades == [7]                         # … then the check
+    assert sh["status"] == "checked" and sh["student_name"] == "Ravi Guest" and sh["student_id"] is None
+    assert db.sub(sub)["status"] in ("checked", "needs_review")
+    db.q("select public.a4_publish_submission(%s, %s, false)", (sub, T1))
+    s = db.sub(sub)
+    assert s["status"] == "published" and s["grade"] is not None
+    assert db.one("select count(*) from smart_assignment_checks where submission_id = %s", (sub,)) == 2  # check + publish
+
+
+def test_guest_files_outside_their_own_folder_are_never_read(db, storage, grades):
+    from tests.integration.conftest import INST, make_guest_attempt
+    sub, job, key = make_guest_attempt(db, storage, [(SHEET, "pdf", "application/pdf")])
+    other = f"{INST}/{A1}/guest/{uuid.uuid4()}/{uuid.uuid4()}.pdf"      # another guest's folder
+    storage.put("submissions", other, SHEET)
+    db.q("""update submissions set files = jsonb_set(files, '{0,storage_path}', to_jsonb(%s::text)) where id = %s""",
+         (other, sub))
+    db.q("update check_sheets set pages = array[%s] where submission_id = %s", (other, sub))
+    worker(db, storage).run()
+    assert db.sub(sub)["status"] == "rejected" and grades == []
+    assert db.sub(sub)["reject_reasons"][0]["code"] == "not_uploaded"
+
+
+def test_duplicate_flag_compares_owners_including_guests(db, storage):
+    from tests.integration.conftest import make_guest_attempt
+    make_guest_attempt(db, storage, [(SHEET, "pdf", "application/pdf")], name="First Guest")
+    sub2, _, _ = make_guest_attempt(db, storage, [(SHEET, "pdf", "application/pdf")], name="Second Guest")
+    worker(db, storage).run()
+    assert any(f["code"] == "DUPLICATE_OTHER_STUDENT" for f in db.sheet(sub2)["ai_result"]["sheet_flags"])
+    # the same guest's own earlier upload is not "another student"
+    store = JobStore(db.connect)
+    key2 = db.sub(sub2)["submitter_key"]
+    sha = db.sub(sub2)["files"][0]["sha256"]
+    assert store.other_students_with(A1, None, key2, [sha]) == [sha]          # first guest has it
+    db.q("delete from submissions where guest_name = 'First Guest'")
+    assert store.other_students_with(A1, None, key2, [sha]) == []

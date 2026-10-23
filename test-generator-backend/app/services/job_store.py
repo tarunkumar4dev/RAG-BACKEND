@@ -143,13 +143,16 @@ class JobStore:
         assert key in ("id", "assignment_id", "submission_id")
         return self._one(f"select row_to_json(t) from public.{table} t where {key} = %s", (row_id,))
 
-    def other_students_with(self, assignment_id: str, student_id: str, shas: list) -> list:
-        """sha256 values among `shas` that another student of this assignment also uploaded."""
+    def other_students_with(self, assignment_id: str, student_id, submitter_key, shas: list) -> list:
+        """sha256 values among `shas` that another submitter of this assignment also uploaded. The owner of an
+        attempt is (student_id, submitter_key): a student, or a guest of an open link (23_open_link)."""
         if not shas:
             return []
         return self._all("""select distinct f ->> 'sha256' from public.submissions s, jsonb_array_elements(s.files) f
-                             where s.assignment_id = %s and s.student_id <> %s and f ->> 'sha256' = any(%s)""",
-                         (assignment_id, student_id, list(shas)))
+                             where s.assignment_id = %s
+                               and (s.student_id, s.submitter_key) is distinct from (%s::uuid, %s::uuid)
+                               and f ->> 'sha256' = any(%s)""",
+                         (assignment_id, student_id, submitter_key, list(shas)))
 
     def set_reject_reasons(self, submission_id: str, problems: list) -> None:
         """The state trigger appended one {code: bad_file, message} entry; replace it with one entry per file."""
