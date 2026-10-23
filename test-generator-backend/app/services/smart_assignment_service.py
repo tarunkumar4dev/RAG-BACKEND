@@ -56,19 +56,41 @@ MAX_GEMINI_CALLS_PER_SHEET = int(os.getenv("MAX_GEMINI_CALLS_PER_SHEET", "12"))
 GEMINI_MOCK = os.getenv("GEMINI_MOCK") == "1"
 GEMINI_MOCK_DIR = os.getenv("GEMINI_MOCK_DIR", "")
 
-_client: Optional[genai.Client] = None
+_clients: dict = {}          # per-call timeout (s) → client
+
+# Set by the job worker for one stage (rubric / grade): the per-call timeout of that stage and a tag
+# ("job=1a2b3c4d") that goes on every Gemini log line, so a failure can be traced in the Vercel logs.
+_call_timeout: contextvars.ContextVar[Optional[float]] = contextvars.ContextVar("checker_call_timeout", default=None)
+_log_tag: contextvars.ContextVar[str] = contextvars.ContextVar("checker_log_tag", default="")
+
+
+@contextlib.contextmanager
+def call_settings(timeout_s: Optional[float] = None, log_tag: Optional[str] = None):
+    tokens = [(_call_timeout, _call_timeout.set(timeout_s))] if timeout_s else []
+    if log_tag is not None:
+        tokens.append((_log_tag, _log_tag.set(log_tag)))
+    try:
+        yield
+    finally:
+        for var, tok in reversed(tokens):
+            var.reset(tok)
+
+
+def _tag_prefix() -> str:
+    t = _log_tag.get()
+    return f"{t} " if t else ""
 
 
 def _get_client() -> genai.Client:
-    global _client
     if GEMINI_MOCK:
         return None  # _generate never touches the client in mock mode
-    if _client is None:
+    timeout = _call_timeout.get() or CHECKER_TIMEOUT_S
+    if timeout not in _clients:
         key = CHECKER_API_KEY or settings.GEMINI_API_KEY
         if not key:
             raise ValueError("No Gemini API key. Set CHECKER_GEMINI_API_KEY in .env")
-        _client = genai.Client(api_key=key, http_options={"timeout": int(CHECKER_TIMEOUT_S * 1000)})
-    return _client
+        _clients[timeout] = genai.Client(api_key=key, http_options={"timeout": int(timeout * 1000)})
+    return _clients[timeout]
 
 
 # Tried in order, but only when the model is gone (404) or overloaded (503). 429 (quota) and other 5xx are
@@ -175,7 +197,7 @@ def _log_usage(tag: str, model: str, response, seconds: float) -> None:
         meter.thinking_tokens += thinking
     candidates = getattr(response, "candidates", None) or []
     finish = getattr(candidates[0], "finish_reason", None) if candidates else None
-    logger.info(f"[checker] {tag.lower()} tokens: input={inp} output={out} thinking={thinking} "
+    logger.info(f"[checker] {_tag_prefix()}{tag.lower()} tokens: input={inp} output={out} thinking={thinking} "
                 f"model={model} time={seconds:.1f}s finish={finish}")
 
 
@@ -244,7 +266,11 @@ def _generate(client: genai.Client, contents: list, tag: str):
                 logger.info(f"[{tag}] Using {model}")
             _preferred_model = model
             return response
-        except genai_errors.APIError as e:
+        except Exception as e:
+            logger.warning(f"[checker] {_tag_prefix()}{tag.lower()} call to {model} failed after "
+                           f"{time.time() - t_call:.1f}s: {type(e).__name__} {getattr(e, 'code', '') or ''}".rstrip())
+            if not isinstance(e, genai_errors.APIError):
+                raise
             last_error = e
             if e.code in _FALLBACK_CODES:
                 logger.warning(f"[{tag}] {model} unavailable ({e.code}), trying the next model")

@@ -31,8 +31,10 @@ FILES = [TESTS / "00_supabase_stub.sql", TESTS / "01_baseline_from_audit.sql",
          *(MIG / f for f in ("01_access_helpers.sql", "02_rls_policies.sql", "05_student_portal.sql",
                              "05b_drop_anon_policies.sql", "10_smart_assignment_checks.sql", "11_assignment_ai_check.sql",
                              "12_copy_checker.sql", "17_check_copies_student_scope.sql", "18_upload_flow.sql"))]
-if (MIG / "19_upload_link_portal.sql").exists():       # retry_checks (teacher Retry), applied on live 23 Oct
-    FILES.append(MIG / "19_upload_link_portal.sql")
+# 19+ (retry_checks, link pages, 22 drops the baseline's legacy submissions_status_check …): every numbered
+# migration after 18, in order, like on live
+FILES += sorted((f for f in MIG.glob("[0-9][0-9]_*.sql")
+                 if int(f.name[:2]) > 18 and "rollback" not in f.name.lower()), key=lambda f: f.name)
 PSQL = pathlib.Path(pgserver.__file__).parent / "pginstall" / "bin" / "psql"
 
 # fixtures of 18_upload_flow_test.sql (institute I1, teacher T1, batch B1, students S1/S2, assignments A1..A12)
@@ -145,6 +147,7 @@ def db(pg_uri):
     d = DB(pg_uri)
     d.q("""delete from check_jobs; delete from smart_assignment_checks; delete from check_sheets;
            delete from check_sessions; delete from submissions; delete from storage.objects;
+           delete from open_submitters;
            update assignment_ai_keys set answer_key_path = %s where assignment_id = any(%s::uuid[]);
            update assignments set max_pages = 30, auto_publish = (id = %s), max_mb = 10,
                   allowed_mimes = array['application/pdf','image/jpeg','image/png','image/webp']
@@ -157,6 +160,27 @@ def storage():
     s = FakeStorage()
     s.put("answer-keys", KEY_PATH, (FIXTURES / "answer_key.pdf").read_bytes())
     return s
+
+
+def make_guest_attempt(db: DB, storage: FakeStorage, files: list, asg: str = A1, name: str = "Ravi Guest") -> tuple:
+    """A guest attempt on an open link (23_open_link): no student_id, owner = submitter_key, files under
+    {inst}/{asg}/guest/{submitter_key}/. Returns (submission_id, job_id, submitter_key)."""
+    key = str(db.one("insert into open_submitters (assignment_id, guest_name, guest_roll, ip_hash) "
+                     "values (%s, %s, '7', 'test') returning key", (asg, name)))
+    entries = []
+    for i, (data, ext, mime) in enumerate(files, 1):
+        path = f"{INST}/{asg}/guest/{key}/{uuid.uuid4()}.{ext}"
+        storage.put("submissions", path, data)
+        db.q("insert into storage.objects (bucket_id, name, metadata) values ('submissions', %s, %s)",
+             (path, json.dumps({"size": len(data), "mimetype": mime})))
+        entries.append({"storage_path": path, "mime": mime, "size": len(data),
+                        "sha256": hashlib.sha256(data).hexdigest(), "page_order": i})
+    sub_id = db.one("""insert into submissions (assignment_id, student_id, submitter_key, guest_name, guest_roll,
+                                                attempt_no, idempotency_key, status, files, submitted_at)
+                       values (%s, null, %s, %s, '7', 1, %s, 'uploaded', %s, now()) returning id""",
+                    (asg, key, name, uuid.uuid4().hex, json.dumps(entries)))
+    job_id = db.one("select public.a4_enqueue_submission(%s)", (sub_id,))
+    return str(sub_id), str(job_id), key
 
 
 def make_attempt(db: DB, storage: FakeStorage, files: list, asg: str = A1, student: str = S1) -> tuple:

@@ -143,13 +143,16 @@ class JobStore:
         assert key in ("id", "assignment_id", "submission_id")
         return self._one(f"select row_to_json(t) from public.{table} t where {key} = %s", (row_id,))
 
-    def other_students_with(self, assignment_id: str, student_id: str, shas: list) -> list:
-        """sha256 values among `shas` that another student of this assignment also uploaded."""
+    def other_students_with(self, assignment_id: str, student_id, submitter_key, shas: list) -> list:
+        """sha256 values among `shas` that another submitter of this assignment also uploaded. The owner of an
+        attempt is (student_id, submitter_key): a student, or a guest of an open link (23_open_link)."""
         if not shas:
             return []
         return self._all("""select distinct f ->> 'sha256' from public.submissions s, jsonb_array_elements(s.files) f
-                             where s.assignment_id = %s and s.student_id <> %s and f ->> 'sha256' = any(%s)""",
-                         (assignment_id, student_id, list(shas)))
+                             where s.assignment_id = %s
+                               and (s.student_id, s.submitter_key) is distinct from (%s::uuid, %s::uuid)
+                               and f ->> 'sha256' = any(%s)""",
+                         (assignment_id, student_id, submitter_key, list(shas)))
 
     def set_reject_reasons(self, submission_id: str, problems: list) -> None:
         """The state trigger appended one {code: bad_file, message} entry; replace it with one entry per file."""
@@ -159,13 +162,48 @@ class JobStore:
                             where id = %s and status = 'rejected' and jsonb_array_length(reject_reasons) > 0""",
                         (Json(problems), submission_id))
 
-    # ── rubric (cached per answer-key version in check_sessions.rubric) ──
-    def lock_rubric(self, session_id: str) -> bool:
-        """True = this worker builds the rubric. Someone else building it for < 5 min → False."""
-        return bool(self._one("""update public.check_sessions set rubric_status = 'building', rubric_error = null,
-                                        updated_at = now()
-                                  where id = %s and (rubric_status <> 'building' or updated_at < now() - interval '5 minutes')
-                                  returning true""", (session_id,)))
+    # ── rubric: one job per (session = assignment, answer-key version), result cached in check_sessions.rubric ──
+    def rubric_job(self, session_id: str, key_version: int) -> Optional[dict]:
+        return self._one("select row_to_json(j) from public.check_jobs j where idempotency_key = %s",
+                         (f"rubric:{session_id}:k{key_version}",))
+
+    def ensure_rubric_job(self, copy_job: dict, assignment_id: str, key_version: int) -> dict:
+        """The rubric job of this assignment + key version (created now if missing; a 'done' one is re-opened when
+        the cache is gone). kind 'check' + submission_id null + checkpoint.stage 'rubric': the queue's kind check
+        needs a sheet, so it carries the sheet of the copy that asked first (the state triggers ignore it)."""
+        key = f"rubric:{copy_job['session_id']}:k{key_version}"
+        with self._cur() as cur:
+            cur.execute("""insert into public.check_jobs (kind, teacher_id, institute_id, session_id, sheet_id,
+                                                          idempotency_key, checkpoint)
+                           values ('check', %s, %s, %s, %s, %s, %s)
+                           on conflict (idempotency_key) do update
+                              set state = 'queued', retries = 0, next_run_at = now(), locked_at = null,
+                                  finished_at = null, last_error_code = null, error = null, updated_at = now()
+                            where check_jobs.state = 'done'""",
+                        (copy_job["teacher_id"], copy_job["institute_id"], copy_job["session_id"], copy_job["sheet_id"],
+                         key, Json({"stage": "rubric", "assignment_id": str(assignment_id), "key_version": key_version})))
+        return self.rubric_job(copy_job["session_id"], key_version)
+
+    def rubric_building(self, session_id: str) -> None:
+        with self._cur() as cur:
+            cur.execute("update public.check_sessions set rubric_status = 'building', rubric_error = null, updated_at = now()"
+                        " where id = %s", (session_id,))
+
+    def wake_copies(self, session_id: str) -> int:
+        """Copies parked while their rubric was being built → due now (picked up by this run or the next sweep)."""
+        with self._cur() as cur:
+            cur.execute("""update public.check_jobs set next_run_at = now(), updated_at = now()
+                            where session_id = %s and kind = 'check' and submission_id is not null and state = 'queued'
+                              and next_run_at > now()""", (session_id,))
+            return cur.rowcount
+
+    def requeue_waiting_key(self, assignment_id: str) -> int:
+        """Attempts that went to waiting_key because the rubric failed: queue them again now that it exists."""
+        ids = self._all("select id::text from public.submissions where assignment_id = %s and status = 'waiting_key'",
+                        (assignment_id,))
+        for sid in ids:
+            self.enqueue_submission(sid)
+        return len(ids)
 
     def save_rubric(self, session_id: str, rubric: dict) -> None:
         with self._cur() as cur:

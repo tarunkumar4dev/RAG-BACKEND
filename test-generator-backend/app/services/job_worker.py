@@ -7,7 +7,11 @@ claim a job, do it, claim the next while more than MIN_LEFT_TO_CLAIM_S of the WO
 Hobby: 300 s per invocation; nothing runs in the background after that).
 
 Job kinds
-  check (submission_id set)    one student's attempt. Limits → files → rubric → grade (v4 grade_copy) → save.
+  check (checkpoint.stage      the marking scheme of one assignment + answer-key version, built ONCE in its own
+         = 'rubric')           job (own invocation, own per-call timeout) and cached in check_sessions.rubric.
+                               Copies never build it: they wait (queued, no retry used) and are woken when it is
+                               ready; if it fails for good they go to waiting_key with the reason.
+  check (submission_id set)    one student's attempt. Limits → rubric ready? → files → grade (v4 grade_copy) → save.
                                More than CHUNK_MAX_PAGES pages → the pages are split into chunk jobs and this job
                                waits (queued, its retry given back) until they are all done, then merges them.
   check (checkpoint.parent)    one chunk of a long copy (submission_id null, so the state triggers ignore it).
@@ -22,6 +26,7 @@ Rules
     and a short teacher-safe English message. Logs carry ids and counts, student names only masked.
 """
 
+import contextlib
 import logging
 import math
 import os
@@ -39,12 +44,18 @@ from app.services.answer_checker import copy_check, portal_result, preprocess, u
 logger = logging.getLogger(__name__)
 logger.addFilter(PIIMaskFilter())
 
-WORK_BUDGET_S = float(os.getenv("CHECKER_WORK_BUDGET_S", "240"))
-MIN_LEFT_TO_CLAIM_S = float(os.getenv("CHECKER_MIN_LEFT_TO_CLAIM_S", "120"))
+# Vercel Hobby kills the function at 300 s. A job is claimed only while a whole stage still fits:
+# claim at >= MIN_LEFT_TO_CLAIM_S left, and no single Gemini call waits longer than its stage timeout below.
+WORK_BUDGET_S = float(os.getenv("CHECKER_WORK_BUDGET_S", "270"))
+MIN_LEFT_TO_CLAIM_S = float(os.getenv("CHECKER_MIN_LEFT_TO_CLAIM_S", "200"))
+# Per-call Gemini timeouts per stage. 23 Oct (prod, Class XII Economics, 30 marks): the grade call of a 1-page
+# copy needed more than the global 60 s and timed out 3 times; a rubric call takes ~75 s on a 30-mark paper.
+RUBRIC_CALL_TIMEOUT_S = float(os.getenv("CHECKER_RUBRIC_TIMEOUT_S", "180"))
+GRADE_CALL_TIMEOUT_S = float(os.getenv("CHECKER_GRADE_TIMEOUT_S", "150"))
+RUBRIC_WAIT_S = 60                    # a copy waiting for its rubric looks again at least this often
 MAX_RUNNING_JOBS = int(os.getenv("MAX_RUNNING_JOBS", "5"))
 CHUNK_MAX_PAGES = 12                  # > 12 pages → chunks of 10-12 pages
 PARK_RECHECK_S = 600                  # a waiting long copy looks at its chunks at least this often
-RUBRIC_BUSY_RETRY_S = 20
 # Daily Gemini spend cap for checking (estimate from token counts × price; the Google project cap stays the
 # last line of defence). Over the cap the worker claims nothing until the next IST day.
 DAILY_BUDGET_INR = float(os.getenv("CHECKER_DAILY_BUDGET_INR", "150"))
@@ -67,8 +78,10 @@ MSG = {
     "FINAL": "Not checked after {n} tries ({why}). Use Retry to check again.",
     "CALL_CAP": "AI call limit reached for this copy. Please check it manually.",
     "SCHEMA": "Copy data is incomplete; it cannot be checked.",
+    "RUBRIC_FAILED": "Marking scheme could not be built ({why}). Attach the answer key again to retry.",
 }
-_WHY = {"GEMINI_429": "AI busy", "GEMINI_5XX": "AI down", "TIMEOUT": "time limit", "UNKNOWN": "error"}
+_WHY = {"GEMINI_429": "AI busy", "GEMINI_5XX": "AI down", "TIMEOUT": "time limit", "UNKNOWN": "error",
+        "KEY_MISSING": "key unreadable", "CALL_CAP": "AI call limit"}
 
 
 class JobError(Exception):
@@ -144,6 +157,8 @@ class JobWorker:
         self.max_running = max_running
         self.clock = clock
         self._run_usage: dict = {}
+        self._stages: dict = {}
+        self._job_tag = ""
 
     # One invocation
     def run(self) -> dict:
@@ -170,22 +185,47 @@ class JobWorker:
 
     def handle(self, job: dict) -> None:
         self._run_usage = {}
+        self._stages = {}
+        self._job_tag = f"job={str(job['id'])[:8]}"
         t0 = time.time()
         cp = job.get("checkpoint") or {}
+        kind = ("rubric" if cp.get("stage") == "rubric" else "chunk" if cp.get("parent")
+                else "copy" if job.get("submission_id") else job["kind"])
+        logger.info(f"[jobs] {self._job_tag} {kind} run {job.get('retries')} started")
         try:
-            if job["kind"] == "retention":
-                self._retention(job)
-            elif job["kind"] == "check" and job.get("submission_id"):
-                self._copy(job)
-            elif job["kind"] == "check" and cp.get("parent"):
-                self._chunk(job)
-            else:
-                raise JobError("SCHEMA", MSG["SCHEMA"])
+            with svc.call_settings(log_tag=self._job_tag):
+                if job["kind"] == "retention":
+                    self._retention(job)
+                elif job["kind"] == "check" and job.get("submission_id"):
+                    self._copy(job)
+                elif job["kind"] == "check" and cp.get("stage") == "rubric":
+                    self._rubric_job(job)
+                elif job["kind"] == "check" and cp.get("parent"):
+                    self._chunk(job)
+                else:
+                    raise JobError("SCHEMA", MSG["SCHEMA"])
         except Exception as e:
             self._fail(job, e)
         finally:
-            logger.info(f"[jobs] {job['kind']} {str(job['id'])[:8]} run {job.get('retries')} "
-                        f"in {time.time() - t0:.1f}s")
+            stages = " ".join(f"{k}={v:.1f}s" for k, v in self._stages.items())
+            logger.info(f"[jobs] {self._job_tag} {kind} run {job.get('retries')} done in {time.time() - t0:.1f}s"
+                        f"{' (' + stages + ')' if stages else ''}")
+
+    @contextlib.contextmanager
+    def _stage(self, name: str):
+        """Times one stage; one log line per stage with the job id (diagnosable from the Vercel logs)."""
+        t = time.time()
+        try:
+            yield
+        finally:
+            took = time.time() - t
+            self._stages[name] = round(self._stages.get(name, 0) + took, 2)
+            logger.info(f"[jobs] {self._job_tag} stage={name} {took:.1f}s")
+
+    def _usage_with_stages(self, job: dict) -> dict:
+        u = add_usage(job.get("usage") or {}, self._run_usage)
+        u["stages"] = dict(self._stages)          # last run's stage timings, also visible in check_jobs.usage
+        return u
 
     # ── errors ────────────────────────────────────────────────────────
     def _classify(self, e: Exception) -> tuple:
@@ -213,7 +253,7 @@ class JobWorker:
             final = code not in _RETRY_CODES or int(job.get("retries") or 0) >= int(job.get("max_retries") or 3)
             if code in _RETRY_CODES and final:
                 message = MSG["FINAL"].format(n=job.get("retries"), why=_WHY[code])
-        usage = add_usage(job.get("usage") or {}, self._run_usage) if self._run_usage else None
+        usage = self._usage_with_stages(job) if (self._run_usage or self._stages) else None
         try:
             row = self.store.finish(job["id"], False, code, message, usage)
         except Exception:
@@ -227,6 +267,10 @@ class JobWorker:
             self.store.mark_sheet_failed(job["sheet_id"], message)
         if (job.get("checkpoint") or {}).get("parent") and row.get("state") == "failed":
             self._wake_parent(job["checkpoint"]["parent"])
+        if (job.get("checkpoint") or {}).get("stage") == "rubric" and row.get("state") == "failed":
+            # copies waiting for this rubric move on to waiting_key with the reason (no retries used up)
+            self.store.rubric_failed(job["session_id"], message)
+            self.store.wake_copies(job["session_id"])
 
     # ── one attempt ──────────────────────────────────────────────────
     def _copy(self, job: dict) -> None:
@@ -252,27 +296,30 @@ class JobWorker:
         if not key:
             self.store.finish(job["id"], False, "KEY_MISSING", MSG["KEY_MISSING"])
             return
+        rubric = self._rubric_for_copy(job, sheet, session, asg, key)
+        if rubric is None:
+            return
         self.store.mark_sheet_checking(sheet["id"])
 
-        v = self._validate(sheet, sub, asg)
+        with self._stage("download_validate"):
+            v = self._validate(sheet, sub, asg)
         if not v.ok:
             return self._reject(job, sheet, sub, [p.as_dict() for p in v.problems], v.summary())
         flags = self._duplicate_flags(v, sub, asg)
 
-        rubric = self._rubric(job, session, asg, key)
-        if rubric is None:
-            return
         temps = self._temp_files(v.files)
         try:
             if v.total_pages > CHUNK_MAX_PAGES:
-                return self._split(job, sub, key, v, temps, flags)
+                with self._stage("split"):
+                    return self._split(job, sub, key, v, temps, flags)
             t0 = time.time()
-            result, ordered, gusage = copy_check.grade_copy(temps, rubric, key.get("strictness") or "medium")
-            self._run_usage = add_usage(self._run_usage, gusage)
-            result["norm_pages"] = self._save_pages(job, ordered, "p", 0)
+            result, ordered, gusage = self._grade(temps, rubric, key.get("strictness") or "medium")
+            with self._stage("save_pages"):
+                result["norm_pages"] = self._save_pages(job, ordered, "p", 0)
             result["usage"] = gusage
             meta = {"pages": gusage.get("pages"), "grade_time_s": round(time.time() - t0, 2), "chunks": 1}
-            self._save(job, sheet, sub, session, key, rubric, result, flags, meta)
+            with self._stage("save"):
+                self._save(job, sheet, sub, session, key, rubric, result, flags, meta)
         except preprocess.BadFile as e:
             msg = upload_validation.bad_file_message(e)
             return self._reject(job, sheet, sub, [{"code": "bad_file", "page_order": 0, "message": msg}], msg)
@@ -283,7 +330,7 @@ class JobWorker:
         if sheet.get("source_bucket") != SUBMISSIONS_BUCKET:
             raise JobError("SCHEMA", MSG["SCHEMA"])
         entries = sub.get("files") or []
-        folder = f"{asg['institute_id']}/{asg['id']}/{sub['student_id']}/"
+        folder = _owner_folder(asg, sub)
         allowed = set(sheet.get("pages") or [])
         blobs = {}
         for e in entries:
@@ -312,7 +359,8 @@ class JobWorker:
                 pages = ", ".join(str(f.page_order) for f in v.files if f.sha256 == sha)
                 flags.append({"code": "DUPLICATE_PAGE", "page": None, "message": f"Pages {pages} are the same file."})
         try:
-            others = set(self.store.other_students_with(asg["id"], sub["student_id"], list(seen)))
+            others = set(self.store.other_students_with(asg["id"], sub.get("student_id"), sub.get("submitter_key"),
+                                                        list(seen)))
         except Exception:
             others = set()
         for f in v.files:
@@ -330,48 +378,97 @@ class JobWorker:
         self.store.mark_sheet_failed(sheet["id"], summary)
         logger.info(f"[jobs] attempt {str(sub['id'])[:8]} rejected: {[p['code'] for p in problems]}")
 
-    # ── rubric: built once per answer-key version, cached in check_sessions.rubric ──
-    def _rubric(self, job: dict, session: dict, asg: dict, key: dict) -> Optional[dict]:
+    def _grade(self, temps: list, rubric: dict, strictness: str) -> tuple:
+        """grade_copy with the grade stage's per-call timeout; logs page prep and the Gemini call separately."""
+        t = time.time()
+        with svc.call_settings(timeout_s=GRADE_CALL_TIMEOUT_S):
+            try:
+                result, ordered, gusage = copy_check.grade_copy(temps, rubric, strictness)
+            finally:
+                self._stages["grade_total"] = round(time.time() - t, 2)
+                logger.info(f"[jobs] {self._job_tag} stage=grade_total {self._stages['grade_total']:.1f}s")
+        self._run_usage = add_usage(self._run_usage, gusage)
+        gemini = (gusage.get("ms_by_tag") or {}).get("GRADE", 0) / 1000
+        self._stages["gemini_grade"] = round(gemini, 2)
+        self._stages["page_prep"] = round(self._stages["grade_total"] - gemini, 2)
+        logger.info(f"[jobs] {self._job_tag} stage=grade page_prep={self._stages['page_prep']:.1f}s "
+                    f"gemini={gemini:.1f}s pages={gusage.get('pages')} calls={gusage.get('gemini_calls')}")
+        return result, ordered, gusage
+
+    # ── rubric: ONE job per assignment + answer-key version, cached in check_sessions.rubric ──
+    def _rubric_for_copy(self, job: dict, sheet: dict, session: dict, asg: dict, key: dict) -> Optional[dict]:
+        """The cached rubric of the copy's key version, or None after parking the copy (rubric job queued /
+        running: no retry used) or sending it to waiting_key (rubric job failed for good)."""
         r = session.get("rubric")
         if session.get("rubric_status") == "ready" and r and r.get("key_version") == key.get("version"):
             return r
-        if not self.store.lock_rubric(session["id"]):
-            self.store.requeue_unchanged(job["id"], RUBRIC_BUSY_RETRY_S)
+        rj = self.store.ensure_rubric_job(job, asg["id"], key.get("version"))
+        if rj and rj.get("state") in ("failed", "cancelled"):
+            why = _WHY.get(rj.get("last_error_code") or "", "error")
+            message = MSG["RUBRIC_FAILED"].format(why=why)
+            self.store.finish(job["id"], False, "KEY_MISSING", message)       # → waiting_key
+            self.store.mark_sheet_failed(sheet["id"], message)
+            logger.info(f"[jobs] {self._job_tag} rubric job {str(rj['id'])[:8]} failed ({why}) → waiting_key")
             return None
+        self.store.requeue_unchanged(job["id"], RUBRIC_WAIT_S)
+        logger.info(f"[jobs] {self._job_tag} waits for rubric job {str((rj or {}).get('id'))[:8]} "
+                    f"({(rj or {}).get('state')})")
+        return None
+
+    def _rubric_job(self, job: dict) -> None:
+        cp = job["checkpoint"]
+        session = self.store.row("check_sessions", job["session_id"])
+        asg = self.store.row("assignments", cp["assignment_id"])
+        key = self.store.row("assignment_ai_keys", cp["assignment_id"], key="assignment_id")
+        if not session or not asg:
+            raise JobError("SCHEMA", MSG["SCHEMA"])
+        r = session.get("rubric")
+        stale = not key or key.get("version") != cp.get("key_version")      # a newer key has its own job
+        if stale or (session.get("rubric_status") == "ready" and r and r.get("key_version") == cp.get("key_version")):
+            self.store.finish(job["id"], True, usage=job.get("usage"))
+            self.store.wake_copies(session["id"])
+            return
+        self.store.rubric_building(session["id"])
         temps = []
         try:
-            key_path = key["answer_key_path"]
-            temps.append(self._download_temp("answer-keys", key_path))
-            qp = []
-            if asg.get("file_url"):
-                qp_path = _storage_path(asg["file_url"], "assignments")
-                qp = [self._download_temp("assignments", qp_path)]
-                temps += qp
-            with svc.usage_meter() as meter:
-                # no question paper attached: the answer key usually prints the questions too
-                rubric = svc.build_rubric(qp or [temps[0]], [temps[0]] if qp else None)
-            self._run_usage = add_usage(self._run_usage, meter.as_dict())
+            with self._stage("rubric_download"):
+                temps.append(self._download_temp("answer-keys", key["answer_key_path"]))
+                qp = []
+                if asg.get("file_url"):
+                    qp = [self._download_temp("assignments", _storage_path(asg["file_url"], "assignments"))]
+                    temps += qp
+            with self._stage("rubric_gemini"), svc.call_settings(timeout_s=RUBRIC_CALL_TIMEOUT_S):
+                with svc.usage_meter() as meter:
+                    try:
+                        # no question paper attached: the answer key usually prints the questions too
+                        rubric = svc.build_rubric(qp or [temps[0]], [temps[0]] if qp else None)
+                    finally:
+                        self._run_usage = add_usage(self._run_usage, meter.as_dict())
+        except JobError:
+            raise
         except Exception as e:
             code, msg, _ = self._classify(e)
-            if code in ("GEMINI_429", "GEMINI_5XX", "TIMEOUT"):     # Gemini's problem, not the key's: retry later
-                self.store.rubric_failed(session["id"], msg)
+            if code in _RETRY_CODES or code == "CALL_CAP":     # Gemini's problem, not the key's
                 raise
-            logger.warning(f"[jobs] rubric for session {str(session['id'])[:8]} failed: {type(e).__name__}")
-            self.store.rubric_failed(session["id"], MSG["KEY_UNREADABLE"])
-            raise JobError("KEY_MISSING", MSG["KEY_UNREADABLE"])
+            logger.warning(f"[jobs] {self._job_tag} rubric unreadable: {type(e).__name__}")
+            raise JobError("KEY_MISSING", MSG["KEY_UNREADABLE"], final=True)
         finally:
             _cleanup(temps)
         rubric = {k: v for k, v in rubric.items() if not k.startswith("_")}
-        rubric["key_version"] = key.get("version")
+        rubric["key_version"] = cp.get("key_version")
         rubric["strictness"] = key.get("strictness") or "medium"
         self.store.save_rubric(session["id"], rubric)
-        return rubric
+        self.store.finish(job["id"], True, usage=self._usage_with_stages(job))
+        woken = self.store.wake_copies(session["id"])
+        requeued = self.store.requeue_waiting_key(asg["id"])
+        logger.info(f"[jobs] {self._job_tag} rubric ready: {rubric.get('total_questions')} questions, "
+                    f"{rubric.get('total_marks')} marks; {woken} waiting copies woken, {requeued} re-queued")
 
     def _download_temp(self, bucket: str, path: str) -> str:
         ext = os.path.splitext(path)[1].lower()
         data = self.storage.download(bucket, path)
         if data is None:
-            raise JobError("KEY_MISSING", MSG["KEY_UNREADABLE"])
+            raise JobError("KEY_MISSING", MSG["KEY_UNREADABLE"], final=True)
         return _write_temp(data, ext, "rub_")
 
     # ── save ─────────────────────────────────────────────────────────
@@ -399,7 +496,7 @@ class JobWorker:
             "result_json": compact, "assignment_id": sub["assignment_id"], "submission_id": sub["id"],
             "check_sheet_id": sheet["id"],
         }
-        usage = add_usage(job.get("usage") or {}, self._run_usage)
+        usage = self._usage_with_stages(job)
         self.store.save_result(job["id"], sheet["id"], fields, audit, {**(job.get("checkpoint") or {}), "graded": True})
         self.store.finish(job["id"], True, usage=usage)
         logger.info(f"[jobs] copy {str(sheet['id'])[:8]} ({mask_name(sheet.get('student_name'))}) checked: "
@@ -470,16 +567,15 @@ class JobWorker:
                     raise JobError("UNKNOWN", MSG["UNKNOWN"])
                 temps.append(_write_temp(data, ".jpg", "chunk_"))
             t0 = time.time()
-            result, ordered, gusage = copy_check.grade_copy(temps, rubric, rubric.get("strictness") or "medium")
+            result, ordered, gusage = self._grade(temps, rubric, rubric.get("strictness") or "medium")
         finally:
             _cleanup(temps)
-        self._run_usage = add_usage(self._run_usage, gusage)
         keep = ("graded_questions", "max_marks", "overall_remarks", "readability_score", "sheet_flags")
         cp = {**cp, "result": {k: result.get(k) for k in keep},
               "norm_pages": self._save_pages(job, ordered, f"c{cp['chunk']}_p", cp["start"]),
               "grade_time_s": round(time.time() - t0, 2)}
         self.store.set_checkpoint(job["id"], cp)
-        self.store.finish(job["id"], True, usage=add_usage(job.get("usage") or {}, self._run_usage))
+        self.store.finish(job["id"], True, usage=self._usage_with_stages(job))
         self._wake_parent(cp["parent"])
 
     def _wake_parent(self, parent_id: str) -> None:
@@ -535,6 +631,17 @@ class JobWorker:
 
     def _temp_files(self, files: list) -> list:
         return [_write_temp(f.data, "." + f.ext, f"p{f.page_order}_") for f in files]
+
+
+def _owner_folder(asg: dict, sub: dict) -> str:
+    """Storage folder the attempt's files must be in: {inst}/{asg}/{student_id}/ for access-code attempts,
+    {inst}/{asg}/guest/{submitter_key}/ for guest attempts on an open link (23_open_link: student_id null)."""
+    base = f"{asg['institute_id']}/{asg['id']}/"
+    if sub.get("student_id"):
+        return f"{base}{sub['student_id']}/"
+    if sub.get("submitter_key"):
+        return f"{base}guest/{sub['submitter_key']}/"
+    raise JobError("SCHEMA", MSG["SCHEMA"])          # neither owner: never read any file
 
 
 def _write_temp(data: bytes, ext: str, prefix: str) -> str:
