@@ -1,0 +1,14 @@
+{
+  "pdf": "Class12_Economics_ForeignExchangeRate_50MCQs_EducationBeast.pdf",
+  "title": "Class XII — Economics",
+  "subject": "Economics",
+  "class_grade": "12",
+  "board": null,
+  "duration_minutes": 60,
+  "total_marks": 50,
+  "questions": 50,
+  "key_count": 50,
+  "key": "bbcabaccba dadcbcdddc cccbbddabb dbddacacaa bbbadcaaad",
+  "difficulty": {"Easy": [1, 10], "Medium": [11, 40], "Hard": [41, 50]},
+  "allowed_warnings": ["KEY_MISMATCH_SUSPECT"]
+}

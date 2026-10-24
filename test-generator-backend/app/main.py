@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse
 
 from app.api.v1.endpoints.test_generator import router as test_router
 from app.api.v1.endpoints.contest import router as contest_router
+from app.routers.contest_import_router import router as contest_import_router
 from app.api.v1.endpoints.payment import router as payment_router
 from app.api.v1.endpoints.community_quiz import router as community_quiz_router
 from app.api.v1.endpoints.modules import router as module_router
@@ -208,6 +209,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 # ── Routers ─────────────────────────────────────────────────────────────
 
 app.include_router(test_router, prefix="/api/v1")
+app.include_router(contest_import_router, prefix="/api/v1")   # before contest_router: /contests/import-pdf
 app.include_router(contest_router, prefix="/api/v1")
 app.include_router(payment_router, prefix="/api/v1")
 app.include_router(community_quiz_router, prefix="/api/v1")

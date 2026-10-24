@@ -60,6 +60,9 @@ ROUTE_LIMITS = {
     "POST /api/v1/copy-checker/sessions/{session_id}/rubric": 10,
     "POST /api/v1/copy-checker/sheets/{sheet_id}/check": 60,
     "PATCH /api/v1/copy-checker/sheets/{sheet_id}/questions/{q_no}/marks": 120,
+    # PDF → contest questions (daily limit of 10 lives in the database); the review screen polls the job
+    "POST /api/v1/contests/import-pdf": 10,
+    "GET /api/v1/contests/import-pdf/{job_id}": 120,
     # payments
     "POST /api/v1/payment/create-order": 10,
     "POST /api/v1/payment/verify-payment": 20,

@@ -1,0 +1,1871 @@
+{
+ "header": {
+  "institute": "EDUCATION BEAST",
+  "board": "",
+  "title": "Class XII — Economics",
+  "class_grade": "XII",
+  "subject": "Economics",
+  "topic": "Macroeconomics · Foreign Exchange Rate",
+  "duration_text": "1 Hour",
+  "max_marks": 50
+ },
+ "questions": [
+  {
+   "number": 1,
+   "section_level": "Easy",
+   "type": "MCQ",
+   "text": "Foreign exchange rate refers to:",
+   "options": [
+    {
+     "label": "a",
+     "text": "the price of gold in terms of the domestic currency"
+    },
+    {
+     "label": "b",
+     "text": "the price of one unit of a foreign currency in terms of the domestic currency"
+    },
+    {
+     "label": "c",
+     "text": "the ratio of a country's exports to its imports"
+    },
+    {
+     "label": "d",
+     "text": "the rate of interest charged on foreign loans"
+    }
+   ],
+   "marks": 1,
+   "explanation": "",
+   "ai_answer": ""
+  },
+  {
+   "number": 2,
+   "section_level": "Easy",
+   "type": "MCQ",
+   "text": "Under the flexible exchange rate system, the exchange rate is determined by:",
+   "options": [
+    {
+     "label": "a",
+     "text": "the central bank alone"
+    },
+    {
+     "label": "b",
+     "text": "the market forces of demand for and supply of foreign exchange"
+    },
+    {
+     "label": "c",
+     "text": "the government of the country"
+    },
+    {
+     "label": "d",
+     "text": "the World Bank"
+    }
+   ],
+   "marks": 1,
+   "explanation": "",
+   "ai_answer": ""
+  },
+  {
+   "number": 3,
+   "section_level": "Easy",
+   "type": "MCQ",
+   "text": "Under the fixed exchange rate system, the exchange rate is officially fixed by:",
+   "options": [
+    {
+     "label": "a",
+     "text": "the commercial banks"
+    },
+    {
+     "label": "b",
+     "text": "the market forces of demand and supply"
+    },
+    {
+     "label": "c",
+     "text": "the government / central bank"
+    },
+    {
+     "label": "d",
+     "text": "the exporters of the country"
+    }
+   ],
+   "marks": 1,
+   "explanation": "",
+   "ai_answer": ""
+  },
+  {
+   "number": 4,
+   "section_level": "Easy",
+   "type": "MCQ",
+   "text": "Which of the following is a source of demand for foreign exchange?",
+   "options": [
+    {
+     "label": "a",
+     "text": "Import of goods and services from abroad"
+    },
+    {
+     "label": "b",
+     "text": "Export of goods to other countries"
+    },
+    {
+     "label": "c",
+     "text": "Foreign tourists visiting India"
+    },
+    {
+     "label": "d",
+     "text": "Remittances received from Indians working abroad"
+    }
+   ],
+   "marks": 1,
+   "explanation": "",
+   "ai_answer": ""
+  },
+  {
+   "number": 5,
+   "section_level": "Easy",
+   "type": "MCQ",
+   "text": "Which of the following is a source of supply of foreign exchange?",
+   "options": [
+    {
+     "label": "a",
+     "text": "Import of machinery from abroad"
+    },
+    {
+     "label": "b",
+     "text": "Export of goods and services"
+    },
+    {
+     "label": "c",
+     "text": "Indian students paying fees to foreign universities"
+    },
+    {
+     "label": "d",
+     "text": "Indians buying shares of foreign companies"
+    }
+   ],
+   "marks": 1,
+   "explanation": "",
+   "ai_answer": ""
+  },
+  {
+   "number": 6,
+   "section_level": "Easy",
+   "type": "MCQ",
+   "text": "A fall in the value of the domestic currency in terms of a foreign currency under the flexible exchange rate system is called:",
+   "options": [
+    {
+     "label": "a",
+     "text": "depreciation"
+    },
+    {
+     "label": "b",
+     "text": "appreciation"
+    },
+    {
+     "label": "c",
+     "text": "devaluation"
+    },
+    {
+     "label": "d",
+     "text": "revaluation"
+    }
+   ],
+   "marks": 1,
+   "explanation": "",
+   "ai_answer": ""
+  },
+  {
+   "number": 7,
+   "section_level": "Easy",
+   "type": "MCQ",
+   "text": "A deliberate reduction in the value of the domestic currency by the government under the fixed exchange rate system is called:",
+   "options": [
+    {
+     "label": "a",
+     "text": "appreciation"
+    },
+    {
+     "label": "b",
+     "text": "depreciation"
+    },
+    {
+     "label": "c",
+     "text": "devaluation"
+    },
+    {
+     "label": "d",
+     "text": "revaluation"
+    }
+   ],
+   "marks": 1,
+   "explanation": "",
+   "ai_answer": ""
+  },
+  {
+   "number": 8,
+   "section_level": "Easy",
+   "type": "MCQ",
+   "text": "A rise in the value of the domestic currency in terms of a foreign currency under the flexible exchange rate system is called:",
+   "options": [
+    {
+     "label": "a",
+     "text": "devaluation"
+    },
+    {
+     "label": "b",
+     "text": "revaluation"
+    },
+    {
+     "label": "c",
+     "text": "appreciation"
+    },
+    {
+     "label": "d",
+     "text": "depreciation"
+    }
+   ],
+   "marks": 1,
+   "explanation": "",
+   "ai_answer": ""
+  },
+  {
+   "number": 9,
+   "section_level": "Easy",
+   "type": "MCQ",
+   "text": "The demand curve for foreign exchange is:",
+   "options": [
+    {
+     "label": "a",
+     "text": "a horizontal straight line"
+    },
+    {
+     "label": "b",
+     "text": "downward sloping from left to right"
+    },
+    {
+     "label": "c",
+     "text": "upward sloping from left to right"
+    },
+    {
+     "label": "d",
+     "text": "a vertical straight line"
+    }
+   ],
+   "marks": 1,
+   "explanation": "",
+   "ai_answer": ""
+  },
+  {
+   "number": 10,
+   "section_level": "Easy",
+   "type": "MCQ",
+   "text": "The exchange rate system in which the rate is mainly determined by the market, but the central bank intervenes to limit sharp fluctuations, is called the:",
+   "options": [
+    {
+     "label": "a",
+     "text": "managed floating exchange rate system"
+    },
+    {
+     "label": "b",
+     "text": "purely flexible exchange rate system"
+    },
+    {
+     "label": "c",
+     "text": "system of zero foreign trade"
+    },
+    {
+     "label": "d",
+     "text": "fixed exchange rate system"
+    }
+   ],
+   "marks": 1,
+   "explanation": "",
+   "ai_answer": ""
+  },
+  {
+   "number": 11,
+   "section_level": "Medium",
+   "type": "MCQ",
+   "text": "In a flexible exchange rate system, the exchange rate changes from ₹80 per $ to ₹84 per $. This means the rupee has:",
+   "options": [
+    {
+     "label": "a",
+     "text": "appreciated"
+    },
+    {
+     "label": "b",
+     "text": "been revalued"
+    },
+    {
+     "label": "c",
+     "text": "been devalued"
+    },
+    {
+     "label": "d",
+     "text": "depreciated"
+    }
+   ],
+   "marks": 1,
+   "explanation": "",
+   "ai_answer": ""
+  },
+  {
+   "number": 12,
+   "section_level": "Medium",
+   "type": "MCQ",
+   "text": "In a flexible exchange rate system, the exchange rate changes from ₹84 per $ to ₹80 per $. This means the rupee has:",
+   "options": [
+    {
+     "label": "a",
+     "text": "appreciated"
+    },
+    {
+     "label": "b",
+     "text": "depreciated"
+    },
+    {
+     "label": "c",
+     "text": "been revalued"
+    },
+    {
+     "label": "d",
+     "text": "been devalued"
+    }
+   ],
+   "marks": 1,
+   "explanation": "",
+   "ai_answer": ""
+  },
+  {
+   "number": 13,
+   "section_level": "Medium",
+   "type": "MCQ",
+   "text": "The supply curve of foreign exchange slopes upward because a rise in the exchange rate:",
+   "options": [
+    {
+     "label": "a",
+     "text": "reduces foreign investment in the country"
+    },
+    {
+     "label": "b",
+     "text": "makes domestic goods costlier for foreigners"
+    },
+    {
+     "label": "c",
+     "text": "makes imports cheaper for domestic buyers"
+    },
+    {
+     "label": "d",
+     "text": "makes domestic goods cheaper for foreigners, so exports increase"
+    }
+   ],
+   "marks": 1,
+   "explanation": "",
+   "ai_answer": ""
+  },
+  {
+   "number": 14,
+   "section_level": "Medium",
+   "type": "MCQ",
+   "text": "The demand curve for foreign exchange slopes downward because a rise in the exchange rate:",
+   "options": [
+    {
+     "label": "a",
+     "text": "makes domestic goods costlier for foreigners"
+    },
+    {
+     "label": "b",
+     "text": "makes imports cheaper, so the demand for foreign exchange rises"
+    },
+    {
+     "label": "c",
+     "text": "makes imports costlier, so the demand for foreign exchange falls"
+    },
+    {
+     "label": "d",
+     "text": "makes exports costlier for foreigners"
+    }
+   ],
+   "marks": 1,
+   "explanation": "",
+   "ai_answer": ""
+  },
+  {
+   "number": 15,
+   "section_level": "Medium",
+   "type": "MCQ",
+   "text": "In a flexible exchange rate system, the equilibrium exchange rate is determined at the point where:",
+   "options": [
+    {
+     "label": "a",
+     "text": "demand for foreign exchange is more than its supply"
+    },
+    {
+     "label": "b",
+     "text": "demand for foreign exchange equals supply of foreign exchange"
+    },
+    {
+     "label": "c",
+     "text": "the government announces the rate"
+    },
+    {
+     "label": "d",
+     "text": "exports of the country become zero"
+    }
+   ],
+   "marks": 1,
+   "explanation": "",
+   "ai_answer": ""
+  },
+  {
+   "number": 16,
+   "section_level": "Medium",
+   "type": "MCQ",
+   "text": "If the exchange rate is above the equilibrium rate in a free market, there will be:",
+   "options": [
+    {
+     "label": "a",
+     "text": "excess supply of foreign exchange, and the rate will rise"
+    },
+    {
+     "label": "b",
+     "text": "excess demand for foreign exchange, and the rate will rise"
+    },
+    {
+     "label": "c",
+     "text": "excess supply of foreign exchange, and the rate will fall"
+    },
+    {
+     "label": "d",
+     "text": "no change in the rate"
+    }
+   ],
+   "marks": 1,
+   "explanation": "",
+   "ai_answer": ""
+  },
+  {
+   "number": 17,
+   "section_level": "Medium",
+   "type": "MCQ",
+   "text": "If the exchange rate is below the equilibrium rate in a free market, there will be:",
+   "options": [
+    {
+     "label": "a",
+     "text": "excess demand for foreign exchange, and the rate will fall"
+    },
+    {
+     "label": "b",
+     "text": "excess supply of foreign exchange, and the rate will fall"
+    },
+    {
+     "label": "c",
+     "text": "excess supply of foreign exchange, and the rate will rise"
+    },
+    {
+     "label": "d",
+     "text": "excess demand for foreign exchange, and the rate will rise"
+    }
+   ],
+   "marks": 1,
+   "explanation": "",
+   "ai_answer": ""
+  },
+  {
+   "number": 18,
+   "section_level": "Medium",
+   "type": "MCQ",
+   "text": "Depreciation of the domestic currency is likely to make the country's exports:",
+   "options": [
+    {
+     "label": "a",
+     "text": "cheaper for foreigners, so exports decrease"
+    },
+    {
+     "label": "b",
+     "text": "costlier for foreigners, so exports decrease"
+    },
+    {
+     "label": "c",
+     "text": "unaffected"
+    },
+    {
+     "label": "d",
+     "text": "cheaper for foreigners, so exports increase"
+    }
+   ],
+   "marks": 1,
+   "explanation": "",
+   "ai_answer": ""
+  },
+  {
+   "number": 19,
+   "section_level": "Medium",
+   "type": "MCQ",
+   "text": "Depreciation of the domestic currency is likely to make imports:",
+   "options": [
+    {
+     "label": "a",
+     "text": "unaffected"
+    },
+    {
+     "label": "b",
+     "text": "costlier in domestic currency, so imports increase"
+    },
+    {
+     "label": "c",
+     "text": "cheaper in domestic currency, so imports increase"
+    },
+    {
+     "label": "d",
+     "text": "costlier in domestic currency, so imports decrease"
+    }
+   ],
+   "marks": 1,
+   "explanation": "",
+   "ai_answer": ""
+  },
+  {
+   "number": 20,
+   "section_level": "Medium",
+   "type": "MCQ",
+   "text": "Appreciation of the domestic currency is likely to:",
+   "options": [
+    {
+     "label": "a",
+     "text": "increase exports and reduce imports"
+    },
+    {
+     "label": "b",
+     "text": "have no effect on exports and imports"
+    },
+    {
+     "label": "c",
+     "text": "reduce exports and increase imports"
+    },
+    {
+     "label": "d",
+     "text": "increase both exports and imports"
+    }
+   ],
+   "marks": 1,
+   "explanation": "",
+   "ai_answer": ""
+  },
+  {
+   "number": 21,
+   "section_level": "Medium",
+   "type": "MCQ",
+   "text": "In a flexible exchange rate system, if the demand for foreign exchange increases while its supply remains unchanged, the exchange rate will:",
+   "options": [
+    {
+     "label": "a",
+     "text": "remain unchanged"
+    },
+    {
+     "label": "b",
+     "text": "fall, i.e. the domestic currency will appreciate"
+    },
+    {
+     "label": "c",
+     "text": "rise, i.e. the domestic currency will depreciate"
+    },
+    {
+     "label": "d",
+     "text": "fall, i.e. the domestic currency will depreciate"
+    }
+   ],
+   "marks": 1,
+   "explanation": "",
+   "ai_answer": ""
+  },
+  {
+   "number": 22,
+   "section_level": "Medium",
+   "type": "MCQ",
+   "text": "In a flexible exchange rate system, if the supply of foreign exchange increases while its demand remains unchanged, the exchange rate will:",
+   "options": [
+    {
+     "label": "a",
+     "text": "rise, i.e. the domestic currency will depreciate"
+    },
+    {
+     "label": "b",
+     "text": "remain unchanged"
+    },
+    {
+     "label": "c",
+     "text": "fall, i.e. the domestic currency will appreciate"
+    },
+    {
+     "label": "d",
+     "text": "rise, i.e. the domestic currency will appreciate"
+    }
+   ],
+   "marks": 1,
+   "explanation": "",
+   "ai_answer": ""
+  },
+  {
+   "number": 23,
+   "section_level": "Medium",
+   "type": "MCQ",
+   "text": "Which of the following will shift the demand curve for foreign exchange to the right?",
+   "options": [
+    {
+     "label": "a",
+     "text": "Increase in foreign tourists visiting the country"
+    },
+    {
+     "label": "b",
+     "text": "Increase in foreign investment in the country"
+    },
+    {
+     "label": "c",
+     "text": "Rise in domestic residents' preference for foreign goods"
+    },
+    {
+     "label": "d",
+     "text": "Rise in the country's exports"
+    }
+   ],
+   "marks": 1,
+   "explanation": "",
+   "ai_answer": ""
+  },
+  {
+   "number": 24,
+   "section_level": "Medium",
+   "type": "MCQ",
+   "text": "Which of the following will shift the supply curve for foreign exchange to the right?",
+   "options": [
+    {
+     "label": "a",
+     "text": "Indians investing more in foreign countries"
+    },
+    {
+     "label": "b",
+     "text": "Increase in foreign investment in India"
+    },
+    {
+     "label": "c",
+     "text": "More Indians travelling abroad"
+    },
+    {
+     "label": "d",
+     "text": "Increase in India's imports"
+    }
+   ],
+   "marks": 1,
+   "explanation": "",
+   "ai_answer": ""
+  },
+  {
+   "number": 25,
+   "section_level": "Medium",
+   "type": "MCQ",
+   "text": "A deliberate increase in the value of the domestic currency by the government under the fixed exchange rate system is called:",
+   "options": [
+    {
+     "label": "a",
+     "text": "appreciation"
+    },
+    {
+     "label": "b",
+     "text": "revaluation"
+    },
+    {
+     "label": "c",
+     "text": "depreciation"
+    },
+    {
+     "label": "d",
+     "text": "devaluation"
+    }
+   ],
+   "marks": 1,
+   "explanation": "",
+   "ai_answer": ""
+  },
+  {
+   "number": 26,
+   "section_level": "Medium",
+   "type": "MCQ",
+   "text": "Which of the following is a merit of the flexible exchange rate system?",
+   "options": [
+    {
+     "label": "a",
+     "text": "It requires constant government intervention"
+    },
+    {
+     "label": "b",
+     "text": "The exchange rate never changes"
+    },
+    {
+     "label": "c",
+     "text": "It ensures complete stability of the exchange rate"
+    },
+    {
+     "label": "d",
+     "text": "The government need not maintain large foreign exchange reserves"
+    }
+   ],
+   "marks": 1,
+   "explanation": "",
+   "ai_answer": ""
+  },
+  {
+   "number": 27,
+   "section_level": "Medium",
+   "type": "MCQ",
+   "text": "Which of the following is a merit of the fixed exchange rate system?",
+   "options": [
+    {
+     "label": "a",
+     "text": "It does not require any foreign exchange reserves"
+    },
+    {
+     "label": "b",
+     "text": "It adjusts automatically to market conditions"
+    },
+    {
+     "label": "c",
+     "text": "It is completely free from government control"
+    },
+    {
+     "label": "d",
+     "text": "It brings stability in the exchange rate, which encourages international trade"
+    }
+   ],
+   "marks": 1,
+   "explanation": "",
+   "ai_answer": ""
+  },
+  {
+   "number": 28,
+   "section_level": "Medium",
+   "type": "MCQ",
+   "text": "Which of the following is a demerit of the fixed exchange rate system?",
+   "options": [
+    {
+     "label": "a",
+     "text": "It requires the central bank to maintain large foreign exchange reserves"
+    },
+    {
+     "label": "b",
+     "text": "It removes the role of the government"
+    },
+    {
+     "label": "c",
+     "text": "It is determined only by market forces"
+    },
+    {
+     "label": "d",
+     "text": "The exchange rate fluctuates every day"
+    }
+   ],
+   "marks": 1,
+   "explanation": "",
+   "ai_answer": ""
+  },
+  {
+   "number": 29,
+   "section_level": "Medium",
+   "type": "MCQ",
+   "text": "Which of the following is a demerit of the flexible exchange rate system?",
+   "options": [
+    {
+     "label": "a",
+     "text": "It requires large foreign exchange reserves"
+    },
+    {
+     "label": "b",
+     "text": "Frequent fluctuations in the exchange rate create uncertainty in international trade"
+    },
+    {
+     "label": "c",
+     "text": "The government must fix the rate every day"
+    },
+    {
+     "label": "d",
+     "text": "The exchange rate is rigid and cannot change"
+    }
+   ],
+   "marks": 1,
+   "explanation": "",
+   "ai_answer": ""
+  },
+  {
+   "number": 30,
+   "section_level": "Medium",
+   "type": "MCQ",
+   "text": "Under the managed floating system, if the domestic currency is depreciating sharply, the central bank will usually:\n(a) stop all imports (b) sell foreign currency from its reserves\n(c) fix the exchange rate permanently (d) buy foreign currency from the market",
+   "options": [
+    {
+     "label": "a",
+     "text": "stop all imports"
+    },
+    {
+     "label": "b",
+     "text": "sell foreign currency from its reserves"
+    },
+    {
+     "label": "c",
+     "text": "fix the exchange rate permanently"
+    },
+    {
+     "label": "d",
+     "text": "buy foreign currency from the market"
+    }
+   ],
+   "marks": 1,
+   "explanation": "",
+   "ai_answer": ""
+  },
+  {
+   "number": 31,
+   "section_level": "Medium",
+   "type": "MCQ",
+   "text": "Under the managed floating system, to prevent a sharp appreciation of the domestic currency, the central bank will usually:\n(a) ban all exports (b) allow the rate to move freely without any action\n(c) sell foreign currency from its reserves (d) buy foreign currency from the market",
+   "options": [
+    {
+     "label": "a",
+     "text": "ban all exports"
+    },
+    {
+     "label": "b",
+     "text": "allow the rate to move freely without any action"
+    },
+    {
+     "label": "c",
+     "text": "sell foreign currency from its reserves"
+    },
+    {
+     "label": "d",
+     "text": "buy foreign currency from the market"
+    }
+   ],
+   "marks": 1,
+   "explanation": "",
+   "ai_answer": ""
+  },
+  {
+   "number": 32,
+   "section_level": "Medium",
+   "type": "MCQ",
+   "text": "An Indian student paying tuition fees to a university in the UK creates:",
+   "options": [
+    {
+     "label": "a",
+     "text": "supply of foreign exchange"
+    },
+    {
+     "label": "b",
+     "text": "demand for foreign exchange"
+    },
+    {
+     "label": "c",
+     "text": "neither demand for nor supply of foreign exchange"
+    },
+    {
+     "label": "d",
+     "text": "appreciation of the rupee"
+    }
+   ],
+   "marks": 1,
+   "explanation": "",
+   "ai_answer": ""
+  },
+  {
+   "number": 33,
+   "section_level": "Medium",
+   "type": "MCQ",
+   "text": "A US company setting up a factory in India leads to:",
+   "options": [
+    {
+     "label": "a",
+     "text": "demand for foreign exchange in India"
+    },
+    {
+     "label": "b",
+     "text": "devaluation of the rupee"
+    },
+    {
+     "label": "c",
+     "text": "no effect on the foreign exchange market"
+    },
+    {
+     "label": "d",
+     "text": "supply of foreign exchange in India"
+    }
+   ],
+   "marks": 1,
+   "explanation": "",
+   "ai_answer": ""
+  },
+  {
+   "number": 34,
+   "section_level": "Medium",
+   "type": "MCQ",
+   "text": "Money sent home by Indians working in Gulf countries is a source of:",
+   "options": [
+    {
+     "label": "a",
+     "text": "demand for foreign exchange"
+    },
+    {
+     "label": "b",
+     "text": "devaluation of the rupee"
+    },
+    {
+     "label": "c",
+     "text": "import of services"
+    },
+    {
+     "label": "d",
+     "text": "supply of foreign exchange"
+    }
+   ],
+   "marks": 1,
+   "explanation": "",
+   "ai_answer": ""
+  },
+  {
+   "number": 35,
+   "section_level": "Medium",
+   "type": "MCQ",
+   "text": "An Indian company repaying a loan taken from a foreign bank creates:",
+   "options": [
+    {
+     "label": "a",
+     "text": "demand for foreign exchange"
+    },
+    {
+     "label": "b",
+     "text": "no effect on the foreign exchange market"
+    },
+    {
+     "label": "c",
+     "text": "supply of foreign exchange"
+    },
+    {
+     "label": "d",
+     "text": "appreciation of the rupee"
+    }
+   ],
+   "marks": 1,
+   "explanation": "",
+   "ai_answer": ""
+  },
+  {
+   "number": 36,
+   "section_level": "Medium",
+   "type": "MCQ",
+   "text": "For India, ‘foreign exchange’ refers to:",
+   "options": [
+    {
+     "label": "a",
+     "text": "gold reserves of the RBI only"
+    },
+    {
+     "label": "b",
+     "text": "Indian rupees held by foreigners"
+    },
+    {
+     "label": "c",
+     "text": "all currencies other than the Indian rupee"
+    },
+    {
+     "label": "d",
+     "text": "only the US dollar"
+    }
+   ],
+   "marks": 1,
+   "explanation": "",
+   "ai_answer": ""
+  },
+  {
+   "number": 37,
+   "section_level": "Medium",
+   "type": "MCQ",
+   "text": "In a flexible exchange rate system, if India's exports to the USA rise sharply (other things remaining the same), the rupee will:",
+   "options": [
+    {
+     "label": "a",
+     "text": "appreciate"
+    },
+    {
+     "label": "b",
+     "text": "be devalued"
+    },
+    {
+     "label": "c",
+     "text": "remain unchanged"
+    },
+    {
+     "label": "d",
+     "text": "depreciate"
+    }
+   ],
+   "marks": 1,
+   "explanation": "",
+   "ai_answer": ""
+  },
+  {
+   "number": 38,
+   "section_level": "Medium",
+   "type": "MCQ",
+   "text": "In a flexible exchange rate system, if Indians increase their imports of gold (other things remaining the same), the rupee will:",
+   "options": [
+    {
+     "label": "a",
+     "text": "be revalued"
+    },
+    {
+     "label": "b",
+     "text": "remain unchanged"
+    },
+    {
+     "label": "c",
+     "text": "depreciate"
+    },
+    {
+     "label": "d",
+     "text": "appreciate"
+    }
+   ],
+   "marks": 1,
+   "explanation": "",
+   "ai_answer": ""
+  },
+  {
+   "number": 39,
+   "section_level": "Medium",
+   "type": "MCQ",
+   "text": "The managed floating exchange rate system is a mix of:",
+   "options": [
+    {
+     "label": "a",
+     "text": "fixed and flexible exchange rate systems"
+    },
+    {
+     "label": "b",
+     "text": "two different fixed exchange rate systems"
+    },
+    {
+     "label": "c",
+     "text": "fixed exchange rate and barter systems"
+    },
+    {
+     "label": "d",
+     "text": "devaluation and revaluation only"
+    }
+   ],
+   "marks": 1,
+   "explanation": "",
+   "ai_answer": ""
+  },
+  {
+   "number": 40,
+   "section_level": "Medium",
+   "type": "MCQ",
+   "text": "Under the fixed exchange rate system, if there is excess demand for foreign currency at the fixed rate, the central bank will:",
+   "options": [
+    {
+     "label": "a",
+     "text": "sell foreign currency from its reserves to keep the rate unchanged"
+    },
+    {
+     "label": "b",
+     "text": "buy foreign currency to raise the rate"
+    },
+    {
+     "label": "c",
+     "text": "let the rate rise freely"
+    },
+    {
+     "label": "d",
+     "text": "do nothing, as the rate adjusts automatically"
+    }
+   ],
+   "marks": 1,
+   "explanation": "",
+   "ai_answer": ""
+  },
+  {
+   "number": 41,
+   "section_level": "Hard",
+   "type": "MCQ",
+   "text": "In a flexible exchange rate system, the exchange rate changes from ₹80 per $ to ₹88 per $. By what percentage has the price of one dollar in rupees risen?",
+   "options": [
+    {
+     "label": "a",
+     "text": "9.09%"
+    },
+    {
+     "label": "b",
+     "text": "10%"
+    },
+    {
+     "label": "c",
+     "text": "8%"
+    },
+    {
+     "label": "d",
+     "text": "12%"
+    }
+   ],
+   "marks": 1,
+   "explanation": "",
+   "ai_answer": ""
+  },
+  {
+   "number": 42,
+   "section_level": "Hard",
+   "type": "MCQ",
+   "text": "An Indian shirt is priced at ₹2,400. If the exchange rate changes from ₹80 per $ to ₹96 per $, the price of the shirt for a US buyer changes from:",
+   "options": [
+    {
+     "label": "a",
+     "text": "$25 to $30"
+    },
+    {
+     "label": "b",
+     "text": "$30 to $25"
+    },
+    {
+     "label": "c",
+     "text": "$30 to $30 (no change)"
+    },
+    {
+     "label": "d",
+     "text": "$30 to $36"
+    }
+   ],
+   "marks": 1,
+   "explanation": "",
+   "ai_answer": ""
+  },
+  {
+   "number": 43,
+   "section_level": "Hard",
+   "type": "MCQ",
+   "text": "A machine from the USA costs $500. If the exchange rate changes from ₹80 per $ to ₹84 per $, the cost of the machine for an Indian buyer becomes:",
+   "options": [
+    {
+     "label": "a",
+     "text": "₹40,000 (no change)"
+    },
+    {
+     "label": "b",
+     "text": "₹42,000 (up from ₹40,000)"
+    },
+    {
+     "label": "c",
+     "text": "₹38,000 (down from ₹40,000)"
+    },
+    {
+     "label": "d",
+     "text": "₹44,000 (up from ₹40,000)"
+    }
+   ],
+   "marks": 1,
+   "explanation": "",
+   "ai_answer": ""
+  },
+  {
+   "number": 44,
+   "section_level": "Hard",
+   "type": "MCQ",
+   "text": "Assertion (A): When the rupee depreciates, the demand for Indian exports tends to rise.\nReason (R): Depreciation makes Indian goods cheaper for foreign buyers.",
+   "options": [
+    {
+     "label": "a",
+     "text": "Both A and R are true, and R is the correct explanation of A."
+    },
+    {
+     "label": "b",
+     "text": "Both A and R are true, but R is not the correct explanation of A."
+    },
+    {
+     "label": "c",
+     "text": "A is true, but R is false."
+    },
+    {
+     "label": "d",
+     "text": "A is false, but R is true."
+    }
+   ],
+   "marks": 1,
+   "explanation": "",
+   "ai_answer": ""
+  },
+  {
+   "number": 45,
+   "section_level": "Hard",
+   "type": "MCQ",
+   "text": "Assertion (A): Under the flexible exchange rate system, the government needs to maintain huge foreign exchange reserves.\nReason (R): Under the flexible exchange rate system, the exchange rate is determined by market forces.",
+   "options": [
+    {
+     "label": "a",
+     "text": "Both A and R are true, and R is the correct explanation of A."
+    },
+    {
+     "label": "b",
+     "text": "Both A and R are true, but R is not the correct explanation of A."
+    },
+    {
+     "label": "c",
+     "text": "A is true, but R is false."
+    },
+    {
+     "label": "d",
+     "text": "A is false, but R is true."
+    }
+   ],
+   "marks": 1,
+   "explanation": "",
+   "ai_answer": ""
+  },
+  {
+   "number": 46,
+   "section_level": "Hard",
+   "type": "MCQ",
+   "text": "Assertion (A): The supply curve of foreign exchange slopes upward.\nReason (R): A rise in the exchange rate makes imports cheaper for domestic buyers.",
+   "options": [
+    {
+     "label": "a",
+     "text": "Both A and R are true, and R is the correct explanation of A."
+    },
+    {
+     "label": "b",
+     "text": "Both A and R are true, but R is not the correct explanation of A."
+    },
+    {
+     "label": "c",
+     "text": "A is true, but R is false."
+    },
+    {
+     "label": "d",
+     "text": "A is false, but R is true."
+    }
+   ],
+   "marks": 1,
+   "explanation": "",
+   "ai_answer": ""
+  },
+  {
+   "number": 47,
+   "section_level": "Hard",
+   "type": "MCQ",
+   "text": "Consider the statements:\nI. Devaluation takes place under the fixed exchange rate system.\nII. Depreciation is a deliberate decision taken by the government.\nWhich of the statements is/are correct?",
+   "options": [
+    {
+     "label": "a",
+     "text": "Only I"
+    },
+    {
+     "label": "b",
+     "text": "Only II"
+    },
+    {
+     "label": "c",
+     "text": "Both I and II"
+    },
+    {
+     "label": "d",
+     "text": "Neither I nor II"
+    }
+   ],
+   "marks": 1,
+   "explanation": "",
+   "ai_answer": ""
+  },
+  {
+   "number": 48,
+   "section_level": "Hard",
+   "type": "MCQ",
+   "text": "In a flexible exchange rate system, if both the demand for and the supply of foreign exchange increase by the same amount, then:",
+   "options": [
+    {
+     "label": "a",
+     "text": "the exchange rate remains the same, but the quantity of foreign exchange rises"
+    },
+    {
+     "label": "b",
+     "text": "the exchange rate rises, but the quantity remains the same"
+    },
+    {
+     "label": "c",
+     "text": "the exchange rate falls and the quantity falls"
+    },
+    {
+     "label": "d",
+     "text": "both the exchange rate and the quantity remain unchanged"
+    }
+   ],
+   "marks": 1,
+   "explanation": "",
+   "ai_answer": ""
+  },
+  {
+   "number": 49,
+   "section_level": "Hard",
+   "type": "MCQ",
+   "text": "Under managed floating, if the RBI buys US dollars in the foreign exchange market (other things remaining the same), it will:",
+   "options": [
+    {
+     "label": "a",
+     "text": "increase the demand for dollars and tend to depreciate the rupee"
+    },
+    {
+     "label": "b",
+     "text": "decrease the demand for dollars and tend to appreciate the rupee"
+    },
+    {
+     "label": "c",
+     "text": "increase the supply of dollars and tend to appreciate the rupee"
+    },
+    {
+     "label": "d",
+     "text": "have no effect on the exchange rate"
+    }
+   ],
+   "marks": 1,
+   "explanation": "",
+   "ai_answer": ""
+  },
+  {
+   "number": 50,
+   "section_level": "Hard",
+   "type": "MCQ",
+   "text": "In a flexible exchange rate system, which of the following combinations will lead to an appreciation of the rupee?",
+   "options": [
+    {
+     "label": "a",
+     "text": "A rise in Indians travelling abroad and a fall in foreign investment in India"
+    },
+    {
+     "label": "b",
+     "text": "A rise in India's imports and a fall in India's exports"
+    },
+    {
+     "label": "c",
+     "text": "A fall in remittances to India and a rise in imports of gold"
+    },
+    {
+     "label": "d",
+     "text": "A rise in foreign tourists coming to India and a fall in India's imports"
+    }
+   ],
+   "marks": 1,
+   "explanation": "",
+   "ai_answer": ""
+  }
+ ],
+ "answer_key": {
+  "found": true,
+  "table": [
+   {
+    "number": 1,
+    "letter": "(b)",
+    "text": "the price of one unit of a foreign currency in terms of the domestic currency"
+   },
+   {
+    "number": 2,
+    "letter": "(b)",
+    "text": "the market forces of demand for and supply of foreign exchange"
+   },
+   {
+    "number": 3,
+    "letter": "(c)",
+    "text": "the government / central bank"
+   },
+   {
+    "number": 4,
+    "letter": "(a)",
+    "text": "Import of goods and services from abroad"
+   },
+   {
+    "number": 5,
+    "letter": "(b)",
+    "text": "Export of goods and services"
+   },
+   {
+    "number": 6,
+    "letter": "(a)",
+    "text": "depreciation"
+   },
+   {
+    "number": 7,
+    "letter": "(c)",
+    "text": "devaluation"
+   },
+   {
+    "number": 8,
+    "letter": "(c)",
+    "text": "appreciation"
+   },
+   {
+    "number": 9,
+    "letter": "(b)",
+    "text": "downward sloping from left to right"
+   },
+   {
+    "number": 10,
+    "letter": "(a)",
+    "text": "managed floating exchange rate system"
+   },
+   {
+    "number": 11,
+    "letter": "(d)",
+    "text": "depreciated"
+   },
+   {
+    "number": 12,
+    "letter": "(a)",
+    "text": "appreciated"
+   },
+   {
+    "number": 13,
+    "letter": "(d)",
+    "text": "makes domestic goods cheaper for foreigners, so exports increase"
+   },
+   {
+    "number": 14,
+    "letter": "(c)",
+    "text": "makes imports costlier, so the demand for foreign exchange falls"
+   },
+   {
+    "number": 15,
+    "letter": "(b)",
+    "text": "demand for foreign exchange equals supply of foreign exchange"
+   },
+   {
+    "number": 16,
+    "letter": "(c)",
+    "text": "excess supply of foreign exchange, and the rate will fall"
+   },
+   {
+    "number": 17,
+    "letter": "(d)",
+    "text": "excess demand for foreign exchange, and the rate will rise"
+   },
+   {
+    "number": 18,
+    "letter": "(d)",
+    "text": "cheaper for foreigners, so exports increase"
+   },
+   {
+    "number": 19,
+    "letter": "(d)",
+    "text": "costlier in domestic currency, so imports decrease"
+   },
+   {
+    "number": 20,
+    "letter": "(c)",
+    "text": "reduce exports and increase imports"
+   },
+   {
+    "number": 21,
+    "letter": "(c)",
+    "text": "rise, i.e. the domestic currency will depreciate"
+   },
+   {
+    "number": 22,
+    "letter": "(c)",
+    "text": "fall, i.e. the domestic currency will appreciate"
+   },
+   {
+    "number": 23,
+    "letter": "(c)",
+    "text": "Rise in domestic residents' preference for foreign goods"
+   },
+   {
+    "number": 24,
+    "letter": "(b)",
+    "text": "Increase in foreign investment in India"
+   },
+   {
+    "number": 25,
+    "letter": "(b)",
+    "text": "revaluation"
+   },
+   {
+    "number": 26,
+    "letter": "(d)",
+    "text": "The government need not maintain large foreign exchange reserves"
+   },
+   {
+    "number": 27,
+    "letter": "(d)",
+    "text": "It brings stability in the exchange rate, which encourages international trade"
+   },
+   {
+    "number": 28,
+    "letter": "(a)",
+    "text": "It requires the central bank to maintain large foreign exchange reserves"
+   },
+   {
+    "number": 29,
+    "letter": "(b)",
+    "text": "Frequent fluctuations in the exchange rate create uncertainty in international trade"
+   },
+   {
+    "number": 30,
+    "letter": "(b)",
+    "text": "sell foreign currency from its reserves"
+   },
+   {
+    "number": 31,
+    "letter": "(d)",
+    "text": "buy foreign currency from the market"
+   },
+   {
+    "number": 32,
+    "letter": "(b)",
+    "text": "demand for foreign exchange"
+   },
+   {
+    "number": 33,
+    "letter": "(d)",
+    "text": "supply of foreign exchange in India"
+   },
+   {
+    "number": 34,
+    "letter": "(d)",
+    "text": "supply of foreign exchange"
+   },
+   {
+    "number": 35,
+    "letter": "(a)",
+    "text": "demand for foreign exchange"
+   },
+   {
+    "number": 36,
+    "letter": "(c)",
+    "text": "all currencies other than the Indian rupee"
+   },
+   {
+    "number": 37,
+    "letter": "(a)",
+    "text": "appreciate"
+   },
+   {
+    "number": 38,
+    "letter": "(c)",
+    "text": "depreciate"
+   },
+   {
+    "number": 39,
+    "letter": "(a)",
+    "text": "fixed and flexible exchange rate systems"
+   },
+   {
+    "number": 40,
+    "letter": "(a)",
+    "text": "sell foreign currency from its reserves to keep the rate unchanged"
+   },
+   {
+    "number": 41,
+    "letter": "(b)",
+    "text": "10%"
+   },
+   {
+    "number": 42,
+    "letter": "(b)",
+    "text": "$30 to $25"
+   },
+   {
+    "number": 43,
+    "letter": "(b)",
+    "text": "₹42,000 (up from ₹40,000)"
+   },
+   {
+    "number": 44,
+    "letter": "(a)",
+    "text": "Both A and R are true, and R is the correct explanation of A"
+   },
+   {
+    "number": 45,
+    "letter": "(d)",
+    "text": "A is false, but R is true"
+   },
+   {
+    "number": 46,
+    "letter": "(c)",
+    "text": "A is true, but R is false"
+   },
+   {
+    "number": 47,
+    "letter": "(a)",
+    "text": "Only I"
+   },
+   {
+    "number": 48,
+    "letter": "(a)",
+    "text": "the exchange rate remains the same, but the quantity of foreign exchange rises"
+   },
+   {
+    "number": 49,
+    "letter": "(a)",
+    "text": "increase the demand for dollars and tend to depreciate the rupee"
+   },
+   {
+    "number": 50,
+    "letter": "(d)",
+    "text": "A rise in foreign tourists coming to India and a fall in India's imports"
+   }
+  ],
+  "list": [
+   {
+    "number": 1,
+    "letter": "b",
+    "text": ""
+   },
+   {
+    "number": 2,
+    "letter": "b",
+    "text": ""
+   },
+   {
+    "number": 3,
+    "letter": "c",
+    "text": ""
+   },
+   {
+    "number": 4,
+    "letter": "a",
+    "text": ""
+   },
+   {
+    "number": 5,
+    "letter": "b",
+    "text": ""
+   },
+   {
+    "number": 6,
+    "letter": "a",
+    "text": ""
+   },
+   {
+    "number": 7,
+    "letter": "c",
+    "text": ""
+   },
+   {
+    "number": 8,
+    "letter": "c",
+    "text": ""
+   },
+   {
+    "number": 9,
+    "letter": "b",
+    "text": ""
+   },
+   {
+    "number": 10,
+    "letter": "a",
+    "text": ""
+   },
+   {
+    "number": 11,
+    "letter": "d",
+    "text": ""
+   },
+   {
+    "number": 12,
+    "letter": "a",
+    "text": ""
+   },
+   {
+    "number": 13,
+    "letter": "d",
+    "text": ""
+   },
+   {
+    "number": 14,
+    "letter": "c",
+    "text": ""
+   },
+   {
+    "number": 15,
+    "letter": "b",
+    "text": ""
+   },
+   {
+    "number": 16,
+    "letter": "c",
+    "text": ""
+   },
+   {
+    "number": 17,
+    "letter": "d",
+    "text": ""
+   },
+   {
+    "number": 18,
+    "letter": "d",
+    "text": ""
+   },
+   {
+    "number": 19,
+    "letter": "d",
+    "text": ""
+   },
+   {
+    "number": 20,
+    "letter": "c",
+    "text": ""
+   },
+   {
+    "number": 21,
+    "letter": "c",
+    "text": ""
+   },
+   {
+    "number": 22,
+    "letter": "c",
+    "text": ""
+   },
+   {
+    "number": 23,
+    "letter": "c",
+    "text": ""
+   },
+   {
+    "number": 24,
+    "letter": "b",
+    "text": ""
+   },
+   {
+    "number": 25,
+    "letter": "b",
+    "text": ""
+   },
+   {
+    "number": 26,
+    "letter": "d",
+    "text": ""
+   },
+   {
+    "number": 27,
+    "letter": "d",
+    "text": ""
+   },
+   {
+    "number": 28,
+    "letter": "a",
+    "text": ""
+   },
+   {
+    "number": 29,
+    "letter": "b",
+    "text": ""
+   },
+   {
+    "number": 30,
+    "letter": "b",
+    "text": ""
+   },
+   {
+    "number": 31,
+    "letter": "d",
+    "text": ""
+   },
+   {
+    "number": 32,
+    "letter": "b",
+    "text": ""
+   },
+   {
+    "number": 33,
+    "letter": "d",
+    "text": ""
+   },
+   {
+    "number": 34,
+    "letter": "d",
+    "text": ""
+   },
+   {
+    "number": 35,
+    "letter": "a",
+    "text": ""
+   },
+   {
+    "number": 36,
+    "letter": "c",
+    "text": ""
+   },
+   {
+    "number": 37,
+    "letter": "a",
+    "text": ""
+   },
+   {
+    "number": 38,
+    "letter": "c",
+    "text": ""
+   },
+   {
+    "number": 39,
+    "letter": "a",
+    "text": ""
+   },
+   {
+    "number": 40,
+    "letter": "a",
+    "text": ""
+   },
+   {
+    "number": 41,
+    "letter": "b",
+    "text": ""
+   },
+   {
+    "number": 42,
+    "letter": "b",
+    "text": ""
+   },
+   {
+    "number": 43,
+    "letter": "b",
+    "text": ""
+   },
+   {
+    "number": 44,
+    "letter": "a",
+    "text": ""
+   },
+   {
+    "number": 45,
+    "letter": "d",
+    "text": ""
+   },
+   {
+    "number": 46,
+    "letter": "c",
+    "text": ""
+   },
+   {
+    "number": 47,
+    "letter": "a",
+    "text": ""
+   },
+   {
+    "number": 48,
+    "letter": "a",
+    "text": ""
+   },
+   {
+    "number": 49,
+    "letter": "a",
+    "text": ""
+   },
+   {
+    "number": 50,
+    "letter": "d",
+    "text": ""
+   }
+  ]
+ }
+}

@@ -59,14 +59,14 @@ def _uuid_or_404(value: str, what: str) -> None:
         raise HTTPException(status_code=404, detail=f"{what} not found.")
 
 
-def _download_own(c: _Caller, path: str, prefix: str) -> str:
-    """Download a file from the private bucket — only from the caller's own folder."""
+def _download_own(c: _Caller, path: str, prefix: str, bucket: str = BUCKET) -> str:
+    """Download a file from a private bucket — only from the caller's own folder."""
     if not path or not path.startswith(f"{c.user.id}/") or ".." in path.split("/"):
         raise HTTPException(status_code=400, detail="Invalid file path.")
     ext = os.path.splitext(path)[1].lower()
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(status_code=400, detail=f"Unsupported file type '{ext}'.")
-    data = with_retry(lambda: get_supabase_admin().storage.from_(BUCKET).download(path))
+    data = with_retry(lambda: get_supabase_admin().storage.from_(bucket).download(path))
     if len(data) > MAX_FILE_SIZE:
         raise HTTPException(status_code=413, detail="File too large. Max 20 MB.")
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=ext, prefix=prefix)
