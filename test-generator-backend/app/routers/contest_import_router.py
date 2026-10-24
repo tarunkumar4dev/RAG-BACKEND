@@ -9,9 +9,15 @@ Contest import — "PDF → contest questions" (teacher reviews them, then the f
 The work runs as a background task of the same Vercel invocation (vercel_runtime sends its "end" only after the
 ASGI app returns, and Starlette runs background tasks after the response body is sent), inside WORK_BUDGET_S of
 the 300 s limit. If the invocation dies anyway, the row stays 'processing' and GET reports it failed (retryable)
-after STALE_AFTER_S. The uploaded PDF is deleted from Storage when the job ends, success or failure.
-POST with a path that already has a job (unique owner + path) returns that job_id — no second job, no second
-charge on the daily limit.
+after STALE_AFTER_S.
+
+One row per uploaded file (unique owner + path). POST with a path that already has a job:
+  queued / processing / done, or failed with retryable=false  → that job_id, nothing runs again
+  failed with retryable=true (AI busy, too slow, stopped)     → the same row is reset (queued, attempts + 1) and
+                                                                runs again; same job_id
+The uploaded PDF is deleted when a run ends done or failed with retryable=false; a retryable failure keeps it so
+the retry can read it. Best effort, after each new job: the caller's own {uid}/contest-imports/ files older than
+24 h are deleted (left behind by retryable failures nobody retried, or killed invocations).
 
 Rows: contest_import_jobs (24_contest_import.sql), written with the service key, always filtered by owner.
 """
@@ -49,6 +55,8 @@ MISSING_MSG = "The uploaded PDF was not found. Please upload it again."
 UNREADABLE_MSG = "Could not read the questions in this PDF. Check that it is a clear question paper and try again."
 FAILED_MSG = "Import failed. Please try again."
 SLOW_MSG = "The AI took too long to read this paper. Please try again in a few minutes."
+OLD_UPLOAD_S = 24 * 3600
+CLEANUP_UNTIL_S = 285       # skip the old-upload cleanup when the invocation is this close to Vercel's 300 s
 
 _PATH_RE = re.compile(r"^(?P<uid>[0-9a-f-]{36})/contest-imports/[0-9a-f-]{36}\.pdf$")
 
@@ -71,8 +79,18 @@ def _imports_today(uid: str) -> int:
 
 
 def _job_for_path(uid: str, path: str):
-    r = with_retry(lambda: _table().select("id").eq("owner", uid).eq("path", path).limit(1).execute())
-    return str(r.data[0]["id"]) if r.data else None
+    r = with_retry(lambda: _table().select("id, status, retryable, attempts").eq("owner", uid).eq("path", path)
+                   .limit(1).execute())
+    return r.data[0] if r.data else None
+
+
+def _reset_for_retry(job: dict) -> bool:
+    """failed + retryable → queued again. Conditional, so two parallel re-POSTs start one run, not two."""
+    r = with_retry(lambda: _table().update({
+        "status": "queued", "progress": 0, "error": None, "retryable": False, "result": None,
+        "attempts": (job.get("attempts") or 1) + 1,
+    }).eq("id", job["id"]).eq("status", "failed").eq("retryable", True).execute())
+    return bool(r.data)
 
 
 def _set(job_id: str, **fields) -> None:
@@ -89,11 +107,35 @@ def _delete_upload(path: str) -> None:
         logger.warning(f"[import] could not delete the uploaded PDF: {type(e).__name__}")
 
 
+def _delete_old_uploads(uid: str, keep: str, started: float) -> None:
+    """Best effort: the caller's own {uid}/contest-imports/*.pdf older than OLD_UPLOAD_S. Never another prefix."""
+    if time.monotonic() - started > CLEANUP_UNTIL_S:
+        return
+    folder = f"{uid}/contest-imports"
+    try:
+        items = with_retry(lambda: get_supabase_admin().storage.from_(BUCKET).list(folder, {"limit": 1000})) or []
+        cutoff = datetime.now(timezone.utc) - timedelta(seconds=OLD_UPLOAD_S)
+        old = []
+        for o in items:
+            path = f"{folder}/{o.get('name')}"
+            created = o.get("created_at")
+            if not created or path == keep or not _valid_path(uid, path):
+                continue
+            if datetime.fromisoformat(str(created).replace("Z", "+00:00")) < cutoff:
+                old.append(path)
+        if old:
+            with_retry(lambda: get_supabase_admin().storage.from_(BUCKET).remove(old))
+            logger.info(f"[import] deleted {len(old)} old upload(s) of one user")
+    except Exception as e:
+        logger.warning(f"[import] old-upload cleanup skipped: {type(e).__name__}")
+
+
 def run_import_job(job_id: str, owner: str, path: str) -> None:
     """The whole job; never raises (the row says what happened)."""
     start = time.monotonic()
     deadline = start + WORK_BUDGET_S
     local = None
+    final = False           # done, or failed with retryable=false: the upload is no longer needed
     _set(job_id, status="processing", progress=5)
     try:
         try:
@@ -107,10 +149,12 @@ def run_import_job(job_id: str, owner: str, path: str) -> None:
         _set(job_id, progress=10)
         result = importer.import_paper(local, pages, deadline, progress=lambda p: _set(job_id, progress=p))
         _set(job_id, status="done", progress=100, result=result, error=None, retryable=False)
+        final = True
         logger.info(f"[import] {job_id}: done in {time.monotonic() - start:.1f}s, "
                     f"{len(result['questions'])} questions, {len(result['warnings'])} warnings")
     except importer.ImportRejected as e:
         _set(job_id, status="failed", error=str(e), retryable=False)
+        final = True
     except GeminiBusy as e:
         logger.warning(f"[import] {job_id}: Gemini busy ({e.code})")
         _set(job_id, status="failed", error=BUSY_MSG, retryable=True)
@@ -126,7 +170,8 @@ def run_import_job(job_id: str, owner: str, path: str) -> None:
             _set(job_id, status="failed", error=FAILED_MSG, retryable=True)
     finally:
         _cleanup(local)
-        _delete_upload(path)
+        if final:
+            _delete_upload(path)
 
 
 @router.post("", status_code=202)
@@ -134,20 +179,29 @@ async def start_import(body: ImportRequest, background: BackgroundTasks, c: _Cal
     uid = str(c.user.id)
     if not _valid_path(uid, body.path):
         raise HTTPException(status_code=400, detail="Invalid file path. Upload the PDF to <your id>/contest-imports/.")
+    started = time.monotonic()
     existing = await run_in_threadpool(_job_for_path, uid, body.path)
-    if existing:
-        return {"job_id": existing}
+    if existing and not (existing["status"] == "failed" and existing.get("retryable")):
+        return {"job_id": str(existing["id"])}
     if await run_in_threadpool(_imports_today, uid) >= DAILY_LIMIT:
         raise HTTPException(status_code=429, detail=f"You can import {DAILY_LIMIT} papers a day. Try again tomorrow.")
+    if existing:
+        job_id = str(existing["id"])
+        if await run_in_threadpool(_reset_for_retry, existing):
+            background.add_task(run_import_job, job_id, uid, body.path)
+            logger.info(f"[import] {job_id}: retry {(existing.get('attempts') or 1) + 1} queued")
+        return {"job_id": job_id}            # not reset = a parallel re-POST already restarted it
     try:
         r = await run_in_threadpool(lambda: with_retry(lambda: _table().insert(
             {"owner": uid, "path": body.path, "status": "queued", "progress": 0}).execute()))
     except Exception as e:
         if "23505" not in str(e):           # not the unique (owner, path) index: a real error
             raise
-        return {"job_id": await run_in_threadpool(_job_for_path, uid, body.path)}   # a parallel POST won the race
+        winner = await run_in_threadpool(_job_for_path, uid, body.path)    # a parallel POST won the race
+        return {"job_id": str(winner["id"])}
     job_id = str(r.data[0]["id"])
     background.add_task(run_import_job, job_id, uid, body.path)
+    background.add_task(_delete_old_uploads, uid, body.path, started)
     logger.info(f"[import] {job_id}: queued")
     return {"job_id": job_id}
 
