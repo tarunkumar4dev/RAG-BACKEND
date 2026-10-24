@@ -11,6 +11,7 @@
 # ──────────────────────────────────────────────────────────
 
 import logging
+from datetime import timezone
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Depends, Request
 from fastapi.responses import JSONResponse
@@ -33,6 +34,15 @@ from app.services import contest_service
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/contests", tags=["Contests"])
+
+
+def _not_started(e: contest_service.ContestNotStarted) -> JSONResponse:
+    """403 before contests.scheduled_at; `detail` too, for frontends that only show `detail`."""
+    return JSONResponse(status_code=403, content={
+        "code": "CONTEST_NOT_STARTED",
+        "scheduled_at": e.scheduled_at.astimezone(timezone.utc).isoformat(),
+        "detail": "This contest has not started yet.",
+    })
 
 
 # ═══════════════════════════════════════════════════════════
@@ -123,6 +133,8 @@ async def get_contest_info(short_code: str):
 
         return info
 
+    except contest_service.ContestNotStarted as e:
+        return _not_started(e)
     except HTTPException:
         raise
     except Exception as e:
@@ -158,6 +170,8 @@ async def start_contest_attempt(
 
         return result
 
+    except contest_service.ContestNotStarted as e:
+        return _not_started(e)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except HTTPException:

@@ -54,6 +54,25 @@ def _generate_short_code(length: int = 8) -> str:
     return ''.join(random.choices(chars, k=length))
 
 
+class ContestNotStarted(Exception):
+    """now < contests.scheduled_at: /info and /start answer 403 CONTEST_NOT_STARTED with the start time."""
+
+    def __init__(self, scheduled_at: datetime):
+        super().__init__("This contest has not started yet")
+        self.scheduled_at = scheduled_at
+
+
+def _check_started(row: dict) -> None:
+    """Raise ContestNotStarted while the contest's scheduled_at is in the future (NULL = open now)."""
+    if not row.get("scheduled_at"):
+        return
+    starts = datetime.fromisoformat(str(row["scheduled_at"]).replace("Z", "+00:00"))
+    if starts.tzinfo is None:
+        starts = starts.replace(tzinfo=timezone.utc)
+    if datetime.now(timezone.utc) < starts:
+        raise ContestNotStarted(starts)
+
+
 # ── scoring helpers ────────────────────────────────────────
 
 def _canon(s) -> str:
@@ -290,6 +309,7 @@ def get_contest_info(short_code: str) -> Optional[ContestInfoResponse]:
         return None
 
     row = result.data[0]
+    _check_started(row)
 
     if row.get("expires_at"):
         expires = datetime.fromisoformat(row["expires_at"].replace("Z", "+00:00"))
@@ -335,6 +355,7 @@ def start_attempt(
         return None
 
     contest = contest_result.data[0]
+    _check_started(contest)
 
     if student_id:
         attempts_result = db.table("contest_attempts").select(
