@@ -355,11 +355,11 @@ def test_leaderboard_finalizes_stale_and_shows_server_time(env):
     assert by_id[a2]["status"] == "auto_submitted" and by_id[a2]["submitted_via"] == "auto_timeout"
 
 
-def test_refresh_of_a_stale_attempt_gives_409_not_a_new_attempt(env):
+def test_refresh_of_a_stale_attempt_finalizes_it_then_grants_the_technical_retry(env):
     att = start(env).json()["attempt_id"]
     later(env, minutes=63)
-    r = start(env, att)
-    assert r.status_code == 409 and r.json()["attempt_id"] == att
+    r = start(env, att).json()
+    assert r["attempt_id"] != att and r["retry_of"] == att and r["resumed"] is False
     assert env.db.attempt(att)["submitted_via"] == "auto_timeout"
 
 

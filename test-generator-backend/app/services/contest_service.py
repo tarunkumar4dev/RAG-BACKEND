@@ -348,6 +348,10 @@ def get_contest_info(short_code: str) -> Optional[ContestInfoResponse]:
 #   /submit    idempotent: a submitted attempt returns its stored result; late = after deadline + grace
 #   stale      unsubmitted past deadline + grace → finalized from saved progress ('auto_timeout'), lazily when
 #              /start, /submit, /progress or /leaderboard touches the contest (no cron)
+#   retry      (26) beyond max_attempts, /start grants ONE more attempt (2 in all) when every earlier attempt of the
+#              student ended auto_timeout and contests.allow_technical_retry; or once after an attempt the teacher
+#              marked (allow-retry). The new row has retry_of; leaderboard shows the latest submitted per chain.
+#   release    (26) answer_mode 'teacher_release': no score / answers (results_pending) until results_published_at
 # Old clients (no X-Attempt-Id on /start, never call /progress) get exactly the old behaviour plus extra fields.
 # ═══════════════════════════════════════════════════════════
 
@@ -370,6 +374,17 @@ class AlreadySubmitted(Exception):
 
 class AttemptForbidden(Exception):
     """A logged-in caller writing to another student's attempt."""
+
+
+class NotTeacher(Exception):
+    """Teacher-only contest route called by someone else (or on a contest created without a login)."""
+
+
+class AttemptRunning(Exception):
+    """allow-retry on an attempt that is still running."""
+
+
+MAX_WITH_TECHNICAL_RETRY = 2
 
 
 def _ts(v) -> Optional[datetime]:
@@ -430,10 +445,16 @@ def _answered(answers) -> int:
                and (a.get("selected") or a.get("selectedOption") or a.get("textAnswer")))
 
 
+def _results_pending(contest: dict) -> bool:
+    return contest.get("answer_mode") == "teacher_release" and not contest.get("results_published_at")
+
+
 def _result_response(attempt: dict, contest: dict, questions: list) -> SubmitContestResponse:
-    """The submit response from what is STORED for a finished attempt (same body every time it is asked)."""
+    """The submit response from what is STORED for a finished attempt (same body every time it is asked).
+    teacher_release before results_published_at: no score, percentage or answers (results_pending=true)."""
+    pending = _results_pending(contest)
     questions_with_answers = None
-    if contest["answer_mode"] == "after_test":
+    if not pending and contest["answer_mode"] in ("after_test", "teacher_release"):
         questions_with_answers = [
             ContestQuestionWithAnswer(
                 id=q["id"],
@@ -453,9 +474,9 @@ def _result_response(attempt: dict, contest: dict, questions: list) -> SubmitCon
     return SubmitContestResponse(
         attempt_id=str(attempt["id"]),
         status=attempt["status"],
-        score=attempt.get("score"),
+        score=None if pending else attempt.get("score"),
         total_marks=attempt.get("total_marks") or 0,
-        percentage=float(percentage) if percentage is not None else None,
+        percentage=None if pending or percentage is None else float(percentage),
         answered_count=_answered(attempt.get("answers")),
         total_questions=len(questions),
         questions_with_answers=questions_with_answers,
@@ -463,6 +484,9 @@ def _result_response(attempt: dict, contest: dict, questions: list) -> SubmitCon
         submitted_via=attempt.get("submitted_via"),
         late=bool(attempt.get("late")),
         time_taken_seconds=attempt.get("time_taken_seconds"),
+        retry_of=str(attempt["retry_of"]) if attempt.get("retry_of") else None,
+        retry=bool(attempt.get("retry_of")),
+        results_pending=pending,
     )
 
 
@@ -584,6 +608,7 @@ def _contest_data(contest: dict, attempt: dict, questions: list, resumed: bool) 
         server_now=_now(),
         resumed=resumed,
         progress=_progress_view(attempt) if resumed else None,
+        retry_of=str(attempt["retry_of"]) if attempt.get("retry_of") else None,
     )
 
 
@@ -593,6 +618,45 @@ def _is_uuid(v) -> bool:
         return True
     except (ValueError, TypeError):
         return False
+
+
+def _latest_of_chain(db, attempt: dict) -> dict:
+    """An anonymous browser may send an older attempt id: follow retries down to the newest attempt."""
+    for _ in range(5):
+        child = db.table("contest_attempts").select("*").eq("retry_of", attempt["id"]).execute().data
+        if not child:
+            break
+        attempt = child[0]
+    return attempt
+
+
+def _chain(db, attempt: dict) -> list:
+    """attempt + the attempts it retries (an anonymous student's history)."""
+    out = [attempt]
+    while out[-1].get("retry_of") and len(out) < 10:
+        rows = db.table("contest_attempts").select("*").eq("id", out[-1]["retry_of"]).execute().data
+        if not rows:
+            break
+        out.append(rows[0])
+    return out
+
+
+def _retry_grant(contest: dict, history: list) -> Optional[str]:
+    """Attempt id a new attempt may retry, else None.
+    Teacher override: an attempt the teacher allowed that has not been retried yet (no attempt limit).
+    Technical: allow_technical_retry, fewer than MAX_WITH_TECHNICAL_RETRY attempts, and EVERY earlier attempt
+    ended auto_timeout (never after manual / auto_warnings / an old backend's submit)."""
+    if not history:
+        return None
+    used = {str(r["retry_of"]) for r in history if r.get("retry_of")}
+    latest = max(history, key=lambda r: str(r.get("started_at") or ""))
+    for r in sorted(history, key=lambda r: str(r.get("started_at") or ""), reverse=True):
+        if r.get("retry_allowed_at") and str(r["id"]) not in used:
+            return str(r["id"])
+    if contest.get("allow_technical_retry", True) and len(history) < MAX_WITH_TECHNICAL_RETRY \
+            and all(r.get("submitted_via") == "auto_timeout" for r in history):
+        return str(latest["id"])
+    return None
 
 
 # ═══════════════════════════════════════════════════════════
@@ -628,7 +692,7 @@ def start_attempt(
         rows = db.table("contest_attempts").select("*").eq("id", resume_attempt_id) \
             .eq("contest_id", contest["id"]).execute().data
         if rows and not (rows[0].get("student_id") and student_id and str(rows[0]["student_id"]) != str(student_id)):
-            mine = rows[0]
+            mine = _latest_of_chain(db, rows[0])
     if mine is None and student_id:
         rows = db.table("contest_attempts").select("*").eq("contest_id", contest["id"]) \
             .eq("student_id", student_id).eq("status", "in_progress").execute().data
@@ -642,29 +706,38 @@ def start_attempt(
             logger.info(f"Contest {contest['id']} attempt {mine['id']} resumed")
             return _contest_data(contest, mine, questions, resumed=True)
         _finalize_from_progress(db, mine, contest, questions, "auto_timeout")
-        mine = {**mine, "status": "auto_submitted"}
+        mine = {**mine, "status": "auto_submitted", "submitted_via": "auto_timeout"}
 
     max_attempts = contest["max_attempts"]
+    retry_of = None
+    history = None
     if student_id:
-        attempts_result = db.table("contest_attempts").select(
-            "id", count="exact"
-        ).eq("contest_id", contest["id"]).eq("student_id", student_id).execute()
-
-        attempt_count = attempts_result.count or 0
-        if attempt_count >= max_attempts:
-            done = (mine or {}).get("id") or (attempts_result.data[0]["id"] if attempts_result.data else None)
-            raise AlreadySubmitted(str(done), f"Maximum attempts ({max_attempts}) reached")
+        history = db.table("contest_attempts").select("*").eq("contest_id", contest["id"]) \
+            .eq("student_id", student_id).execute().data or []
     elif mine is not None and max_attempts <= 1:
-        # anonymous: only this browser's own attempt can be counted
-        raise AlreadySubmitted(str(mine["id"]), f"Maximum attempts ({max_attempts}) reached")
+        history = _chain(db, mine)          # anonymous: only this browser's own attempts can be counted
+    if history is not None and len(history) >= max_attempts:
+        for i, r in enumerate(history):     # an unsubmitted attempt past deadline + grace counts as auto_timeout
+            if _stale(r, contest):
+                questions = questions or _load_questions(db, contest["id"])
+                _finalize_from_progress(db, r, contest, questions, "auto_timeout")
+                history[i] = {**r, "status": "auto_submitted", "submitted_via": "auto_timeout"}
+        retry_of = _retry_grant(contest, history)
+        if retry_of is None:
+            done = (mine or {}).get("id") or max(history, key=lambda r: str(r.get("started_at") or ""))["id"]
+            raise AlreadySubmitted(str(done), f"Maximum attempts ({max_attempts}) reached")
+        logger.info(f"Contest {contest['id']}: retry of attempt {retry_of} granted")
 
+    previous = next((r for r in history or [] if str(r["id"]) == retry_of), {}) if retry_of else {}
     attempt_data = {
         "contest_id": contest["id"],
         "student_id": student_id,
-        "student_name": request.student_name,
-        "student_email": request.student_email,
+        "student_name": request.student_name or previous.get("student_name"),
+        "student_email": request.student_email or previous.get("student_email"),
         "status": "in_progress",
     }
+    if retry_of:
+        attempt_data["retry_of"] = retry_of
 
     attempt_result = db.table("contest_attempts").insert(attempt_data).execute()
 
@@ -791,11 +864,13 @@ def get_leaderboard(
 
     contest = contest_result.data[0]
     sweep_stale(db, contest, force=True)
+    # teacher_release before publishing: scores only for the contest's own teacher
+    hide = _results_pending(contest) and not (teacher_id and str(contest.get("teacher_id")) == str(teacher_id))
 
     attempts_result = db.table("contest_attempts").select(
         "id, student_name, student_email, status, score, "
         "total_marks, percentage, time_taken_seconds, "
-        "warning_count, submitted_at, submitted_via, late"
+        "warning_count, submitted_at, submitted_via, late, started_at, retry_of"
     ).eq("contest_id", contest_id).order(
         "percentage", desc=True
     ).execute()
@@ -806,16 +881,18 @@ def get_leaderboard(
             student_name=a.get("student_name"),
             student_email=a.get("student_email"),
             status=a["status"],
-            score=a.get("score"),
+            score=None if hide else a.get("score"),
             total_marks=a.get("total_marks") or 0,
-            percentage=float(a["percentage"]) if a.get("percentage") else None,
+            percentage=None if hide or not a.get("percentage") else float(a["percentage"]),
             time_taken_seconds=a.get("time_taken_seconds"),
             warning_count=a.get("warning_count") or 0,
             submitted_at=a.get("submitted_at"),
             submitted_via=a.get("submitted_via"),
             late=bool(a.get("late")),
+            retry=bool(a.get("retry_of")),
+            retry_of=str(a["retry_of"]) if a.get("retry_of") else None,
         )
-        for a in attempts_result.data
+        for a in _latest_per_chain(attempts_result.data)
     ]
 
     return ContestLeaderboardResponse(
@@ -823,7 +900,120 @@ def get_leaderboard(
         title=contest["title"],
         total_attempts=len(attempt_list),
         attempts=attempt_list,
+        results_pending=hide,
     )
+
+
+def _latest_per_chain(rows: list) -> list:
+    """One row per retry chain (attempts linked by retry_of): its latest SUBMITTED attempt, else its latest one.
+    Attempts that are not retries of each other (max_attempts > 1) stay separate rows, as before. Keeps order."""
+    by_id = {str(r["id"]): r for r in rows}
+
+    def root(r):
+        seen = set()
+        while r.get("retry_of") and str(r["retry_of"]) in by_id and str(r["id"]) not in seen:
+            seen.add(str(r["id"]))
+            r = by_id[str(r["retry_of"])]
+        return str(r["id"])
+
+    groups: dict = {}
+    for r in rows:
+        groups.setdefault(root(r), []).append(r)
+    keep = set()
+    for members in groups.values():
+        done = [m for m in members if m.get("status") != "in_progress"]
+        pick = max(done or members, key=lambda m: str(m.get("started_at") or ""))
+        keep.add(str(pick["id"]))
+    return [r for r in rows if str(r["id"]) in keep]
+
+
+# ═══════════════════════════════════════════════════════════
+# TEACHER: attempts, allow-retry, publish results
+# ═══════════════════════════════════════════════════════════
+
+def _teacher_contest(db, contest_id: str, user_id: Optional[str]) -> Optional[dict]:
+    if not _is_uuid(contest_id):
+        return None
+    rows = db.table("contests").select("*").eq("id", contest_id).execute().data
+    if not rows:
+        return None
+    if not user_id or str(rows[0].get("teacher_id")) != str(user_id):
+        raise NotTeacher()
+    return rows[0]
+
+
+def list_attempts(contest_id: str, user_id: Optional[str]) -> Optional[dict]:
+    """Every attempt of the contest (teacher view; scores shown even before results are published)."""
+    db = get_supabase_admin()
+    contest = _teacher_contest(db, contest_id, user_id)
+    if contest is None:
+        return None
+    sweep_stale(db, contest, force=True)
+    rows = db.table("contest_attempts").select("*").eq("contest_id", contest_id).order("started_at").execute().data
+    used = {str(r["retry_of"]) for r in rows if r.get("retry_of")}
+    return {
+        "contest_id": contest_id,
+        "results_published_at": _iso_z(contest.get("results_published_at")),
+        "attempts": [{
+            "attempt_id": str(r["id"]),
+            "student_name": r.get("student_name"),
+            "student_email": r.get("student_email"),
+            "status": r.get("status"),
+            "submitted_via": r.get("submitted_via"),
+            "late": bool(r.get("late")),
+            "warning_count": r.get("warning_count") or 0,
+            "score": r.get("score"),
+            "total_marks": r.get("total_marks"),
+            "percentage": float(r["percentage"]) if r.get("percentage") is not None else None,
+            "time_taken_seconds": r.get("time_taken_seconds"),
+            "started_at": _iso_z(r.get("started_at")),
+            "submitted_at": _iso_z(r.get("submitted_at")),
+            "retry_of": str(r["retry_of"]) if r.get("retry_of") else None,
+            "retry_allowed_at": _iso_z(r.get("retry_allowed_at")),
+            "retry_used": str(r["id"]) in used,
+        } for r in rows],
+    }
+
+
+def allow_retry(contest_id: str, attempt_id: str, user_id: Optional[str]) -> Optional[dict]:
+    """Teacher override: the student may start one more attempt after this one, whatever ended it.
+    Idempotent (the first who/when is kept). None = contest or attempt not found."""
+    db = get_supabase_admin()
+    contest = _teacher_contest(db, contest_id, user_id)
+    if contest is None or not _is_uuid(attempt_id):
+        return None
+    rows = db.table("contest_attempts").select("*").eq("id", attempt_id).eq("contest_id", contest_id).execute().data
+    if not rows:
+        return None
+    attempt = rows[0]
+    if attempt["status"] == "in_progress":
+        if not _stale(attempt, contest):
+            raise AttemptRunning()
+        _finalize_from_progress(db, attempt, contest, _load_questions(db, contest_id), "auto_timeout")
+    if not attempt.get("retry_allowed_at"):
+        attempt["retry_allowed_at"], attempt["retry_allowed_by"] = _now().isoformat(), str(user_id)
+        db.table("contest_attempts").update({"retry_allowed_at": attempt["retry_allowed_at"],
+                                             "retry_allowed_by": attempt["retry_allowed_by"]}) \
+            .eq("id", attempt_id).execute()
+        logger.info(f"Contest {contest_id}: teacher allowed a retry after attempt {attempt_id}")
+    used = bool(db.table("contest_attempts").select("id").eq("retry_of", attempt_id).execute().data)
+    return {"attempt_id": attempt_id, "retry_allowed": True, "retry_allowed_at": _iso_z(attempt["retry_allowed_at"]),
+            "retry_allowed_by": str(attempt["retry_allowed_by"]), "retry_used": used}
+
+
+def publish_results(contest_id: str, user_id: Optional[str]) -> Optional[dict]:
+    """Sets results_published_at (once; publishing again keeps the first time)."""
+    db = get_supabase_admin()
+    contest = _teacher_contest(db, contest_id, user_id)
+    if contest is None:
+        return None
+    published = contest.get("results_published_at")
+    if not published:
+        published = _now().isoformat()
+        db.table("contests").update({"results_published_at": published}).eq("id", contest_id).execute()
+        logger.info(f"Contest {contest_id}: results published")
+    return {"contest_id": contest_id, "answer_mode": contest.get("answer_mode"),
+            "results_published_at": _iso_z(published)}
 
 
 # ═══════════════════════════════════════════════════════════

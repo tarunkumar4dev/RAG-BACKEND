@@ -42,7 +42,7 @@ class CreateContestRequest(BaseModel):
 
     # Settings
     duration_minutes: int = Field(default=30, ge=5, le=180)
-    answer_mode: Literal["instant", "after_test", "none"] = "after_test"
+    answer_mode: Literal["instant", "after_test", "none", "teacher_release"] = "after_test"   # teacher_release: 26
     show_explanation: bool = True
     enable_camera: bool = True
     enable_tab_detection: bool = True
@@ -162,6 +162,7 @@ class ContestDataResponse(BaseModel):
     server_now: Optional[datetime] = None       # remaining = deadline_at - server_now (no client clock skew)
     resumed: bool = False                       # True: the same unsubmitted attempt as before the refresh
     progress: Optional[dict] = None             # resumed: {answers, current_index, warning_count, warning_log}
+    retry_of: Optional[str] = None              # this attempt is a retry of that attempt (technical / teacher)
 
 
 class SubmitContestResponse(BaseModel):
@@ -180,6 +181,9 @@ class SubmitContestResponse(BaseModel):
     submitted_via: Optional[str] = None         # manual | auto_warnings | auto_timeout (None: before 25 Oct)
     late: bool = False                          # arrived after deadline + 120 s grace (graded anyway)
     time_taken_seconds: Optional[int] = None    # server-measured, capped at the contest duration
+    retry_of: Optional[str] = None
+    retry: bool = False
+    results_pending: bool = False               # teacher_release, not published yet: score / answers withheld
 
 
 class AttemptSummary(BaseModel):
@@ -196,6 +200,8 @@ class AttemptSummary(BaseModel):
     submitted_at: Optional[datetime] = None
     submitted_via: Optional[str] = None
     late: bool = False
+    retry: bool = False                         # the row is a retry (latest submitted attempt of its chain)
+    retry_of: Optional[str] = None
 
 
 class ContestLeaderboardResponse(BaseModel):
@@ -204,3 +210,4 @@ class ContestLeaderboardResponse(BaseModel):
     title: str
     total_attempts: int
     attempts: List[AttemptSummary]
+    results_pending: bool = False               # teacher_release, not published, caller not the teacher

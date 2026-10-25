@@ -7,6 +7,9 @@
 # POST   /api/v1/contests/:code/start  → Start attempt (student)
 # POST   /api/v1/contests/:id/submit   → Submit answers (student)
 # PUT    /api/v1/contests/:id/attempts/:attempt_id/progress → Save progress (student, every ~15 s)
+# GET    /api/v1/contests/:id/attempts                       → Every attempt (contest's teacher)
+# POST   /api/v1/contests/:id/attempts/:attempt_id/allow-retry → One more attempt after this one (teacher)
+# POST   /api/v1/contests/:id/publish-results                → Release results (teacher, answer_mode teacher_release)
 # GET    /api/v1/contests/:id/leaderboard → View results (teacher)
 # GET    /api/v1/contests/my            → List teacher's contests
 # ──────────────────────────────────────────────────────────
@@ -270,6 +273,54 @@ async def save_attempt_progress(
     except Exception as e:
         logger.error(f"Save progress error: {type(e).__name__}")
         raise HTTPException(status_code=500, detail="Could not save progress")
+
+
+# ═══════════════════════════════════════════════════════════
+# Teacher-only: attempts list, allow-retry, publish results
+# ═══════════════════════════════════════════════════════════
+
+NOT_TEACHER = "Only the teacher who created this contest can do this"
+
+
+@router.get("/{contest_id}/attempts")
+async def list_contest_attempts(contest_id: str, request: Request):
+    teacher_id = await get_required_user_id(request)
+    try:
+        result = contest_service.list_attempts(contest_id, teacher_id)
+    except contest_service.NotTeacher:
+        raise HTTPException(status_code=403, detail=NOT_TEACHER)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Contest not found")
+    return result
+
+
+@router.post("/{contest_id}/attempts/{attempt_id}/allow-retry")
+async def allow_attempt_retry(contest_id: str, attempt_id: str, request: Request):
+    teacher_id = await get_required_user_id(request)
+    try:
+        result = contest_service.allow_retry(contest_id, attempt_id, teacher_id)
+    except contest_service.NotTeacher:
+        raise HTTPException(status_code=403, detail=NOT_TEACHER)
+    except contest_service.AttemptRunning:
+        return JSONResponse(status_code=409, content={
+            "code": "ATTEMPT_IN_PROGRESS", "attempt_id": attempt_id,
+            "detail": "This attempt is still running. Allow a retry after it ends.",
+        })
+    if result is None:
+        raise HTTPException(status_code=404, detail="Attempt not found")
+    return result
+
+
+@router.post("/{contest_id}/publish-results")
+async def publish_contest_results(contest_id: str, request: Request):
+    teacher_id = await get_required_user_id(request)
+    try:
+        result = contest_service.publish_results(contest_id, teacher_id)
+    except contest_service.NotTeacher:
+        raise HTTPException(status_code=403, detail=NOT_TEACHER)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Contest not found")
+    return result
 
 
 # ═══════════════════════════════════════════════════════════
