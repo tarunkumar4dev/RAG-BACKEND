@@ -10,9 +10,9 @@
 #            [{"label":"A","text":"4"}] shapes are accepted.
 # ──────────────────────────────────────────────────────────
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List, Literal, Any
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 
@@ -32,8 +32,25 @@ class ContestQuestionIn(BaseModel):
     chapter: Optional[str] = None
 
 
+IST = timezone(timedelta(hours=5, minutes=30))    # India has no DST: a fixed offset is exact
+
+
+def to_utc(value: Optional[datetime]) -> Optional[datetime]:
+    """Aware → the same instant in UTC. NAIVE (no offset, e.g. "2026-10-25T11:36" from a datetime-local input or a
+    script) → read as Asia/Kolkata wall-clock time, then UTC. Without this a naive value went to Postgres as-is and
+    the UTC session stored 11:36 as 11:36 UTC = 17:06 IST (5 h 30 min late)."""
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=IST)
+    return value.astimezone(timezone.utc)
+
+
 class CreateContestRequest(BaseModel):
-    """Teacher creates a contest from generated questions"""
+    """Teacher creates a contest from generated questions.
+
+    scheduled_at / expires_at: ISO 8601. With an offset ("…Z", "…+05:30") it is that instant; WITHOUT an offset it
+    is India time (Asia/Kolkata). Both are stored as UTC timestamptz."""
     title: str = "Test Paper"
     subject: str
     class_grade: str
@@ -56,6 +73,11 @@ class CreateContestRequest(BaseModel):
 
     # Questions
     questions: List[ContestQuestionIn]
+
+    @field_validator("scheduled_at", "expires_at")
+    @classmethod
+    def _utc(cls, v: Optional[datetime]) -> Optional[datetime]:
+        return to_utc(v)
 
 
 class SubmitContestRequest(BaseModel):

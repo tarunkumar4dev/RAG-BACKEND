@@ -54,6 +54,8 @@ def _not_started(e: contest_service.ContestNotStarted) -> JSONResponse:
         "code": "CONTEST_NOT_STARTED",
         "scheduled_at": e.scheduled_at.astimezone(timezone.utc).isoformat(),
         "detail": "This contest has not started yet.",
+        # count down against the server clock, not the phone's (a fast phone clock looked like a late opening)
+        "server_now": contest_service._now().astimezone(timezone.utc).isoformat(),
     })
 
 

@@ -67,12 +67,8 @@ class ContestNotStarted(Exception):
 
 def _check_started(row: dict) -> None:
     """Raise ContestNotStarted while the contest's scheduled_at is in the future (NULL = open now)."""
-    if not row.get("scheduled_at"):
-        return
-    starts = datetime.fromisoformat(str(row["scheduled_at"]).replace("Z", "+00:00"))
-    if starts.tzinfo is None:
-        starts = starts.replace(tzinfo=timezone.utc)
-    if datetime.now(timezone.utc) < starts:
+    starts = _ts(row.get("scheduled_at"))      # aware UTC (a naive DB text is UTC: timestamptz, UTC session)
+    if starts and _now() < starts:
         raise ContestNotStarted(starts)
 
 
@@ -314,10 +310,8 @@ def get_contest_info(short_code: str) -> Optional[ContestInfoResponse]:
     row = result.data[0]
     _check_started(row)
 
-    if row.get("expires_at"):
-        expires = datetime.fromisoformat(row["expires_at"].replace("Z", "+00:00"))
-        if expires < datetime.now(timezone.utc):
-            row["status"] = "ended"
+    if _expired(row):
+        row["status"] = "ended"
 
     return ContestInfoResponse(
         contest_id=str(row["id"]),

@@ -85,3 +85,59 @@ def test_expired_info_stays_410(env):
     env.db.contest["scheduled_at"] = _iso(-timedelta(days=2))
     env.db.contest["expires_at"] = _iso(-timedelta(days=1))
     assert env.client.get("/api/v1/contests/abc/info").status_code == 410
+
+
+# ── P0 25 Oct: how scheduled_at is read, stored and compared ───────────
+
+OPEN_UTC = datetime(2026, 10, 25, 6, 6, tzinfo=timezone.utc)          # = 11:36 IST (contest jahrdxes)
+
+
+@pytest.mark.parametrize("sent", ["2026-10-25T06:06:00Z", "2026-10-25T11:36:00+05:30", "2026-10-25T11:36:00",
+                                  "2026-10-25T11:36"])
+def test_create_reads_z_offset_and_naive_ist_as_the_same_instant(sent):
+    from app.schemas.contest import CreateContestRequest
+    body = CreateContestRequest(subject="S", class_grade="12", questions=[], scheduled_at=sent, expires_at=sent)
+    assert body.scheduled_at == OPEN_UTC and body.scheduled_at.utcoffset() == timedelta(0)
+    assert body.expires_at == OPEN_UTC
+
+
+def test_create_stores_utc_with_offset(monkeypatch):
+    from app.schemas.contest import CreateContestRequest
+    inserted = []
+
+    class Q:
+        def __init__(self, table):
+            self.table = table
+
+        def select(self, *a, **k):
+            return self
+
+        def eq(self, *a):
+            return self
+
+        def insert(self, row):
+            inserted.append((self.table, row))
+            return self
+
+        def execute(self):
+            return SimpleNamespace(data=[{"id": "c1"}] if inserted and inserted[-1][0] == "contests" else [])
+    monkeypatch.setattr(contest_service, "get_supabase_admin", lambda: SimpleNamespace(table=Q))
+    contest_service.create_contest(CreateContestRequest(
+        subject="S", class_grade="12", scheduled_at="2026-10-25T11:36", questions=[{"question_text": "Q?"}]))
+    row = next(r for t, r in inserted if t == "contests")
+    assert row["scheduled_at"] == "2026-10-25T06:06:00+00:00"          # never a naive string for Postgres
+
+
+@pytest.mark.parametrize("stored", ["2026-10-25T06:06:00+00:00", "2026-10-25T06:06:00Z", "2026-10-25 06:06:00+00",
+                                    "2026-10-25T11:36:00+05:30", "2026-10-25T06:06:00"])
+@pytest.mark.parametrize("now,status", [(OPEN_UTC - timedelta(seconds=1), 403), (OPEN_UTC, 200),
+                                        (OPEN_UTC + timedelta(minutes=2), 200)])
+def test_opens_exactly_at_scheduled_at(env, monkeypatch, stored, now, status):
+    env.db.contest["scheduled_at"] = stored
+    monkeypatch.setattr(contest_service, "_now", lambda: now)
+    assert env.client.get("/api/v1/contests/abc/info").status_code == status
+    r = env.client.post("/api/v1/contests/abc/start", json={})
+    assert r.status_code == status
+    if status == 403:
+        assert r.json()["scheduled_at"] == "2026-10-25T06:06:00+00:00"
+        assert r.json()["server_now"] == "2026-10-25T06:05:59+00:00"
