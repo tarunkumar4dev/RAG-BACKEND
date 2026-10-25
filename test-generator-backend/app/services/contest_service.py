@@ -518,6 +518,7 @@ def _finalize(db, attempt: dict, contest: dict, questions: list, answers: list, 
     if not won.data:
         stored = db.table("contest_attempts").select("*").eq("id", attempt["id"]).execute().data[0]
         return _result_response(stored, contest, questions)
+    _board_cache.pop(str(contest["id"]), None)
     logger.info(f"Contest {contest['id']} attempt {attempt['id']} {via}: score={score}/{total_marks} "
                 f"({percentage}%) warnings={warning_count} late={update_data['late']}")
     return _result_response({**attempt, **update_data}, contest, questions)
@@ -893,66 +894,170 @@ def save_progress(contest_id: str, attempt_id: str, request: ProgressRequest, us
 
 
 # ═══════════════════════════════════════════════════════════
-# GET LEADERBOARD (for teacher)
+# GET LEADERBOARD (students and the teacher)
+#
+#   rank       score desc, then time_taken_seconds asc, then warning_count asc; equal on all three = same rank (1,1,3)
+#   correct / wrong / left   from the stored answers vs the questions (questions without an answer key don't count)
+#   privacy    students / anonymous callers never get other students' email, warning_count, submitted_via, late;
+#              the contest's teacher gets them (and unfinished attempts, unranked, at the end)
+#   teacher_release before publishing: students get results_pending=true and no rows; the teacher gets everything
+#   One computation per contest per BOARD_TTL_S per instance (every student may open it right after submitting);
+#   dropped whenever an attempt of the contest is finalized here.
 # ═══════════════════════════════════════════════════════════
+
+BOARD_TTL_S = 10
+_board_cache: dict = {}
+
+
+def _answer_counts(answers, questions: list) -> tuple:
+    """(correct, wrong, left) of one attempt."""
+    chosen = {}
+    for a in answers or []:
+        if isinstance(a, dict) and (a.get("questionId") or a.get("question_id")):
+            chosen[str(a.get("questionId") or a.get("question_id"))] = (
+                a.get("selected") or a.get("selectedOption") or a.get("textAnswer"))
+    correct = wrong = left = 0
+    for q in questions:
+        if not _norm(q.get("correct_answer")):
+            continue
+        sel = chosen.get(str(q["id"]))
+        if sel is None or _norm(sel) == "":
+            left += 1
+        elif _answers_match(sel, q["correct_answer"], q.get("options")):
+            correct += 1
+        else:
+            wrong += 1
+    return correct, wrong, left
+
+
+def _rank_key(r: dict) -> tuple:
+    t = r.get("time_taken_seconds")
+    return (-(r.get("score") or 0), t is None, t or 0, r.get("warning_count") or 0)
+
+
+def _board(db, contest: dict) -> dict:
+    """Every row with every field (teacher view), ranked; per-viewer filtering happens in get_leaderboard."""
+    key = str(contest["id"])
+    hit = _board_cache.get(key)
+    if hit and time.monotonic() - hit[0] < BOARD_TTL_S:
+        return hit[1]
+    sweep_stale(db, contest, force=True)
+    attempts = db.table("contest_attempts").select(
+        "id, student_id, student_name, student_email, status, score, total_marks, percentage, time_taken_seconds, "
+        "warning_count, submitted_at, submitted_via, late, started_at, retry_of, answers"
+    ).eq("contest_id", key).execute().data or []
+    questions = _load_questions(db, key)
+
+    by_id = {str(a["id"]): a for a in attempts}
+
+    def root(a):
+        seen = set()
+        while a.get("retry_of") and str(a["retry_of"]) in by_id and str(a["id"]) not in seen:
+            seen.add(str(a["id"]))
+            a = by_id[str(a["retry_of"])]
+        return str(a["id"])
+
+    roots = {str(a["id"]): root(a) for a in attempts}
+    latest = _latest_per_chain(attempts)
+    nameless = [str(a["student_id"]) for a in latest
+                if a.get("student_id") and not clean_name(a.get("student_name")) and not email_name(a.get("student_email"))]
+    profiles = {}
+    if nameless:
+        try:
+            for p in db.table("profiles").select("id, full_name, email").in_("id", nameless).execute().data or []:
+                profiles[str(p["id"])] = p
+        except Exception as e:
+            logger.warning(f"leaderboard profile names skipped: {type(e).__name__}")
+
+    rows = []
+    for a in latest:
+        prof = profiles.get(str(a.get("student_id")), {})
+        correct, wrong, left = _answer_counts(a.get("answers"), questions)
+        rows.append({
+            "attempt_id": str(a["id"]),
+            "student_id": str(a["student_id"]) if a.get("student_id") else None,
+            "root": roots[str(a["id"])],
+            "student_name": (clean_name(a.get("student_name")) or email_name(a.get("student_email"))
+                             or clean_name(prof.get("full_name")) or email_name(prof.get("email"))),
+            "student_email": a.get("student_email") or prof.get("email"),
+            "status": a["status"],
+            "score": a.get("score"),
+            "total_marks": a.get("total_marks") or 0,
+            "percentage": float(a["percentage"]) if a.get("percentage") is not None else None,
+            "time_taken_seconds": a.get("time_taken_seconds"),
+            "warning_count": a.get("warning_count") or 0,
+            "submitted_at": a.get("submitted_at"),
+            "submitted_via": a.get("submitted_via"),
+            "late": bool(a.get("late")),
+            "retry": bool(a.get("retry_of")),
+            "retry_of": str(a["retry_of"]) if a.get("retry_of") else None,
+            "correct": correct, "wrong": wrong, "left": left,
+            "rank": None,
+        })
+    finished = sorted((r for r in rows if r["status"] != "in_progress"), key=_rank_key)
+    for i, r in enumerate(finished):
+        r["rank"] = finished[i - 1]["rank"] if i and _rank_key(r) == _rank_key(finished[i - 1]) else i + 1
+    board = {"rows": finished + [r for r in rows if r["status"] == "in_progress"], "roots": roots,
+             "participants": len(finished)}
+    _board_cache[key] = (time.monotonic(), board)
+    return board
+
 
 def get_leaderboard(
     contest_id: str,
-    teacher_id: Optional[str] = None,
+    viewer_id: Optional[str] = None,
+    attempt_id: Optional[str] = None,
 ) -> Optional[ContestLeaderboardResponse]:
-    """Get all attempts for a contest (teacher view). Stale attempts are finalized first."""
+    """Ranked results. viewer_id = the caller's user id (the contest's teacher sees everything); attempt_id = the
+    caller's X-Attempt-Id (marks is_me for anonymous students)."""
 
     db = get_supabase_admin()
     if not _is_uuid(contest_id):
         return None
-
-    query = db.table("contests").select("*").eq("id", contest_id)
-    if teacher_id:
-        query = query.eq("teacher_id", teacher_id)
-
-    contest_result = query.execute()
+    contest_result = db.table("contests").select("*").eq("id", contest_id).execute()
     if not contest_result.data:
         return None
-
     contest = contest_result.data[0]
-    sweep_stale(db, contest, force=True)
-    # teacher_release before publishing: scores only for the contest's own teacher
-    hide = _results_pending(contest) and not (teacher_id and str(contest.get("teacher_id")) == str(teacher_id))
+    is_teacher = bool(viewer_id) and str(contest.get("teacher_id")) == str(viewer_id)
+    pending = _results_pending(contest) and not is_teacher
+    board = _board(db, contest)
+    my_root = board["roots"].get(str(attempt_id)) if attempt_id else None
 
-    attempts_result = db.table("contest_attempts").select(
-        "id, student_name, student_email, status, score, "
-        "total_marks, percentage, time_taken_seconds, "
-        "warning_count, submitted_at, submitted_via, late, started_at, retry_of"
-    ).eq("contest_id", contest_id).order(
-        "percentage", desc=True
-    ).execute()
+    def mine(r):
+        return bool((viewer_id and r["student_id"] == str(viewer_id)) or (my_root and r["root"] == my_root))
 
+    rows = [] if pending else [r for r in board["rows"] if is_teacher or r["status"] != "in_progress"]
     attempt_list = [
         AttemptSummary(
-            attempt_id=str(a["id"]),
-            student_name=a.get("student_name"),
-            student_email=a.get("student_email"),
-            status=a["status"],
-            score=None if hide else a.get("score"),
-            total_marks=a.get("total_marks") or 0,
-            percentage=None if hide or not a.get("percentage") else float(a["percentage"]),
-            time_taken_seconds=a.get("time_taken_seconds"),
-            warning_count=a.get("warning_count") or 0,
-            submitted_at=a.get("submitted_at"),
-            submitted_via=a.get("submitted_via"),
-            late=bool(a.get("late")),
-            retry=bool(a.get("retry_of")),
-            retry_of=str(a["retry_of"]) if a.get("retry_of") else None,
+            attempt_id=r["attempt_id"],
+            rank=r["rank"],
+            student_name=r["student_name"],
+            student_email=r["student_email"] if is_teacher else None,
+            status=r["status"],
+            score=r["score"],
+            total_marks=r["total_marks"],
+            percentage=r["percentage"],
+            time_taken_seconds=r["time_taken_seconds"],
+            correct=r["correct"], wrong=r["wrong"], left=r["left"],
+            warning_count=r["warning_count"] if is_teacher else None,
+            submitted_at=r["submitted_at"],
+            submitted_via=r["submitted_via"] if is_teacher else None,
+            late=r["late"] if is_teacher else None,
+            retry=r["retry"],
+            retry_of=r["retry_of"],
+            is_me=mine(r),
         )
-        for a in _latest_per_chain(attempts_result.data)
+        for r in rows
     ]
-
+    my_rank = None if pending else next((r["rank"] for r in board["rows"] if mine(r) and r["rank"]), None)
     return ContestLeaderboardResponse(
         contest_id=contest_id,
         title=contest["title"],
         total_attempts=len(attempt_list),
         attempts=attempt_list,
-        results_pending=hide,
+        results_pending=pending,
+        total_participants=board["participants"],
+        my_rank=my_rank,
     )
 
 

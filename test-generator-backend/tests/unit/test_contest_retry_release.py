@@ -178,7 +178,7 @@ def test_teacher_release_withholds_score_and_answers_until_published(env):
     assert env.db.attempt(att)["score"] == 3                    # graded and stored, only not shown
 
     board = env.client.get(f"/api/v1/contests/{CID}/leaderboard").json()
-    assert board["results_pending"] is True and board["attempts"][0]["score"] is None
+    assert board["results_pending"] is True and board["attempts"] == [] and board["my_rank"] is None
     as_user(env, T1)
     teacher_board = env.client.get(f"/api/v1/contests/{CID}/leaderboard").json()
     assert teacher_board["results_pending"] is False and teacher_board["attempts"][0]["score"] == 3

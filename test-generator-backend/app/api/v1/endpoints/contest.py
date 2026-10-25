@@ -335,14 +335,17 @@ async def get_contest_leaderboard(
     request: Request,
 ):
     """
-    Teacher views all attempts, scores, and leaderboard for a contest.
+    Ranked results for students and the teacher (rank, correct / wrong / left, is_me, my_rank). Only the contest's
+    teacher gets emails, warning counts, submitted_via, late and unfinished attempts; with answer_mode
+    teacher_release students get no rows until results are published. X-Attempt-Id marks an anonymous student's row.
     """
     try:
-        teacher_id = await get_optional_user_id(request)
+        viewer_id = await get_optional_user_id(request)
 
         result = contest_service.get_leaderboard(
             contest_id=contest_id,
-            teacher_id=teacher_id,
+            viewer_id=viewer_id,
+            attempt_id=request.headers.get("X-Attempt-Id"),
         )
 
         if not result:

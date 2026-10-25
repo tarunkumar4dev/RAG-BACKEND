@@ -35,6 +35,10 @@ class _Q:
         self.filters.append(lambda r: str(r.get(k)) == str(v))
         return self
 
+    def in_(self, k, vs):
+        self.filters.append(lambda r: str(r.get(k)) in {str(v) for v in vs})
+        return self
+
     def lt(self, k, v):
         self.filters.append(lambda r: cs._ts(r.get(k)) < cs._ts(v))
         return self
@@ -136,6 +140,8 @@ def env(monkeypatch):
     monkeypatch.setattr(cs, "get_supabase_admin", lambda: db)
     monkeypatch.setattr(cs, "_now", lambda: db.now)
     monkeypatch.setattr(cs, "_last_sweep", {})
+    monkeypatch.setattr(cs, "_board_cache", {})
+    monkeypatch.setattr(cs, "BOARD_TTL_S", 0)
 
     async def user(request):
         return who["id"]
@@ -353,6 +359,8 @@ def test_leaderboard_finalizes_stale_and_shows_server_time(env):
     later(env, minutes=15)
     submit(env, a1, ans("A", "B", "C"), time_taken_seconds=1)
     later(env, minutes=50)
+    env.db.tables["contests"][0]["teacher_id"] = "tttttttt-0000-0000-0000-000000000001"
+    env.who["id"] = "tttttttt-0000-0000-0000-000000000001"           # submitted_via is teacher-only
     board = env.client.get(f"/api/v1/contests/{CID}/leaderboard").json()
     by_id = {a["attempt_id"]: a for a in board["attempts"]}
     assert by_id[a1]["time_taken_seconds"] == 900 and by_id[a1]["submitted_via"] == "manual"

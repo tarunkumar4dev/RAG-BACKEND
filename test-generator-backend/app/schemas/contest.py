@@ -209,8 +209,10 @@ class SubmitContestResponse(BaseModel):
 
 
 class AttemptSummary(BaseModel):
-    """Summary of a student's attempt — for teacher dashboard"""
+    """One leaderboard row. email / warning_count / submitted_via / late: the contest's teacher only (None for
+    students and anonymous callers)."""
     attempt_id: str
+    rank: Optional[int] = None                  # None: still running (teacher view only)
     student_name: Optional[str] = None
     student_email: Optional[str] = None
     status: str
@@ -218,10 +220,14 @@ class AttemptSummary(BaseModel):
     total_marks: int
     percentage: Optional[float] = None
     time_taken_seconds: Optional[int] = None
-    warning_count: int
+    correct: Optional[int] = None
+    wrong: Optional[int] = None
+    left: Optional[int] = None
+    warning_count: Optional[int] = None
     submitted_at: Optional[datetime] = None
     submitted_via: Optional[str] = None
-    late: bool = False
+    late: Optional[bool] = None
+    is_me: bool = False
     retry: bool = False                         # the row is a retry (latest submitted attempt of its chain)
     retry_of: Optional[str] = None
 
@@ -233,3 +239,5 @@ class ContestLeaderboardResponse(BaseModel):
     total_attempts: int
     attempts: List[AttemptSummary]
     results_pending: bool = False               # teacher_release, not published, caller not the teacher
+    total_participants: int = 0                 # finished attempts (one per student / retry chain)
+    my_rank: Optional[int] = None
