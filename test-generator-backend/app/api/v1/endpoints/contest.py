@@ -6,6 +6,7 @@
 # GET    /api/v1/contests/:code/info   → Get contest info (student landing)
 # POST   /api/v1/contests/:code/start  → Start attempt (student)
 # POST   /api/v1/contests/:id/submit   → Submit answers (student)
+# PUT    /api/v1/contests/:id/attempts/:attempt_id/progress → Save progress (student, every ~15 s)
 # GET    /api/v1/contests/:id/leaderboard → View results (teacher)
 # GET    /api/v1/contests/my            → List teacher's contests
 # ──────────────────────────────────────────────────────────
@@ -24,6 +25,7 @@ from app.schemas.contest import (
     SubmitContestRequest,
     SubmitContestResponse,
     StartAttemptRequest,
+    ProgressRequest,
     ContestLeaderboardResponse,
 )
 from app.services import contest_service
@@ -34,6 +36,13 @@ from app.services import contest_service
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/contests", tags=["Contests"])
+
+
+def _already_submitted(e: contest_service.AlreadySubmitted) -> JSONResponse:
+    """409 for a caller who is done; `detail` keeps the old error text for old frontends."""
+    return JSONResponse(status_code=409, content={
+        "code": "ALREADY_SUBMITTED", "attempt_id": e.attempt_id, "detail": str(e),
+    })
 
 
 def _not_started(e: contest_service.ContestNotStarted) -> JSONResponse:
@@ -155,6 +164,8 @@ async def start_contest_attempt(
     """
     Student starts a contest attempt.
     Creates attempt record and returns questions (without answers).
+    Resumes the caller's unsubmitted attempt instead (X-Attempt-Id of an earlier start, or the logged-in
+    student's own): same attempt_id, resumed=true, saved progress, deadline_at / server_now.
     """
     try:
         student_id = await get_optional_user_id(request)
@@ -163,6 +174,7 @@ async def start_contest_attempt(
             short_code=short_code,
             request=body,
             student_id=student_id,
+            resume_attempt_id=request.headers.get("X-Attempt-Id"),
         )
 
         if not result:
@@ -172,6 +184,10 @@ async def start_contest_attempt(
 
     except contest_service.ContestNotStarted as e:
         return _not_started(e)
+    except contest_service.ContestExpired:
+        raise HTTPException(status_code=410, detail="This contest has ended")
+    except contest_service.AlreadySubmitted as e:
+        return _already_submitted(e)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except HTTPException:
@@ -219,6 +235,41 @@ async def submit_contest(
     except Exception as e:
         logger.error(f"Submit contest error: {e}")
         raise HTTPException(status_code=500, detail="Failed to submit contest")
+
+
+# ═══════════════════════════════════════════════════════════
+# PUT /contests/:id/attempts/:attempt_id/progress — Save progress
+# ═══════════════════════════════════════════════════════════
+
+@router.put("/{contest_id}/attempts/{attempt_id}/progress")
+async def save_attempt_progress(
+    contest_id: str,
+    attempt_id: str,
+    body: ProgressRequest,
+    request: Request,
+):
+    """
+    Saves answers / position / warnings so a refresh resumes the attempt. Same rules as submit: X-Attempt-Id
+    must be this attempt. warning_count never goes down; the max_warnings-th warning, or a save after
+    deadline + 120 s, finalizes the attempt (finalized=true + the submit response).
+    """
+    header = request.headers.get("X-Attempt-Id")
+    if not header:
+        raise HTTPException(status_code=400, detail="X-Attempt-Id header is required")
+    if header != attempt_id:
+        raise HTTPException(status_code=403, detail="This is not your attempt")
+    try:
+        user_id = await get_optional_user_id(request)
+        return contest_service.save_progress(contest_id, attempt_id, body, user_id)
+    except contest_service.AlreadySubmitted as e:
+        return _already_submitted(e)
+    except contest_service.AttemptForbidden:
+        raise HTTPException(status_code=403, detail="This is not your attempt")
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Attempt not found")
+    except Exception as e:
+        logger.error(f"Save progress error: {type(e).__name__}")
+        raise HTTPException(status_code=500, detail="Could not save progress")
 
 
 # ═══════════════════════════════════════════════════════════

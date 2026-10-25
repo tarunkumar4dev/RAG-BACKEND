@@ -82,6 +82,8 @@ ROUTE_LIMITS = {
     # submit: per attempt (X-Attempt-Id) — one student, a few tries; per IP (old clients without the header): high
     "POST /api/v1/contests/{contest_id}/submit": 30,
     "POST /api/v1/community-quizzes/q/{slug}/submit": 30,
+    # progress autosave every ~15 s: ~1 per 3 s per attempt allowed (a resumed tab + retries)
+    "PUT /api/v1/contests/{contest_id}/attempts/{attempt_id}/progress": 20,
     # public share page (G6): token guessing protection
     "GET /r/{token}": 30,
 }
@@ -89,6 +91,7 @@ ROUTE_LIMITS = {
 # Requests keyed by IP on routes whose per-identity limit is low (old clients that don't send X-Attempt-Id)
 IP_FALLBACK_LIMITS = {
     "POST /api/v1/contests/{contest_id}/submit": 1200,
+    "PUT /api/v1/contests/{contest_id}/attempts/{attempt_id}/progress": 3000,
     "POST /api/v1/community-quizzes/q/{slug}/submit": 1200,
 }
 # All attempt-keyed requests from one IP, per route per minute (made-up attempt ids can't bypass the limit)

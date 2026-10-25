@@ -47,7 +47,7 @@ class CreateContestRequest(BaseModel):
     enable_camera: bool = True
     enable_tab_detection: bool = True
     allow_back_navigation: bool = True
-    max_warnings: int = Field(default=3, ge=1, le=10)
+    max_warnings: int = Field(default=5, ge=1, le=10)    # default 5 since 25 Oct 2026 (was 3); stored rows unchanged
     max_attempts: int = Field(default=1, ge=1, le=5)
 
     # Scheduling
@@ -66,6 +66,14 @@ class SubmitContestRequest(BaseModel):
     warning_count: int = 0
     warning_log: List[dict] = []    # [{"reason": "tab switch", "at": "..."}]
     time_taken_seconds: int = 0
+
+
+class ProgressRequest(BaseModel):
+    """PUT /contests/{id}/attempts/{attempt_id}/progress — saved every ~15 s so a refresh resumes the attempt."""
+    answers: List[dict] = Field(default=[], max_length=500)   # [{"questionId", "selected", "textAnswer", "timeSpent", "flagged"}]
+    current_index: int = Field(default=0, ge=0, le=1000)
+    warning_count: int = Field(default=0, ge=0, le=1000)
+    warning_log: List[dict] = Field(default=[], max_length=200)  # [{"type", "at", "detail"}]
 
 
 class StartAttemptRequest(BaseModel):
@@ -148,6 +156,12 @@ class ContestDataResponse(BaseModel):
     answer_mode: str
     show_explanation: bool
     questions: List[ContestQuestionOut]
+    # added 25 Oct 2026 (old clients ignore them)
+    started_at: Optional[datetime] = None
+    deadline_at: Optional[datetime] = None      # started_at + duration, capped by the contest's expires_at
+    server_now: Optional[datetime] = None       # remaining = deadline_at - server_now (no client clock skew)
+    resumed: bool = False                       # True: the same unsubmitted attempt as before the refresh
+    progress: Optional[dict] = None             # resumed: {answers, current_index, warning_count, warning_log}
 
 
 class SubmitContestResponse(BaseModel):
@@ -161,6 +175,11 @@ class SubmitContestResponse(BaseModel):
     total_questions: int
     # Only included if answer_mode is "after_test"
     questions_with_answers: Optional[List[ContestQuestionWithAnswer]] = None
+    # added 25 Oct 2026
+    submitted_at: Optional[datetime] = None
+    submitted_via: Optional[str] = None         # manual | auto_warnings | auto_timeout (None: before 25 Oct)
+    late: bool = False                          # arrived after deadline + 120 s grace (graded anyway)
+    time_taken_seconds: Optional[int] = None    # server-measured, capped at the contest duration
 
 
 class AttemptSummary(BaseModel):
@@ -175,6 +194,8 @@ class AttemptSummary(BaseModel):
     time_taken_seconds: Optional[int] = None
     warning_count: int
     submitted_at: Optional[datetime] = None
+    submitted_via: Optional[str] = None
+    late: bool = False
 
 
 class ContestLeaderboardResponse(BaseModel):
