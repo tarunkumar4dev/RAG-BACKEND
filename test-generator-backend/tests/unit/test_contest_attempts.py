@@ -86,8 +86,12 @@ class FakeDB:
                  "correct_answer": "ABC"[i], "explanation": None, "marks": 1, "difficulty": "Easy", "chapter": None}
                 for i, qid in enumerate(QIDS)],
             "contest_attempts": [],
+            "profiles": [],
         }
         self.rpc_calls = 0
+        self.auth_emails = {}       # user id → auth.users email
+        self.auth = SimpleNamespace(admin=SimpleNamespace(get_user_by_id=lambda uid: SimpleNamespace(
+            user=SimpleNamespace(email=self.auth_emails.get(uid)))))
 
     def table(self, name):
         return _Q(self, name)
@@ -390,3 +394,50 @@ def test_max_warnings_default_is_5():
     from app.schemas.contest import CreateContestRequest
     assert CreateContestRequest(subject="S", class_grade="12", questions=[]).max_warnings == 5
     assert CreateContestRequest(subject="S", class_grade="12", questions=[], max_warnings=3).max_warnings == 3
+
+
+# ── student names (P0 25 Oct) ─────────────────────────────────────────
+
+def test_name_from_request_body(env):
+    att = start(env, student_name="  Asha   K ", student_email="asha@x.in").json()["attempt_id"]
+    assert env.db.attempt(att)["student_name"] == "Asha K" and env.db.attempt(att)["student_email"] == "asha@x.in"
+
+
+@pytest.mark.parametrize("profile,auth_email,name,email", [
+    ({"full_name": "Ravi Kumar", "email": "ravi@x.in"}, None, "Ravi Kumar", "ravi@x.in"),
+    ({"full_name": "Student", "email": "ravi.k@x.in"}, None, "ravi.k", "ravi.k@x.in"),   # placeholder ignored
+    ({"full_name": "", "email": None}, "meera@x.in", "meera", "meera@x.in"),            # auth.users email
+    (None, None, None, None),                                                          # nothing known
+])
+def test_logged_in_name_from_profile(env, profile, auth_email, name, email):
+    env.who["id"] = S1
+    if profile is not None:
+        env.db.tables["profiles"].append({"id": S1, **profile})
+    if auth_email:
+        env.db.auth_emails[S1] = auth_email
+    att = start(env, student_name="Student").json()["attempt_id"]     # "Student" from an old client = no name
+    row = env.db.attempt(att)
+    assert row["student_name"] == name and row["student_email"] == email
+
+
+def test_body_name_beats_profile(env):
+    env.who["id"] = S1
+    env.db.tables["profiles"].append({"id": S1, "full_name": "Profile Name", "email": "p@x.in"})
+    att = start(env, student_name="Typed Name").json()["attempt_id"]
+    assert env.db.attempt(att)["student_name"] == "Typed Name" and env.db.attempt(att)["student_email"] == "p@x.in"
+
+
+def test_resume_fills_a_missing_name(env):
+    att = start(env).json()["attempt_id"]
+    assert env.db.attempt(att)["student_name"] is None
+    start(env, att, student_name="Asha")
+    assert env.db.attempt(att)["student_name"] == "Asha"
+
+
+def test_submit_stores_name_when_the_attempt_has_none(env):
+    a = start(env).json()["attempt_id"]
+    submit(env, a, ans("A"), student_name="Asha", student_email="asha@x.in")
+    assert env.db.attempt(a)["student_name"] == "Asha" and env.db.attempt(a)["student_email"] == "asha@x.in"
+    b = start(env, student_name="Ravi").json()["attempt_id"]
+    submit(env, b, ans("A"), student_name="Someone Else")
+    assert env.db.attempt(b)["student_name"] == "Ravi"                 # a stored name is never overwritten

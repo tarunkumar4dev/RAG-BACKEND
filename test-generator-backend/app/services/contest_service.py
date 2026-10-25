@@ -485,7 +485,8 @@ def _result_response(attempt: dict, contest: dict, questions: list) -> SubmitCon
 
 
 def _finalize(db, attempt: dict, contest: dict, questions: list, answers: list, *, via: str,
-              warning_count: int, warning_log: list, client_time: Optional[int] = None) -> SubmitContestResponse:
+              warning_count: int, warning_log: list, client_time: Optional[int] = None,
+              extra: Optional[dict] = None) -> SubmitContestResponse:
     """Grade `answers` and store the result ONCE: the UPDATE only matches an in_progress row, so a second submit,
     a parallel auto-finalize or a double click never grades twice — the loser returns what the winner stored."""
     now = _now()
@@ -510,6 +511,7 @@ def _finalize(db, attempt: dict, contest: dict, questions: list, answers: list, 
         "submitted_via": via,
         "late": via == "manual" and now > deadline + timedelta(seconds=GRACE_S),
         "client_time_taken_seconds": client_time,
+        **(extra or {}),
     }
     won = db.table("contest_attempts").update(update_data).eq("id", attempt["id"]) \
         .eq("status", "in_progress").execute()
@@ -614,6 +616,50 @@ def _is_uuid(v) -> bool:
         return False
 
 
+def clean_name(v) -> Optional[str]:
+    """A usable student name: trimmed, not empty, not the placeholder "Student"."""
+    name = " ".join(str(v or "").split())[:120]
+    return None if not name or name.lower() == "student" else name
+
+
+def _clean_email(v) -> Optional[str]:
+    email = str(v or "").strip()[:200]
+    return email if "@" in email else None
+
+
+def email_name(email) -> Optional[str]:
+    """Local part of an email as a last-resort display name ("asha.k@x.in" → "asha.k")."""
+    return clean_name(str(email).split("@")[0]) if _clean_email(email) else None
+
+
+def _profile(db, student_id: str) -> dict:
+    """{full_name, email} of a logged-in student: profiles, then the auth user's email. Best effort."""
+    out: dict = {}
+    try:
+        rows = db.table("profiles").select("full_name, email").eq("id", student_id).execute().data or []
+        out = dict(rows[0]) if rows else {}
+    except Exception as e:
+        logger.warning(f"profile lookup failed: {type(e).__name__}")
+    if not _clean_email(out.get("email")):
+        try:
+            user = db.auth.admin.get_user_by_id(student_id).user
+            out["email"] = getattr(user, "email", None)
+        except Exception:
+            pass
+    return out
+
+
+def resolve_student(db, request, student_id: Optional[str]) -> tuple:
+    """(name, email) for an attempt: the request body first; else the logged-in student's profile full_name, then
+    their email's local part. Never "Student"; None only when nothing is known (anonymous, no name typed)."""
+    name, email = clean_name(getattr(request, "student_name", None)), _clean_email(getattr(request, "student_email", None))
+    if student_id and (not name or not email):
+        prof = _profile(db, student_id)
+        email = email or _clean_email(prof.get("email"))
+        name = name or clean_name(prof.get("full_name"))
+    return name or email_name(email), email
+
+
 def _latest_of_chain(db, attempt: dict) -> dict:
     """An anonymous browser may send an older attempt id: follow retries down to the newest attempt."""
     for _ in range(5):
@@ -698,6 +744,12 @@ def start_attempt(
         questions = _load_questions(db, contest["id"])
         if not _stale(mine, contest):
             logger.info(f"Contest {contest['id']} attempt {mine['id']} resumed")
+            if not clean_name(mine.get("student_name")):
+                name, email = resolve_student(db, request, student_id)
+                fill = {k: v for k, v in (("student_name", name), ("student_email", email))
+                        if v and not mine.get(k)}
+                if fill:
+                    db.table("contest_attempts").update(fill).eq("id", mine["id"]).execute()
             return _contest_data(contest, mine, questions, resumed=True)
         _finalize_from_progress(db, mine, contest, questions, "auto_timeout")
         mine = {**mine, "status": "auto_submitted", "submitted_via": "auto_timeout"}
@@ -723,11 +775,12 @@ def start_attempt(
         logger.info(f"Contest {contest['id']}: retry of attempt {retry_of} granted")
 
     previous = next((r for r in history or [] if str(r["id"]) == retry_of), {}) if retry_of else {}
+    name, email = resolve_student(db, request, student_id)
     attempt_data = {
         "contest_id": contest["id"],
         "student_id": student_id,
-        "student_name": request.student_name or previous.get("student_name"),
-        "student_email": request.student_email or previous.get("student_email"),
+        "student_name": name or clean_name(previous.get("student_name")),
+        "student_email": email or previous.get("student_email"),
         "status": "in_progress",
     }
     if retry_of:
@@ -787,11 +840,16 @@ def submit_attempt(
         return _result_response(attempt, contest, questions)       # idempotent: same stored result
 
     stored_log = attempt.get("warning_log") or []
+    names = {}                       # SubmitContestRequest always had student_name / email; they were dropped
+    if not clean_name(attempt.get("student_name")) and clean_name(request.student_name):
+        names["student_name"] = clean_name(request.student_name)
+    if not attempt.get("student_email") and _clean_email(request.student_email):
+        names["student_email"] = _clean_email(request.student_email)
     result = _finalize(
         db, attempt, contest, questions, request.answers, via="manual",
         warning_count=max(int(request.warning_count or 0), int(attempt.get("warning_count") or 0)),
         warning_log=request.warning_log if len(request.warning_log) >= len(stored_log) else stored_log,
-        client_time=request.time_taken_seconds,
+        client_time=request.time_taken_seconds, extra=names,
     )
     sweep_stale(db, contest)
     return result
