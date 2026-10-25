@@ -328,6 +328,20 @@ def _stem(text, num: Optional[int]) -> str:
     return s
 
 
+def _strip_inline_options(text: str, opts: list) -> str:
+    """The model sometimes copies the whole option list into the stem as well ("… will usually: (a) stop all imports
+    (b) …"; Q30/Q31 of the golden paper). Cut that tail only when it is exactly the extracted options, in order."""
+    if len(opts) < 2:
+        return text
+    parts = []
+    for o in opts:
+        label = re.escape(o["label"].lower())
+        words = r"\s+".join(map(re.escape, o["text"].split()))
+        parts.append(rf"\(?\s*{label}\s*[\).]\s*{words}")
+    m = re.search(r"\s*" + r"\s*".join(parts) + r"\s*$", text, flags=re.I)
+    return text[:m.start()].rstrip() if m and text[:m.start()].strip() else text
+
+
 _LEVELS = {"easy": "Easy", "medium": "Medium", "moderate": "Medium", "average": "Medium",
            "hard": "Hard", "difficult": "Hard", "tough": "Hard", "challenging": "Hard"}
 
@@ -460,7 +474,7 @@ def build_result(raw: dict) -> dict:
         qtype = _qtype(q.get("type"), len(opts))
         if qtype != "MCQ":
             opts = []
-        text = _stem(q.get("text"), num)
+        text = _strip_inline_options(_stem(q.get("text"), num), opts)
         usable = True
         if not text:
             usable = False

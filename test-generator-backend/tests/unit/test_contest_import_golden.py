@@ -56,3 +56,33 @@ def test_golden_key_mismatch_is_flagged_not_fixed(recordings, tmp_path, monkeypa
     r = ci.import_paper(str(PDF), ci.check_pdf(str(PDF)), time.monotonic() + 270)
     assert r["questions"][11]["correct_answer"] == "C" and r["questions"][11]["answer_source"] == "key"
     assert [(w["question"], w["code"]) for w in r["warnings"]] == [(12, "KEY_MISMATCH_SUSPECT")]
+
+
+SEED = ROOT / "scripts" / "contest_seed" / "contest_payload.json"
+
+
+def _ws(s) -> str:
+    return " ".join(str(s or "").split())
+
+
+@pytest.mark.skipif(not SEED.exists(), reason="scripts/contest_seed/contest_payload.json not added yet")
+def test_golden_matches_the_seeded_contest_payload(recordings):
+    """The importer's reading of the paper = the hand-made contest payload (whitespace-normalised)."""
+    seed = json.loads(SEED.read_text(encoding="utf-8-sig"))["questions"]
+    r = ci.import_paper(str(PDF), ci.check_pdf(str(PDF)), time.monotonic() + 270)
+    assert len(r["questions"]) == len(seed)
+    diffs = []
+    for i, (got, want) in enumerate(zip(r["questions"], seed), start=1):
+        want_opts = [(o["label"], _ws(o["text"])) if isinstance(o, dict) else ("ABCDEF"[k], _ws(o))
+                     for k, o in enumerate(want.get("options") or [])]
+        if _ws(got["question_text"]) != _ws(want["question_text"]):
+            diffs.append((i, "question_text", got["question_text"][:60], want["question_text"][:60]))
+        if [(o["label"], _ws(o["text"])) for o in got["options"]] != want_opts:
+            diffs.append((i, "options"))
+        if got["correct_answer"] != want.get("correct_answer"):
+            diffs.append((i, "correct_answer", got["correct_answer"], want.get("correct_answer")))
+    # Q24: the recorded reply reads "supply curve FOR foreign exchange" where the paper (and the payload) say "OF"
+    # — a model slip seen in 2 of 4 live runs on 24 Oct; no validator can catch a plausible one-word swap, which is
+    # why the teacher reviews every imported paper. Any other difference fails.
+    known = {24: ("question_text",)}
+    assert [d for d in diffs if d[1:2] != known.get(d[0], ())[:1]] == []

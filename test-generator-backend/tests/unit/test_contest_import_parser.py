@@ -307,3 +307,26 @@ def test_check_pdf_rejections(tmp_path):
         ci.check_pdf(str(p))
     with pytest.raises(ci.ImportRejected, match="31 pages"):
         ci.check_pdf(_pdf(tmp_path, pages=31))
+
+
+# ── options copied into the stem (Q30 / Q31 of the golden paper) ──────
+
+def test_options_repeated_at_the_end_of_the_stem_are_cut():
+    opts = [{"label": "a", "text": "stop all imports"}, {"label": "b", "text": "sell foreign currency"},
+            {"label": "c", "text": "fix the rate"}, {"label": "d", "text": "buy foreign currency"}]
+    stem = ("the central bank will usually: (a) stop all imports (b) sell foreign currency\n(c) fix the rate "
+            "(d) buy foreign currency")
+    r = ci.build_result(raw([q(30, text=stem, options=opts)], table=[row(30, "b")], header={"max_marks": 0}))
+    assert r["questions"][0]["question_text"] == "the central bank will usually:"
+    assert [o["label"] for o in r["questions"][0]["options"]] == list("ABCD")
+
+
+@pytest.mark.parametrize("stem", [
+    "Which is right? (a) stop all imports (b) sell foreign currency",            # only some options: untouched
+    "Assertion (A): X.\nReason (R): Y.",                                          # A / R lines are not options
+    "(a) stop all imports (b) sell foreign currency (c) fix the rate (d) buy foreign currency",  # nothing left
+])
+def test_stem_left_alone_unless_it_ends_with_all_options(stem):
+    opts = [{"label": "A", "text": "stop all imports"}, {"label": "B", "text": "sell foreign currency"},
+            {"label": "C", "text": "fix the rate"}, {"label": "D", "text": "buy foreign currency"}]
+    assert ci._strip_inline_options(stem, opts) == stem
