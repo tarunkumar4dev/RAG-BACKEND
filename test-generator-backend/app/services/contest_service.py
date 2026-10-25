@@ -285,6 +285,7 @@ def create_contest(
         share_link=share_link,
         total_questions=len(request.questions),
         total_marks=total_marks,
+        teacher_attached=bool(teacher_id),
     )
 
 
@@ -1178,7 +1179,8 @@ def publish_results(contest_id: str, user_id: Optional[str]) -> Optional[dict]:
 # ═══════════════════════════════════════════════════════════
 
 def list_teacher_contests(teacher_id: str) -> List[dict]:
-    """List all contests created by a teacher"""
+    """Every contest whose teacher_id is the caller, newest first. A contest created without a verified login has
+    teacher_id NULL and can't appear here (POST /contests now says so: teacher_attached=false)."""
 
     db = get_supabase_admin()
 
@@ -1186,8 +1188,14 @@ def list_teacher_contests(teacher_id: str) -> List[dict]:
         "id, title, subject, class_grade, short_code, "
         "total_questions, total_marks, total_attempts, "
         "duration_minutes, answer_mode, status, "
-        "created_at, updated_at"
+        "created_at, updated_at, scheduled_at, expires_at, results_published_at"
     ).eq("teacher_id", teacher_id).order("created_at", desc=True).execute()
+
+    counts: dict = {}
+    ids = [str(r["id"]) for r in result.data or []]
+    if ids:
+        for a in db.table("contest_attempts").select("contest_id").in_("contest_id", ids).execute().data or []:
+            counts[str(a["contest_id"])] = counts.get(str(a["contest_id"]), 0) + 1
 
     return [
         {
@@ -1204,6 +1212,11 @@ def list_teacher_contests(teacher_id: str) -> List[dict]:
             "answer_mode": r["answer_mode"],
             "status": r["status"],
             "created_at": r["created_at"],
+            # added 25 Oct 2026
+            "attempts_count": counts.get(str(r["id"]), 0),     # attempt rows (total_attempts counts /start calls)
+            "scheduled_at": _iso_z(r.get("scheduled_at")),
+            "expires_at": _iso_z(r.get("expires_at")),
+            "results_published_at": _iso_z(r.get("results_published_at")),
         }
         for r in result.data
     ]

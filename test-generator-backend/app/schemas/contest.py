@@ -141,6 +141,9 @@ class CreateContestResponse(BaseModel):
     share_link: str
     total_questions: int
     total_marks: int
+    # added 25 Oct 2026: false = created without a verified login (expired / missing token): the contest has no
+    # teacher_id, so it is missing from GET /contests/my and teacher-only routes refuse it
+    teacher_attached: bool = False
 
 
 class ContestInfoResponse(BaseModel):

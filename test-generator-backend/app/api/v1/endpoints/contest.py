@@ -105,6 +105,9 @@ async def create_contest(
     """
     try:
         teacher_id = await get_optional_user_id(request)
+        if not teacher_id and request.headers.get("Authorization", "").startswith("Bearer "):
+            # unchanged behaviour (old clients), but no longer silent: this contest gets no teacher_id
+            logger.warning("Create contest: a bearer token was sent but did not verify; the contest has no teacher")
 
         if not body.questions or len(body.questions) == 0:
             raise HTTPException(status_code=400, detail="At least 1 question is required")
