@@ -62,13 +62,18 @@ _clients: dict = {}          # per-call timeout (s) → client
 # ("job=1a2b3c4d") that goes on every Gemini log line, so a failure can be traced in the Vercel logs.
 _call_timeout: contextvars.ContextVar[Optional[float]] = contextvars.ContextVar("checker_call_timeout", default=None)
 _log_tag: contextvars.ContextVar[str] = contextvars.ContextVar("checker_log_tag", default="")
+# time.monotonic() by which the caller must be done (the job's work budget); a retry of the primary model is only
+# started while a whole call (timeout) + its wait still fits. None = no deadline (count limit only).
+_deadline: contextvars.ContextVar[Optional[float]] = contextvars.ContextVar("checker_deadline", default=None)
 
 
 @contextlib.contextmanager
-def call_settings(timeout_s: Optional[float] = None, log_tag: Optional[str] = None):
+def call_settings(timeout_s: Optional[float] = None, log_tag: Optional[str] = None, deadline: Optional[float] = None):
     tokens = [(_call_timeout, _call_timeout.set(timeout_s))] if timeout_s else []
     if log_tag is not None:
         tokens.append((_log_tag, _log_tag.set(log_tag)))
+    if deadline is not None:
+        tokens.append((_deadline, _deadline.set(deadline)))
     try:
         yield
     finally:
@@ -93,14 +98,22 @@ def _get_client() -> genai.Client:
     return _clients[timeout]
 
 
-# Tried in order, but only when the model is gone (404) or overloaded (503). 429 (quota) and other 5xx are
-# not retried on another model: the caller re-queues the work later instead of burning calls now.
+# 24 Oct (prod): 10 of 23 copies of one class were marked by gemini-3-flash-preview after the primary failed, and
+# nobody was told. Since then a fallback model is OFF unless CHECKER_ALLOW_FALLBACK=true; when it is on and used,
+# the result says so (UsageMeter.fallback_used → review reason fallback_model, never auto-published).
+CHECKER_ALLOW_FALLBACK = os.getenv("CHECKER_ALLOW_FALLBACK", "false").strip().lower() == "true"
+# Tried in order after the primary's attempts, only when the model is gone (404) or overloaded (503).
 CHECKER_FALLBACK_MODELS = [
     m.strip() for m in os.getenv("CHECKER_GEMINI_FALLBACK_MODELS", "gemini-2.5-flash,gemini-3-flash-preview").split(",")
     if m.strip() and m.strip() != CHECKER_MODEL
 ]
+# Calls to the primary model for one request: the first + retries on 429 / 5xx / timeout, while the deadline allows
+CHECKER_PRIMARY_ATTEMPTS = max(1, int(os.getenv("CHECKER_PRIMARY_ATTEMPTS", "3")))
+_PRIMARY_BACKOFF_S = (2.0, 5.0)          # wait before the 2nd / 3rd attempt (429: what Gemini asks, capped)
 _FALLBACK_CODES = {404, 503}
 _TRANSIENT_CODES = {500, 503, 504}
+# Not the copy's fault and not fixed by retrying in the same minute: bad / revoked key, no permission, model gone
+_CONFIG_CODES = {400, 401, 403, 404}
 
 # Last model that answered successfully (only used to log when a fallback kicks in)
 _preferred_model: Optional[str] = None
@@ -140,6 +153,16 @@ def _retry_after_s(e: Exception) -> Optional[float]:
     return None
 
 
+class GeminiConfigError(RuntimeError):
+    """The primary model refused us for a reason on our side (invalid / revoked API key 400/401/403, model gone 404).
+    The job worker alerts at ERROR and retries later; it is never answered by silently switching models."""
+
+    def __init__(self, code: int, model: str):
+        super().__init__(f"Gemini {model} answered {code}")
+        self.code = code
+        self.model = model
+
+
 class CallCapExceeded(RuntimeError):
     """More Gemini calls for one sheet than MAX_GEMINI_CALLS_PER_SHEET."""
 
@@ -154,10 +177,14 @@ class UsageMeter:
     thinking_tokens: int = 0
     ms_by_tag: dict = field(default_factory=dict)
     model: Optional[str] = None       # model that answered the last call (stored as model_version)
+    models_by_tag: dict = field(default_factory=dict)   # "GRADE" → model that answered it
+    fallback_used: bool = False       # some call was answered by a model other than CHECKER_MODEL
 
     def as_dict(self) -> dict:
         return {"gemini_calls": self.calls, "input_tokens": self.input_tokens, "output_tokens": self.output_tokens,
-                "thinking_tokens": self.thinking_tokens, "ms_by_tag": dict(self.ms_by_tag), "model": self.model}
+                "thinking_tokens": self.thinking_tokens, "ms_by_tag": dict(self.ms_by_tag), "model": self.model,
+                "models_by_tag": dict(self.models_by_tag), "fallback_used": self.fallback_used,
+                "primary_model": CHECKER_MODEL}
 
 
 _meter: contextvars.ContextVar[Optional[UsageMeter]] = contextvars.ContextVar("checker_meter", default=None)
@@ -182,6 +209,8 @@ def _log_usage(tag: str, model: str, response, seconds: float) -> None:
     if meter is not None:
         meter.ms_by_tag[tag] = meter.ms_by_tag.get(tag, 0) + int(seconds * 1000)
         meter.model = model
+        meter.models_by_tag[tag] = model
+        meter.fallback_used = meter.fallback_used or (model not in (CHECKER_MODEL, "mock"))
     um = getattr(response, "usage_metadata", None)
     if um is None:
         return
@@ -234,15 +263,52 @@ def _mock_response(tag: str):
         candidates=[])
 
 
+def _is_timeout(e: Exception) -> bool:
+    return isinstance(e, TimeoutError) or "timeout" in type(e).__name__.lower()
+
+
+def _call(client: genai.Client, model: str, contents: list, tag: str):
+    global _preferred_model
+    _count_call(tag)
+    t_call = time.time()
+    try:
+        response = client.models.generate_content(
+            model=model,
+            contents=contents,
+            # temperature 0 + fixed seed: the same sheet should get the same marks every time
+            config={"response_mime_type": "application/json", "temperature": 0, "seed": 7},
+        )
+    except Exception as e:
+        logger.warning(f"[checker] {_tag_prefix()}{tag.lower()} call to {model} failed after "
+                       f"{time.time() - t_call:.1f}s: {type(e).__name__} {getattr(e, 'code', '') or ''}".rstrip())
+        raise
+    _log_usage(tag, model, response, time.time() - t_call)
+    if model != _preferred_model:
+        logger.info(f"[{tag}] Using {model}")
+    _preferred_model = model
+    return response
+
+
+def _retry_fits(wait: float) -> bool:
+    """Another primary call (wait + a whole call timeout) still ends before the caller's deadline."""
+    deadline = _deadline.get()
+    if deadline is None:
+        return True
+    timeout = _call_timeout.get() or CHECKER_TIMEOUT_S
+    return deadline - time.monotonic() >= wait + timeout
+
+
 def _generate(client: genai.Client, contents: list, tag: str):
     """
-    ONE generate_content call per model, primary model first. No sleeping, no rounds:
-      404 (model gone) / 503 (overloaded) → the next fallback model, once.
-      429 (quota) / 500 / 504              → GeminiBusy (the caller re-queues later).
-      any other API error                  → raised as-is.
-    Every attempt counts against the sheet's call cap.
+    The primary model, up to CHECKER_PRIMARY_ATTEMPTS calls:
+      429 / 500 / 503 / 504 / timeout → wait (2 s, 5 s; 429: Retry-After capped at CHECKER_MAX_RETRY_WAIT_S) and call
+                                        again while a whole call still fits before the deadline
+      400 / 401 / 403 / 404           → GeminiConfigError at once (key or model problem, not the copy's)
+    Primary still failing:
+      fallback models, once each, ONLY with CHECKER_ALLOW_FALLBACK=true and only on 404 / 503 (the meter then says
+      fallback_used); otherwise GeminiBusy / the timeout is raised and the job worker retries later.
+    Every call counts against the sheet's call cap.
     """
-    global _preferred_model
     if GEMINI_MOCK:
         _count_call(tag)
         t_call = time.time()
@@ -251,48 +317,58 @@ def _generate(client: genai.Client, contents: list, tag: str):
         return response
 
     last_error: Optional[Exception] = None
-    for model in [CHECKER_MODEL, *CHECKER_FALLBACK_MODELS]:
-        _count_call(tag)
+    for attempt in range(1, CHECKER_PRIMARY_ATTEMPTS + 1):
         try:
-            t_call = time.time()
-            response = client.models.generate_content(
-                model=model,
-                contents=contents,
-                # temperature 0 + fixed seed: the same sheet should get the same marks every time
-                config={"response_mime_type": "application/json", "temperature": 0, "seed": 7},
-            )
-            _log_usage(tag, model, response, time.time() - t_call)
-            if model != _preferred_model:
-                logger.info(f"[{tag}] Using {model}")
-            _preferred_model = model
-            return response
+            return _call(client, CHECKER_MODEL, contents, tag)
         except Exception as e:
-            logger.warning(f"[checker] {_tag_prefix()}{tag.lower()} call to {model} failed after "
-                           f"{time.time() - t_call:.1f}s: {type(e).__name__} {getattr(e, 'code', '') or ''}".rstrip())
-            if not isinstance(e, genai_errors.APIError):
+            if isinstance(e, genai_errors.APIError):
+                if e.code in _CONFIG_CODES:
+                    if e.code == 404 and CHECKER_ALLOW_FALLBACK:
+                        last_error = e
+                        break
+                    raise GeminiConfigError(e.code, CHECKER_MODEL) from e
+                if e.code != 429 and e.code not in _TRANSIENT_CODES:
+                    raise
+            elif not _is_timeout(e):
                 raise
             last_error = e
-            if e.code in _FALLBACK_CODES:
-                logger.warning(f"[{tag}] {model} unavailable ({e.code}), trying the next model")
-                continue
-            if e.code == 429 or e.code in _TRANSIENT_CODES:
-                raise GeminiBusy(e.code, retry_after=_retry_after_s(e)) from e
-            raise
-    # every model failed with 404/503: overloaded → retry later; all gone → configuration problem, raise as-is
-    if getattr(last_error, "code", None) == 503:
-        raise GeminiBusy(503) from last_error
+        if attempt == CHECKER_PRIMARY_ATTEMPTS:
+            break
+        wait = _PRIMARY_BACKOFF_S[min(attempt, len(_PRIMARY_BACKOFF_S)) - 1]
+        if getattr(last_error, "code", None) == 429:
+            ra = _retry_after_s(last_error)
+            wait = min(ra if ra is not None else 5.0, CHECKER_MAX_RETRY_WAIT_S)
+        if not _retry_fits(wait):
+            logger.warning(f"[{tag}] no time left for another {CHECKER_MODEL} call (attempt {attempt})")
+            break
+        logger.warning(f"[{tag}] {CHECKER_MODEL} attempt {attempt} failed "
+                       f"({getattr(last_error, 'code', None) or type(last_error).__name__}), again in {wait:g}s")
+        time.sleep(wait)
+
+    code = getattr(last_error, "code", None)
+    if CHECKER_ALLOW_FALLBACK and code in _FALLBACK_CODES:
+        for model in CHECKER_FALLBACK_MODELS:
+            logger.warning(f"[{tag}] {CHECKER_MODEL} unavailable ({code}), FALLBACK to {model} (flagged for review)")
+            try:
+                return _call(client, model, contents, tag)
+            except genai_errors.APIError as e:
+                last_error = e
+                if e.code not in _FALLBACK_CODES:
+                    break
+        code = getattr(last_error, "code", None)
+    if isinstance(last_error, genai_errors.APIError):
+        if code == 404:
+            raise GeminiConfigError(404, CHECKER_MODEL) from last_error
+        raise GeminiBusy(code, retry_after=_retry_after_s(last_error)) from last_error
     raise last_error
 
 
 def _generate_json(client: genai.Client, contents: list, tag: str, max_retries: int = 2) -> dict:
-    """_generate + json.loads with at most ONE retry:
-      429 (quota)         → wait Retry-After (5 s if Gemini didn't say, capped at CHECKER_MAX_RETRY_WAIT_S)
-      5xx / bad JSON      → wait 2 s
-    The call cap is never retried. A second failure raises (GeminiBusy → HTTP 503 AI_BUSY)."""
+    """_generate (which already retries the primary model) + json.loads with at most ONE retry on an unreadable
+    reply (2 s apart). GeminiBusy / GeminiConfigError / timeouts are raised at once. The call cap is never retried."""
     attempts = max(1, min(max_retries, 2))
     last_error: Optional[Exception] = None
     for attempt in range(1, attempts + 1):
-        wait = 2.0
         try:
             response = _generate(client, contents, tag)
             data = json.loads(response.text)
@@ -302,15 +378,8 @@ def _generate_json(client: genai.Client, contents: list, tag: str, max_retries: 
         except (json.JSONDecodeError, ValueError) as e:
             logger.warning(f"[{tag}] Attempt {attempt} unreadable reply: {type(e).__name__}")
             last_error = e
-        except GeminiBusy as e:
-            logger.warning(f"[{tag}] Attempt {attempt} Gemini busy ({e.code}, retry_after={e.retry_after})")
-            last_error = e
-            if e.code == 429:
-                wait = min(e.retry_after if e.retry_after is not None else 5.0, CHECKER_MAX_RETRY_WAIT_S)
         if attempt < attempts:
-            time.sleep(wait)
-    if isinstance(last_error, GeminiBusy):
-        raise last_error
+            time.sleep(2.0)
     raise ValueError(f"{tag} failed: {type(last_error).__name__}")
 
 
