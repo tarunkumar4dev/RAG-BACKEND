@@ -224,6 +224,10 @@ def _check_sheet(c: _Caller, sheet_id: str) -> dict:
         result, ordered, usage = grade_copy(files, session["rubric"], session.get("strictness") or "medium")
         result["norm_pages"] = _save_norm_pages(c, sheet["session_id"], sheet_id, ordered)
         result["usage"] = usage
+        if usage.get("fallback_used"):        # never silent: the teacher sees which model marked the copy
+            result["sheet_flags"] = (result.get("sheet_flags") or []) + [{
+                "code": "FALLBACK_MODEL", "page": None,
+                "message": f"Checked with a backup AI model ({usage.get('model')}). Please check the marks."}]
         result["_meta"] = {"strictness": session.get("strictness") or "medium",
                            "grade_time_s": round(time.time() - start, 2), "pages": usage["pages"]}
         logger.info(f"[checker] sheet usage: {usage}")

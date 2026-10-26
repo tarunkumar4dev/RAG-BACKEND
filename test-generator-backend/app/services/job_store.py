@@ -279,6 +279,13 @@ class JobStore:
         return float(self._one("""select coalesce(sum((usage ->> 'est_cost_inr')::numeric), 0) from public.check_jobs
                                    where updated_at >= %s and usage ? 'est_cost_inr'""", (since,)) or 0)
 
+    # ── health ────────────────────────────────────────────────────────
+    def stale_jobs(self, minutes: int, limit: int = 20) -> list:
+        """Unfinished check jobs older than `minutes` (view checker_job_health, 26_checker_p0.sql)."""
+        return self._all("""select row_to_json(h) from public.checker_job_health h
+                             where h.age_min >= %s and h.state <> 'blocked_quota'
+                             order by h.age_min desc limit %s""", (minutes, limit))
+
     # ── retention / regrade ──────────────────────────────────────────
     def orphan_files(self, limit: int) -> list:
         return self._all("select f from public.a4_orphan_submission_files(%s) f", (limit,))

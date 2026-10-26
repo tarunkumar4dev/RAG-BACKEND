@@ -14,7 +14,7 @@ CONFIDENCE_VALUE = {"low": 0.4, "medium": 0.75, "high": 0.95}
 # A question whose confidence is below this needs review. A rubric question may set its own
 # ("review_min_confidence": "high" for a 10-mark derivation, say); this is the default for the rest.
 DEFAULT_MIN_CONFIDENCE = os.getenv("CHECKER_REVIEW_MIN_CONFIDENCE", "medium")
-REASON_ORDER = ("empty_answer", "illegible", "low_confidence", "key_missing", "blank_pages", "bad_scan")
+REASON_ORDER = ("empty_answer", "illegible", "low_confidence", "key_missing", "blank_pages", "bad_scan", "fallback_model")
 
 _NOT_FOUND = "Answer not found"
 _ESTIMATED = "estimated"
@@ -53,6 +53,8 @@ def review(result: dict, rubric: dict) -> tuple:
             reasons |= mine
     if any(f.get("code") == "BLANK_PAGE" for f in result.get("sheet_flags") or []):
         reasons.add("blank_pages")
+    if any(f.get("code") == "FALLBACK_MODEL" for f in result.get("sheet_flags") or []):
+        reasons.add("fallback_model")          # a backup model marked it: never auto-published (25_review_reason)
     if str(result.get("readability_score") or "").lower() == "poor":
         reasons.add("bad_scan")
     confidence = round(sum(values) / len(values), 3) if values else None

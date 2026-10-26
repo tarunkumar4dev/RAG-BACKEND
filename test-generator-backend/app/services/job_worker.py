@@ -64,7 +64,11 @@ PRICE_OUT_PER_M_INR = float(os.getenv("CHECKER_PRICE_OUT_PER_M_INR", "213"))
 
 SUBMISSIONS_BUCKET = "submissions"
 SHEETS_BUCKET = "answer-sheets"
-_RETRY_CODES = {"GEMINI_429", "GEMINI_5XX", "TIMEOUT", "UNKNOWN"}
+_RETRY_CODES = {"GEMINI_429", "GEMINI_5XX", "TIMEOUT", "GEMINI_CONFIG", "UNKNOWN"}
+# The AI side failed (not the copy): after the job's own retries a4_finish_check_job parks it as failed_retryable
+# and the sweep tries again later (26_checker_p0.sql) instead of failing it for a human Retry.
+_PROVIDER_CODES = {"GEMINI_429", "GEMINI_5XX", "TIMEOUT", "GEMINI_CONFIG"}
+STALE_ALERT_MIN = int(os.getenv("CHECKER_STALE_ALERT_MIN", "15"))
 _MIME = {"pdf": "application/pdf", "jpeg": "image/jpeg", "png": "image/png", "webp": "image/webp", "heic": "image/heic"}
 
 MSG = {
@@ -74,13 +78,16 @@ MSG = {
     "GEMINI_429": "AI is busy. Retrying automatically.",
     "GEMINI_5XX": "AI service is down. Retrying automatically.",
     "TIMEOUT": "Checking took too long. Retrying automatically.",
+    "GEMINI_CONFIG": "AI service is not available. Retrying automatically.",
     "UNKNOWN": "Error while checking. Retrying automatically.",
     "FINAL": "Not checked after {n} tries ({why}). Use Retry to check again.",
+    "RETRY_LATER": "AI not available after {n} tries ({why}). It will be checked again automatically.",
     "CALL_CAP": "AI call limit reached for this copy. Please check it manually.",
     "SCHEMA": "Copy data is incomplete; it cannot be checked.",
     "RUBRIC_FAILED": "Marking scheme could not be built ({why}). Attach the answer key again to retry.",
 }
 _WHY = {"GEMINI_429": "AI busy", "GEMINI_5XX": "AI down", "TIMEOUT": "time limit", "UNKNOWN": "error",
+        "GEMINI_CONFIG": "AI not available",
         "KEY_MISSING": "key unreadable", "CALL_CAP": "AI call limit"}
 
 
@@ -106,10 +113,16 @@ def est_cost_inr(u: dict) -> float:
 
 def add_usage(total: dict, part: dict) -> dict:
     out = dict(total or {})
+    part = part or {}
     for k in _COUNTERS:
-        out[k] = int(out.get(k) or 0) + int((part or {}).get(k) or 0)
-    if (part or {}).get("model"):
+        out[k] = int(out.get(k) or 0) + int(part.get(k) or 0)
+    if part.get("model"):
         out["model"] = part["model"]
+    models = set(out.get("models") or []) | set(part.get("models") or []) | ({part["model"]} if part.get("model") else set())
+    if models:
+        out["models"] = sorted(models)          # every model that answered a call of this job (all runs, chunks)
+    if part.get("fallback_used"):
+        out["fallback_used"] = True
     out["est_cost_inr"] = est_cost_inr(out)
     return out
 
@@ -159,11 +172,15 @@ class JobWorker:
         self._run_usage: dict = {}
         self._stages: dict = {}
         self._job_tag = ""
+        self._deadline: Optional[float] = None
 
     # One invocation
     def run(self) -> dict:
         start = self.clock()
+        # real time for the Gemini retries (the clock above may be a test's fake)
+        self._deadline = time.monotonic() + self.budget_s
         stats = {"jobs": 0, "paused_budget": False}
+        self.alert_stale()
         while self.budget_s - (self.clock() - start) > MIN_LEFT_TO_CLAIM_S:
             if self.over_budget():
                 stats["paused_budget"] = True
@@ -183,6 +200,19 @@ class JobWorker:
             return True
         return False
 
+    def alert_stale(self) -> None:
+        """23–24 Oct: copies sat ~20 h and nothing said so. Every run: one ERROR line per job that has not finished
+        STALE_ALERT_MIN minutes after it was created (view checker_job_health; the pg_cron sweep raises a WARNING too)."""
+        try:
+            stale = self.store.stale_jobs(STALE_ALERT_MIN)
+        except Exception as e:      # the view comes with 26_checker_p0.sql; never block checking on it
+            logger.warning(f"[jobs] stale-job check failed: {type(e).__name__}")
+            return
+        for j in stale:
+            logger.error(f"[jobs] ALERT job {j.get('job_id')} assignment {j.get('assignment_id')} not finished after "
+                         f"{j.get('age_min')} min (state {j.get('state')}, runs {j.get('retries')}, rounds "
+                         f"{j.get('retry_rounds')}, last error {j.get('last_error_code')})")
+
     def handle(self, job: dict) -> None:
         self._run_usage = {}
         self._stages = {}
@@ -193,7 +223,7 @@ class JobWorker:
                 else "copy" if job.get("submission_id") else job["kind"])
         logger.info(f"[jobs] {self._job_tag} {kind} run {job.get('retries')} started")
         try:
-            with svc.call_settings(log_tag=self._job_tag):
+            with svc.call_settings(log_tag=self._job_tag, deadline=self._deadline):
                 if job["kind"] == "retention":
                     self._retention(job)
                 elif job["kind"] == "check" and job.get("submission_id"):
@@ -236,6 +266,10 @@ class JobWorker:
         if isinstance(e, svc.GeminiBusy):
             code = "GEMINI_429" if e.code == 429 else "GEMINI_5XX"
             return code, MSG[code], e.retry_after
+        if isinstance(e, svc.GeminiConfigError):
+            logger.error(f"[jobs] ALERT {self._job_tag} Gemini {e.model} refused the call ({e.code}): check "
+                         f"CHECKER_GEMINI_API_KEY / CHECKER_GEMINI_MODEL. Copies wait and are retried automatically.")
+            return "GEMINI_CONFIG", MSG["GEMINI_CONFIG"], None
         if isinstance(e, svc.CallCapExceeded):
             return "CALL_CAP", MSG["CALL_CAP"], None
         if isinstance(e, TimeoutError) or "timeout" in type(e).__name__.lower():
@@ -252,7 +286,8 @@ class JobWorker:
         else:
             final = code not in _RETRY_CODES or int(job.get("retries") or 0) >= int(job.get("max_retries") or 3)
             if code in _RETRY_CODES and final:
-                message = MSG["FINAL"].format(n=job.get("retries"), why=_WHY[code])
+                template = MSG["RETRY_LATER"] if code in _PROVIDER_CODES else MSG["FINAL"]
+                message = template.format(n=job.get("retries"), why=_WHY[code])
         usage = self._usage_with_stages(job) if (self._run_usage or self._stages) else None
         try:
             row = self.store.finish(job["id"], False, code, message, usage)
@@ -457,6 +492,8 @@ class JobWorker:
         rubric = {k: v for k, v in rubric.items() if not k.startswith("_")}
         rubric["key_version"] = cp.get("key_version")
         rubric["strictness"] = key.get("strictness") or "medium"
+        rubric["model"] = self._run_usage.get("model")                  # every copy graded with it says so too
+        rubric["fallback_used"] = bool(self._run_usage.get("fallback_used"))
         self.store.save_rubric(session["id"], rubric)
         self.store.finish(job["id"], True, usage=self._usage_with_stages(job))
         woken = self.store.wake_copies(session["id"])
@@ -473,13 +510,26 @@ class JobWorker:
 
     # ── save ─────────────────────────────────────────────────────────
     def _save(self, job, sheet, sub, session, key, rubric, result, flags, meta) -> None:
+        grade_usage = result.get("usage") or {}
+        graded_by = sorted(set(grade_usage.get("models") or []) |
+                           ({grade_usage["model"]} if grade_usage.get("model") else set()))
+        fallback = [m for m in graded_by if m not in (svc.CHECKER_MODEL, "mock")]
+        if rubric.get("fallback_used") and rubric.get("model"):
+            fallback.append(f"{rubric['model']} (marking scheme)")
+        if grade_usage.get("fallback_used") or fallback:
+            flags = flags + [{"code": "FALLBACK_MODEL", "page": None,
+                              "message": f"Checked with a backup AI model ({', '.join(fallback) or 'unknown'}), "
+                                         f"not {svc.CHECKER_MODEL}. Please check the marks."}]
         result["sheet_flags"] = (result.get("sheet_flags") or []) + flags
         reasons, confidence, by_q = portal_result.review(result, rubric)
-        model = self._run_usage.get("model") or (job.get("usage") or {}).get("model") or svc.CHECKER_MODEL
+        model = (next((m for m in graded_by if m != svc.CHECKER_MODEL), None) or self._run_usage.get("model")
+                 or (job.get("usage") or {}).get("model") or svc.CHECKER_MODEL)
         compact = _compact(result)
         compact["review"] = {"reasons": reasons, "by_question": by_q}
         compact["meta"] = {**meta, "answer_key_version": key.get("version"), "model_version": model,
-                           "strictness": key.get("strictness") or "medium"}
+                           "strictness": key.get("strictness") or "medium",
+                           "models": {"rubric": rubric.get("model"), "grade": graded_by},
+                           "primary_model": svc.CHECKER_MODEL}
         total = float(result.get("total_marks_awarded") or 0)
         max_marks = float(result.get("max_marks") or 0)
         fields = {"ai_result": compact, "ai_marks": total, "max_marks": max_marks, "needs_review_reasons": reasons,
