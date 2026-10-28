@@ -36,6 +36,7 @@ from app.services.test_generator_service import generate_test, handle_feedback, 
 from app.api.v1.endpoints.chat import _SlidingWindow
 from starlette.concurrency import run_in_threadpool
 from app.services.rag_service import retrieve_context
+from app.services.ncert_options import decode_options, strip_option_labels
 from app.core.auth import AuthUser, require_user
 from app.core.database import get_supabase, get_supabase_admin
 from app.core.config import settings
@@ -995,32 +996,7 @@ _NCERT_FIGURE_MISSING_OR = "question_type.eq.diagram,figure_ref.not.is.null"  # 
 _NCERT_FIGURE_OK_OR = "image_url.not.is.null,and(question_type.neq.diagram,figure_ref.is.null)"
 # audit bookkeeping, not for teachers (no "needs review" anywhere in the UI)
 _NCERT_INTERNAL_FIELDS = ("quality_status", "quality_flags", "duplicate_of", "hash_version", "quality_rank")
-_OPTION_LABEL = re.compile(r"^\s*(?:\(\s*([A-Fa-f])\s*\)|([A-Fa-f])\s*[.)])\s*")
 _SECTION_CHAPTER_NO = re.compile(r"(\d{1,2})\.\d+")
-
-
-def _decode_options(raw) -> list:
-    """options is jsonb, but most rows hold a JSON *string* of the list ("[\\"(A) 60°\\", …]"). Accept both."""
-    value = raw
-    for _ in range(3):
-        if not isinstance(value, str):
-            break
-        try:
-            value = json.loads(value)
-        except Exception:
-            return []
-    return [str(o) for o in value] if isinstance(value, list) else []
-
-
-def _strip_option_labels(options: list) -> list:
-    """'(A) 60°' → '60°' when the label is that option's own letter — the builder and the PDF add A/B/C/D."""
-    out = []
-    for i, opt in enumerate(options):
-        m = _OPTION_LABEL.match(opt)
-        letter = (m.group(1) or m.group(2)).upper() if m else None
-        rest = opt[m.end():] if m else opt
-        out.append(rest if letter == chr(65 + i) and rest.strip() else opt)
-    return out
 
 
 def _figure_missing(q: dict) -> bool:
@@ -1096,7 +1072,7 @@ async def _ncert_questions_impl(
         total_count = result.count if result.count is not None else offset + len(questions)
 
         for q in questions:
-            q["options"] = _strip_option_labels(_decode_options(q.get("options")))
+            q["options"] = strip_option_labels(decode_options(q.get("options")))
             q["figure_missing"] = _figure_missing(q)
             for field in _NCERT_INTERNAL_FIELDS:
                 q.pop(field, None)
@@ -1536,13 +1512,15 @@ async def get_test(test_id: str, user: AuthUser = Depends(require_user)):
 
 # ═══════════════════════════════════════════════════════════════════════
 # NCERT library routes — cached (NCERT data only changes when re-ingested)
-#   * in-memory TTL cache per warm instance: repeat requests skip Supabase entirely
-#   * Cache-Control lets the browser and Vercel's edge serve repeats without hitting Python
+#   * in-memory TTL cache per warm instance: repeat requests skip Supabase entirely (empty after every deploy)
+#   * Cache-Control: no-store while the quality rollout (G4.6/G4.7) is verified, so no browser or Vercel edge
+#     keeps a pre-rollout list. Was "public, max-age=300, s-maxage=600, stale-while-revalidate=86400";
+#     put it back after G5 passes.
 # ═══════════════════════════════════════════════════════════════════════
 
 from app.core.cache import api_cache  # noqa: E402
 
-_NCERT_CACHE_CONTROL = "public, max-age=300, s-maxage=600, stale-while-revalidate=86400"
+_NCERT_CACHE_CONTROL = "private, no-store"
 
 
 @router.get("/ncert-questions")
