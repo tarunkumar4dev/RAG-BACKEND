@@ -999,6 +999,29 @@ _NCERT_INTERNAL_FIELDS = ("quality_status", "quality_flags", "duplicate_of", "ha
 _SECTION_CHAPTER_NO = re.compile(r"(\d{1,2})\.\d+")
 
 
+def _prepare_ncert_rows(questions: list) -> None:
+    """Options cleaned, figure_missing set, audit fields dropped — the same for the list and by-ids."""
+    for q in questions:
+        q["options"] = strip_option_labels(decode_options(q.get("options")))
+        q["figure_missing"] = _figure_missing(q)
+        for field in _NCERT_INTERNAL_FIELDS:
+            q.pop(field, None)
+
+    # Accountancy: send the same text/table segments the PDF exporter will print, so the
+    # builder preview shows real ledgers/statements instead of flattened NCERT text.
+    accountancy = [q for q in questions if (q.get("subject") or "").lower() in ("accountancy", "accounts", "accounting")]
+    if accountancy:
+        from app.services.accountancy_parser import build_question_segments
+        for q in accountancy:
+            try:
+                segs = build_question_segments(q.get("question_text") or "", q.get("question_table"))
+            except Exception as seg_err:  # a heuristic must never break the question list
+                logger.warning(f"Accountancy table parse failed for {q.get('id')}: {seg_err}")
+                continue
+            if any(s["type"] == "table" for s in segs):
+                q["structured_segments"] = segs
+
+
 def _figure_missing(q: dict) -> bool:
     return not q.get("image_url") and (q.get("question_type") == "diagram" or bool(q.get("figure_ref")))
 
@@ -1071,24 +1094,7 @@ async def _ncert_questions_impl(
         questions = result.data or []
         total_count = result.count if result.count is not None else offset + len(questions)
 
-        for q in questions:
-            q["options"] = strip_option_labels(decode_options(q.get("options")))
-            q["figure_missing"] = _figure_missing(q)
-            for field in _NCERT_INTERNAL_FIELDS:
-                q.pop(field, None)
-
-        # Accountancy: send the same text/table segments the PDF exporter will print, so the
-        # builder preview shows real ledgers/statements instead of flattened NCERT text.
-        if subject.lower() in ("accountancy", "accounts", "accounting"):
-            from app.services.accountancy_parser import build_question_segments
-            for q in questions:
-                try:
-                    segs = build_question_segments(q.get("question_text") or "", q.get("question_table"))
-                except Exception as seg_err:  # a heuristic must never break the question list
-                    logger.warning(f"Accountancy table parse failed for {q.get('id')}: {seg_err}")
-                    continue
-                if any(s["type"] == "table" for s in segs):
-                    q["structured_segments"] = segs
+        _prepare_ncert_rows(questions)
 
         return {
             "ok": True, "subject": subject, "classGrade": class_grade, "chapter": chapter,
@@ -1547,6 +1553,27 @@ async def get_ncert_questions(
     if data.get("ok"):
         response.headers["Cache-Control"] = _NCERT_CACHE_CONTROL
     return data
+
+
+_NCERT_BY_IDS_MAX = 200  # the builder's paper cap
+
+
+@router.get("/ncert-questions/by-ids")
+async def get_ncert_questions_by_ids(response: Response, ids: str = ""):
+    """The builder's saved paper (localStorage keeps ids only): the visible rows among `ids` (comma-separated).
+    An id that is missing from the answer was deleted or is now hidden (duplicate / junk)."""
+    response.headers["Cache-Control"] = "private, no-store"
+    wanted = list(dict.fromkeys(int(i) for i in ids.split(",") if i.strip().isdigit()))[:_NCERT_BY_IDS_MAX]
+    if not wanted:
+        return {"ok": True, "questions": []}
+    try:
+        result = get_supabase().table("ncert_questions").select("*")             .in_("id", wanted).or_(_NCERT_VISIBLE_OR).execute()
+        questions = result.data or []
+        _prepare_ncert_rows(questions)
+        return {"ok": True, "questions": questions}
+    except Exception as e:
+        logger.error(f"NCERT questions by-ids fetch error: {e}", exc_info=True)
+        return {"ok": False, "questions": []}
 
 
 @router.get("/ncert-question-stats")

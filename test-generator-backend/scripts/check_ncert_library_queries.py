@@ -118,6 +118,28 @@ def main() -> int:
     check("chapter_no from sections", tg._chapter_number({"EXERCISE 5.2": 40, "5.3 nth Term": 20, "9.1": 3}) == 5)
     check("chapter_no None without numbered sections", tg._chapter_number({"Uncategorized": 10, "Poem": 4}) is None)
 
+    # by-ids (the builder's saved paper): visible rows only, ids capped at 200, junk ignored, no-store
+    fake = FakeClient(rows=[{"id": 7, "options": '["(A) (A) 1", "(B) 2"]', "question_type": "mcq", "image_url": None,
+                             "figure_ref": None, "quality_status": "clean", "subject": "Mathematics"}])
+    tg.get_supabase = lambda: fake
+
+    class Resp:
+        headers = {}
+    resp = Resp()
+    ids = ",".join(str(i) for i in range(1, 260)) + ",x,,7,-3"
+    out = run(tg.get_ncert_questions_by_ids(resp, ids))
+    calls = fake.queries[0]
+    sent = next(a[1] for m, a, _ in calls if m == "in_")
+    check("by-ids: in_ id, first 200 unique numeric ids", sent == list(range(1, 201)), sent[-3:])
+    check("by-ids: hides duplicate/junk", ("or_", (tg._NCERT_VISIBLE_OR,), {}) in calls, calls)
+    check("by-ids: rows prepared like the list", out["questions"][0]["options"] == ["1", "2"]
+          and "quality_status" not in out["questions"][0], out["questions"][0])
+    check("by-ids: Cache-Control no-store", resp.headers.get("Cache-Control") == "private, no-store", resp.headers)
+    fake.queries.clear()
+    check("by-ids: empty ids → no query", run(tg.get_ncert_questions_by_ids(Resp(), "")) == {"ok": True, "questions": []}
+          and not fake.queries)
+    check("list/stats Cache-Control is no-store during rollout", tg._NCERT_CACHE_CONTROL == "private, no-store")
+
     # stats fallback: no pool → Supabase client must page through all 2,500 rows
     rows = [{"chapter": "Ch A" if i % 2 else "Ch B", "section": None, "question_type": "exercise"} for i in range(2500)]
     fake = FakeClient(rows=rows)
