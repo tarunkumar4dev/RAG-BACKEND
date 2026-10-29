@@ -36,6 +36,7 @@ from app.services.test_generator_service import generate_test, handle_feedback, 
 from app.api.v1.endpoints.chat import _SlidingWindow
 from starlette.concurrency import run_in_threadpool
 from app.services.rag_service import retrieve_context
+from app.services.ncert_dedupe import dedupe_ncert_rows
 from app.services.ncert_options import decode_options, strip_option_labels
 from app.core.auth import AuthUser, require_user
 from app.core.database import get_supabase, get_supabase_admin
@@ -996,6 +997,7 @@ _NCERT_FIGURE_MISSING_OR = "question_type.eq.diagram,figure_ref.not.is.null"  # 
 _NCERT_FIGURE_OK_OR = "image_url.not.is.null,and(question_type.neq.diagram,figure_ref.is.null)"
 # audit bookkeeping, not for teachers (no "needs review" anywhere in the UI)
 _NCERT_INTERNAL_FIELDS = ("quality_status", "quality_flags", "duplicate_of", "hash_version", "quality_rank")
+_NCERT_DEDUPE_MAX_ROWS = 20_000  # list read cap (a whole subject without a chapter filter)
 _SECTION_CHAPTER_NO = re.compile(r"(\d{1,2})\.\d+")
 
 
@@ -1059,8 +1061,7 @@ async def _ncert_questions_impl(
 
     try:
         supabase = get_supabase()
-        # count="exact" returns the total with the page — one Supabase round trip instead of two.
-        query = supabase.table("ncert_questions").select("*", count="exact").eq("class_grade", class_grade)
+        query = supabase.table("ncert_questions").select("*").eq("class_grade", class_grade)
         query = _apply_ncert_subject_filter(query, subject)
         query = query.or_(_NCERT_VISIBLE_OR)
         if figure == "missing":
@@ -1084,15 +1085,22 @@ async def _ncert_questions_impl(
 
         # quality_rank first: clean / fixed (and unaudited) before needs_review; all 0 for unaudited classes,
         # so their order is unchanged. id breaks ties: without it rows could repeat or vanish across pages.
-        result = query.order("quality_rank", desc=False) \
+        query = query.order("quality_rank", desc=False) \
             .order("section", desc=False) \
             .order("question_number", desc=False) \
-            .order("id", desc=False) \
-            .range(offset, offset + limit - 1) \
-            .execute()
+            .order("id", desc=False)
 
-        questions = result.data or []
-        total_count = result.count if result.count is not None else offset + len(questions)
+        # Every matching row, then one per question (dedupe_ncert_rows: copies the quality pass has not
+        # merged yet), then the page — so totals and pages agree. A chapter is a few hundred rows.
+        rows = []
+        while len(rows) < _NCERT_DEDUPE_MAX_ROWS:
+            batch = query.range(len(rows), len(rows) + 999).execute().data or []
+            rows.extend(batch)
+            if len(batch) < 1000:
+                break
+        rows = dedupe_ncert_rows(rows)
+        questions = rows[offset:offset + limit]
+        total_count = len(rows)
 
         _prepare_ncert_rows(questions)
 
@@ -1123,18 +1131,21 @@ async def _ncert_question_stats_impl(subject: str = "Science", class_grade: str 
                 where_sub, sub_params = _get_subject_sql_clause(subject)
                 cur = conn.cursor()
                 cur.execute(f"""
-                    SELECT chapter, COALESCE(section, 'Uncategorized'), COALESCE(question_type, 'exercise'), COUNT(*)
+                    SELECT id, chapter, section, question_type, question_number, question_text, options, quality_rank
                     FROM ncert_questions
-                    WHERE class_grade = %s AND {where_sub} AND {_NCERT_VISIBLE_SQL}
-                    GROUP BY chapter, section, question_type
-                    ORDER BY chapter;
+                    WHERE class_grade = %s AND {where_sub} AND {_NCERT_VISIBLE_SQL};
                 """, [class_grade] + sub_params)
-                rows = cur.fetchall()
+                cols = [d[0] for d in cur.description]
+                rows = [dict(zip(cols, r)) for r in cur.fetchall()]
                 cur.close()
                 conn.close()
 
                 chapter_stats = {}
-                for ch, sec, qtype, cnt in rows:
+                # same rows as the question list: one per question
+                for row in dedupe_ncert_rows(sorted(rows, key=lambda r: r["id"])):
+                    ch, cnt = row["chapter"], 1
+                    sec = row.get("section") or "Uncategorized"
+                    qtype = row.get("question_type") or "exercise"
                     if ch not in chapter_stats:
                         chapter_stats[ch] = {"chapter": ch, "total": 0, "sections": {}, "types": {}}
                     chapter_stats[ch]["total"] += cnt
@@ -1170,7 +1181,7 @@ async def _ncert_question_stats_impl(subject: str = "Science", class_grade: str 
         page_size = 1000
         while True:
             base_query = supabase.table("ncert_questions") \
-                .select("chapter, section, question_type") \
+                .select("id, chapter, section, question_type, question_number, question_text, options, quality_rank") \
                 .eq("class_grade", class_grade)
             base_query = _apply_ncert_subject_filter(base_query, subject).or_(_NCERT_VISIBLE_OR)
             page = base_query.order("id").range(len(rows), len(rows) + page_size - 1).execute().data or []
@@ -1179,7 +1190,7 @@ async def _ncert_question_stats_impl(subject: str = "Science", class_grade: str 
                 break
 
         chapter_stats = {}
-        for row in rows:
+        for row in dedupe_ncert_rows(rows):
             ch = row["chapter"]
             sec = row.get("section") or "Uncategorized"
             qtype = row.get("question_type") or "exercise"
