@@ -6,3 +6,5 @@ gemini_debug/
 __pycache__/
 *.pyc
 .env
+# NCERT audit output (CSV baselines, reports) — not part of the API bundle
+test-generator-backend/docs/

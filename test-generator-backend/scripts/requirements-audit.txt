@@ -1,0 +1,6 @@
+# NCERT audit / quality-pass scripts only (scripts/audit_ncert_quality*.py, scripts/ncert_quality_pass.py).
+# Not needed by the API — keep out of requirements.txt (the Vercel bundle has a size limit).
+# psycopg2-binary and PyMuPDF come from requirements.txt.
+#   pip install -r requirements.txt -r scripts/requirements-audit.txt
+rapidfuzz==3.13.0
+numpy==2.1.3
