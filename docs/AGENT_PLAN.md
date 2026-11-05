@@ -28,7 +28,8 @@
 
 ## Status (end of session, 5 Nov)
 - Provider used for the whole session: **Anthropic `claude-sonnet-5-5`** (ping OK). Gemini path implemented
-  (`GeminiProvider`, schema sanitiser) and unit-tested; not used for the demo/evals, so no Gemini fallback was needed.
+  (`GeminiProvider`); only its schema sanitiser is unit-tested — `GeminiProvider.complete` was not exercised in this
+  session (no fallback was needed: Anthropic worked for the demo and evals).
 - Files: `agent/{schemas,config,llm,core,verify,approval,trace,auth,api,export,db,text}.py`, `agent/tools/{insights,paper,registry}.py`,
   `agent/seed/*.sql`, `tests/agent/*`, `evals/*`, frontend `a4ai/src/{pages,components,lib}/agent/*` (not routed).
 - Trig demo: 3 live runs; verifier bugs found by the demo fixed with regression tests (see `evals/sample_trigonometry_review.md`).
