@@ -55,6 +55,17 @@ class Agent:
         self.drafts: dict[str, dict] = {}
         self.blueprint: Optional[dict] = None
         self.tools_used: list[str] = []
+        if conn_rw is not None:  # drafts survive across requests (approval runs in another request)
+            for row in conn_rw.execute("select id, paper from agent_drafts where session_id=%s and user_id=%s",
+                                       (session_id, str(ctx.user_id))).fetchall():
+                self.drafts[str(row["id"])] = row["paper"]
+
+    def _persist(self, did: str) -> None:
+        if self.conn is not None:
+            self.conn.execute("insert into agent_drafts(id, session_id, institute_id, user_id, paper) "
+                              "values (%s,%s,%s,%s,%s::jsonb) on conflict (id) do update set paper=excluded.paper",
+                              (did, self.session_id, str(self.ctx.institute_id), str(self.ctx.user_id),
+                               json.dumps(self.drafts[did], default=str)))
 
     # -- events ----------------------------------------------------------
     def ev(self, type_: str, **kw) -> dict:
@@ -92,6 +103,7 @@ class Agent:
             self.blueprint = bp
             did = str(uuid.uuid4())
             self.drafts[did] = {"blueprint": bp, "paper": None, "summary": None}
+            self._persist(did)
             emit(self.ev("blueprint", **{k: bp[k] for k in ("class_grade", "subject", "chapters", "total_marks",
                                                              "duration_min", "sections")}))
             return {"status": "ok", "draft_id": did, "sum_ok": bp["sum_ok"], "sections": bp["sections"]}
@@ -114,11 +126,7 @@ class Agent:
             d["paper"]["questions"] = [new.get(q["id"], q) for q in d["paper"]["questions"]]
             d["summary"] = verify_paper(d["paper"], P.make_solver(self.p, self.tokens), d["blueprint"]["chapters"])
         elif name == "save_draft":
-            if self.conn is not None:
-                self.conn.execute("insert into agent_drafts(id, session_id, institute_id, user_id, paper) "
-                                  "values (%s,%s,%s,%s,%s::jsonb) on conflict (id) do update set paper=excluded.paper",
-                                  (did, self.session_id, str(self.ctx.institute_id), str(self.ctx.user_id),
-                                   json.dumps(d, default=str)))
+            self._persist(did)
             return {"status": "saved", "draft_id": did}
         elif name in ("finalize_test", "assign_to_section"):
             if not d.get("summary") or not can_finalize(d["summary"]):
@@ -133,6 +141,9 @@ class Agent:
             return {"status": "pending_approval", "approval_id": appr["approval_id"]}
         elif name == "export_pdf":
             return {"status": "requires_approval", "detail": "PDF is available only after /agent/approve"}
+        if d.get("paper") is None:
+            return {"status": "no_questions_yet", "hint": "call generate_questions first"}
+        self._persist(did)
         s = d["summary"]
         emit(self.ev("paper_preview", draft_id=did,
                      title=f"Class {d['blueprint']['class_grade']} {d['blueprint']['subject']} — "

@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import json
+import threading
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from typing import Literal, Optional
 from uuid import UUID
 
@@ -104,8 +106,17 @@ class QuestionGenerator:
     def __init__(self, provider: LLMProvider):
         self.p = provider
         self.usage = [0, 0]
+        self._lock = threading.Lock()
 
     def generate(self, bp: dict, slots: list[dict], context: list[str], avoid: list[str]) -> list[dict]:
+        """One batch call per <=7 slots, run in parallel (latency); each batch is a single LLM call."""
+        chunks = [slots[i:i + 7] for i in range(0, len(slots), 7)]
+        if len(chunks) == 1:
+            return self._generate(bp, chunks[0], context, avoid)
+        with ThreadPoolExecutor(max_workers=len(chunks)) as ex:
+            return [q for part in ex.map(lambda c: self._generate(bp, c, context, avoid), chunks) for q in part]
+
+    def _generate(self, bp: dict, slots: list[dict], context: list[str], avoid: list[str]) -> list[dict]:
         prompt = json.dumps({
             "class": bp["class_grade"], "subject": bp["subject"], "chapter": bp["chapters"][0],
             "ncert_context": context[:6], "avoid_duplicates_of": avoid[:40],
@@ -116,8 +127,9 @@ class QuestionGenerator:
                                       "sub_questions": [{"text": "...", "marks": 0, "answer": "..."}]}]},
         })
         data, r = complete_json(self.p, GEN_SYSTEM, "Generate one question per slot. " + prompt, max_tokens=12000)
-        self.usage[0] += r.tokens_in
-        self.usage[1] += r.tokens_out
+        with self._lock:
+            self.usage[0] += r.tokens_in
+            self.usage[1] += r.tokens_out
         qs = data["questions"] if isinstance(data, dict) else data
         by_id = {s["id"]: s for s in slots}
         out = []

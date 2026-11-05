@@ -31,18 +31,41 @@ _LOCALS = {"sin": sp.sin, "cos": sp.cos, "tan": sp.tan, "cot": sp.cot, "sec": sp
            "cosec": sp.csc, "sqrt": sp.sqrt, "pi": sp.pi, "deg": sp.pi / 180}
 
 
-def to_sympy(s: Any) -> Optional[sp.Expr]:
-    """Parse '√3/2', 'sin(30°)^2', '2/sqrt(3)'. Returns None when unparseable."""
-    if s is None:
-        return None
-    t = str(s).strip().strip("$").replace("\\", "")
-    if not t or len(t) > 200:
-        return None
+def _latex_to_plain(t: str) -> str:
+    t = t.strip().strip("$").strip()
+    t = re.sub(r"\\(left|right|displaystyle|,|;|!)", "", t)
+    t = re.sub(r"\^\s*\{?\\circ\}?", "*deg", t)
+    t = t.replace("\\circ", "*deg").replace("\\cdot", "*").replace("\\times", "*").replace("\\div", "/")
+    t = t.replace("\\theta", "theta").replace("\\pi", "pi").replace("\\alpha", "alpha").replace("\\beta", "beta")
+    for _ in range(10):  # innermost-first: sqrt{..}, (d|t)frac{..}{..}, ^{..}
+        prev = t
+        t = re.sub(r"\\?sqrt\s*\{([^{}]*)\}", r"sqrt(\1)", t)
+        t = re.sub(r"\\?[dt]?frac\s*\{([^{}]*)\}\s*\{([^{}]*)\}", r"((\1)/(\2))", t)
+        t = re.sub(r"\^\s*\{([^{}]*)\}", r"**(\1)", t)
+        if t == prev:
+            break
+    t = t.replace("\\", "")
     t = (t.replace("√", "sqrt").replace("π", "pi").replace("°", "*deg").replace("×", "*").replace("÷", "/")
          .replace("−", "-").replace("θ", "theta"))
     t = re.sub(r"sqrt\s*(\d+)", r"sqrt(\1)", t)
-    t = re.sub(r"frac\{([^{}]+)\}\{([^{}]+)\}", r"((\1)/(\2))", t)
     t = t.replace("{", "(").replace("}", ")")
+    fn = r"(sin|cos|tan|cot|sec|cosec|csc)"
+    arg = r"(theta|alpha|beta|[A-Z]|\d+(?:\.\d+)?(?:\*deg)?|\([^()]*\))"
+    t = re.sub(fn + r"\s*\^\s*\(?(\d+)\)?\s*" + arg, r"(\1(\3))**\2", t)  # sin^2 30° -> (sin(30*deg))**2
+    t = re.sub(fn + r"\s+" + arg, r"\1(\2)", t)  # sin 30° -> sin(30*deg)
+    return t
+
+
+def to_sympy(s: Any) -> Optional[sp.Expr]:
+    """Parse '√3/2', 'sin(30°)^2', '$\\dfrac{\\sqrt{3}}{2}$'. Returns None when unparseable."""
+    if s is None:
+        return None
+    raw = str(s)
+    if not raw.strip() or len(raw) > 200 or "=" in raw or "," in raw:
+        return None
+    t = _latex_to_plain(raw)
+    if re.search(r"[a-zA-Z]{2,}", re.sub(r"sqrt|sin|cos|tan|cot|sec|csc|cosec|pi|deg|theta|alpha|beta", "", t)):
+        return None  # leftover words (e.g. 'dfrac', prose) -> unparseable, never a silent symbol
     try:
         e = parse_expr(t, local_dict=_LOCALS, transformations=_TF, evaluate=True)
         return e if isinstance(e, sp.Expr) else None
@@ -50,7 +73,27 @@ def to_sympy(s: Any) -> Optional[sp.Expr]:
         return None
 
 
+def parse_pairs(s: Any) -> Optional[dict]:
+    """'A = 45°, B = 15°' -> {'A': '45', 'B': '15'} (degrees dropped on both sides when compared)."""
+    if s is None:
+        return None
+    parts = [p.strip() for p in re.split(r"[,;]|\band\b", str(s).strip().strip("$")) if p.strip()]
+    out = {}
+    for p in parts:
+        m = re.match(r"^\\?([A-Za-z]{1,6})\s*=\s*(.+)$", p.strip().strip("$"))
+        if not m:
+            return None
+        out[m.group(1).upper()] = re.sub(r"\^?\s*\{?\\circ\}?|°", "", m.group(2)).strip()
+    return out if len(out) >= 2 else None
+
+
 def sym_equal(a: Any, b: Any) -> Optional[bool]:
+    pa, pb = parse_pairs(a), parse_pairs(b)
+    if pa is not None or pb is not None:
+        if pa is None or pb is None or set(pa) != set(pb):
+            return None if (pa is None or pb is None) else False
+        res = [sym_equal(pa[k], pb[k]) for k in pa]
+        return None if any(r is None for r in res) else all(res)
     ea, eb = to_sympy(a), to_sympy(b)
     if ea is None or eb is None:
         return None
@@ -64,6 +107,18 @@ def sym_equal(a: Any, b: Any) -> Optional[bool]:
         return abs(complex(d.evalf())) < 1e-9
     except Exception:
         return None
+
+
+def _distinct_options(opts: list) -> bool:
+    vals = [to_sympy(o) for o in opts]
+    if all(v is not None for v in vals):
+        for i in range(len(vals)):
+            for j in range(i + 1, len(vals)):
+                if sym_equal(opts[i], opts[j]):
+                    return False
+        return True
+    keys = [re.sub(r"\s+", "", _latex_to_plain(str(o)).lower()) for o in opts]
+    return len(set(keys)) == len(keys)
 
 
 def _norm(t: str) -> str:
@@ -93,7 +148,7 @@ def _check_deterministic(q: dict, solved: Optional[str]) -> tuple[str, list[str]
     if qt in ("mcq", "assertion_reason"):
         opts = q.get("options") or []
         key = _letter(q.get("answer"))
-        if len(opts) != 4 or len({_norm(o) for o in opts}) != 4:
+        if len(opts) != 4 or not _distinct_options(opts):
             reasons.append("needs 4 distinct options")
         if key is None:
             return "manual_review", reasons + ["answer key not a letter A-D"], detail
@@ -121,7 +176,7 @@ def _check_deterministic(q: dict, solved: Optional[str]) -> tuple[str, list[str]
             reasons.append(f"independent solver chose {sl}, key is {key}")
     else:  # numeric / very_short
         key = q.get("answer")
-        if q.get("check_expr"):
+        if q.get("check_expr") and parse_pairs(key) is None:
             eq = sym_equal(q["check_expr"], key)
             detail["sympy"] = {True: "key == check_expr", False: "key != check_expr", None: "unparseable"}[eq]
             if eq is None:
