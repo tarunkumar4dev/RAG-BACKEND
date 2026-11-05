@@ -21,23 +21,33 @@ flowchart LR
   CORE --> TR["trace.py → JSONL<br/>tool, arg keys, latency, tokens, cost"]
 ```
 
-## Run locally
+## Run locally (quickstart)
 ```bash
 pip install anthropic google-genai fastapi uvicorn sympy "psycopg[binary]" pyyaml pytest httpx
 ```
+Seeds the fake local DB and starts uvicorn on http://localhost:8000 with `AGENT_DEV_MODE=1`
+(starts a throwaway local Postgres if none is running; needs `A4AI_ANTHROPIC_API_KEY` in the environment):
 ```bash
-python -c "from agent.db import reset_and_seed; reset_and_seed()"   # local Postgres, fake data only
+./scripts/run_agent_dev.sh
 ```
+Vite on another port? Allow it explicitly (comma-separated, no wildcard):
 ```bash
-AGENT_DEV_AUTH=1 uvicorn agent.api:app --port 8100
+AGENT_CORS_ORIGINS=http://localhost:5173,http://localhost:8080 ./scripts/run_agent_dev.sh
 ```
+Try it (dev identity from the seeded DB via `X-Dev-Role: admin|teacher`):
+```bash
+curl -N -X POST http://localhost:8000/agent/chat -H "Content-Type: application/json" -H "X-Dev-Role: admin" -d '{"message":"Sharma ma'"'"'am ki is mahine ki attendance kya hai?"}'
+```
+Frontend (`a4ai/.env.local`): `VITE_AGENT_URL=http://localhost:8000` and `VITE_AGENT_DEV_ROLE=admin` (sent only in `vite dev`).
+Tests:
 ```bash
 python -m pytest tests/agent -q
 ```
-```bash
-python evals/run_evals.py anthropic
-```
-Frontend: `a4ai/src/pages/agent/AgentPage.tsx` (route snippet in its header comment; not mounted yet).
+Dev-mode rules: `X-Dev-Role` is honoured only with `AGENT_DEV_MODE=1`; the app refuses to start in dev mode if any
+of `AGENT_DATABASE_URL`, `AGENT_DATABASE_RO_URL`, `DATABASE_URL`, `SUPABASE_DB_URL`, `SUPABASE_URL`, `POSTGRES_URL`
+points at a non-local host, or when `VERCEL` is set. CORS: `AGENT_CORS_ORIGINS` (default `http://localhost:5173`),
+methods GET/POST/OPTIONS, headers Authorization, Content-Type, Last-Event-ID (+ X-Dev-Role in dev mode only).
+Frontend: `/agent` page and the floating "Ask a4ai" button on staff dashboards.
 
 ## Security model
 - **Identity is server-side.** `get_session()` verifies the Supabase JWT with the existing `app.core.auth.verify_token`

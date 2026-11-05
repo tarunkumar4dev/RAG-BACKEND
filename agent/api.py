@@ -5,11 +5,14 @@ import json
 import uuid
 from typing import Iterator
 
+import os
+
 from fastapi import APIRouter, Depends, FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
 
 from .approval import ApprovalError, execute_approval
-from .auth import get_session
+from .auth import check_dev_mode_safe, dev_mode_enabled, get_session
 from .core import Agent
 from .db import connect
 from .llm import get_provider
@@ -136,5 +139,27 @@ def draft_pdf(draft_id: str, ctx: SessionCtx = Depends(get_session)):
     return Response(export_pdf(d["paper"]), media_type="application/pdf")
 
 
-app = FastAPI(title="a4ai Agent (standalone)")
-app.include_router(router)
+DEFAULT_CORS_ORIGINS = "http://localhost:5173"
+
+
+def cors_origins(env=os.environ) -> list[str]:
+    raw = env.get("AGENT_CORS_ORIGINS") or DEFAULT_CORS_ORIGINS
+    origins = [o.strip().rstrip("/") for o in raw.split(",") if o.strip()]
+    if any("*" in o for o in origins):
+        raise RuntimeError("AGENT_CORS_ORIGINS must list exact origins (no wildcard)")
+    return origins
+
+
+def create_app(env=os.environ) -> FastAPI:
+    check_dev_mode_safe(env)  # refuse to start: dev mode + non-local DB
+    a = FastAPI(title="a4ai Agent (standalone)")
+    headers = ["Authorization", "Content-Type", "Last-Event-ID"]
+    if dev_mode_enabled(env):
+        headers.append("X-Dev-Role")  # only in dev mode, so the browser preflight allows the dev header
+    a.add_middleware(CORSMiddleware, allow_origins=cors_origins(env), allow_methods=["GET", "POST", "OPTIONS"],
+                     allow_headers=headers, allow_credentials=False)
+    a.include_router(router)
+    return a
+
+
+app = create_app()

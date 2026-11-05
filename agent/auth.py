@@ -11,6 +11,37 @@ from .db import connect
 from .schemas import SessionCtx
 
 _ADMIN = {"owner", "admin"}
+
+# ---- dev mode (AGENT_DEV_MODE=1): fake staff identity from the seeded local DB ------------------
+DEV_ROLE_USERS = {  # fixed ids from agent/seed/seed.sql (fake data)
+    "admin": "aaaaaaaa-0000-0000-0000-000000000001",    # Demo Admin
+    "teacher": "aaaaaaaa-0000-0000-0000-000000000002",  # Priya Sharma
+}
+DB_URL_VARS = ("AGENT_DATABASE_URL", "AGENT_DATABASE_RO_URL", "DATABASE_URL", "SUPABASE_DB_URL",
+               "SUPABASE_URL", "POSTGRES_URL", "POSTGRES_PRISMA_URL")
+_LOCAL_HOSTS = {"", "localhost", "127.0.0.1", "::1"}
+
+
+def _is_local_url(url: str) -> bool:
+    from urllib.parse import parse_qs, urlparse
+    u = urlparse(url)
+    hosts = [u.hostname or ""] + parse_qs(u.query).get("host", [])
+    return all(h.startswith("/") or h.lower() in _LOCAL_HOSTS for h in hosts)
+
+
+def dev_mode_enabled(env=os.environ) -> bool:
+    return env.get("AGENT_DEV_MODE") == "1"
+
+
+def check_dev_mode_safe(env=os.environ) -> None:
+    """Refuse to start dev mode next to anything that looks like production."""
+    if not dev_mode_enabled(env):
+        return
+    if env.get("VERCEL"):
+        raise RuntimeError("AGENT_DEV_MODE=1 is not allowed on Vercel")
+    bad = [k for k in DB_URL_VARS if env.get(k) and not _is_local_url(env[k])]
+    if bad:  # names only, never values
+        raise RuntimeError(f"AGENT_DEV_MODE=1 refused: non-local database configured in {', '.join(bad)}")
 _TEACHER = {"teacher", "hod", "proctor"}  # HOD/proctor get own-classes scope here (conservative)
 
 
@@ -30,6 +61,13 @@ def ctx_for_user(user_id: str) -> SessionCtx:
 
 
 async def get_session(request: Request) -> SessionCtx:
+    dev_role = request.headers.get("x-dev-role")
+    if dev_role is not None and dev_mode_enabled():
+        check_dev_mode_safe()
+        uid = DEV_ROLE_USERS.get(dev_role.strip().lower())
+        if uid is None:
+            raise HTTPException(status_code=400, detail="X-Dev-Role must be admin or teacher")
+        return ctx_for_user(uid)
     # Local/dev only: header identity. Refused on Vercel and unless AGENT_DEV_AUTH=1.
     dev = request.headers.get("x-agent-dev-user")
     if dev and os.getenv("AGENT_DEV_AUTH") == "1" and not os.getenv("VERCEL"):
