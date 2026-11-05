@@ -13,7 +13,11 @@ from _agent_ids import ADMIN, DECOY, DECOY_ADMIN, MAIN, SHARMA, VERMA  # noqa: E
 
 
 @pytest.fixture(scope="session", autouse=True)
-def seeded_db():
+def seeded_db(tmp_path_factory):
+    import os
+    if os.getenv("AGENT_DB") == "embedded":  # no local Postgres needed: pgserver in a temp dir
+        from agent.embedded_pg import ensure_env
+        ensure_env(tmp_path_factory.mktemp("pg"))
     from agent.db import reset_and_seed
     reset_and_seed()
 

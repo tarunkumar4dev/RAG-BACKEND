@@ -1,0 +1,13 @@
+# a4ai Agent local dev (Python 3.12; pgserver has no 3.13 wheel yet)
+anthropic
+google-genai
+fastapi
+uvicorn
+httpx
+pydantic>=2
+sympy
+psycopg[binary]
+pyyaml
+pytest
+pgserver==0.1.4
+reportlab

@@ -17,12 +17,13 @@ SEED_DIR = Path(__file__).resolve().parent / "seed"
 
 
 def connect(readonly: bool) -> psycopg.Connection:
-    """Read-only = agent_ro role + read-only transactions. Read-write = autocommit."""
+    """Read-only = agent_ro role + read-only transactions. Read-write = autocommit.
+    DSNs are read at call time, so agent.embedded_pg / agent.dev_server can point them at a local server."""
     if readonly:
-        conn = psycopg.connect(RO_DSN, row_factory=dict_row, autocommit=True)
+        conn = psycopg.connect(os.getenv("AGENT_DATABASE_RO_URL", RO_DSN), row_factory=dict_row, autocommit=True)
         conn.execute("SET default_transaction_read_only = on")
     else:
-        conn = psycopg.connect(DSN, row_factory=dict_row, autocommit=True)
+        conn = psycopg.connect(os.getenv("AGENT_DATABASE_URL", DSN), row_factory=dict_row, autocommit=True)
     conn.execute("SET search_path = agent_demo")
     return conn
 

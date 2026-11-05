@@ -21,6 +21,26 @@ flowchart LR
   CORE --> TR["trace.py → JSONL<br/>tool, arg keys, latency, tokens, cost"]
 ```
 
+## Run locally on Windows PowerShell (no Docker, no Git Bash, no Postgres install)
+The database is **embedded Postgres** from the `pgserver` pip wheel (bundles the Postgres binaries; Python 3.9–3.12).
+The script makes a Python 3.12 venv (`py -3.12`, or `uv` via pip if 3.12 isn't installed), installs
+`agent/requirements-dev.txt`, seeds the fake data into `agent/.devdata/pg` (gitignored), sets `AGENT_DEV_MODE=1`,
+CORS `http://localhost:5173,http://localhost:8080`, and runs the agent API on port 8000. It reads
+`A4AI_ANTHROPIC_API_KEY` / `GEMINI_API_KEY` from your environment.
+```powershell
+cd RAG-BACKEND
+```
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\run_agent_dev.ps1
+```
+In a second PowerShell window (same folder), while the server runs:
+```powershell
+agent\.devdata\venv\Scripts\python -m agent.dev_chat --role admin "Sharma ma'am ki is mahine ki attendance kya hai?"
+```
+Options: `-KeepData` (don't re-seed), `-Port 8001`, `-WithBackendRequirements` (also installs
+`test-generator-backend/requirements.txt`, needed only for PDF export). Tests on the same embedded DB:
+`$env:AGENT_DB="embedded"; agent\.devdata\venv\Scripts\python -m pytest tests/agent -q`.
+
 ## Run locally (quickstart)
 ```bash
 pip install anthropic google-genai fastapi uvicorn sympy "psycopg[binary]" pyyaml pytest httpx
