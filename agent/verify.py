@@ -28,7 +28,8 @@ AR_OPTIONS = [
 LETTERS = "ABCD"
 _TF = standard_transformations + (implicit_multiplication_application, convert_xor)
 _LOCALS = {"sin": sp.sin, "cos": sp.cos, "tan": sp.tan, "cot": sp.cot, "sec": sp.sec, "csc": sp.csc,
-           "cosec": sp.csc, "sqrt": sp.sqrt, "pi": sp.pi, "deg": sp.pi / 180}
+           "cosec": sp.csc, "sqrt": sp.sqrt, "pi": sp.pi, "deg": sp.pi / 180,
+           "Rational": sp.Rational, "Integer": sp.Integer}
 
 
 def _latex_to_plain(t: str) -> str:
@@ -37,6 +38,7 @@ def _latex_to_plain(t: str) -> str:
     t = re.sub(r"\^\s*\{?\\circ\}?", "*deg", t)
     t = t.replace("\\circ", "*deg").replace("\\cdot", "*").replace("\\times", "*").replace("\\div", "/")
     t = t.replace("\\theta", "theta").replace("\\pi", "pi").replace("\\alpha", "alpha").replace("\\beta", "beta")
+    t = re.sub(r"\\[dt]?frac\s*(\d)\s*(\d)", r"((\1)/(\2))", t)  # \frac32 shorthand
     for _ in range(10):  # innermost-first: sqrt{..}, (d|t)frac{..}{..}, ^{..}
         prev = t
         t = re.sub(r"\\?sqrt\s*\{([^{}]*)\}", r"sqrt(\1)", t)
@@ -61,10 +63,13 @@ def to_sympy(s: Any) -> Optional[sp.Expr]:
     if s is None:
         return None
     raw = str(s)
-    if not raw.strip() or len(raw) > 200 or "=" in raw or "," in raw:
+    if not raw.strip() or len(raw) > 200 or "=" in raw:
         return None
     t = _latex_to_plain(raw)
-    if re.search(r"[a-zA-Z]{2,}", re.sub(r"sqrt|sin|cos|tan|cot|sec|csc|cosec|pi|deg|theta|alpha|beta", "", t)):
+    if "," in re.sub(r"\([^()]*\)", "", t):  # top-level comma = several values, not one expression
+        return None
+    if re.search(r"[a-zA-Z]{2,}", re.sub(r"Rational|Integer|sqrt|sin|cos|tan|cot|sec|csc|cosec|pi|deg|theta|alpha|beta",
+                                         "", t)):
         return None  # leftover words (e.g. 'dfrac', prose) -> unparseable, never a silent symbol
     try:
         e = parse_expr(t, local_dict=_LOCALS, transformations=_TF, evaluate=True)
@@ -156,8 +161,11 @@ def _check_deterministic(q: dict, solved: Optional[str]) -> tuple[str, list[str]
             reasons.append("A-R options are not the standard CBSE set")
         if qt == "assertion_reason" and not re.search(r"assertion", q.get("text", ""), re.I):
             reasons.append("A-R question has no Assertion/Reason statements")
-        # sympy: if the generator supplied a check expression, exactly one option must equal it
-        if q.get("check_expr"):
+        # sympy: for MCQ with a check expression, exactly one option must equal it.
+        # A-R options are prose (standard set) -> sympy n/a; solver + option-set rules decide.
+        if qt == "assertion_reason":
+            detail["sympy"] = "n/a (assertion-reason)"
+        elif q.get("check_expr"):
             hits = [sym_equal(q["check_expr"], o) for o in opts]
             if any(h is None for h in hits) and not any(hits):
                 detail["sympy"] = "unparseable"

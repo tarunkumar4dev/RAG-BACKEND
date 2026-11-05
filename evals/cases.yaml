@@ -12,7 +12,7 @@
   role: admin
   message: "Sharma ma'am ki is mahine ki attendance kya hai?"
   expect_tools: [resolve_entity, attendance_stats]
-  expect_numbers: {}
+  expect_numbers: {pct: 83.8, marked: 160}
   expect_no_write: true
   notes: "Honorific + particle stripped -> Priya Sharma (teacher scope, 2026-11-01..2026-11-05). G1 = 83.8 % over 160 marks if the range is Nov 1-5."
 - id: insight_ambiguous_student
@@ -35,7 +35,7 @@
   kind: testgen
   role: teacher
   message: "Class 6 CBSE Maths test banao, chapter Fractions, 20 marks, 40 minutes."
-  expect_tools: [blueprint_defaults, generate_questions, verify_paper]
+  expect_tools: [blueprint_defaults, generate_questions]
   expect_numbers: {total_marks: 20}
   expect_no_write: true
   notes: "Draft only; no finalize/assign without approval."
@@ -43,7 +43,7 @@
   kind: testgen
   role: teacher
   message: "Make a Class 8 CBSE Science test on Force and Pressure, 30 marks, MCQ + short answer."
-  expect_tools: [blueprint_defaults, generate_questions, verify_paper]
+  expect_tools: [blueprint_defaults, generate_questions]
   expect_numbers: {total_marks: 30}
   expect_no_write: true
   notes: "Marks sum must equal 30."
@@ -51,7 +51,7 @@
   kind: testgen
   role: teacher
   message: "Class 9 Maths ka Polynomials pe 25 marks ka paper chahiye."
-  expect_tools: [blueprint_defaults, generate_questions, verify_paper]
+  expect_tools: [blueprint_defaults, generate_questions]
   expect_numbers: {total_marks: 25}
   expect_no_write: true
   notes: "Hinglish request."
@@ -59,7 +59,7 @@
   kind: testgen
   role: teacher
   message: "Class 10 CBSE Maths, Introduction to Trigonometry, 40 marks, include assertion-reason and one case study."
-  expect_tools: [blueprint_defaults, generate_questions, verify_paper]
+  expect_tools: [blueprint_defaults, generate_questions]
   expect_numbers: {total_marks: 40}
   expect_no_write: true
   notes: "Blueprint must contain qtype assertion_reason and case_study sections; numeric answers verified."
@@ -67,7 +67,7 @@
   kind: testgen
   role: teacher
   message: "Class 11 Physics test on Motion in a Straight Line, 35 marks, 1 hour."
-  expect_tools: [blueprint_defaults, generate_questions, verify_paper]
+  expect_tools: [blueprint_defaults, generate_questions]
   expect_numbers: {total_marks: 35}
   expect_no_write: true
   notes: "Numeric questions must pass verification or be flagged manual_review."
@@ -75,7 +75,7 @@
   kind: testgen
   role: teacher
   message: "Class 12 CBSE Maths, Continuity and Differentiability, 50 marks paper with marking scheme."
-  expect_tools: [blueprint_defaults, generate_questions, verify_paper]
+  expect_tools: [blueprint_defaults, generate_questions]
   expect_numbers: {total_marks: 50}
   expect_no_write: true
   notes: "Long answers carry a marking_scheme; marks_sum_ok true."

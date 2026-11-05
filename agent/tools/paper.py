@@ -94,7 +94,9 @@ GEN_SYSTEM = (
     "expression (use sin(30*deg), sqrt(3), pi) whose value is the correct answer. MCQ options: 4 distinct, "
     "exactly one correct. Assertion-Reason: text must contain 'Assertion (A):' and 'Reason (R):' and the "
     "options MUST be exactly: " + json.dumps(AR_OPTIONS) + " (capitalise A/R normally). "
-    "Rubric questions (short_answer, long_answer) need marking_scheme: [{step, marks}] summing to the "
+    "very_short and numeric questions MUST have ONE final value (number/expression, or 'A = .., B = ..'), never a "
+    "proof ('prove that' belongs in short_answer/long_answer). Stay inside the current NCERT Class syllabus (no "
+    "compound-angle formulae in Class 10). Rubric questions (short_answer, long_answer) need marking_scheme: [{step, marks}] summing to the "
     "question marks. case_study: a passage in text + sub_questions [{text, marks, answer}] summing to marks."
 )
 

@@ -327,3 +327,8 @@ def test_approve_endpoint_replay_never_writes_twice(client):
     other = client.post("/agent/approve", json={"session_id": sid, "approval_id": a["approval_id"]},
                         headers={"x-agent-dev-user": str(VERMA)})
     assert other.status_code == 404
+
+
+def test_frac_shorthand_parses():  # regression: trig demo run 3 q7 ('\\frac54')
+    from agent.verify import sym_equal
+    assert sym_equal(r"$\frac54$", "sin(60*deg)**2+cos(45*deg)**2") is True
