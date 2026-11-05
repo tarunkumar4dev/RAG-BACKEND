@@ -1,0 +1,100 @@
+# a4ai Agent
+
+One chat assistant for teachers/admins: **(A)** answers attendance & marks questions from the DB, **(B)** generates a
+**verified** CBSE test paper with an in-chat preview and a human approval step. No agent framework: native tool use
+through a small `LLMProvider` interface (Anthropic `claude-sonnet-5-5` default via `AGENT_MODEL`, Gemini
+`gemini-2.5-flash` fallback via `AGENT_PROVIDER=gemini`).
+
+```mermaid
+flowchart LR
+  UI["a4ai /agent page<br/>(SSE renderers)"] -- "POST /agent/chat (JWT)" --> API["agent/api.py"]
+  UI -- "POST /agent/approve" --> API
+  API -- "get_session() → frozen SessionCtx" --> AUTH["agent/auth.py<br/>(Supabase JWT → institute_members)"]
+  API --> CORE["agent/core.py<br/>loop · budgets · events"]
+  CORE <--> LLM["agent/llm.py<br/>AnthropicProvider | GeminiProvider"]
+  CORE -- "tool(ctx, args)" --> T1["tools/insights.py<br/>read-only conn (agent_ro)"]
+  CORE --> T2["tools/paper.py<br/>blueprint · NCERT RAG · batch generate"]
+  T2 --> V["verify.py — VERIFICATION GATE<br/>independent solver (no key) + sympy + rules<br/>rubric checks · marks sum · duplicates"]
+  CORE -- "finalize / assign" --> AP["approval.py<br/>single-use · sha256(args) · 15 min"]
+  AP --> DB[("Postgres<br/>agent_sessions/messages/drafts/approvals")]
+  T1 --> DB
+  CORE --> TR["trace.py → JSONL<br/>tool, arg keys, latency, tokens, cost"]
+```
+
+## Run locally
+```bash
+pip install anthropic google-genai fastapi uvicorn sympy "psycopg[binary]" pyyaml pytest httpx
+```
+```bash
+python -c "from agent.db import reset_and_seed; reset_and_seed()"   # local Postgres, fake data only
+```
+```bash
+AGENT_DEV_AUTH=1 uvicorn agent.api:app --port 8100
+```
+```bash
+python -m pytest tests/agent -q
+```
+```bash
+python evals/run_evals.py anthropic
+```
+Frontend: `a4ai/src/pages/agent/AgentPage.tsx` (route snippet in its header comment; not mounted yet).
+
+## Security model
+- **Identity is server-side.** `get_session()` verifies the Supabase JWT with the existing `app.core.auth.verify_token`
+  and builds a frozen `SessionCtx(user_id, role, institute_id, teacher_id)` from `institute_members` (active rows; zero
+  or several institutes → 403). Tools are `tool(ctx, args)`; `ctx` is never in a tool schema, and arg models use
+  `extra="forbid"`, so a model passing `institute_id`/`role` gets `invalid_args` (tested).
+- **Scope.** Admin = whole institute. Teacher = only batches in `teaching_assignments` (own sessions/tests). Out of
+  scope or other institute → `not_found` (never leaks existence); another teacher's stats → `forbidden`.
+- **No free text into SQL.** Tool schemas are enums / UUIDs / dates / bounded patterned names; no `sql/query/filter/where`
+  fields (tested). All SQL parameterised. Read tools use a separate `agent_ro` role with read-only transactions.
+- **Prompt injection.** Names/text in tool results are data; system prompt says so; injection eval case included.
+- **Approval gate.** `finalize_test` / `assign_to_section` only create an approval (single use, bound to session + user +
+  `sha256(args)`, 15 min TTL, `SELECT … FOR UPDATE`). Executed only via `POST /agent/approve`; replay returns the stored
+  result, never a second write; tampered args → 403; expired → 410. PDF download only for approved drafts.
+- **Sessions.** `GET /agent/sessions/{id}` = owner or same-institute admin; everything else 404.
+- **Trace** (`trace.py`): tool name, arg **keys**, latency, tokens, cost. No names, no marks, no values (tested).
+- **Budgets:** `max_llm_steps=10`, `max_tool_calls=40`, `max_wall_s=150` → `error{code:"budget_exceeded", partial}`.
+- **Dev auth** header `x-agent-dev-user` only with `AGENT_DEV_AUTH=1` and never when `VERCEL` is set.
+
+## Verification gate (`verify.py`)
+| class | qtypes | checks |
+|---|---|---|
+| deterministic | mcq, numeric, assertion_reason, very_short | independent solver pass **without** key/solution/check_expr; sympy (`check_expr` vs key / options); exactly one correct MCQ option; 4 distinct options (by value); standard CBSE A-R option set + A/R statements; multi-value answers compared pairwise |
+| rubric | short_answer, long_answer, case_study | marking scheme present; scheme / sub-question marks == question marks; in requested syllabus; no duplicate |
+| any | — | unparseable or solver unavailable → `manual_review` (never passes); paper marks sum **exactly** == total; duplicates fail |
+
+Failed ids (only those) are regenerated, max 3 rounds. `verification_summary` reports objective and rubric
+separately plus the manual-review list — never a flat "18/18 verified".
+
+## Events (`schemas.py`, contract 1.0 — every event has `seq` + `request_id`)
+| type | payload | notes |
+|---|---|---|
+| text_delta | text | assistant prose |
+| thinking_status | key, params | i18n key, e.g. `status.verifying` |
+| stat_card | title, value (null → "—"), unit, subtitle | `source: "tool:<name>"`, `as_of` IST |
+| chart | kind line/bar, series | `source`, `as_of` |
+| table | columns, rows (null cells → "—") | `source`, `as_of` |
+| clarify | question, chips (≤ 5) | ambiguous name — never auto-picked |
+| blueprint | class, subject, chapters, total, duration, sections | editable in UI |
+| paper_preview | draft_id, questions[] with per-question status | KaTeX `trust:false` |
+| verification_summary | objective_verified/total, rubric_checked/total, manual_review[], marks_sum_ok, duplicates, rounds | |
+| pending_approval | approval_id, action, summary, args_sha256, expires_at | |
+| final | session_id, usage (tokens, cost, latency, tools) | |
+| error | code, message, partial | budget / provider / internal |
+
+## Results
+EVAL_TABLE_PLACEHOLDER
+
+## Known limitations
+- Local seed only (`agent_demo` schema mirrors live table names; `tests`/`test_marks` are new — live marks are spread over
+  `submissions.grade` and `check_sheets`). Not run against Supabase; RLS is not exercised, scope is enforced in SQL.
+- NCERT retrieval reuses `rag_service.retrieve_context`, which needs Supabase env; locally it falls back to
+  `offline_outline` (no chunks) and says so in the preview footer. Generation uses the `QuestionGenerator` LLM adapter
+  (it emits `check_expr` for sympy); wiring `test_generator_service.generate_questions` as a second adapter is not done.
+- The independent solver is the same model family as the generator (correlated errors possible); a cross-provider solver
+  (generate with Claude, solve with Gemini) is the next step. sympy covers numeric/trig values, not proofs.
+- HOD/proctor are treated as teacher scope (own classes) — conservative; dept/section scope not wired.
+- Drafts/approvals/sessions tables exist only in the local schema; a Supabase migration (with RLS) is not written.
+- Frontend page is not routed (new files only) and not covered by e2e; BlueprintEditor edits are local (no
+  "regenerate with this blueprint" round-trip yet).

@@ -96,7 +96,7 @@ def _q(i, qtype="mcq", marks=1, **kw):
     return base
 
 
-@pytest.mark.parametrize("total", [20, 25, 30, 40, 50, 80])
+@pytest.mark.parametrize("total", [10, 20, 25, 30, 35, 40, 50, 70, 80, 100])
 def test_blueprint_sums_exactly(total):
     bp = blueprint_defaults(None, BlueprintArgs(class_grade=10, subject="Mathematics", chapter="Trig", total_marks=total))
     assert sum(s["count"] * s["marks_each"] for s in bp["sections"]) == total and bp["sum_ok"]
@@ -332,3 +332,12 @@ def test_approve_endpoint_replay_never_writes_twice(client):
 def test_frac_shorthand_parses():  # regression: trig demo run 3 q7 ('\\frac54')
     from agent.verify import sym_equal
     assert sym_equal(r"$\frac54$", "sin(60*deg)**2+cos(45*deg)**2") is True
+
+
+def test_prose_very_short_is_rubric_not_silently_verified():
+    from agent.verify import classify
+    q = {"id": "q1", "qtype": "very_short", "marks": 2, "text": "Define force.", "answer": "A push or a pull",
+         "marking_scheme": [{"step": "push or pull", "marks": 2}], "chapter": "Force"}
+    assert classify(q) == "rubric"
+    s = verify_paper({"total_marks": 2, "questions": [q]}, None, ["Force"])
+    assert s["rubric_checked"] == 1 and s["objective_total"] == 0

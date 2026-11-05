@@ -25,3 +25,10 @@
 - Security: SessionCtx frozen from JWT/session dependency; tools are `tool(ctx, args)`; ctx never in tool schemas.
 - Verification gate deterministic (sympy + rules) + independent solver pass without key; rubric checks; manual_review.
 - Approval: single-use token bound to session + sha256(args), 15 min TTL, replay returns the stored result.
+
+## Status (end of session, 5 Nov)
+- Provider used for the whole session: **Anthropic `claude-sonnet-5-5`** (ping OK). Gemini path implemented
+  (`GeminiProvider`, schema sanitiser) and unit-tested; not used for the demo/evals, so no Gemini fallback was needed.
+- Files: `agent/{schemas,config,llm,core,verify,approval,trace,auth,api,export,db,text}.py`, `agent/tools/{insights,paper,registry}.py`,
+  `agent/seed/*.sql`, `tests/agent/*`, `evals/*`, frontend `a4ai/src/{pages,components,lib}/agent/*` (not routed).
+- Trig demo: 3 live runs; verifier bugs found by the demo fixed with regression tests (see `evals/sample_trigonometry_review.md`).

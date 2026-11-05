@@ -136,7 +136,11 @@ def _letter(ans: Any) -> Optional[str]:
 
 
 def classify(q: dict) -> str:
-    return "deterministic" if q.get("qtype") in DETERMINISTIC else "rubric"
+    qt = q.get("qtype")
+    if qt == "very_short":  # deterministic only when the key is a value sympy can check; prose -> rubric
+        a = q.get("answer")
+        return "deterministic" if (to_sympy(a) is not None or parse_pairs(a) is not None) else "rubric"
+    return "deterministic" if qt in DETERMINISTIC else "rubric"
 
 
 Solver = Callable[[list[dict]], dict]  # questions WITHOUT keys -> {id: answer}

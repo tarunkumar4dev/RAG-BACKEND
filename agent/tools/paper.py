@@ -25,7 +25,7 @@ class BlueprintArgs(_A):
     class_grade: int = Field(ge=6, le=12)
     subject: Subject
     chapter: str = Field(max_length=60, pattern=r"^[A-Za-z0-9 ,&\-()']+$")
-    total_marks: Literal[20, 25, 30, 40, 50, 80]
+    total_marks: int = Field(ge=10, le=100)
     assertion_reason_count: int = Field(default=2, ge=0, le=4)
     case_study_count: int = Field(default=1, ge=0, le=3)
 
@@ -94,7 +94,7 @@ GEN_SYSTEM = (
     "expression (use sin(30*deg), sqrt(3), pi) whose value is the correct answer. MCQ options: 4 distinct, "
     "exactly one correct. Assertion-Reason: text must contain 'Assertion (A):' and 'Reason (R):' and the "
     "options MUST be exactly: " + json.dumps(AR_OPTIONS) + " (capitalise A/R normally). "
-    "very_short and numeric questions MUST have ONE final value (number/expression, or 'A = .., B = ..'), never a "
+    "very_short: give marking_scheme too. very_short and numeric maths questions MUST have ONE final value (number/expression, or 'A = .., B = ..'), never a "
     "proof ('prove that' belongs in short_answer/long_answer). Stay inside the current NCERT Class syllabus (no "
     "compound-angle formulae in Class 10). Rubric questions (short_answer, long_answer) need marking_scheme: [{step, marks}] summing to the "
     "question marks. case_study: a passage in text + sub_questions [{text, marks, answer}] summing to marks."
@@ -151,11 +151,26 @@ SOLVER_SYSTEM = ("You are an independent examiner. Solve each question yourself.
 
 
 def make_solver(provider: LLMProvider, usage: list):
+    """Independent solver, <=7 questions per call in parallel. A failed chunk -> no answers -> manual_review."""
+    lock = threading.Lock()
+
+    def one(chunk: list[dict]) -> dict:
+        try:
+            data, r = complete_json(provider, SOLVER_SYSTEM, json.dumps({"questions": chunk}), max_tokens=4000)
+        except Exception:
+            return {}
+        with lock:
+            usage[0] += r.tokens_in
+            usage[1] += r.tokens_out
+        return data.get("answers", {}) if isinstance(data, dict) else {}
+
     def solve(qs: list[dict]) -> dict:
-        data, r = complete_json(provider, SOLVER_SYSTEM, json.dumps({"questions": qs}), max_tokens=6000)
-        usage[0] += r.tokens_in
-        usage[1] += r.tokens_out
-        return data.get("answers", {})
+        chunks = [qs[i:i + 7] for i in range(0, len(qs), 7)]
+        with ThreadPoolExecutor(max_workers=max(1, len(chunks))) as ex:
+            out: dict = {}
+            for part in ex.map(one, chunks):
+                out.update(part)
+            return out
     return solve
 
 
