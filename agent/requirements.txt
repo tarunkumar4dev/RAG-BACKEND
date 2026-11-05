@@ -1,0 +1,11 @@
+# a4ai Agent runtime deps
+anthropic
+google-genai
+fastapi
+uvicorn
+httpx
+pydantic>=2
+sympy
+psycopg[binary]
+pyyaml
+tzdata  # zoneinfo("Asia/Kolkata") on Windows (no system tz database)

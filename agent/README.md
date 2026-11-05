@@ -43,7 +43,7 @@ Options: `-KeepData` (don't re-seed), `-Port 8001`, `-WithBackendRequirements` (
 
 ## Run locally (quickstart)
 ```bash
-pip install anthropic google-genai fastapi uvicorn sympy "psycopg[binary]" pyyaml pytest httpx
+pip install -r agent/requirements.txt pytest
 ```
 Seeds the fake local DB and starts uvicorn on http://localhost:8000 with `AGENT_DEV_MODE=1`
 (starts a throwaway local Postgres if none is running; needs `A4AI_ANTHROPIC_API_KEY` in the environment):

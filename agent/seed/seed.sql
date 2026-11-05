@@ -76,7 +76,7 @@ select md5('att-' || cs.id::text || s.id::text)::uuid,
          else case when v < 80 then 'present' when v < 86 then 'late' when v < 90 then 'leave' else 'absent' end
        end,
        cs.teacher_id,
-       (cs.session_date + time '09:30') at time zone 'Asia/Kolkata'
+       ((cs.session_date + time '09:30')::text || '+05:30')::timestamptz  -- 09:30 IST, fixed offset: no tz database needed (pgserver on Windows)
 from class_sessions cs
 join students s on s.batch_id = cs.batch_id and s.is_active
 cross join lateral (

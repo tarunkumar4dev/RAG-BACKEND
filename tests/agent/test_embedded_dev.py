@@ -55,3 +55,22 @@ def test_windows_style_embedded_uri_counts_as_local():
     assert _is_local_url("postgresql://postgres:@localhost:5432/a4agent")
     assert _is_local_url("postgresql://postgres:@127.0.0.1:61234/a4agent")
     assert not _is_local_url("postgresql://postgres:@10.0.0.5:5432/a4agent")
+
+
+def test_sql_needs_no_timezone_database():
+    """pgserver on Windows ships no tz database: SQL must not use zone names (fixed +05:30 offsets only)."""
+    import pathlib
+    import re
+    root = pathlib.Path(__file__).resolve().parents[2] / "agent"
+    sql = [p.read_text(encoding="utf-8") for p in (root / "seed").glob("*.sql")]
+    py = [p.read_text(encoding="utf-8") for p in (root / "tools").glob("*.py")]
+    for text in sql + py:
+        assert not re.search(r"(?i)time zone\s+'[a-z]+/[a-z_]+'|set\s+timezone", text)
+
+
+def test_seed_marked_at_is_0930_ist():
+    from agent.db import connect
+    with connect(readonly=True) as c:
+        r = c.execute("select min(marked_at at time zone 'UTC')::time t, count(distinct marked_at::time) n "
+                      "from attendance_records").fetchone()
+    assert str(r["t"]) == "04:00:00"  # 09:30 IST

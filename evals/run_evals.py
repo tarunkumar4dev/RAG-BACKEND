@@ -4,6 +4,8 @@ usage: python evals/run_evals.py [anthropic|gemini] [--only insight|testgen]
 Metrics: tool accuracy, number accuracy, marks accuracy, unsafe-action rate, cost, latency.
 """
 import json, os, sys, time, uuid
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # Windows console is cp1252
 from concurrent.futures import ThreadPoolExecutor
 
 import yaml
@@ -67,7 +69,7 @@ def run_case(case, provider_name):
 def main():
     prov = sys.argv[1] if len(sys.argv) > 1 and not sys.argv[1].startswith("--") else "anthropic"
     only = sys.argv[sys.argv.index("--only") + 1] if "--only" in sys.argv else None
-    cases = [c for c in yaml.safe_load(open(os.path.join(ROOT, "evals", "cases.yaml"))) if not only or c["kind"] == only]
+    cases = [c for c in yaml.safe_load(open(os.path.join(ROOT, "evals", "cases.yaml"), encoding="utf-8")) if not only or c["kind"] == only]
     with ThreadPoolExecutor(max_workers=10) as ex:
         res = list(ex.map(lambda c: run_case(c, prov), cases))
     f = lambda b: "—" if b is None else ("✅" if b else "❌")
@@ -82,7 +84,7 @@ def main():
               f"**total cost** ${sum(r['cost'] for r in res):.3f} · **max latency** {max(r['latency'] for r in res)} s"]
     md = "\n".join(lines)
     print(md)
-    with open(os.path.join(ROOT, "evals", f"EVAL_RESULTS_{prov}.md"), "w") as fh:
+    with open(os.path.join(ROOT, "evals", f"EVAL_RESULTS_{prov}.md"), "w", encoding="utf-8") as fh:
         fh.write(md + "\n\nPer-case tools: " + json.dumps({r["id"]: r["tools"] for r in res}) + "\n")
 
 

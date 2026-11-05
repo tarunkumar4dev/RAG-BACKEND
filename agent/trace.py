@@ -15,8 +15,11 @@ class Tracer:
 
     def _write(self, rec: dict) -> None:
         rec = {"ts": round(time.time(), 3), "request_id": self.request_id, **rec}
-        with open(self.path, "a", encoding="utf-8") as f:
-            f.write(json.dumps(rec, separators=(",", ":")) + "\n")
+        try:
+            with open(self.path, "a", encoding="utf-8") as f:
+                f.write(json.dumps(rec, separators=(",", ":")) + "\n")
+        except OSError:  # tracing must never break a chat turn (bad path, locked file on Windows)
+            pass
 
     def tool(self, name: str, args: dict, latency_ms: float, ok: bool, status: str = "") -> None:
         self._write({"kind": "tool", "tool": name, "arg_keys": sorted(args.keys()), "latency_ms": round(latency_ms, 1),
