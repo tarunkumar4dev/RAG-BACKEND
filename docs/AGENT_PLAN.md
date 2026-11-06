@@ -98,3 +98,15 @@ backend `app/core/auth.py:verify_token` calls Supabase `/auth/v1/user`.
 - `GET /agent/sessions` → `{"sessions": [{"session_id", "title", "created_at", "updated_at"}]}` (own sessions, newest first,
   max 50; title = first user message, 60 chars).
 - `POST /agent/chat` in real mode never writes to Supabase; sessions are kept in the agent process (lost on restart).
+
+## Status (6 Nov 2026)
+- Phase 0 done (maps above). Phase 1 done: `AGENT_REAL_DB_MODE`, `agent/jwt_auth.py`, `agent/real_identity.py`,
+  `agent/db_real.py`, `agent/sql/create_agent_ro_role.sql` (+ drop), `agent/real/schema_adapter.py`, live-mode write
+  block, contract 1.1. Tests: 98 passed + 1 skipped (system PG), 99 passed (pgserver); 19 real-mode tests on the
+  schema-faithful fixture `tests/agent/real_fixture/` (values in `EXPECTED.md`).
+- Phase 2 done (a4ai, see `a4ai/docs/AGENT_UI_NOTES.md`): workspace at `/dashboard?tab=agent` + "Ask a4ai" sheet;
+  vitest 327, Playwright agent spec 4, 28 screenshots in `a4ai/docs/screenshots/`.
+- Decision 8: admins/HODs are redirected away from /dashboard by the existing home-route rule, so for them the agent is
+  the "Ask a4ai" sheet on /institute and /hod. Letting them open the workspace needs a one-line change in that
+  redirect (outside the allowed mount points) — left for the owner to approve.
+- Not run here: anything against production Supabase (role script, JWKS fetch, pooler connection, real rows).
