@@ -62,11 +62,23 @@ class MarksStatsArgs(_Args):
     subject_id: Optional[UUID] = None
 
 
+class AttendanceTrendArgs(_DateRange):
+    scope: Literal["teacher", "section", "student"]
+    entity_id: UUID
+    granularity: Literal["day", "week", "month"] = "week"
+
+
+class TestsCreatedArgs(_DateRange):
+    teacher_id: Optional[UUID] = None  # None = me (teacher) / whole scope (admin, HOD)
+
+
 ARG_MODELS = {
     "resolve_entity": ResolveEntityArgs,
     "attendance_stats": AttendanceStatsArgs,
     "low_attendance_list": LowAttendanceArgs,
     "marks_stats": MarksStatsArgs,
+    "attendance_trend": AttendanceTrendArgs,
+    "tests_created_by_teacher": TestsCreatedArgs,
 }
 
 NOT_FOUND = {"status": "not_found"}
@@ -322,3 +334,58 @@ def marks_stats(ctx: SessionCtx, args: MarksStatsArgs) -> dict[str, Any]:
                       "marks": _num(mk), "pct": pct, "absent": mk is None})
     overall = _num(sum(pcts) / len(pcts), 1) if pcts else None
     return {"status": "ok", "entity": row["label"], "tests": tests, "overall_avg_pct": overall}
+
+
+# ---- seed versions of the two newer tools (same output schema as the real adapter) -------------
+def attendance_trend(ctx: SessionCtx, args: AttendanceTrendArgs) -> dict[str, Any]:
+    base = attendance_stats(ctx, AttendanceStatsArgs(scope=args.scope, entity_id=args.entity_id,
+                                                     date_from=args.date_from, date_to=args.date_to))
+    if base.get("status") != "ok":
+        return base
+    p = _params(ctx, eid=args.entity_id, df=args.date_from, dt=args.date_to, g=args.granularity)
+    if args.scope == "teacher":
+        where = "cs.teacher_id = %(eid)s"
+    elif args.scope == "section":
+        where = "cs.batch_id = %(eid)s"
+    else:
+        where = "ar.student_id = %(eid)s"
+    with connect(readonly=True) as conn:
+        rows = conn.execute(
+            "select date_trunc(%(g)s, cs.session_date)::date as period, count(*) as marked, "
+            "count(*) filter (where ar.status in ('present', 'late')) as good "
+            "from agent_demo.attendance_records ar join agent_demo.class_sessions cs on cs.id = ar.session_id "
+            f"where ar.institute_id = %(inst)s and {_SESSION_FILTER} and {where} "
+            "and cs.session_date between %(df)s and %(dt)s group by 1 order by 1 limit 120", p).fetchall()
+    return {"status": "ok", "entity": base["entity"], "granularity": args.granularity,
+            "date_from": args.date_from.isoformat(), "date_to": args.date_to.isoformat(),
+            "points": [{"period": r["period"].isoformat(), "pct": _pct(r["good"], r["marked"]),
+                        "marked": int(r["marked"])} for r in rows]}
+
+
+def tests_created_by_teacher(ctx: SessionCtx, args: TestsCreatedArgs) -> dict[str, Any]:
+    p = _params(ctx, df=args.date_from, dt=args.date_to)
+    is_admin = ctx.role == "admin"
+    target = args.teacher_id or (None if is_admin else (ctx.teacher_id or ctx.user_id))
+    with connect(readonly=True) as conn:
+        label = "Institute"
+        if target is not None:
+            row = conn.execute("select user_id, user_name from agent_demo.institute_members where institute_id = %(inst)s "
+                               "and user_id = %(t)s and status = 'active'", {**p, "t": target}).fetchone()
+            if not row:
+                return NOT_FOUND
+            if not is_admin and row["user_id"] != p["tid"]:
+                return FORBIDDEN
+            label = row["user_name"]
+        rows = conn.execute(
+            "select t.name, t.test_date, t.max_marks, m.user_name from agent_demo.tests t "
+            "join agent_demo.institute_members m on m.user_id = t.teacher_id and m.institute_id = t.institute_id "
+            "where t.institute_id = %(inst)s and t.test_date between %(df)s and %(dt)s "
+            "and (%(t)s::uuid is null or t.teacher_id = %(t)s::uuid) order by t.test_date desc, t.name",
+            {**p, "t": target}).fetchall()
+    by: dict[str, int] = {}
+    for r in rows:
+        by[r["user_name"]] = by.get(r["user_name"], 0) + 1
+    return {"status": "ok", "teacher": label, "date_from": args.date_from.isoformat(), "date_to": args.date_to.isoformat(),
+            "count": len(rows), "by_teacher": [{"teacher": k, "count": v} for k, v in sorted(by.items())],
+            "recent": [{"title": r["name"], "class_grade": None, "subject": None, "total_marks": _num(r["max_marks"]),
+                        "status": None, "created_on": r["test_date"].isoformat()} for r in rows[:10]]}

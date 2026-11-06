@@ -8,4 +8,5 @@ pydantic>=2
 sympy
 psycopg[binary]
 pyyaml
+pyjwt[crypto]  # verify Supabase JWTs (HS256 + JWKS RS256/ES256) in real mode
 tzdata  # zoneinfo("Asia/Kolkata") on Windows (no system tz database)

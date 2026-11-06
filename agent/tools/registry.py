@@ -28,6 +28,11 @@ TOOLS: dict[str, ToolSpec] = {t.name: t for t in [
              insights.LowAttendanceArgs, "read", insights.low_attendance_list),
     ToolSpec("marks_stats", "Test marks summary for a section or a student.",
              insights.MarksStatsArgs, "read", insights.marks_stats),
+    ToolSpec("attendance_trend", "Attendance % over time (day/week/month buckets) for a teacher/section/student. "
+             "Shown as a chart.", insights.AttendanceTrendArgs, "read", insights.attendance_trend),
+    ToolSpec("tests_created_by_teacher", "How many test papers a teacher created in a date range (IST), with "
+             "recent titles. teacher_id omitted = me (teacher) or my whole scope (admin/HOD).",
+             insights.TestsCreatedArgs, "read", insights.tests_created_by_teacher),
     ToolSpec("blueprint_defaults", "CBSE-style blueprint (sections, marks) for a test paper. Show it to the user.",
              paper.BlueprintArgs, "read"),
     ToolSpec("generate_questions", "Generate the whole paper for the current blueprint in one batch (NCERT "
@@ -44,9 +49,24 @@ TOOLS: dict[str, ToolSpec] = {t.name: t for t in [
 ]}
 
 
-def tool_schemas() -> list[dict]:
+INSIGHT_TOOLS = ("resolve_entity", "attendance_stats", "low_attendance_list", "attendance_trend", "marks_stats",
+                 "tests_created_by_teacher")
+WRITE_TOOLS = ("save_draft", "finalize_test", "assign_to_section", "export_pdf")  # disabled in real mode
+
+
+def active_tools(real: bool | None = None) -> dict[str, ToolSpec]:
+    """Seed tools by default; with AGENT_REAL_DB_MODE=1 the insight tools run on the real schema (read-only)."""
+    from dataclasses import replace
+    from ..mode import real_mode
+    if not (real_mode() if real is None else real):
+        return TOOLS
+    from ..real import schema_adapter as real_tools
+    return {n: (replace(t, fn=getattr(real_tools, n)) if n in INSIGHT_TOOLS else t) for n, t in TOOLS.items()}
+
+
+def tool_schemas(tools: dict[str, ToolSpec] | None = None) -> list[dict]:
     out = []
-    for t in TOOLS.values():
+    for t in (tools or TOOLS).values():
         s = t.args.model_json_schema()
         s.pop("title", None)
         out.append({"name": t.name, "description": t.description, "parameters": s})

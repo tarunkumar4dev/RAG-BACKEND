@@ -17,7 +17,7 @@ DEV_ROLE_USERS = {  # fixed ids from agent/seed/seed.sql (fake data)
     "admin": "aaaaaaaa-0000-0000-0000-000000000001",    # Demo Admin
     "teacher": "aaaaaaaa-0000-0000-0000-000000000002",  # Priya Sharma
 }
-DB_URL_VARS = ("AGENT_DATABASE_URL", "AGENT_DATABASE_RO_URL", "DATABASE_URL", "SUPABASE_DB_URL",
+DB_URL_VARS = ("AGENT_REAL_DB_URL", "AGENT_DATABASE_URL", "AGENT_DATABASE_RO_URL", "DATABASE_URL", "SUPABASE_DB_URL",
                "SUPABASE_URL", "POSTGRES_URL", "POSTGRES_PRISMA_URL")
 _LOCAL_HOSTS = {"", "localhost", "127.0.0.1", "::1"}
 
@@ -47,7 +47,7 @@ _TEACHER = {"teacher", "hod", "proctor"}  # HOD/proctor get own-classes scope he
 
 def ctx_for_user(user_id: str) -> SessionCtx:
     with connect(readonly=True) as c:
-        rows = c.execute("select institute_id, role from institute_members where user_id=%s and "
+        rows = c.execute("select institute_id, role, user_name from institute_members where user_id=%s and "
                          "coalesce(status,'active')='active'", (user_id,)).fetchall()
     insts = {r["institute_id"] for r in rows}
     if len(insts) != 1:  # none, or member of several institutes -> refuse rather than guess
@@ -56,11 +56,26 @@ def ctx_for_user(user_id: str) -> SessionCtx:
     role = "admin" if roles & _ADMIN else "teacher" if roles & _TEACHER else None
     if role is None:
         raise HTTPException(status_code=403, detail="staff only")
+    names = [r.get("user_name") for r in rows if r.get("user_name")] if rows and "user_name" in rows[0] else []
     return SessionCtx(user_id=UUID(user_id), role=role, institute_id=next(iter(insts)),
+                      first_name=names[0].split()[0] if names else None,
                       teacher_id=UUID(user_id) if role == "teacher" else None)
 
 
 async def get_session(request: Request) -> SessionCtx:
+    from .mode import real_mode
+    if real_mode():  # live data: only a verified Supabase JWT; no dev headers of any kind
+        from starlette.concurrency import run_in_threadpool
+        from .jwt_auth import AuthError, first_name_from_claims, verify_supabase_jwt
+        from .real_identity import ctx_for_real_user
+        auth = request.headers.get("authorization", "")
+        if not auth.lower().startswith("bearer "):
+            raise HTTPException(status_code=401, detail="Authentication required")
+        try:
+            claims = verify_supabase_jwt(auth.split(" ", 1)[1].strip())
+        except AuthError as e:
+            raise HTTPException(status_code=401, detail=str(e))
+        return await run_in_threadpool(ctx_for_real_user, claims["sub"], first_name_from_claims(claims))
     dev_role = request.headers.get("x-dev-role")
     if dev_role is not None and dev_mode_enabled():
         check_dev_mode_safe()

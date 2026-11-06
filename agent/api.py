@@ -13,6 +13,8 @@ from fastapi.responses import Response, StreamingResponse
 
 from .approval import ApprovalError, execute_approval
 from .auth import check_dev_mode_safe, dev_mode_enabled, get_session
+from .mode import READ_ONLY_MESSAGE, check_modes, real_mode
+from .store import MEMORY
 from .core import Agent
 from .db import connect
 from .llm import get_provider
@@ -43,8 +45,92 @@ def _history(conn, session_id: str) -> list[dict]:
     return msgs
 
 
+def _mem_session(ctx: SessionCtx, session_id: str, allow_admin: bool = False) -> dict:
+    row = MEMORY.get(session_id)
+    if row is None or row["institute_id"] != str(ctx.institute_id):
+        raise HTTPException(404, "not found")
+    if row["user_id"] != str(ctx.user_id) and not (allow_admin and ctx.role == "admin"):
+        raise HTTPException(404, "not found")
+    return row
+
+
+def _sse(ev: dict) -> str:
+    return f"data: {json.dumps(ev, default=str)}\n\n"
+
+
+def _chat_live(body: ChatRequest, ctx: SessionCtx):
+    """Real data: nothing is written to Supabase. Session, history and drafts stay in this process."""
+    if body.session_id:
+        _mem_session(ctx, body.session_id)
+        sid = body.session_id
+    else:
+        sid = str(uuid.uuid4())
+        MEMORY.create_session(sid, str(ctx.user_id), str(ctx.institute_id), ctx.role, body.message)
+    hist = list(MEMORY.history.get(sid, []))[-30:]
+    while hist and hist[0].get("role") != "user":
+        hist.pop(0)
+    agent = Agent(get_provider(), ctx, sid, history=hist, memory_store=MEMORY)
+
+    def stream() -> Iterator[str]:
+        events = []
+        try:
+            for ev in agent.run(body.message):
+                events.append(ev)
+                yield _sse(ev)
+        finally:
+            MEMORY.history[sid] = agent.history[-60:]
+            MEMORY.events.setdefault(sid, []).append(events)
+            MEMORY.touch(sid)
+
+    return StreamingResponse(stream(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+@router.get("/meta")
+def meta(ctx: SessionCtx = Depends(get_session)):
+    inst = None
+    try:
+        if ctx.data_source == "live":
+            from .db_real import connect_real
+            with connect_real() as c:
+                r = c.execute("select name from institutes where id = %s", (str(ctx.institute_id),)).fetchone()
+        else:
+            with connect(readonly=True) as c:
+                r = c.execute("select name from institutes where id = %s", (str(ctx.institute_id),)).fetchone()
+        inst = r["name"] if r else None
+    except Exception:
+        inst = None
+    return {"data_source": ctx.data_source, "read_only": ctx.data_source == "live", "role": ctx.role,
+            "first_name": ctx.first_name, "institute_name": inst}
+
+
+@router.get("/sessions")
+def list_sessions(ctx: SessionCtx = Depends(get_session)):
+    if ctx.data_source == "live":
+        rows = [r for r in MEMORY.list_for(str(ctx.user_id))]
+        return {"sessions": [{**r, "created_at": _iso(r["created_at"]), "updated_at": _iso(r["updated_at"])}
+                             for r in rows[:50]]}
+    with connect(readonly=False) as conn:
+        rows = conn.execute(
+            "select s.id, s.created_at, coalesce(max(m.created_at), s.created_at) as updated_at, "
+            "(select m2.content->>'text' from agent_messages m2 where m2.session_id = s.id and m2.role = 'llm' "
+            " and m2.content->>'role' = 'user' order by m2.seq limit 1) as title "
+            "from agent_sessions s left join agent_messages m on m.session_id = s.id "
+            "where s.user_id = %s and s.institute_id = %s group by s.id order by updated_at desc limit 50",
+            (str(ctx.user_id), str(ctx.institute_id))).fetchall()
+    return {"sessions": [{"session_id": str(r["id"]), "title": (r["title"] or "New chat")[:60],
+                          "created_at": str(r["created_at"]), "updated_at": str(r["updated_at"])} for r in rows]}
+
+
+def _iso(ts: float) -> str:
+    from datetime import datetime, timezone
+    return datetime.fromtimestamp(ts, tz=timezone.utc).isoformat()
+
+
 @router.post("/chat")
 def chat(body: ChatRequest, ctx: SessionCtx = Depends(get_session)):
+    if ctx.data_source == "live":
+        return _chat_live(body, ctx)
     conn = connect(readonly=False)
     if body.session_id:
         _own_session(conn, ctx, body.session_id)
@@ -103,6 +189,8 @@ def make_executor(conn, ctx: SessionCtx, session_id: str):
 
 @router.post("/approve")
 def approve(body: ApproveRequest, ctx: SessionCtx = Depends(get_session)):
+    if ctx.data_source == "live":
+        raise HTTPException(403, READ_ONLY_MESSAGE)
     with connect(readonly=False) as conn:
         _own_session(conn, ctx, body.session_id)
         try:
@@ -114,6 +202,10 @@ def approve(body: ApproveRequest, ctx: SessionCtx = Depends(get_session)):
 
 @router.get("/sessions/{session_id}")
 def get_session_view(session_id: str, ctx: SessionCtx = Depends(get_session)):
+    if ctx.data_source == "live":
+        row = _mem_session(ctx, session_id, allow_admin=True)
+        return {"session_id": session_id, "role": row["role"], "created_at": _iso(row["created_at"]),
+                "turns": MEMORY.events.get(session_id, [])}
     with connect(readonly=False) as conn:
         row = _own_session(conn, ctx, session_id, allow_admin=True)
         ev = conn.execute("select content from agent_messages where session_id=%s and role='events' order by seq",
@@ -124,6 +216,8 @@ def get_session_view(session_id: str, ctx: SessionCtx = Depends(get_session)):
 
 @router.get("/drafts/{draft_id}/pdf")
 def draft_pdf(draft_id: str, ctx: SessionCtx = Depends(get_session)):
+    if ctx.data_source == "live":
+        raise HTTPException(403, READ_ONLY_MESSAGE)
     from .export import export_pdf
     with connect(readonly=False) as conn:
         try:
@@ -150,8 +244,12 @@ def cors_origins(env=os.environ) -> list[str]:
     return origins
 
 
-def create_app(env=os.environ) -> FastAPI:
+def create_app(env=os.environ, check_real_db: bool = True) -> FastAPI:
+    check_modes(env)  # dev + real together -> refuse
     check_dev_mode_safe(env)  # refuse to start: dev mode + non-local DB
+    if real_mode(env) and check_real_db:
+        from .db_real import startup_check
+        startup_check()  # refuses to start if the DB role can write or read auth/storage
     a = FastAPI(title="a4ai Agent (standalone)")
     headers = ["Authorization", "Content-Type", "Last-Event-ID"]
     if dev_mode_enabled(env):

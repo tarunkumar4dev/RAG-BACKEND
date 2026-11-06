@@ -12,7 +12,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
-CONTRACT_VERSION = "1.0"
+CONTRACT_VERSION = "1.1"  # 1.1: stat_card.period/delta (optional), thinking_status tool.<name> steps
 
 QuestionType = Literal["mcq", "numeric", "assertion_reason", "short_answer", "long_answer", "case_study", "very_short"]
 VerifyStatus = Literal["verified", "failed", "manual_review", "rubric_ok"]
@@ -46,6 +46,8 @@ class StatCard(_Sourced):
     value: Optional[str]  # None => render "—"
     unit: Optional[str] = None
     subtitle: Optional[str] = None
+    period: Optional[str] = None  # e.g. "1–5 Nov 2026"
+    delta: Optional[str] = None   # e.g. "+2.1 pts vs Oct" — only when the tool computed it
 
 
 class ChartSeries(BaseModel):
@@ -178,12 +180,15 @@ class ApproveRequest(BaseModel):
 
 
 class SessionCtx(BaseModel):
-    """Frozen server-side identity. NEVER part of any tool schema."""
+    """Frozen server-side identity. NEVER part of any tool schema. Built only from DB rows for the verified user."""
     model_config = ConfigDict(frozen=True, extra="forbid")
     user_id: UUID
-    role: Literal["admin", "teacher"]
+    role: Literal["admin", "hod", "teacher"]
     institute_id: UUID
-    teacher_id: Optional[UUID] = None  # auth user id of the teacher (== user_id for teachers)
+    teacher_id: Optional[UUID] = None  # auth user id of the teacher (== user_id for teachers / HODs)
+    department_id: Optional[UUID] = None  # HOD's department
+    data_source: Literal["demo", "live"] = "demo"
+    first_name: Optional[str] = None  # display only (greeting); never used for scope
 
 
 def now_ist() -> str:

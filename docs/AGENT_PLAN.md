@@ -88,3 +88,13 @@ backend `app/core/auth.py:verify_token` calls Supabase `/auth/v1/user`.
    memory for the preview only. Agent sessions/messages are kept in-process (no write to Supabase) in real mode.
 7. **/agent UI** lives inside the existing staff shell as `/dashboard?tab=agent` (one nav item + one tab body in
    TeacherDashboardPage = the "layout slot"); `/agent` redirects there.
+
+## API contract additions (1.1, backward compatible)
+- `stat_card.period`, `stat_card.delta` (optional strings; delta only when a tool computed the previous period).
+- `thinking_status` per tool: `key = "tool.<tool_name>"`, `params = {"phase": "start"}` then
+  `{"phase": "done", "ms": <int>, "ok": <bool>}`. Paper pipeline keeps `status.generating|verifying|regenerating`.
+- `GET /agent/meta` → `{"data_source": "live"|"demo", "read_only": bool, "role": "admin"|"hod"|"teacher",
+  "first_name": str|null, "institute_name": str|null}`.
+- `GET /agent/sessions` → `{"sessions": [{"session_id", "title", "created_at", "updated_at"}]}` (own sessions, newest first,
+  max 50; title = first user message, 60 chars).
+- `POST /agent/chat` in real mode never writes to Supabase; sessions are kept in the agent process (lost on restart).
