@@ -1,0 +1,4 @@
+{"user_message": "Sharma ma'am ki is mahine ki attendance kya hai?", "role": "admin"}
+{"seq": 0, "request_id": "886fdc76f76a4fc7", "source": "tool:attendance_stats", "as_of": "2026-11-05T13:13:43+05:30", "type": "stat_card", "title": "Attendance · Priya Sharma", "value": "83.8", "unit": "%", "subtitle": "2026-11-01 → 2026-11-05 · 160 marks"}
+{"seq": 1, "request_id": "886fdc76f76a4fc7", "type": "text_delta", "text": "Priya Sharma ma'am ki attendance, 1–5 Nov 2026 (is mahine ab tak):\n\n- Sessions: 8\n- Marked: 160\n- Present: 130\n- Late: 4\n- Absent: 19\n- Leave: 7\n- **Attendance: 83.8%**"}
+{"seq": 2, "request_id": "886fdc76f76a4fc7", "type": "final", "session_id": "c63d0cd8-9df5-49ea-b78f-6f75d6655b83", "usage": {"tokens_in": 9121, "tokens_out": 333, "cost_usd": 0.03236, "tool_calls": 2, "latency_s": 4.86, "tools_used": ["resolve_entity", "attendance_stats"]}}

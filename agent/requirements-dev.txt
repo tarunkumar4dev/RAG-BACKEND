@@ -1,0 +1,6 @@
+# a4ai Agent local dev (Python 3.12; pgserver has no 3.13 wheel yet)
+-r requirements.txt
+tzdata
+pytest
+pgserver==0.1.4
+reportlab
