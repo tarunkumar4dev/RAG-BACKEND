@@ -21,6 +21,40 @@ flowchart LR
   CORE --> TR["trace.py → JSONL<br/>tool, arg keys, latency, tokens, cost"]
 ```
 
+## Run on real data (read-only) — Windows PowerShell
+You run this locally; the sandbox never connects to production. Nothing is written to Supabase: chat sessions and
+paper previews live in the agent process, and save/finalize/assign are switched off ("Abhi read-only mode hai").
+
+1. **Create the read-only role** — open `agent/sql/create_agent_ro_role.sql`, replace `<SET-A-LONG-RANDOM-PASSWORD>`
+   with a long random password (keep it in your password manager, never commit it), paste the whole file into the
+   Supabase **SQL editor** and run it. Then run the **VERIFY** block at the end of the file: queries 1–4 must return
+   0 rows and query 5 must return 17. (Undo any time with `agent/sql/drop_agent_ro_role.sql`.)
+2. **Install once** (creates `agent\.devdata\venv` and installs `agent/requirements-dev.txt`):
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File scripts\run_agent_dev.ps1
+   ```
+   Stop it with Ctrl+C once it is serving (that was demo mode).
+3. **Set the keys** in the same PowerShell window (already set? skip). If your project uses the legacy JWT secret
+   (Supabase → Settings → API → JWT Secret), also set `$env:SUPABASE_JWT_SECRET`; projects on the new asymmetric
+   signing keys need nothing (the agent reads `https://<ref>.supabase.co/auth/v1/.well-known/jwks.json`).
+   ```powershell
+   $k = Read-Host -AsSecureString "Anthropic key"; $env:A4AI_ANTHROPIC_API_KEY = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($k))
+   ```
+4. **Start the backend on live data** (asks for the agent_ro password without echo; uses the IPv4 Session pooler
+   `aws-0-<region>.pooler.supabase.com:5432`, user `agent_ro.<project-ref>`):
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File scripts\run_agent_real.ps1 -ProjectRef <your-project-ref> -Region ap-south-1
+   ```
+   It refuses to start if the role can write anything, read `auth.*`/`storage.*`, is superuser/bypassrls, or if
+   `AGENT_DEV_MODE` is also set.
+5. **Start the frontend** in a second window (a4ai repo): put `VITE_AGENT_URL=http://localhost:8000` in
+   `.env.local` (leave `VITE_AGENT_DEV_ROLE` empty), then:
+   ```powershell
+   npm run dev
+   ```
+6. **Log in** as a teacher/HOD/admin and open **a4ai Agent** in the dashboard sidebar (`/dashboard?tab=agent`, `/agent`
+   redirects there) or the floating "Ask a4ai" button. The header pill should read **Live · read-only**.
+
 ## Run locally on Windows PowerShell (no Docker, no Git Bash, no Postgres install)
 The database is **embedded Postgres** from the `pgserver` pip wheel (bundles the Postgres binaries; Python 3.9–3.12).
 The script makes a Python 3.12 venv (`py -3.12`, or `uv` via pip if 3.12 isn't installed), installs
@@ -70,22 +104,41 @@ methods GET/POST/OPTIONS, headers Authorization, Content-Type, Last-Event-ID (+ 
 Frontend: `/agent` page and the floating "Ask a4ai" button on staff dashboards.
 
 ## Security model
-- **Identity is server-side.** `get_session()` verifies the Supabase JWT with the existing `app.core.auth.verify_token`
-  and builds a frozen `SessionCtx(user_id, role, institute_id, teacher_id)` from `institute_members` (active rows; zero
-  or several institutes → 403). Tools are `tool(ctx, args)`; `ctx` is never in a tool schema, and arg models use
-  `extra="forbid"`, so a model passing `institute_id`/`role` gets `invalid_args` (tested).
-- **Scope.** Admin = whole institute. Teacher = only batches in `teaching_assignments` (own sessions/tests). Out of
-  scope or other institute → `not_found` (never leaks existence); another teacher's stats → `forbidden`.
-- **No free text into SQL.** Tool schemas are enums / UUIDs / dates / bounded patterned names; no `sql/query/filter/where`
-  fields (tested). All SQL parameterised. Read tools use a separate `agent_ro` role with read-only transactions.
-- **Prompt injection.** Names/text in tool results are data; system prompt says so; injection eval case included.
-- **Approval gate.** `finalize_test` / `assign_to_section` only create an approval (single use, bound to session + user +
-  `sha256(args)`, 15 min TTL, `SELECT … FOR UPDATE`). Executed only via `POST /agent/approve`; replay returns the stored
-  result, never a second write; tampered args → 403; expired → 410. PDF download only for approved drafts.
-- **Sessions.** `GET /agent/sessions/{id}` = owner or same-institute admin; everything else 404.
-- **Trace** (`trace.py`): tool name, arg **keys**, latency, tokens, cost. No names, no marks, no values (tested).
+- **Identity is server-side and DB-derived.** Real mode: the Supabase access token is verified locally
+  (`agent/jwt_auth.py`: JWKS RS256/ES256 or HS256 with `SUPABASE_JWT_SECRET`; signature, `exp`, `iss =
+  SUPABASE_URL/auth/v1`, `aud = authenticated`, `role = authenticated`; `alg: none` and HS256-without-secret are
+  rejected). Role, institute and department come only from DB rows for `sub` (`agent/real_identity.py`): admin =
+  institute owner or active member `admin`/`institute`; HOD = active `hod` with a department; everyone else on staff =
+  teacher scope; students, inactive members and multi-institute users get 403. Nothing from the client or the model.
+- **Scope** (`agent/real/schema_adapter.py`, mirrors `01_access_helpers.sql`): admin = whole institute; HOD = own
+  department's batches; proctor = proctor sections' batches; subject teacher = (batch, subject) pairs from
+  `teaching_assignments` ∪ `timetable_slots` plus own classes. Every query filters `institute_id`; out of scope →
+  `not_found`, another teacher's stats → `forbidden`.
+- **Read-only, three layers.** (1) `agent_ro` has column-level SELECT on 17 tables only and an RLS read policy per
+  table; no INSERT/UPDATE/DELETE anywhere, no `auth`/`storage`/`vault`, no PII columns. (2) Every query runs in
+  `BEGIN READ ONLY` with `statement_timeout = 8s` and is rolled back. (3) Startup probe refuses a writable or
+  over-privileged role. Residual risk: Supabase grants EXECUTE on public functions to PUBLIC; the agent never calls
+  functions and the read-only transaction blocks writes inside them.
+- **No free text into SQL.** Tool args are enums / UUIDs / dates / bounded names; SQL is fixed and parameterised.
+  `SessionCtx` is never in a tool schema and arg models use `extra="forbid"` (tested).
+- **Writes.** Real mode: `save_draft`, `finalize_test`, `assign_to_section`, `export_pdf`, `/agent/approve` and the PDF
+  endpoint are disabled. Demo mode keeps the single-use, sha256-bound, 15-minute approval gate.
+- **Modes.** `AGENT_DEV_MODE=1` (fake seed, `X-Dev-Role`) and `AGENT_REAL_DB_MODE=1` are mutually exclusive; dev mode
+  refuses to start next to any non-local DB URL (incl. `AGENT_REAL_DB_URL`) or on Vercel; real mode ignores dev headers.
+- **Prompt injection.** Names and text from the DB are data; the system prompt says so; there is an eval case for it.
 - **Budgets:** `max_llm_steps=10`, `max_tool_calls=40`, `max_wall_s=150` → `error{code:"budget_exceeded", partial}`.
-- **Dev auth** header `x-agent-dev-user` only with `AGENT_DEV_AUTH=1` and never when `VERCEL` is set.
+
+## What is sent to the LLM
+- The user's message, the chat history of this session, today's date, the caller's role (admin/hod/teacher) and
+  whether data is live. Not sent: user id, email, institute id, JWT, DB URLs, keys.
+- Tool results as JSON, which contain only what the answer needs: entity labels (student name + batch + roll no,
+  teacher display name, batch names), counts and percentages, test titles, marks numbers, dates, ids of entities the
+  caller may already see (for follow-up tool calls). Never phone numbers, parent names/phones, emails, gender,
+  addresses, access codes, file URLs, AI checker output or answer sheets — those columns are not even granted to
+  `agent_ro`.
+- Test-paper generation sends the blueprint and (when configured) NCERT text chunks; no student data.
+- Trace (`trace.py`, JSONL): tool name, argument **keys**, latency, status, tokens, cost — no names, marks or values.
+- Provider: Anthropic (`AGENT_MODEL`, default `claude-sonnet-5-5`); Gemini only if `AGENT_PROVIDER=gemini`.
 
 ## Verification gate (`verify.py`)
 | class | qtypes | checks |
@@ -97,12 +150,12 @@ Frontend: `/agent` page and the floating "Ask a4ai" button on staff dashboards.
 Failed ids (only those) are regenerated, max 3 rounds. `verification_summary` reports objective and rubric
 separately plus the manual-review list — never a flat "18/18 verified".
 
-## Events (`schemas.py`, contract 1.0 — every event has `seq` + `request_id`)
+## Events (`schemas.py`, contract 1.1 — every event has `seq` + `request_id`)
 | type | payload | notes |
 |---|---|---|
 | text_delta | text | assistant prose |
-| thinking_status | key, params | i18n key, e.g. `status.verifying` |
-| stat_card | title, value (null → "—"), unit, subtitle | `source: "tool:<name>"`, `as_of` IST |
+| thinking_status | key, params | `tool.<name>` {phase: start → done, ms, ok} per tool; `status.generating/verifying/regenerating` |
+| stat_card | title, value (null → "—"), unit, subtitle, period, delta | `source: "tool:<name>"`, `as_of` IST |
 | chart | kind line/bar, series | `source`, `as_of` |
 | table | columns, rows (null cells → "—") | `source`, `as_of` |
 | clarify | question, chips (≤ 5) | ambiguous name — never auto-picked |
@@ -139,8 +192,15 @@ Live run, 5 Nov 2026, Anthropic `claude-sonnet-5-5`, local seed (`python evals/r
 - Tests: `python -m pytest tests/agent -q` → 64 passed.
 
 ## Known limitations
-- Local seed only (`agent_demo` schema mirrors live table names; `tests`/`test_marks` are new — live marks are spread over
-  `submissions.grade` and `check_sheets`). Not run against Supabase; RLS is not exercised, scope is enforced in SQL.
+- **Real mode is verified on a schema-faithful fixture only** (live-audit baseline + migrations 01/02/05/06a/10/11/12 +
+  `tests`), not against the production project. A column renamed on production after those migrations would make a
+  tool return `status: error` (never wrong numbers).
+- Marks come from two sources (graded assignment submissions, checked copies); there is no unified marks table, and
+  assignments have no subject, so a subject filter applies to checked copies only.
+- Real-mode chat sessions and paper previews are kept in process memory (lost on restart, single instance).
+- Staff of several institutes get 403 (no institute switcher yet). Proctors get the "Teacher" badge with section scope.
+- Demo mode uses the local fake seed (`agent_demo` schema, simplified tables incl. a `test_marks` table that production
+  does not have); only real mode reads the production schema.
 - NCERT retrieval reuses `rag_service.retrieve_context`, which needs Supabase env; locally it falls back to
   `offline_outline` (no chunks) and says so in the preview footer. Generation uses the `QuestionGenerator` LLM adapter
   (it emits `check_expr` for sympy); wiring `test_generator_service.generate_questions` as a second adapter is not done.
