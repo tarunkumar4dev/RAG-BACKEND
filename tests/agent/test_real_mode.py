@@ -343,3 +343,41 @@ def test_write_tools_disabled_in_live_mode():
                        ("export_pdf", DraftArgs(draft_id=did)), ("assign_to_section", AssignArgs(draft_id=did, section_id=ECE2))]:
         r = a._paper_tool(name, args, lambda e: None)
         assert r["status"] == "read_only" and "read-only" in r["message"]
+
+
+# ---- JWT auth on /agent/chat endpoint ----
+def test_chat_with_valid_jwt(client, monkeypatch):
+    c, api, _ = client
+    script = Scripted([LLMResponse(text="Hello", model="claude-sonnet-5-5")])
+    monkeypatch.setattr(api, "get_provider", lambda: script)
+    resp = c.post("/agent/chat", json={"message": "Hi"}, headers={"Authorization": f"Bearer {tok(sub=U['admin'])}"})
+    assert resp.status_code == 200
+    events = _events(resp)
+    assert any(e.get("role") == "assistant" for e in events)
+
+
+def test_chat_rejects_expired_jwt(client):
+    c, _, _ = client
+    resp = c.post("/agent/chat", json={"message": "Hi"}, headers={"Authorization": f"Bearer {tok(exp_in=-100)}"})
+    assert resp.status_code == 401
+    assert "expired" in resp.text.lower()
+
+
+def test_chat_rejects_missing_jwt(client):
+    c, _, _ = client
+    resp = c.post("/agent/chat", json={"message": "Hi"})
+    assert resp.status_code == 401
+    assert "authentication" in resp.text.lower() or "no authorization" in resp.text.lower()
+
+
+def test_chat_rejects_malformed_jwt(client):
+    c, _, _ = client
+    resp = c.post("/agent/chat", json={"message": "Hi"}, headers={"Authorization": "Bearer not.a.token"})
+    assert resp.status_code == 401
+
+
+def test_chat_rejects_wrong_role_in_jwt(client):
+    c, _, _ = client
+    resp = c.post("/agent/chat", json={"message": "Hi"}, headers={"Authorization": f"Bearer {tok(role='anon')}"})
+    assert resp.status_code == 401
+    assert "authenticated" in resp.text.lower()

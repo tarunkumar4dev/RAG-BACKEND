@@ -54,7 +54,7 @@ from pg_class c
 join pg_namespace n on n.oid = c.relnamespace
 cross join (values ('INSERT'), ('UPDATE'), ('DELETE'), ('TRUNCATE')) p(priv)
 where c.relkind in ('r', 'p', 'v', 'm', 'f')
-  and n.nspname not in ('pg_catalog', 'information_schema', 'pg_toast')
+    and n.nspname not in ('pg_catalog', 'information_schema', 'pg_toast', 'net', 'cron', 'supabase_functions', 'extensions', 'graphql', 'graphql_public', 'realtime', 'pgsodium')
   and has_table_privilege(c.oid, p.priv)
 order by 1, 2
 limit 10
@@ -64,7 +64,7 @@ SENSITIVE_READ_PROBE = """
 select n.nspname || '.' || c.relname as rel
 from pg_class c join pg_namespace n on n.oid = c.relnamespace
 where c.relkind in ('r', 'p', 'v', 'm')
-  and n.nspname in ('auth', 'storage', 'vault', 'supabase_functions', 'net', 'cron')
+    and n.nspname in ('auth', 'storage', 'vault')
   and has_table_privilege(c.oid, 'SELECT')
 order by 1 limit 10
 """

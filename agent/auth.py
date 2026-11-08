@@ -1,6 +1,7 @@
 """get_session(): JWT -> frozen SessionCtx. Role/institute come from the DB, never from the request body."""
 from __future__ import annotations
 
+import logging
 import os
 import sys
 from uuid import UUID
@@ -9,6 +10,8 @@ from fastapi import HTTPException, Request
 
 from .db import connect
 from .schemas import SessionCtx
+
+logger = logging.getLogger(__name__)
 
 _ADMIN = {"owner", "admin"}
 
@@ -70,10 +73,12 @@ async def get_session(request: Request) -> SessionCtx:
         from .real_identity import ctx_for_real_user
         auth = request.headers.get("authorization", "")
         if not auth.lower().startswith("bearer "):
-            raise HTTPException(status_code=401, detail="Authentication required")
+            logger.warning("no Authorization header or malformed Bearer token")
+            raise HTTPException(status_code=401, detail="no Authorization header")
         try:
             claims = verify_supabase_jwt(auth.split(" ", 1)[1].strip())
         except AuthError as e:
+            logger.warning(f"JWT verification failed: {e}")
             raise HTTPException(status_code=401, detail=str(e))
         return await run_in_threadpool(ctx_for_real_user, claims["sub"], first_name_from_claims(claims))
     dev_role = request.headers.get("x-dev-role")
