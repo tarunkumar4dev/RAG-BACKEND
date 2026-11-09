@@ -125,19 +125,29 @@ def _prepare_turn(body: ChatRequest, ctx: SessionCtx) -> tuple[str, str, str, li
 def chat(body: ChatRequest, ctx: SessionCtx = Depends(get_session)):
     live = ctx.data_source == "live"
     store, owner = get_store(), Owner.of(ctx)
+    try:  # before anything is written: no key -> clean 503, no half-created session
+        provider = get_provider()
+    except KeyError:
+        raise HTTPException(503, "LLM provider not configured (API key env var not set)")
     sid, title, text, hist, store_user = _prepare_turn(body, ctx)
     if store_user:
         store.add_message(owner, sid, "user", text)
         store.record_query(owner, text)
     conn = None
-    if not live:  # seed/dev: drafts + approvals hang off the local demo agent_sessions row
-        conn = connect(readonly=False)
-        conn.execute("insert into agent_sessions(id, user_id, institute_id, role) values (%s,%s,%s,%s) "
-                     "on conflict (id) do nothing", (sid, str(ctx.user_id), str(ctx.institute_id), ctx.role))
     request_id = uuid.uuid4().hex[:16]
     cancel_event = RUNS.register(request_id, owner)
-    agent = Agent(get_provider(), ctx, sid, conn_rw=conn, history=hist, memory_store=DRAFTS if live else None,
-                  request_id=request_id, session_title=title, cancel_event=cancel_event)
+    try:
+        if not live:  # seed/dev: drafts + approvals hang off the local demo agent_sessions row
+            conn = connect(readonly=False)
+            conn.execute("insert into agent_sessions(id, user_id, institute_id, role) values (%s,%s,%s,%s) "
+                         "on conflict (id) do nothing", (sid, str(ctx.user_id), str(ctx.institute_id), ctx.role))
+        agent = Agent(provider, ctx, sid, conn_rw=conn, history=hist, memory_store=DRAFTS if live else None,
+                      request_id=request_id, session_title=title, cancel_event=cancel_event)
+    except Exception:
+        RUNS.unregister(request_id)
+        if conn is not None:
+            conn.close()
+        raise
 
     def stream() -> Iterator[str]:
         events: list[dict] = []

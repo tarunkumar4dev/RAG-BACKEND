@@ -641,3 +641,17 @@ def test_system_prompt_routing_rules(admin_ctx):
     for s in ("my_scope", "section_comparison(metric='attendance')", "NEVER use low_attendance_list", "(id <uuid>)",
               "admin or HOD can assign"):
         assert s in p
+
+
+def test_chat_without_provider_key_is_503_and_writes_nothing(api, monkeypatch):
+    c, _, st, _ = api
+    import agent.api as api_mod
+    from agent.runs import RUNS
+
+    def no_key():
+        raise KeyError("A4AI_ANTHROPIC_API_KEY")
+    monkeypatch.setattr(api_mod, "get_provider", no_key)
+    r = c.post("/agent/chat", json={"message": "hi"}, headers=H(SHARMA))
+    assert r.status_code == 503 and "not configured" in r.text and "A4AI" not in r.text
+    assert c.get("/agent/sessions", headers=H(SHARMA)).json()["items"] == []
+    assert c.get("/agent/history/queries", headers=H(SHARMA)).json() == [] and RUNS.running() == 0

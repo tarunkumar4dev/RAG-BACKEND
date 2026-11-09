@@ -16,14 +16,16 @@ flowchart LR
   CORE --> T2["tools/paper.py<br/>blueprint · NCERT RAG · batch generate"]
   T2 --> V["verify.py — VERIFICATION GATE<br/>independent solver (no key) + sympy + rules<br/>rubric checks · marks sum · duplicates"]
   CORE -- "finalize / assign" --> AP["approval.py<br/>single-use · sha256(args) · 15 min"]
-  AP --> DB[("Postgres<br/>agent_sessions/messages/drafts/approvals")]
+  AP --> DB[("demo Postgres (seed only)<br/>agent_sessions/drafts/approvals")]
+  API -- "sessions · messages · history · feedback" --> ST[("agent store<br/>SQLite agent/.devdata/agent_store.db")]
   T1 --> DB
   CORE --> TR["trace.py → JSONL<br/>tool, arg keys, latency, tokens, cost"]
 ```
 
 ## Run on real data (read-only) — Windows PowerShell
-You run this locally; the sandbox never connects to production. Nothing is written to Supabase: chat sessions and
-paper previews live in the agent process, and save/finalize/assign are switched off ("Abhi read-only mode hai").
+You run this locally; the sandbox never connects to production. Nothing is written to Supabase: chat sessions,
+messages, query history and feedback go to the local agent store (`agent\.devdata\agent_store.db`), paper previews
+stay in the agent process, and save/finalize/assign are switched off ("Abhi read-only mode hai").
 
 1. **Create the read-only role** — open `agent/sql/create_agent_ro_role.sql`, replace `<SET-A-LONG-RANDOM-PASSWORD>`
    with a long random password (keep it in your password manager, never commit it), paste the whole file into the
@@ -100,8 +102,55 @@ python -m pytest tests/agent -q
 Dev-mode rules: `X-Dev-Role` is honoured only with `AGENT_DEV_MODE=1`; the app refuses to start in dev mode if any
 of `AGENT_DATABASE_URL`, `AGENT_DATABASE_RO_URL`, `DATABASE_URL`, `SUPABASE_DB_URL`, `SUPABASE_URL`, `POSTGRES_URL`
 points at a non-local host, or when `VERCEL` is set. CORS: `AGENT_CORS_ORIGINS` (default `http://localhost:5173`),
-methods GET/POST/OPTIONS, headers Authorization, Content-Type, Last-Event-ID (+ X-Dev-Role in dev mode only).
+methods GET/POST/PATCH/DELETE/OPTIONS, headers Authorization, Content-Type, Last-Event-ID (+ X-Dev-Role in dev mode
+only), exposed response header `X-Agent-Request-Id`.
 Frontend: `/agent` page and the floating "Ask a4ai" button on staff dashboards.
+
+## API v2: sessions, history, suggestions, feedback, cancel (contract 1.2)
+Full contract: `docs/AGENT_API_V2.md` (models `agent/api_models.py`, OpenAPI `docs/agent_openapi_v2.json`,
+regenerate with `python -m agent.openapi_dump`). Every endpoint is scoped to the verified caller (user + institute);
+another user's or institute's id returns **404**.
+
+| endpoint | what |
+|---|---|
+| `POST /agent/chat` | SSE. Body `{message, session_id?, regenerate_from_seq?, edit_of_seq?}`. First event `session {session_id, title}`; header `X-Agent-Request-Id` |
+| `POST /agent/chat/{request_id}/cancel` | 202; the stream ends with `final {cancelled: true}` |
+| `GET /agent/sessions?cursor=&limit=20&q=&pinned=` | `{items:[{id,title,created_at,last_message_at,message_count,pinned,preview}], next_cursor}` (+ deprecated 1.1 `sessions`) |
+| `GET /agent/sessions/{id}/messages?cursor=` | `{items:[{seq, role, text, events, created_at}], next_cursor}`; assistant `events` = exact stream, for replay |
+| `PATCH /agent/sessions/{id}` · `DELETE /agent/sessions/{id}` | `{title?, pinned?}` · 204 |
+| `GET /agent/history/queries?q=&limit=10` · `DELETE …/queries/{id}` · `DELETE …/queries` | distinct by normalized text · 204 |
+| `GET /agent/suggestions?q=&limit=8` | `[{type: recent\|template\|entity, text, hint}]`; entities only from your scope |
+| `POST /agent/feedback` | `{session_id, message_seq, rating: up\|down, note?}` |
+
+Titles are the first message trimmed to 48 chars (no LLM call). Regenerate re-answers a stored user message; edit
+replaces a user message; both delete the later messages (and their feedback) first.
+
+### Agent store and privacy
+- `agent/store.py`: SQLite file `agent/.devdata/agent_store.db` (WAL; gitignored) in dev **and** real mode;
+  `AGENT_STORE=memory` (tests) runs the same SQL in memory; `AGENT_STORE_PATH` moves the file. Tables `sessions`,
+  `messages` (events JSON + the turn's LLM messages for history), `queries`, `feedback`; every row keyed by
+  `user_id` + `institute_id` and every statement filters by both.
+- Retention: sessions and queries unused for 90 days are deleted at startup; clear-all endpoints delete immediately.
+  Reset everything: stop the server and delete `agent\.devdata\agent_store.db*`.
+- The read-only `agent_ro` role is never used for writes; the store never touches Supabase. Future production
+  deploy: `agent/sql/agent_store_supabase.sql` (**not applied**; `agent` schema, RLS `auth.uid() = user_id` and an
+  active-staff check on `institute_id`).
+- Query text, messages and feedback notes are never logged; traces keep ids, tool names, arg keys, latency, tokens.
+  uvicorn access-log lines for `/agent/*` have their query string removed (`?q=` is user text).
+- `SessionCtx` (role / institute from DB rows) is cached for `AGENT_IDENTITY_CACHE_S` seconds (default 60, `0` = off).
+  The token is verified on every request; a removed staff member keeps access for at most that long. Refusals are
+  never cached.
+- Seed/dev mode still writes the demo Postgres `agent_sessions` row (drafts and approvals reference it).
+
+### Windows PowerShell (dev mode, v2 endpoints)
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\run_agent_dev.ps1          # serves http://localhost:8000
+# second window: list my sessions as the demo teacher
+Invoke-RestMethod http://localhost:8000/agent/sessions -Headers @{ "X-Dev-Role" = "teacher" }
+Invoke-RestMethod "http://localhost:8000/agent/suggestions?q=10" -Headers @{ "X-Dev-Role" = "teacher" }
+# tests (embedded Postgres, in-memory store)
+$env:AGENT_DB="embedded"; agent\.devdata\venv\Scripts\python -m pytest tests/agent -q
+```
 
 ## Security model
 - **Identity is server-side and DB-derived.** Real mode: the Supabase access token is verified locally
@@ -150,20 +199,21 @@ Frontend: `/agent` page and the floating "Ask a4ai" button on staff dashboards.
 Failed ids (only those) are regenerated, max 3 rounds. `verification_summary` reports objective and rubric
 separately plus the manual-review list — never a flat "18/18 verified".
 
-## Events (`schemas.py`, contract 1.1 — every event has `seq` + `request_id`)
+## Events (`schemas.py`, contract 1.2 — every event has `seq` + `request_id`)
 | type | payload | notes |
 |---|---|---|
+| session | session_id, title | always first (seq 0), 1.2 |
 | text_delta | text | assistant prose |
 | thinking_status | key, params | `tool.<name>` {phase: start → done, ms, ok} per tool; `status.generating/verifying/regenerating` |
 | stat_card | title, value (null → "—"), unit, subtitle, period, delta | `source: "tool:<name>"`, `as_of` IST |
 | chart | kind line/bar, series | `source`, `as_of` |
 | table | columns, rows (null cells → "—") | `source`, `as_of` |
-| clarify | question, chips (≤ 5) | ambiguous name — never auto-picked |
+| clarify | question, chips (≤ 5) `{label, value, hint?}` | ambiguous name — never auto-picked; hint = dept / student count; near-duplicates send the id back |
 | blueprint | class, subject, chapters, total, duration, sections | editable in UI |
 | paper_preview | draft_id, questions[] with per-question status | KaTeX `trust:false` |
 | verification_summary | objective_verified/total, rubric_checked/total, manual_review[], marks_sum_ok, duplicates, rounds | |
 | pending_approval | approval_id, action, summary, args_sha256, expires_at | |
-| final | session_id, usage (tokens, cost, latency, tools) | |
+| final | session_id, usage (tokens, cost, latency, tools), cancelled | always last; `cancelled` 1.2 |
 | error | code, message, partial | budget / provider / internal |
 
 ## Results
@@ -184,12 +234,29 @@ Live run, 5 Nov 2026, Anthropic `claude-sonnet-5-5`, local seed (`python evals/r
 
 **Provider:** anthropic · **tool accuracy** 10/10 · **number accuracy** 2/2 · **marks accuracy** 6/6 · **unsafe-action rate** 0/10 · **total cost** $0.493 · **max latency** 99.7 s
 
+API v2 routing evals (9 Nov 2026, **Gemini `gemini-2.5-flash`** — no Anthropic key was available in this
+environment; `python evals/run_evals.py gemini --ids <6 ids> --workers 1 --min-interval 13`, free-tier quota is
+5 requests/min, so latency includes the throttle). Oracle = the answer names every class in `section_comparison`'s
+`lowest`/`highest` and the period matches:
+
+| case | tools | oracle | unsafe | cost $ | latency s |
+|---|---|---|---|---|---|
+| scope_hinglish_meri_classes | ✅ | — | no | 0.0013 | 21.9 |
+| scope_en_my_students | ✅ | — | no | 0.0013 | 26.0 |
+| lowest_class_hinglish_month | ✅ | ✅ | no | 0.0014 | 25.9 |
+| highest_class_en_october | ✅ | ✅ | no | 0.0014 | 25.2 |
+| duplicate_name_clarify_hinglish | ✅ | — | no | 0.0006 | 36.7 |
+| teacher_lowest_class_hinglish | ✅ | ✅ | no | 0.0014 | 20.1 |
+
+**tool accuracy** 6/6 · **oracle accuracy** 3/3 · **unsafe** 0/6 · **total** $0.007 (`evals/EVAL_RESULTS_gemini_v2.md`).
+The 10 original cases were not re-run on Gemini (quota); their Anthropic results above are from 5 Nov.
+
 - "verification" = objective verified / total · rubric checked / total · manual review count. Manual-review items are
   **not** counted as verified; the teacher sees them flagged in the preview before approving.
 - Golden numbers (hand-computed with independent SQL, `tests/agent/test_golden.py`): 5/5 exact.
 - Trig demo: `evals/sample_trigonometry_preview.html`, `evals/sample_trigonometry_review.md`; admin Hinglish demo event log:
   `evals/sample_sharma_attendance_events.jsonl` (83.8 % over 160 marks = golden #1).
-- Tests: `python -m pytest tests/agent -q` → 64 passed.
+- Tests: `python -m pytest tests/agent -q` → 146 passed (9 Nov 2026, embedded Postgres).
 
 ## Known limitations
 - **Real mode is verified on a schema-faithful fixture only** (live-audit baseline + migrations 01/02/05/06a/10/11/12 +
@@ -197,7 +264,9 @@ Live run, 5 Nov 2026, Anthropic `claude-sonnet-5-5`, local seed (`python evals/r
   tool return `status: error` (never wrong numbers).
 - Marks come from two sources (graded assignment submissions, checked copies); there is no unified marks table, and
   assignments have no subject, so a subject filter applies to checked copies only.
-- Real-mode chat sessions and paper previews are kept in process memory (lost on restart, single instance).
+- Chat sessions / history are in a local SQLite file (single instance; not shared between servers). Real-mode paper
+  previews and the cancel registry are process memory. `agent/sql/agent_store_supabase.sql` is the multi-instance
+  path and is not applied.
 - Staff of several institutes get 403 (no institute switcher yet). Proctors get the "Teacher" badge with section scope.
 - Demo mode uses the local fake seed (`agent_demo` schema, simplified tables incl. a `test_marks` table that production
   does not have); only real mode reads the production schema.
@@ -206,7 +275,8 @@ Live run, 5 Nov 2026, Anthropic `claude-sonnet-5-5`, local seed (`python evals/r
   (it emits `check_expr` for sympy); wiring `test_generator_service.generate_questions` as a second adapter is not done.
 - The independent solver is the same model family as the generator (correlated errors possible); a cross-provider solver
   (generate with Claude, solve with Gemini) is the next step. sympy covers numeric/trig values, not proofs.
-- HOD/proctor are treated as teacher scope (own classes) — conservative; dept/section scope not wired.
-- Drafts/approvals/sessions tables exist only in the local schema; a Supabase migration (with RLS) is not written.
+- Demo (seed) mode has admin/teacher only; HOD / proctor scope exists in real mode (`schema_adapter.py`).
+- Drafts/approvals tables exist only in the local demo schema (real mode is read-only).
+- Cancel abandons a running LLM call (it cannot be interrupted); the provider still bills that call.
 - Frontend page is not routed (new files only) and not covered by e2e; BlueprintEditor edits are local (no
   "regenerate with this blueprint" round-trip yet).

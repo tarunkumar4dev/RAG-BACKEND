@@ -13,7 +13,7 @@ was renamed or removed. Pydantic models: `agent/schemas.py` (events, `ChatReques
 - Timestamps: ISO-8601 UTC (`2026-11-09T10:15:00+00:00`). Cursors are opaque: send back `next_cursor` unchanged;
   `next_cursor: null` = last page.
 - Errors: FastAPI default `{"detail": ...}`. 401 = no/invalid token, 403 = not staff / read-only action, 404 = not
-  found or not yours, 422 = invalid body / query.
+  found or not yours, 422 = invalid body / query, 503 = `/agent/chat` with no LLM key configured (nothing is stored).
 - Privacy: query text, message text and feedback notes are never written to logs or traces (traces keep ids, tool
   names, arg keys, latency, tokens). Access-log lines for `/agent/*` have the query string removed.
 - Storage: sessions, messages, queries and feedback live in the **agent store** (SQLite file

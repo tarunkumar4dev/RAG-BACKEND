@@ -137,3 +137,25 @@ backend `app/core/auth.py:verify_token` calls Supabase `/auth/v1/user`.
 15. **Legacy `GET /agent/sessions/{id}`** is owner-only for store sessions (1.1 let same-institute admins read real-mode
     sessions). The seed Postgres fallback keeps the 1.1 admin rule for old demo rows.
 16. Real-mode paper drafts stay in process memory (`DRAFTS`), never on disk: they are previews of a read-only mode.
+17. **Identity cache** (`AGENT_IDENTITY_CACHE_S`, default 60 s): building `SessionCtx` is a DB round trip (~60 ms
+    locally) and alone breaks the suggestions p95 budget. Tokens are still verified on every request; refusals are
+    never cached; a removed staff member keeps access for at most the TTL. Set `0` to disable.
+18. **Tool routing**: `my_scope` for "meri classes / mere students / my batches"; `section_comparison` for
+    "which class has the lowest/highest attendance" (never `low_attendance_list`). Ties are reported, not broken:
+    `lowest` / `highest` list every tied class. Batches with no data get rank null and are listed under `no_data`.
+19. **Near-duplicates**: ambiguous `resolve_entity` matches carry `hint` (department · student count, "0 students
+    (empty)"); when two labels normalise to the same key ("ECE 1" / "ECE1") the chip value is `"<label> (id <uuid>)"`
+    and the prompt tells the model to use that id directly (otherwise the next turn is ambiguous again).
+20. Takeaway rule relaxed from "no digits" to "no statistics" so class names like 10A / ECE-2 may be named.
+21. `/agent/chat` without an LLM key -> 503 before anything is stored (was a 500 after the session was half-written).
+
+## Status (9 Nov 2026)
+- Commits: phase 1 contract `1ff49b1`, phase 2 store `317d98e`, phase 3 tools `1ae6a34`, phase 4 tests `728848d`,
+  finish (evals, docs, 503, provider-error code) — see git log. Branch `claude/youthful-archimedes-tw0p0s`.
+- Tests: **147 passed** (`AGENT_DB=embedded`, ~90 s): 104 before + 43 new (31 in `test_agent_v2.py` incl. store tests
+  run on both implementations, 6 real-fixture tool tests R15–R20, 2 no-free-text checks for the new arg models).
+- Evals: 6 new routing cases, Gemini 2.5 Flash, 6/6 tools, 3/3 oracle, 0 unsafe, $0.007. Anthropic not run (no key).
+- Dev flow checked on Windows PowerShell: `python -m agent.dev_server` + `Invoke-RestMethod` on sessions, suggestions,
+  history, messages, PATCH, DELETE, CORS preflight for PATCH; cross-user read -> 404.
+- Not verified: real Supabase (fixture only), the frontend against v2, Anthropic routing on the new cases,
+  `agent_store_supabase.sql` (never applied), multi-worker deployments (store / cancel registry are per process).

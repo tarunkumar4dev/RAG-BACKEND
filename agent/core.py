@@ -66,6 +66,12 @@ class Cancelled(Exception):
     pass
 
 
+def _is_provider_error(e: Exception) -> bool:
+    """Anthropic APIError family, google.genai ClientError/ServerError (e.g. 429 quota), httpx transport errors."""
+    mod = type(e).__module__ or ""
+    return "api" in type(e).__name__.lower() or mod.startswith(("anthropic", "google.genai", "httpx", "httpcore"))
+
+
 def close_turn(msgs: list[dict]) -> list[dict]:
     """After a cancel the history may end with an assistant tool call that never got its result, which providers
     reject on the next turn. Drop such dangling calls and end the turn with a short assistant note."""
@@ -367,7 +373,7 @@ class Agent:
         except Exception as e:  # provider/internal error -> structured error, never a stack trace
             while out:
                 yield out.popleft()
-            yield self.ev("error", code="provider_error" if "api" in type(e).__name__.lower() else "internal",
+            yield self.ev("error", code="provider_error" if _is_provider_error(e) else "internal",
                           message=type(e).__name__, partial={"tools_used": self.tools_used})
         self.history = msgs
         yield self.ev("final", session_id=self.session_id, cancelled=self.cancelled,

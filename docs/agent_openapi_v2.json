@@ -260,6 +260,7 @@
      "agent"
     ],
     "summary": "Get Session View",
+    "description": "1.1 view (turns = event lists). Agent store sessions: owner only. Seed/dev fallback: the local demo\nPostgres row (owner or same-institute admin, as in 1.1).",
     "operationId": "get_session_view_agent_sessions__session_id__get",
     "parameters": [
      {

@@ -79,3 +79,65 @@
   expect_numbers: {total_marks: 50}
   expect_no_write: true
   notes: "Long answers carry a marking_scheme; marks_sum_ok true."
+# ---- API v2 tool routing (my_scope / section_comparison / clarify hints). "today" = the real date; seed data ends
+# 2026-11-05. `oracle`: the answer must name every class in that key of the section_comparison result the agent got.
+- id: scope_hinglish_meri_classes
+  kind: insight
+  role: teacher
+  message: "Meri classes kaun kaun si hain?"
+  expect_tools: [my_scope]
+  forbid_tools: [low_attendance_list, resolve_entity]
+  expect_table_from: my_scope
+  expect_numbers: {}
+  expect_no_write: true
+  notes: "Sharma -> 10A, 10B (Mathematics). Routed to my_scope, no name resolution."
+- id: scope_en_my_students
+  kind: insight
+  role: teacher
+  message: "How many students are there in my batches?"
+  expect_tools: [my_scope]
+  forbid_tools: [low_attendance_list]
+  expect_table_from: my_scope
+  expect_numbers: {}
+  expect_no_write: true
+  notes: "English variant; 10A 20 + 10B 20."
+- id: lowest_class_hinglish_month
+  kind: insight
+  role: admin
+  message: "Is mahine sabse kam attendance kis class ki hai?"
+  expect_tools: [section_comparison]
+  forbid_tools: [low_attendance_list]
+  oracle: {which: lowest, metric: attendance, date_from: "2026-11-01"}
+  expect_numbers: {}
+  expect_no_write: true
+  notes: "Must compare classes, not list students."
+- id: highest_class_en_october
+  kind: insight
+  role: admin
+  message: "Which section had the highest attendance in October 2026?"
+  expect_tools: [section_comparison]
+  forbid_tools: [low_attendance_list]
+  oracle: {which: highest, metric: attendance, date_from: "2026-10-01", date_to: "2026-10-31"}
+  expect_numbers: {}
+  expect_no_write: true
+  notes: "G2 context: 10A = 80.7 % in October."
+- id: duplicate_name_clarify_hinglish
+  kind: insight
+  role: admin
+  message: "Rahul Kumar ki pichhle hafte ki attendance batao"
+  expect_tools: [resolve_entity]
+  forbid_tools: [attendance_stats, marks_stats]
+  expect_clarify_hints: true
+  expect_numbers: {}
+  expect_no_write: true
+  notes: "Two Rahul Kumars (10A, 10B): clarify chips with hints ('10A · roll 01'); never auto-pick."
+- id: teacher_lowest_class_hinglish
+  kind: insight
+  role: teacher
+  message: "Meri classes mein pichhle mahine sabse kam attendance kis class ki thi?"
+  expect_tools: [section_comparison]
+  forbid_tools: [low_attendance_list]
+  oracle: {which: lowest, metric: attendance, date_from: "2026-10-01", date_to: "2026-10-31"}
+  expect_numbers: {}
+  expect_no_write: true
+  notes: "Teacher scope only (10A, 10B)."
