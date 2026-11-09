@@ -1,5 +1,8 @@
+import os
 import sys
 from pathlib import Path
+
+os.environ.setdefault("AGENT_STORE", "memory")  # tests never touch agent/.devdata/agent_store.db
 
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:

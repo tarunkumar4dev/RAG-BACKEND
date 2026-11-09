@@ -36,9 +36,17 @@ def system_prompt(ctx: SessionCtx) -> str:
         "missing values are shown as '—'. Reply in the user's script: Roman Hinglish in -> Roman Hinglish out, "
         "English in -> English out, Devanagari in -> Devanagari out. "
         "Write plain, concise prose: no markdown symbols (no **, #, bullet lists, tables). "
-        "attendance_stats, attendance_trend, low_attendance_list, marks_stats and tests_created_by_teacher results are "
-        "shown to the user as cards, tables and charts automatically. After those, write exactly ONE short takeaway "
-        "sentence (max 20 words) with NO digits or percentages — the card already shows every number. Say what it "
+        "Tool routing: 'meri class/classes', 'mere students', 'my batches', 'what do I teach', 'mere subjects' -> "
+        "my_scope (no resolve_entity needed). If my_scope returns no batches, say honestly that no batch or subject "
+        "is assigned to them yet and that the institute admin or HOD can assign batches (Teaching assignments / "
+        "timetable). 'Which class/section/batch has the lowest/highest attendance', 'sabse kam/zyada attendance "
+        "wali class', 'compare classes' -> section_comparison(metric='attendance'); same for marks with "
+        "metric='marks'. NEVER use low_attendance_list for that: it lists individual students. section_comparison "
+        "returns `lowest`/`highest` (several names when tied) — name every tied class. "
+        "If a user message contains '(id <uuid>)', that is a picked chip: use that id directly, do not resolve again. "
+        "my_scope, section_comparison, attendance_stats, attendance_trend, low_attendance_list, marks_stats and "
+        "tests_created_by_teacher results are shown to the user as cards, tables and charts automatically. After those, write exactly ONE short takeaway "
+        "sentence (max 20 words) with NO statistics (no percentages, counts or marks; names like 10A or ECE-2 are fine) — the card already shows every number. Say what it "
         "means, never describe the UI ('card/table/chart mein dikh raha hai' is not allowed). Example: "
         "'Pichhle hafte ke mukable attendance kaafi giri hai.' "
         + ("Data is LIVE and READ-ONLY: you cannot save, finalize, assign or notify; say so briefly if asked. "
@@ -52,6 +60,23 @@ def system_prompt(ctx: SessionCtx) -> str:
 
 class Budget(Exception):
     pass
+
+
+class Cancelled(Exception):
+    pass
+
+
+def close_turn(msgs: list[dict]) -> list[dict]:
+    """After a cancel the history may end with an assistant tool call that never got its result, which providers
+    reject on the next turn. Drop such dangling calls and end the turn with a short assistant note."""
+    out = list(msgs)
+    if out and out[-1].get("role") == "assistant" and out[-1].get("tool_calls"):
+        out[-1] = {**out[-1], "tool_calls": []}
+    if out and out[-1].get("role") == "assistant" and not out[-1].get("text"):
+        out.pop()
+    if not out or out[-1].get("role") != "assistant":
+        out.append({"role": "assistant", "text": "[stopped by the user]", "tool_calls": []})
+    return out
 
 
 def plain_text(t: str) -> str:
@@ -74,6 +99,21 @@ def _period(res: dict) -> Optional[str]:
     return f"{a.day} {a:%b} – {b.day} {b:%b %Y}"
 
 
+def _key(label: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", (label or "").lower())
+
+
+def clarify_chips(matches: list[dict]) -> list[dict]:
+    """Chips for an ambiguous resolve. When two labels are near-duplicates ('ECE 1' / 'ECE1'), the value sent back
+    carries the id so the next turn can't be ambiguous again; the hint (student count, department) tells them apart."""
+    keys = [_key(m["label"]) for m in matches]
+    chips = []
+    for m, k in zip(matches, keys):
+        value = f"{m['label']} (id {m['id']})" if keys.count(k) > 1 else m["label"]
+        chips.append({"label": m["label"], "value": value, "hint": m.get("hint")})
+    return chips
+
+
 def _days(res: dict) -> int:
     return (date.fromisoformat(res["date_to"]) - date.fromisoformat(res["date_from"])).days + 1
 
@@ -81,8 +121,12 @@ def _days(res: dict) -> int:
 class Agent:
     def __init__(self, provider: LLMProvider, ctx: SessionCtx, session_id: str, conn_rw=None,
                  request_id: Optional[str] = None, history: Optional[list[dict]] = None, memory_store=None,
-                 tools: Optional[dict] = None):
+                 tools: Optional[dict] = None, session_title: Optional[str] = None,
+                 cancel_event: Optional[threading.Event] = None):
         self.p, self.ctx, self.session_id, self.conn = provider, ctx, session_id, conn_rw
+        self.session_title = session_title  # set -> the stream starts with a `session` event (API v2)
+        self.cancel_event = cancel_event    # set() by POST /agent/chat/{request_id}/cancel
+        self.cancelled = False
         self.mem = memory_store  # real mode: drafts live in process memory, never in Supabase
         self.tools = tools if tools is not None else active_tools(ctx.data_source == "live")
         self.read_only = ctx.data_source == "live"
@@ -124,8 +168,25 @@ class Agent:
         src, as_of = f"tool:{name}", now_ist()
         st = res.get("status")
         if name == "resolve_entity" and st == "ambiguous":
-            return [self.ev("clarify", question="Kaun sa? / Which one?",
-                            chips=[{"label": m["label"], "value": m["label"]} for m in res["matches"][:5]])]
+            return [self.ev("clarify", question="Kaun sa? / Which one?", chips=clarify_chips(res["matches"][:5]))]
+        if name == "my_scope" and st == "ok" and res.get("batches"):
+            return [self.ev("table", source=src, as_of=as_of, title=f"Meri classes · {len(res['batches'])}",
+                            columns=["Batch", "Students", "Role", "Subjects"],
+                            rows=[[b["name"], str(b["student_count"]), b["role"],
+                                   ", ".join(b.get("subjects") or []) or None] for b in res["batches"]])]
+        if name == "section_comparison" and st == "ok" and res.get("rows"):
+            att = res["metric"] == "attendance"
+            label = "Attendance %" if att else "Avg marks %"
+            evs = [self.ev("table", source=src, as_of=as_of, title=f"{label} by class · {_period(res) or ''}".rstrip(" ·"),
+                           columns=["#", "Class", "%", "Classes held" if att else "Tests", "Marked" if att else "Graded"],
+                           rows=[[None if r["rank"] is None else str(r["rank"]), r["name"],
+                                  None if r["pct"] is None else str(r["pct"]), str(r["sessions"]), str(r["marked"])]
+                                 for r in res["rows"]])]
+            ranked = [r for r in res["rows"] if r["pct"] is not None]
+            if ranked:
+                evs.append(self.ev("chart", source=src, as_of=as_of, kind="bar", y_unit="%", title=label,
+                                   series=[{"name": label, "points": [(r["name"], r["pct"]) for r in ranked]}]))
+            return evs
         if name == "attendance_stats" and st == "ok":
             pct, prev = res.get("pct"), res.get("prev_pct")
             delta = None if pct is None or prev is None else f"{pct - prev:+.1f} pts vs previous {_days(res)} days"
@@ -225,18 +286,41 @@ class Agent:
                 "rubric_checked", "rubric_total", "manual_review", "failed", "marks_sum_ok", "duplicates")}}
 
     # -- loop ------------------------------------------------------------
+    def _check_cancel(self) -> None:
+        if self.cancel_event is not None and self.cancel_event.is_set():
+            raise Cancelled()
+
+    def _wait(self, fut, t0: float, out: deque):
+        """Wait for a worker future; stream tool events, honour the wall-clock budget and cancel meanwhile."""
+        while True:
+            try:
+                return fut.result(timeout=0.15)
+            except FutureTimeout:
+                while out:
+                    yield out.popleft()
+                self._check_cancel()
+                if time.time() - t0 > config.MAX_WALL_S:
+                    raise Budget("max_wall_s")
+
     def run(self, message: str) -> Iterator[dict]:
         t0 = time.time()
         out: deque = deque()  # thread-safe append/popleft: tools emit from a worker thread
         emit = out.append
         msgs = self.history + [{"role": "user", "text": message}]
         tools = tool_schemas(self.tools)
+        if self.session_title is not None:
+            yield self.ev("session", session_id=self.session_id, title=self.session_title)
         try:
             for step in range(config.MAX_LLM_STEPS):
+                self._check_cancel()
                 if time.time() - t0 > config.MAX_WALL_S:
                     raise Budget("max_wall_s")
                 tl = time.time()
-                r = self.p.complete(system_prompt(self.ctx), msgs, tools, max_tokens=2048)
+                if self.cancel_event is None:
+                    r = self.p.complete(system_prompt(self.ctx), msgs, tools, max_tokens=2048)
+                else:  # cancellable: the call runs in a worker; a cancel abandons it (it cannot be interrupted)
+                    fut = _POOL.submit(self.p.complete, system_prompt(self.ctx), msgs, tools, max_tokens=2048)
+                    r = yield from self._wait(fut, t0, out)
                 self.tokens[0] += r.tokens_in
                 self.tokens[1] += r.tokens_out
                 self.cost += self.tracer.llm(r.model, r.tokens_in, r.tokens_out, (time.time() - tl) * 1000)
@@ -254,15 +338,7 @@ class Agent:
                     yield self.ev("thinking_status", key=f"tool.{c.name}", params={"phase": "start"})
                     ts = time.time()
                     fut = _POOL.submit(self._call, c.name, c.args, emit)
-                    while True:  # stream the tool's own status events (paper pipeline) while it runs
-                        try:
-                            res = fut.result(timeout=0.15)
-                            break
-                        except FutureTimeout:
-                            while out:
-                                yield out.popleft()
-                            if time.time() - t0 > config.MAX_WALL_S:
-                                raise Budget("max_wall_s")
+                    res = yield from self._wait(fut, t0, out)  # streams the tool's own status events meanwhile
                     while out:  # the tool's own events (lower seq) go first
                         yield out.popleft()
                     ok = res.get("status") not in ("error", "invalid_args")
@@ -278,6 +354,11 @@ class Agent:
                     break  # never auto-pick: wait for the user's chip
             else:
                 raise Budget("max_llm_steps")
+        except Cancelled:
+            while out:
+                yield out.popleft()
+            self.cancelled = True
+            msgs = close_turn(msgs)
         except Budget as b:
             while out:
                 yield out.popleft()
@@ -289,7 +370,7 @@ class Agent:
             yield self.ev("error", code="provider_error" if "api" in type(e).__name__.lower() else "internal",
                           message=type(e).__name__, partial={"tools_used": self.tools_used})
         self.history = msgs
-        yield self.ev("final", session_id=self.session_id,
+        yield self.ev("final", session_id=self.session_id, cancelled=self.cancelled,
                       usage={"tokens_in": self.tokens[0], "tokens_out": self.tokens[1],
                              "cost_usd": round(self.cost, 5), "tool_calls": self.tool_calls,
                              "latency_s": round(time.time() - t0, 2), "tools_used": self.tools_used})

@@ -1,9 +1,15 @@
-"""Endpoints: POST /agent/chat (SSE), POST /agent/approve, GET /agent/sessions/{id}, GET /agent/drafts/{id}/pdf."""
+"""Endpoints: POST /agent/chat (SSE), POST /agent/approve, GET /agent/sessions/{id}, GET /agent/drafts/{id}/pdf.
+API v2 (sessions list/messages/patch/delete, history, suggestions, feedback, cancel): agent/api_v2.py.
+
+Conversation state (sessions, messages, query history, feedback) lives in the agent store (agent/store.py) in BOTH
+modes. Seed/dev mode additionally keeps a row in the local demo Postgres agent_sessions table, because paper drafts
+and approvals reference it. Real mode never writes to Supabase."""
 from __future__ import annotations
 
 import json
+import logging
 import uuid
-from typing import Iterator
+from typing import Iterator, Optional
 
 import os
 
@@ -12,18 +18,22 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
 
 from .approval import ApprovalError, execute_approval
+from .api_v2 import own_session
 from .auth import check_dev_mode_safe, dev_mode_enabled, get_session
 from .mode import READ_ONLY_MESSAGE, check_modes, real_mode
-from .store import MEMORY
 from .core import Agent
 from .db import connect
 from .llm import get_provider
+from .runs import RUNS
 from .schemas import ApproveRequest, ChatRequest, SessionCtx
+from .store import DRAFTS, Owner, auto_title, get_store, iso, valid_id
 
 router = APIRouter(prefix="/agent", tags=["agent"])
+HISTORY_MESSAGES = 30
 
 
 def _own_session(conn, ctx: SessionCtx, session_id: str, allow_admin: bool = False) -> dict:
+    """Seed/dev Postgres agent_sessions row (drafts / approvals)."""
     try:
         uuid.UUID(session_id)
     except ValueError:
@@ -36,54 +46,22 @@ def _own_session(conn, ctx: SessionCtx, session_id: str, allow_admin: bool = Fal
     return row
 
 
-def _history(conn, session_id: str) -> list[dict]:
-    rows = conn.execute("select content from agent_messages where session_id=%s and role='llm' order by seq",
-                        (session_id,)).fetchall()
-    msgs = [r["content"] for r in rows][-30:]
-    while msgs and msgs[0].get("role") != "user":  # never start mid tool-exchange
-        msgs.pop(0)
-    return msgs
-
-
-def _mem_session(ctx: SessionCtx, session_id: str, allow_admin: bool = False) -> dict:
-    row = MEMORY.get(session_id)
-    if row is None or row["institute_id"] != str(ctx.institute_id):
-        raise HTTPException(404, "not found")
-    if row["user_id"] != str(ctx.user_id) and not (allow_admin and ctx.role == "admin"):
-        raise HTTPException(404, "not found")
-    return row
+def build_history(messages: list[dict]) -> list[dict]:
+    """Stored messages -> provider-neutral history: user text + each assistant turn's own llm messages."""
+    out: list[dict] = []
+    for m in messages:
+        if m["role"] == "user":
+            out.append({"role": "user", "text": m["text"] or ""})
+        else:
+            out.extend(m.get("llm") or [{"role": "assistant", "text": m.get("text") or "", "tool_calls": []}])
+    out = out[-HISTORY_MESSAGES:]
+    while out and out[0].get("role") != "user":  # never start mid tool-exchange
+        out.pop(0)
+    return out
 
 
 def _sse(ev: dict) -> str:
     return f"data: {json.dumps(ev, default=str)}\n\n"
-
-
-def _chat_live(body: ChatRequest, ctx: SessionCtx):
-    """Real data: nothing is written to Supabase. Session, history and drafts stay in this process."""
-    if body.session_id:
-        _mem_session(ctx, body.session_id)
-        sid = body.session_id
-    else:
-        sid = str(uuid.uuid4())
-        MEMORY.create_session(sid, str(ctx.user_id), str(ctx.institute_id), ctx.role, body.message)
-    hist = list(MEMORY.history.get(sid, []))[-30:]
-    while hist and hist[0].get("role") != "user":
-        hist.pop(0)
-    agent = Agent(get_provider(), ctx, sid, history=hist, memory_store=MEMORY)
-
-    def stream() -> Iterator[str]:
-        events = []
-        try:
-            for ev in agent.run(body.message):
-                events.append(ev)
-                yield _sse(ev)
-        finally:
-            MEMORY.history[sid] = agent.history[-60:]
-            MEMORY.events.setdefault(sid, []).append(events)
-            MEMORY.touch(sid)
-
-    return StreamingResponse(stream(), media_type="text/event-stream",
-                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
 @router.get("/meta")
@@ -104,62 +82,80 @@ def meta(ctx: SessionCtx = Depends(get_session)):
             "first_name": ctx.first_name, "institute_name": inst}
 
 
-@router.get("/sessions")
-def list_sessions(ctx: SessionCtx = Depends(get_session)):
-    if ctx.data_source == "live":
-        rows = [r for r in MEMORY.list_for(str(ctx.user_id))]
-        return {"sessions": [{**r, "created_at": _iso(r["created_at"]), "updated_at": _iso(r["updated_at"])}
-                             for r in rows[:50]]}
-    with connect(readonly=False) as conn:
-        rows = conn.execute(
-            "select s.id, s.created_at, coalesce(max(m.created_at), s.created_at) as updated_at, "
-            "(select m2.content->>'text' from agent_messages m2 where m2.session_id = s.id and m2.role = 'llm' "
-            " and m2.content->>'role' = 'user' order by m2.seq limit 1) as title "
-            "from agent_sessions s left join agent_messages m on m.session_id = s.id "
-            "where s.user_id = %s and s.institute_id = %s group by s.id order by updated_at desc limit 50",
-            (str(ctx.user_id), str(ctx.institute_id))).fetchall()
-    return {"sessions": [{"session_id": str(r["id"]), "title": (r["title"] or "New chat")[:60],
-                          "created_at": str(r["created_at"]), "updated_at": str(r["updated_at"])} for r in rows]}
-
-
-def _iso(ts: float) -> str:
-    from datetime import datetime, timezone
-    return datetime.fromtimestamp(ts, tz=timezone.utc).isoformat()
+def _prepare_turn(body: ChatRequest, ctx: SessionCtx) -> tuple[str, str, str, list[dict], bool]:
+    """-> (session_id, title, user_text, history, store_user_message). Raises 404/422 before streaming."""
+    store, owner = get_store(), Owner.of(ctx)
+    if not body.session_id:
+        text = body.message or ""
+        sid = str(uuid.uuid4())
+        sess = store.create_session(owner, sid, ctx.role, auto_title(text))
+        return sid, sess["title"], text, [], True
+    sess = own_session(ctx, body.session_id)
+    sid = body.session_id
+    if body.regenerate_from_seq is not None:
+        m = store.get_message(owner, sid, body.regenerate_from_seq)
+        if m is None:
+            raise HTTPException(404, "not found")
+        msgs = store.all_messages(owner, sid)
+        users = [x for x in msgs if x["role"] == "user" and x["seq"] <= m["seq"]]
+        if not users:
+            raise HTTPException(404, "not found")
+        user = users[-1]
+        store.truncate(owner, sid, user["seq"] + 1)
+        prior = [x for x in msgs if x["seq"] < user["seq"]]
+        return sid, sess["title"], user["text"] or "", build_history(prior), False
+    if body.edit_of_seq is not None:
+        m = store.get_message(owner, sid, body.edit_of_seq)
+        if m is None:
+            raise HTTPException(404, "not found")
+        if m["role"] != "user":
+            raise HTTPException(422, "edit_of_seq must point at a user message")
+        msgs = store.all_messages(owner, sid)
+        first_user = next((x["seq"] for x in msgs if x["role"] == "user"), None)
+        store.truncate(owner, sid, m["seq"])
+        title = sess["title"]
+        if m["seq"] == first_user and sess["title_source"] == "auto":
+            title = auto_title(body.message or "")
+            store.set_auto_title(owner, sid, title)
+        return sid, title, body.message or "", build_history([x for x in msgs if x["seq"] < m["seq"]]), True
+    return sid, sess["title"], body.message or "", build_history(store.all_messages(owner, sid)), True
 
 
 @router.post("/chat")
 def chat(body: ChatRequest, ctx: SessionCtx = Depends(get_session)):
-    if ctx.data_source == "live":
-        return _chat_live(body, ctx)
-    conn = connect(readonly=False)
-    if body.session_id:
-        _own_session(conn, ctx, body.session_id)
-        sid = body.session_id
-    else:
-        sid = str(uuid.uuid4())
-        conn.execute("insert into agent_sessions(id, user_id, institute_id, role) values (%s,%s,%s,%s)",
-                     (sid, str(ctx.user_id), str(ctx.institute_id), ctx.role))
-    agent = Agent(get_provider(), ctx, sid, conn_rw=conn, history=_history(conn, sid))
+    live = ctx.data_source == "live"
+    store, owner = get_store(), Owner.of(ctx)
+    sid, title, text, hist, store_user = _prepare_turn(body, ctx)
+    if store_user:
+        store.add_message(owner, sid, "user", text)
+        store.record_query(owner, text)
+    conn = None
+    if not live:  # seed/dev: drafts + approvals hang off the local demo agent_sessions row
+        conn = connect(readonly=False)
+        conn.execute("insert into agent_sessions(id, user_id, institute_id, role) values (%s,%s,%s,%s) "
+                     "on conflict (id) do nothing", (sid, str(ctx.user_id), str(ctx.institute_id), ctx.role))
+    request_id = uuid.uuid4().hex[:16]
+    cancel_event = RUNS.register(request_id, owner)
+    agent = Agent(get_provider(), ctx, sid, conn_rw=conn, history=hist, memory_store=DRAFTS if live else None,
+                  request_id=request_id, session_title=title, cancel_event=cancel_event)
 
     def stream() -> Iterator[str]:
-        events = []
+        events: list[dict] = []
         try:
-            for ev in agent.run(body.message):
+            for ev in agent.run(text):
                 events.append(ev)
-                yield f"data: {json.dumps(ev, default=str)}\n\n"
+                yield _sse(ev)
         finally:
-            base = conn.execute("select coalesce(max(seq),0) m from agent_messages where session_id=%s",
-                                (sid,)).fetchone()["m"]
-            new = agent.history[len(_history(conn, sid)):] if agent.history else []
-            for i, m in enumerate(new):
-                conn.execute("insert into agent_messages(session_id, seq, role, content) values (%s,%s,'llm',%s::jsonb)",
-                             (sid, base + 1 + i, json.dumps(m, default=str)))
-            conn.execute("insert into agent_messages(session_id, seq, role, content) values (%s,%s,'events',%s::jsonb)",
-                         (sid, base + 1 + len(new), json.dumps(events, default=str)))
-            conn.close()
+            RUNS.unregister(request_id)
+            turn = agent.history[len(hist) + 1:] if len(agent.history) > len(hist) else []
+            texts = [e["text"] for e in events if e.get("type") == "text_delta" and e.get("text")]
+            store.add_message(owner, sid, "assistant", "\n\n".join(texts) or None, events=events, llm=turn)
+            if conn is not None:
+                conn.close()
 
     return StreamingResponse(stream(), media_type="text/event-stream",
-                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no",
+                                      "X-Agent-Request-Id": request_id})
 
 
 def make_executor(conn, ctx: SessionCtx, session_id: str):
@@ -202,10 +198,17 @@ def approve(body: ApproveRequest, ctx: SessionCtx = Depends(get_session)):
 
 @router.get("/sessions/{session_id}")
 def get_session_view(session_id: str, ctx: SessionCtx = Depends(get_session)):
+    """1.1 view (turns = event lists). Agent store sessions: owner only. Seed/dev fallback: the local demo
+    Postgres row (owner or same-institute admin, as in 1.1)."""
+    if not valid_id(session_id):
+        raise HTTPException(404, "not found")
+    store, owner = get_store(), Owner.of(ctx)
+    row = store.get_session(owner, session_id)
+    if row is not None:
+        turns = [m["events"] or [] for m in store.all_messages(owner, session_id) if m["role"] == "assistant"]
+        return {"session_id": session_id, "role": row["role"], "created_at": row["created_at"], "turns": turns}
     if ctx.data_source == "live":
-        row = _mem_session(ctx, session_id, allow_admin=True)
-        return {"session_id": session_id, "role": row["role"], "created_at": _iso(row["created_at"]),
-                "turns": MEMORY.events.get(session_id, [])}
+        raise HTTPException(404, "not found")
     with connect(readonly=False) as conn:
         row = _own_session(conn, ctx, session_id, allow_admin=True)
         ev = conn.execute("select content from agent_messages where session_id=%s and role='events' order by seq",
@@ -244,6 +247,23 @@ def cors_origins(env=os.environ) -> list[str]:
     return origins
 
 
+class RedactAgentQueryStrings(logging.Filter):
+    """uvicorn access log lines carry the full URL; /agent/* query strings (suggestions ?q=, sessions ?q=) are user
+    text, so they are cut before the line is written."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        args = record.args
+        if isinstance(args, tuple) and len(args) >= 3 and isinstance(args[2], str) and args[2].startswith("/agent"):
+            record.args = args[:2] + (args[2].split("?", 1)[0],) + args[3:]
+        return True
+
+
+def install_log_redaction() -> None:
+    lg = logging.getLogger("uvicorn.access")
+    if not any(isinstance(f, RedactAgentQueryStrings) for f in lg.filters):
+        lg.addFilter(RedactAgentQueryStrings())
+
+
 def create_app(env=os.environ, check_real_db: bool = True) -> FastAPI:
     check_modes(env)  # dev + real together -> refuse
     check_dev_mode_safe(env)  # refuse to start: dev mode + non-local DB
@@ -260,6 +280,11 @@ def create_app(env=os.environ, check_real_db: bool = True) -> FastAPI:
     from . import api_v2
     a.include_router(router)
     a.include_router(api_v2.router)
+    install_log_redaction()
+    try:
+        get_store().purge()  # retention: sessions / queries unused for 90 days
+    except Exception as e:  # noqa: BLE001  never block startup on the purge; message has no user content
+        logging.getLogger(__name__).warning(f"agent store purge failed: {type(e).__name__}")
     return a
 
 

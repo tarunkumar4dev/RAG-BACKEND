@@ -110,3 +110,30 @@ backend `app/core/auth.py:verify_token` calls Supabase `/auth/v1/user`.
   the "Ask a4ai" sheet on /institute and /hod. Letting them open the workspace needs a one-line change in that
   redirect (outside the allowed mount points) — left for the owner to approve.
 - Not run here: anything against production Supabase (role script, JWKS fetch, pooler connection, real rows).
+
+---
+# API v2 + agent store (9 Nov 2026)
+
+## Recon (before)
+- Events: 12-type union (contract 1.1). Real mode kept sessions / LLM history / events / drafts in `MemoryStore`
+  (process memory, lost on restart); seed mode wrote `agent_sessions` + `agent_messages` in the local demo Postgres.
+- No titles editable, no pins, no query history, no feedback, no cancel. `GET /agent/sessions` = `{sessions: [...]}`.
+
+## Decisions
+9. **Contract v2 is additive (1.2)**: `session` event (seq 0), `final.cancelled`, `clarify.chips[].hint`; `ChatRequest`
+   gains `regenerate_from_seq` / `edit_of_seq`. `GET /agent/sessions` returns `items` + `next_cursor` **and** the 1.1
+   `sessions` key (deprecated alias) so the current UI keeps working. Spec: `docs/AGENT_API_V2.md`.
+10. **One agent store for both modes** (`agent/store.py`): SQLite `agent/.devdata/agent_store.db` (WAL), one
+    connection behind a lock. The "memory" implementation is the same SQL on `:memory:` (tests) so both behave
+    identically. Every row carries user_id + institute_id; every statement filters by both. Seed mode still inserts
+    the local demo `agent_sessions` row (drafts / approvals reference it) but no longer writes `agent_messages`.
+11. **History replay**: each assistant message stores its exact event list (UI replay) and its provider-neutral LLM
+    messages (`llm`), so the next turn's history is rebuilt from the store. A cancelled turn drops dangling tool calls.
+12. **Regenerate / edit truncate**: delete from the target seq onward (feedback too), new messages get max+1.
+13. **Cancel**: process-local registry keyed by request_id + owner; LLM calls run in the worker pool when a cancel
+    event exists so the stream can stop within ~0.2 s (the provider call itself is abandoned, not interrupted).
+14. **Privacy**: no endpoint logs content; uvicorn access lines for `/agent/*` lose their query string
+    (`RedactAgentQueryStrings`); traces unchanged (ids, tool names, arg keys).
+15. **Legacy `GET /agent/sessions/{id}`** is owner-only for store sessions (1.1 let same-institute admins read real-mode
+    sessions). The seed Postgres fallback keeps the 1.1 admin rule for old demo rows.
+16. Real-mode paper drafts stay in process memory (`DRAFTS`), never on disk: they are previews of a read-only mode.
