@@ -2,9 +2,307 @@
  "openapi": "3.1.0",
  "info": {
   "title": "a4ai Agent",
-  "version": "1.2"
+  "description": "a4ai Agent API (contract 1.3). Human-readable spec: docs/AGENT_API_V2.md. Auth: Authorization: Bearer <Supabase access token>. Foreign ids return 404.",
+  "version": "1.3"
  },
  "paths": {
+  "/agent/meta": {
+   "get": {
+    "tags": [
+     "agent"
+    ],
+    "summary": "Meta",
+    "description": "Never 403 for a not-yet-enabled institute: answers enabled=false so the UI can hide the agent.",
+    "operationId": "meta_agent_meta_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/MetaResponse"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/agent/chat": {
+   "post": {
+    "tags": [
+     "agent"
+    ],
+    "summary": "Chat",
+    "operationId": "chat_agent_chat_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ChatRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "SSE stream: `data: <AgentEvent JSON>` frames; first `session`, last `final`.",
+      "headers": {
+       "X-Agent-Request-Id": {
+        "description": "request_id of every event; use it to cancel",
+        "schema": {
+         "type": "string"
+        }
+       }
+      },
+      "content": {
+       "text/event-stream": {
+        "schema": {
+         "$ref": "#/components/schemas/AgentEvent"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "unknown / foreign session_id or seq"
+     },
+     "429": {
+      "description": "rate limit or institute token budget hit; nothing stored",
+      "headers": {
+       "Retry-After": {
+        "schema": {
+         "type": "integer"
+        }
+       }
+      },
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/RateLimitResponse"
+        }
+       }
+      }
+     },
+     "503": {
+      "description": "LLM provider not configured (nothing stored)"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/agent/approve": {
+   "post": {
+    "tags": [
+     "agent"
+    ],
+    "summary": "Approve",
+    "operationId": "approve_agent_approve_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ApproveRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/agent/sessions/{session_id}": {
+   "get": {
+    "tags": [
+     "agent"
+    ],
+    "summary": "Get Session View",
+    "description": "1.1 view (turns = event lists). Agent store sessions: owner only. Seed/dev fallback: the local demo\nPostgres row (owner or same-institute admin, as in 1.1).",
+    "operationId": "get_session_view_agent_sessions__session_id__get",
+    "parameters": [
+     {
+      "name": "session_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Session Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "patch": {
+    "tags": [
+     "agent-v2"
+    ],
+    "summary": "Patch Session",
+    "operationId": "patch_session_agent_sessions__session_id__patch",
+    "parameters": [
+     {
+      "name": "session_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Session Id"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/SessionPatch"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/SessionItem"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "delete": {
+    "tags": [
+     "agent-v2"
+    ],
+    "summary": "Delete Session",
+    "operationId": "delete_session_agent_sessions__session_id__delete",
+    "parameters": [
+     {
+      "name": "session_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Session Id"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/agent/drafts/{draft_id}/pdf": {
+   "get": {
+    "tags": [
+     "agent"
+    ],
+    "summary": "Draft Pdf",
+    "operationId": "draft_pdf_agent_drafts__draft_id__pdf_get",
+    "parameters": [
+     {
+      "name": "draft_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Draft Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/agent/sessions": {
    "get": {
     "tags": [
@@ -155,130 +453,6 @@
         "schema": {
          "$ref": "#/components/schemas/MessageList"
         }
-       }
-      }
-     },
-     "422": {
-      "description": "Validation Error",
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
-        }
-       }
-      }
-     }
-    }
-   }
-  },
-  "/agent/sessions/{session_id}": {
-   "patch": {
-    "tags": [
-     "agent-v2"
-    ],
-    "summary": "Patch Session",
-    "operationId": "patch_session_agent_sessions__session_id__patch",
-    "parameters": [
-     {
-      "name": "session_id",
-      "in": "path",
-      "required": true,
-      "schema": {
-       "type": "string",
-       "title": "Session Id"
-      }
-     }
-    ],
-    "requestBody": {
-     "required": true,
-     "content": {
-      "application/json": {
-       "schema": {
-        "$ref": "#/components/schemas/SessionPatch"
-       }
-      }
-     }
-    },
-    "responses": {
-     "200": {
-      "description": "Successful Response",
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/SessionItem"
-        }
-       }
-      }
-     },
-     "422": {
-      "description": "Validation Error",
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
-        }
-       }
-      }
-     }
-    }
-   },
-   "delete": {
-    "tags": [
-     "agent-v2"
-    ],
-    "summary": "Delete Session",
-    "operationId": "delete_session_agent_sessions__session_id__delete",
-    "parameters": [
-     {
-      "name": "session_id",
-      "in": "path",
-      "required": true,
-      "schema": {
-       "type": "string",
-       "title": "Session Id"
-      }
-     }
-    ],
-    "responses": {
-     "204": {
-      "description": "Successful Response"
-     },
-     "422": {
-      "description": "Validation Error",
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
-        }
-       }
-      }
-     }
-    }
-   },
-   "get": {
-    "tags": [
-     "agent"
-    ],
-    "summary": "Get Session View",
-    "description": "1.1 view (turns = event lists). Agent store sessions: owner only. Seed/dev fallback: the local demo\nPostgres row (owner or same-institute admin, as in 1.1).",
-    "operationId": "get_session_view_agent_sessions__session_id__get",
-    "parameters": [
-     {
-      "name": "session_id",
-      "in": "path",
-      "required": true,
-      "schema": {
-       "type": "string",
-       "title": "Session Id"
-      }
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "Successful Response",
-      "content": {
-       "application/json": {
-        "schema": {}
        }
       }
      },
@@ -515,6 +689,55 @@
     }
    }
   },
+  "/agent/files/{file_id}": {
+   "get": {
+    "tags": [
+     "agent-v2"
+    ],
+    "summary": "Get File",
+    "operationId": "get_file_agent_files__file_id__get",
+    "parameters": [
+     {
+      "name": "file_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "File Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "the generated file (Content-Disposition: attachment)",
+      "content": {
+       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
+        "schema": {
+         "type": "string",
+         "format": "binary"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "unknown / foreign file"
+     },
+     "410": {
+      "description": "your file, but expired (1 hour); ask the agent again"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/agent/chat/{request_id}/cancel": {
    "post": {
     "tags": [
@@ -557,57 +780,20 @@
     }
    }
   },
-  "/agent/meta": {
+  "/healthz": {
    "get": {
     "tags": [
-     "agent"
+     "ops"
     ],
-    "summary": "Meta",
-    "operationId": "meta_agent_meta_get",
+    "summary": "Healthz",
+    "operationId": "healthz_healthz_get",
     "responses": {
      "200": {
       "description": "Successful Response",
-      "content": {
-       "application/json": {
-        "schema": {}
-       }
-      }
-     }
-    }
-   }
-  },
-  "/agent/chat": {
-   "post": {
-    "tags": [
-     "agent"
-    ],
-    "summary": "Chat",
-    "operationId": "chat_agent_chat_post",
-    "requestBody": {
-     "content": {
-      "application/json": {
-       "schema": {
-        "$ref": "#/components/schemas/ChatRequest"
-       }
-      }
-     },
-     "required": true
-    },
-    "responses": {
-     "200": {
-      "description": "Successful Response",
-      "content": {
-       "application/json": {
-        "schema": {}
-       }
-      }
-     },
-     "422": {
-      "description": "Validation Error",
       "content": {
        "application/json": {
         "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+         "$ref": "#/components/schemas/HealthResponse"
         }
        }
       }
@@ -615,38 +801,30 @@
     }
    }
   },
-  "/agent/approve": {
-   "post": {
+  "/readyz": {
+   "get": {
     "tags": [
-     "agent"
+     "ops"
     ],
-    "summary": "Approve",
-    "operationId": "approve_agent_approve_post",
-    "requestBody": {
-     "content": {
-      "application/json": {
-       "schema": {
-        "$ref": "#/components/schemas/ApproveRequest"
-       }
-      }
-     },
-     "required": true
-    },
+    "summary": "Readyz",
+    "operationId": "readyz_readyz_get",
     "responses": {
      "200": {
       "description": "Successful Response",
       "content": {
        "application/json": {
-        "schema": {}
+        "schema": {
+         "$ref": "#/components/schemas/ReadyResponse"
+        }
        }
       }
      },
-     "422": {
-      "description": "Validation Error",
+     "503": {
+      "description": "Service Unavailable",
       "content": {
        "application/json": {
         "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+         "$ref": "#/components/schemas/ReadyResponse"
         }
        }
       }
@@ -654,39 +832,20 @@
     }
    }
   },
-  "/agent/drafts/{draft_id}/pdf": {
+  "/agent/metrics": {
    "get": {
     "tags": [
-     "agent"
+     "ops"
     ],
-    "summary": "Draft Pdf",
-    "operationId": "draft_pdf_agent_drafts__draft_id__pdf_get",
-    "parameters": [
-     {
-      "name": "draft_id",
-      "in": "path",
-      "required": true,
-      "schema": {
-       "type": "string",
-       "title": "Draft Id"
-      }
-     }
-    ],
+    "summary": "Metrics",
+    "operationId": "metrics_agent_metrics_get",
     "responses": {
      "200": {
-      "description": "Successful Response",
+      "description": "Prometheus text exposition (version 0.0.4)",
       "content": {
-       "application/json": {
-        "schema": {}
-       }
-      }
-     },
-     "422": {
-      "description": "Validation Error",
-      "content": {
-       "application/json": {
+       "text/plain": {
         "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+         "type": "string"
         }
        }
       }
@@ -697,6 +856,72 @@
  },
  "components": {
   "schemas": {
+   "AgentEvent": {
+    "discriminator": {
+     "mapping": {
+      "blueprint": "#/components/schemas/Blueprint",
+      "chart": "#/components/schemas/Chart",
+      "clarify": "#/components/schemas/Clarify",
+      "error": "#/components/schemas/Error",
+      "file": "#/components/schemas/FileReady",
+      "final": "#/components/schemas/Final",
+      "paper_preview": "#/components/schemas/PaperPreview",
+      "pending_approval": "#/components/schemas/PendingApproval",
+      "session": "#/components/schemas/SessionStarted",
+      "stat_card": "#/components/schemas/StatCard",
+      "table": "#/components/schemas/Table",
+      "text_delta": "#/components/schemas/TextDelta",
+      "thinking_status": "#/components/schemas/ThinkingStatus",
+      "verification_summary": "#/components/schemas/VerificationSummary"
+     },
+     "propertyName": "type"
+    },
+    "oneOf": [
+     {
+      "$ref": "#/components/schemas/SessionStarted"
+     },
+     {
+      "$ref": "#/components/schemas/TextDelta"
+     },
+     {
+      "$ref": "#/components/schemas/ThinkingStatus"
+     },
+     {
+      "$ref": "#/components/schemas/StatCard"
+     },
+     {
+      "$ref": "#/components/schemas/Chart"
+     },
+     {
+      "$ref": "#/components/schemas/Table"
+     },
+     {
+      "$ref": "#/components/schemas/Clarify"
+     },
+     {
+      "$ref": "#/components/schemas/Blueprint"
+     },
+     {
+      "$ref": "#/components/schemas/PaperPreview"
+     },
+     {
+      "$ref": "#/components/schemas/VerificationSummary"
+     },
+     {
+      "$ref": "#/components/schemas/PendingApproval"
+     },
+     {
+      "$ref": "#/components/schemas/FileReady"
+     },
+     {
+      "$ref": "#/components/schemas/Final"
+     },
+     {
+      "$ref": "#/components/schemas/Error"
+     }
+    ],
+    "description": "One SSE frame of POST /agent/chat (`data: <json>`). Discriminated by `type`."
+   },
    "ApproveRequest": {
     "properties": {
      "session_id": {
@@ -706,6 +931,15 @@
      "approval_id": {
       "type": "string",
       "title": "Approval Id"
+     },
+     "decision": {
+      "type": "string",
+      "enum": [
+       "approve",
+       "cancel"
+      ],
+      "title": "Decision",
+      "default": "approve"
      }
     },
     "additionalProperties": false,
@@ -1107,7 +1341,10 @@
        "not_found",
        "provider_error",
        "invalid_input",
-       "internal"
+       "internal",
+       "rate_limited",
+       "db_unavailable",
+       "tool_timeout"
       ],
       "title": "Code"
      },
@@ -1119,6 +1356,11 @@
       "additionalProperties": true,
       "type": "object",
       "title": "Partial"
+     },
+     "retryable": {
+      "type": "boolean",
+      "title": "Retryable",
+      "default": false
      }
     },
     "additionalProperties": false,
@@ -1185,6 +1427,70 @@
     "type": "object",
     "title": "FeedbackResponse"
    },
+   "FileReady": {
+    "properties": {
+     "seq": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Seq"
+     },
+     "request_id": {
+      "type": "string",
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Request Id"
+     },
+     "type": {
+      "type": "string",
+      "const": "file",
+      "title": "Type",
+      "default": "file"
+     },
+     "file_id": {
+      "type": "string",
+      "title": "File Id"
+     },
+     "kind": {
+      "type": "string",
+      "enum": [
+       "defaulters_export",
+       "proctor_month_report"
+      ],
+      "title": "Kind"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "rows": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Rows"
+     },
+     "expires_at": {
+      "type": "string",
+      "title": "Expires At"
+     },
+     "download_path": {
+      "type": "string",
+      "title": "Download Path"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "seq",
+     "request_id",
+     "file_id",
+     "kind",
+     "name",
+     "rows",
+     "expires_at",
+     "download_path"
+    ],
+    "title": "FileReady",
+    "description": "A generated file (read-only export, e.g. defaulters .xlsx). Download with GET download_path and the same\nAuthorization header; owner only; gone after expires_at (1 hour)."
+   },
    "Final": {
     "properties": {
      "seq": {
@@ -1240,6 +1546,19 @@
     },
     "type": "object",
     "title": "HTTPValidationError"
+   },
+   "HealthResponse": {
+    "properties": {
+     "status": {
+      "type": "string",
+      "const": "ok",
+      "title": "Status",
+      "default": "ok"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "title": "HealthResponse"
    },
    "LegacySessionItem": {
     "properties": {
@@ -1335,6 +1654,9 @@
            "$ref": "#/components/schemas/PendingApproval"
           },
           {
+           "$ref": "#/components/schemas/FileReady"
+          },
+          {
            "$ref": "#/components/schemas/Final"
           },
           {
@@ -1348,6 +1670,7 @@
            "chart": "#/components/schemas/Chart",
            "clarify": "#/components/schemas/Clarify",
            "error": "#/components/schemas/Error",
+           "file": "#/components/schemas/FileReady",
            "final": "#/components/schemas/Final",
            "paper_preview": "#/components/schemas/PaperPreview",
            "pending_approval": "#/components/schemas/PendingApproval",
@@ -1409,6 +1732,260 @@
      "items"
     ],
     "title": "MessageList"
+   },
+   "MetaFeatures": {
+    "properties": {
+     "paper_generation": {
+      "type": "boolean",
+      "title": "Paper Generation"
+     },
+     "defaulters_export": {
+      "type": "boolean",
+      "title": "Defaulters Export"
+     },
+     "proctor_month_report": {
+      "type": "boolean",
+      "title": "Proctor Month Report"
+     },
+     "cancel": {
+      "type": "boolean",
+      "title": "Cancel",
+      "default": true
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "paper_generation",
+     "defaulters_export",
+     "proctor_month_report"
+    ],
+    "title": "MetaFeatures"
+   },
+   "MetaLimits": {
+    "properties": {
+     "chat_turns_per_10min": {
+      "type": "integer",
+      "title": "Chat Turns Per 10Min"
+     },
+     "institute_daily_tokens": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Institute Daily Tokens"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "chat_turns_per_10min"
+    ],
+    "title": "MetaLimits"
+   },
+   "MetaResponse": {
+    "properties": {
+     "contract_version": {
+      "type": "string",
+      "title": "Contract Version"
+     },
+     "enabled": {
+      "type": "boolean",
+      "title": "Enabled"
+     },
+     "data_source": {
+      "type": "string",
+      "enum": [
+       "demo",
+       "live"
+      ],
+      "title": "Data Source"
+     },
+     "read_only": {
+      "type": "boolean",
+      "title": "Read Only"
+     },
+     "role": {
+      "type": "string",
+      "enum": [
+       "admin",
+       "hod",
+       "teacher"
+      ],
+      "title": "Role"
+     },
+     "first_name": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "First Name"
+     },
+     "institute_name": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Institute Name"
+     },
+     "scope": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/MetaScope"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "features": {
+      "$ref": "#/components/schemas/MetaFeatures"
+     },
+     "limits": {
+      "$ref": "#/components/schemas/MetaLimits"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "contract_version",
+     "enabled",
+     "data_source",
+     "read_only",
+     "role",
+     "features",
+     "limits"
+    ],
+    "title": "MetaResponse"
+   },
+   "MetaScope": {
+    "properties": {
+     "level": {
+      "type": "string",
+      "enum": [
+       "institute",
+       "department",
+       "section",
+       "classes",
+       "none"
+      ],
+      "title": "Level"
+     },
+     "batch_count": {
+      "type": "integer",
+      "title": "Batch Count"
+     },
+     "student_count": {
+      "type": "integer",
+      "title": "Student Count"
+     },
+     "batches": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Batches",
+      "description": "batch names, max 50, sorted"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "level",
+     "batch_count",
+     "student_count"
+    ],
+    "title": "MetaScope",
+    "description": "What the caller can see. level: institute (admin) > department (HOD) > section (proctor) > classes\n(teacher's own batch/subject pairs) > none (nothing assigned yet)."
+   },
+   "MyScopeTable": {
+    "additionalProperties": false,
+    "description": "`table` event from my_scope (\"meri classes\").",
+    "properties": {
+     "seq": {
+      "minimum": 0,
+      "title": "Seq",
+      "type": "integer"
+     },
+     "request_id": {
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Request Id",
+      "type": "string"
+     },
+     "source": {
+      "const": "tool:my_scope",
+      "title": "Source",
+      "type": "string"
+     },
+     "as_of": {
+      "title": "As Of",
+      "type": "string"
+     },
+     "type": {
+      "const": "table",
+      "default": "table",
+      "title": "Type",
+      "type": "string"
+     },
+     "title": {
+      "title": "Title",
+      "type": "string"
+     },
+     "columns": {
+      "items": {
+       "enum": [
+        "Batch",
+        "Students",
+        "Role",
+        "Subjects"
+       ],
+       "type": "string"
+      },
+      "title": "Columns",
+      "type": "array"
+     },
+     "rows": {
+      "items": {
+       "items": {
+        "anyOf": [
+         {
+          "type": "string"
+         },
+         {
+          "type": "null"
+         }
+        ]
+       },
+       "type": "array"
+      },
+      "title": "Rows",
+      "type": "array"
+     }
+    },
+    "required": [
+     "seq",
+     "request_id",
+     "source",
+     "as_of",
+     "title",
+     "columns",
+     "rows"
+    ],
+    "title": "MyScopeTable",
+    "type": "object"
    },
    "PaperPreview": {
     "properties": {
@@ -1508,6 +2085,39 @@
      "expires_at": {
       "type": "string",
       "title": "Expires At"
+     },
+     "status": {
+      "type": "string",
+      "enum": [
+       "pending",
+       "approved",
+       "cancelled",
+       "expired"
+      ],
+      "title": "Status",
+      "default": "pending"
+     },
+     "result_ref": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Result Ref"
+     },
+     "decided_at": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Decided At"
      }
     },
     "additionalProperties": false,
@@ -1521,7 +2131,8 @@
      "args_sha256",
      "expires_at"
     ],
-    "title": "PendingApproval"
+    "title": "PendingApproval",
+    "description": "Streamed with status \"pending\". Stored copies (GET /messages) carry the outcome once decided, and a pending\ncard past expires_at is returned as \"expired\", so a replay never shows a stale approve button."
    },
    "PreviewQuestion": {
     "properties": {
@@ -1659,6 +2270,231 @@
      "use_count"
     ],
     "title": "QueryItem"
+   },
+   "RateLimitDetail": {
+    "properties": {
+     "code": {
+      "type": "string",
+      "const": "rate_limited",
+      "title": "Code",
+      "default": "rate_limited"
+     },
+     "scope": {
+      "type": "string",
+      "enum": [
+       "user",
+       "institute"
+      ],
+      "title": "Scope"
+     },
+     "message": {
+      "type": "string",
+      "title": "Message"
+     },
+     "retry_after_s": {
+      "type": "integer",
+      "title": "Retry After S"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "scope",
+     "message",
+     "retry_after_s"
+    ],
+    "title": "RateLimitDetail",
+    "description": "`detail` of a 429 from POST /agent/chat (also sent as the Retry-After header). Nothing was stored."
+   },
+   "RateLimitResponse": {
+    "properties": {
+     "detail": {
+      "$ref": "#/components/schemas/RateLimitDetail"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "detail"
+    ],
+    "title": "RateLimitResponse"
+   },
+   "ReadyResponse": {
+    "properties": {
+     "status": {
+      "type": "string",
+      "enum": [
+       "ready",
+       "not_ready"
+      ],
+      "title": "Status"
+     },
+     "checks": {
+      "additionalProperties": {
+       "type": "boolean"
+      },
+      "type": "object",
+      "title": "Checks"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "status",
+     "checks"
+    ],
+    "title": "ReadyResponse"
+   },
+   "SectionComparisonChart": {
+    "additionalProperties": false,
+    "description": "`chart` event (kind bar) from section_comparison; only classes with data.",
+    "properties": {
+     "seq": {
+      "minimum": 0,
+      "title": "Seq",
+      "type": "integer"
+     },
+     "request_id": {
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Request Id",
+      "type": "string"
+     },
+     "source": {
+      "const": "tool:section_comparison",
+      "title": "Source",
+      "type": "string"
+     },
+     "as_of": {
+      "title": "As Of",
+      "type": "string"
+     },
+     "type": {
+      "const": "chart",
+      "default": "chart",
+      "title": "Type",
+      "type": "string"
+     },
+     "kind": {
+      "const": "bar",
+      "title": "Kind",
+      "type": "string"
+     },
+     "title": {
+      "title": "Title",
+      "type": "string"
+     },
+     "series": {
+      "items": {
+       "$ref": "#/components/schemas/ChartSeries"
+      },
+      "title": "Series",
+      "type": "array"
+     },
+     "y_unit": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Y Unit"
+     }
+    },
+    "required": [
+     "seq",
+     "request_id",
+     "source",
+     "as_of",
+     "kind",
+     "title",
+     "series"
+    ],
+    "title": "SectionComparisonChart",
+    "type": "object"
+   },
+   "SectionComparisonTable": {
+    "additionalProperties": false,
+    "description": "`table` event from section_comparison: rank (ties share a rank, null = no data), class, %, held/tests,\nmarked/graded.",
+    "properties": {
+     "seq": {
+      "minimum": 0,
+      "title": "Seq",
+      "type": "integer"
+     },
+     "request_id": {
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Request Id",
+      "type": "string"
+     },
+     "source": {
+      "const": "tool:section_comparison",
+      "title": "Source",
+      "type": "string"
+     },
+     "as_of": {
+      "title": "As Of",
+      "type": "string"
+     },
+     "type": {
+      "const": "table",
+      "default": "table",
+      "title": "Type",
+      "type": "string"
+     },
+     "title": {
+      "title": "Title",
+      "type": "string"
+     },
+     "columns": {
+      "items": {
+       "enum": [
+        "#",
+        "Class",
+        "%",
+        "Classes held",
+        "Marked",
+        "Tests",
+        "Graded"
+       ],
+       "type": "string"
+      },
+      "title": "Columns",
+      "type": "array"
+     },
+     "rows": {
+      "items": {
+       "items": {
+        "anyOf": [
+         {
+          "type": "string"
+         },
+         {
+          "type": "null"
+         }
+        ]
+       },
+       "type": "array"
+      },
+      "title": "Rows",
+      "type": "array"
+     }
+    },
+    "required": [
+     "seq",
+     "request_id",
+     "source",
+     "as_of",
+     "title",
+     "columns",
+     "rows"
+    ],
+    "title": "SectionComparisonTable",
+    "type": "object"
    },
    "SessionItem": {
     "properties": {

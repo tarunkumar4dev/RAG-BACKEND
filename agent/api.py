@@ -19,13 +19,14 @@ from fastapi.responses import Response, StreamingResponse
 
 from .approval import ApprovalError, execute_approval
 from .api_v2 import own_session
-from .auth import check_dev_mode_safe, dev_mode_enabled, get_session
+from .api_models import MetaResponse, RateLimitResponse
+from .auth import check_dev_mode_safe, dev_mode_enabled, get_identity, get_session
 from .mode import READ_ONLY_MESSAGE, check_modes, real_mode
 from .core import Agent
 from .db import connect
 from .llm import get_provider
 from .runs import RUNS
-from .schemas import ApproveRequest, ChatRequest, SessionCtx
+from .schemas import CONTRACT_VERSION, ApproveRequest, ChatRequest, SessionCtx
 from .store import DRAFTS, Owner, auto_title, get_store, iso, valid_id
 
 router = APIRouter(prefix="/agent", tags=["agent"])
@@ -64,22 +65,11 @@ def _sse(ev: dict) -> str:
     return f"data: {json.dumps(ev, default=str)}\n\n"
 
 
-@router.get("/meta")
-def meta(ctx: SessionCtx = Depends(get_session)):
-    inst = None
-    try:
-        if ctx.data_source == "live":
-            from .db_real import connect_real
-            with connect_real() as c:
-                r = c.execute("select name from institutes where id = %s", (str(ctx.institute_id),)).fetchone()
-        else:
-            with connect(readonly=True) as c:
-                r = c.execute("select name from institutes where id = %s", (str(ctx.institute_id),)).fetchone()
-        inst = r["name"] if r else None
-    except Exception:
-        inst = None
-    return {"data_source": ctx.data_source, "read_only": ctx.data_source == "live", "role": ctx.role,
-            "first_name": ctx.first_name, "institute_name": inst}
+@router.get("/meta", response_model=MetaResponse)
+def meta(ctx: SessionCtx = Depends(get_identity)):
+    """Never 403 for a not-yet-enabled institute: answers enabled=false so the UI can hide the agent."""
+    from .meta import build_meta
+    return build_meta(ctx)
 
 
 def _prepare_turn(body: ChatRequest, ctx: SessionCtx) -> tuple[str, str, str, list[dict], bool]:
@@ -121,7 +111,18 @@ def _prepare_turn(body: ChatRequest, ctx: SessionCtx) -> tuple[str, str, str, li
     return sid, sess["title"], body.message or "", build_history(store.all_messages(owner, sid)), True
 
 
-@router.post("/chat")
+CHAT_RESPONSES = {
+    200: {"description": "SSE stream: `data: <AgentEvent JSON>` frames; first `session`, last `final`.",
+          "headers": {"X-Agent-Request-Id": {"description": "request_id of every event; use it to cancel",
+                                             "schema": {"type": "string"}}}},
+    404: {"description": "unknown / foreign session_id or seq"},
+    429: {"model": RateLimitResponse, "description": "rate limit or institute token budget hit; nothing stored",
+          "headers": {"Retry-After": {"schema": {"type": "integer"}}}},
+    503: {"description": "LLM provider not configured (nothing stored)"},
+}
+
+
+@router.post("/chat", responses=CHAT_RESPONSES)
 def chat(body: ChatRequest, ctx: SessionCtx = Depends(get_session)):
     live = ctx.data_source == "live"
     store, owner = get_store(), Owner.of(ctx)
@@ -280,16 +281,19 @@ def create_app(env=os.environ, check_real_db: bool = True) -> FastAPI:
     if real_mode(env) and check_real_db:
         from .db_real import startup_check
         startup_check()  # refuses to start if the DB role can write or read auth/storage
-    a = FastAPI(title="a4ai Agent (standalone)")
+    a = FastAPI(title="a4ai Agent", version=CONTRACT_VERSION)
     headers = ["Authorization", "Content-Type", "Last-Event-ID"]
     if dev_mode_enabled(env):
         headers.append("X-Dev-Role")  # only in dev mode, so the browser preflight allows the dev header
     a.add_middleware(CORSMiddleware, allow_origins=cors_origins(env),
                      allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"], allow_headers=headers,
                      expose_headers=["X-Agent-Request-Id"], allow_credentials=False)
-    from . import api_v2
+    from . import api_v2, ops
+    from .openapi import install as install_openapi
     a.include_router(router)
     a.include_router(api_v2.router)
+    a.include_router(ops.router)
+    install_openapi(a)
     install_log_redaction()
     try:
         get_store().purge()  # retention: sessions / queries unused for 90 days

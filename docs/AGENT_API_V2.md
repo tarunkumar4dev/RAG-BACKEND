@@ -1,8 +1,25 @@
-# a4ai Agent API v2 (contract 1.2)
+# a4ai Agent API v2 (contract 1.3)
 
-Status: **stable** from commit "agent: API v2 contract". Additive to contract 1.1 (`agent/schemas.py`): nothing in 1.1
-was renamed or removed. Pydantic models: `agent/schemas.py` (events, `ChatRequest`) and `agent/api_models.py`
-(everything else). OpenAPI: `docs/agent_openapi_v2.json` (regenerate with `python -m agent.openapi_dump`).
+Status: **stable**. 1.2 from commit "agent: API v2 contract"; 1.3 (v3, additive) from commit "agent v3: contract 1.3".
+Nothing in 1.1 / 1.2 was renamed or removed. Pydantic models: `agent/schemas.py` (events, `ChatRequest`) and
+`agent/api_models.py` (everything else).
+
+**Source of truth for generated clients: `docs/agent_openapi_v2.json`**, generated from the app
+(`python scripts/export_openapi.py`; the app serves the same document at `/openapi.json`). `tests/agent/test_contract.py`
+fails if the committed file drifts. It types every SSE frame as `AgentEvent` (`oneOf` with a `type` discriminator).
+
+## What changed in 1.3 (all additive)
+
+| where | change |
+|---|---|
+| events | new `file {file_id, kind, name, rows, expires_at, download_path}` (Excel exports) |
+| `error` | `retryable: bool` (default false); new codes `rate_limited`, `db_unavailable`, `tool_timeout` |
+| `pending_approval` | `status: pending\|approved\|cancelled\|expired` (default pending), `result_ref`, `decided_at`; stored copies show the outcome |
+| `POST /agent/approve` | body `decision: approve\|cancel` (default approve) |
+| `GET /agent/meta` | typed `MetaResponse`: adds `contract_version`, `enabled`, `scope {level, batch_count, student_count, batches}`, `features`, `limits` |
+| `POST /agent/chat` | may answer **429** `{"detail": {code: "rate_limited", scope: user\|institute, message, retry_after_s}}` + `Retry-After` header; nothing is stored |
+| new routes | `GET /agent/files/{file_id}` (xlsx, owner only, 1 h), `GET /healthz`, `GET /readyz`, `GET /agent/metrics` |
+| OpenAPI | typed views `MyScopeTable`, `SectionComparisonTable`, `SectionComparisonChart` (refinements of `table`/`chart` by `source`, not new event types) |
 
 ## Rules for every endpoint
 
@@ -12,8 +29,10 @@ was renamed or removed. Pydantic models: `agent/schemas.py` (events, `ChatReques
   institute returns **404** (never 403), the same as an id that does not exist. Malformed ids also return 404.
 - Timestamps: ISO-8601 UTC (`2026-11-09T10:15:00+00:00`). Cursors are opaque: send back `next_cursor` unchanged;
   `next_cursor: null` = last page.
-- Errors: FastAPI default `{"detail": ...}`. 401 = no/invalid token, 403 = not staff / read-only action, 404 = not
-  found or not yours, 422 = invalid body / query, 503 = `/agent/chat` with no LLM key configured (nothing is stored).
+- Errors: FastAPI default `{"detail": ...}`. 401 = no/invalid token, 403 = not staff / read-only action / institute
+  not enabled for the agent, 404 = not found or not yours, 410 = your file but expired, 422 = invalid body / query,
+  429 = rate limit (detail is a `RateLimitDetail` object), 503 = `/agent/chat` with no LLM key configured or the
+  data DB unreachable (nothing is stored).
 - Privacy: query text, message text and feedback notes are never written to logs or traces (traces keep ids, tool
   names, arg keys, latency, tokens). Access-log lines for `/agent/*` have the query string removed.
 - Storage: sessions, messages, queries and feedback live in the **agent store** (SQLite file
@@ -147,3 +166,52 @@ replaces it.
 - `my_scope` → `table` "Meri classes" (Batch, Students, Role, Subjects). Empty scope → no table, honest text.
 - `section_comparison(date_from, date_to, metric: attendance|marks)` → `table` (rank, class, %, classes held /
   tests, marked / graded) + `chart` kind `bar`.
+
+## 1.3 details
+
+### `GET /agent/meta` → `MetaResponse`
+
+```json
+{ "contract_version": "1.3", "enabled": true, "data_source": "live", "read_only": true, "role": "hod",
+  "first_name": "Anita", "institute_name": "MSIT",
+  "scope": {"level": "department", "batch_count": 6, "student_count": 342, "batches": ["ECE-1", "ECE-2", "…"]},
+  "features": {"paper_generation": false, "defaulters_export": true, "proctor_month_report": true, "cancel": true},
+  "limits": {"chat_turns_per_10min": 20, "institute_daily_tokens": 2000000} }
+```
+
+- `enabled: false` → the institute is not in the trial (`AGENT_ENABLED_INSTITUTES`); hide the agent. Every other
+  agent endpoint answers 403 for such callers. `scope` / `institute_name` are null then.
+- `scope.level`: `institute` (admin), `department` (HOD), `section` (proctor), `classes` (teacher), `none`.
+  Cached per user for 5 minutes. `scope` is null if the data DB could not be read.
+
+### `file` event and `GET /agent/files/{file_id}`
+
+```json
+{"type": "file", "seq": 9, "request_id": "…", "file_id": "f3c…", "kind": "defaulters_export",
+ "name": "Defaulters below 75% · ECE-2 · 1–31 Oct 2026.xlsx", "rows": 14,
+ "expires_at": "2026-11-10T12:30:00+00:00", "download_path": "/agent/files/f3c…"}
+```
+
+Download with `GET download_path` and the same `Authorization` header (it is not a public link). Owner only
+(another user's id → 404); after `expires_at` (1 hour) → 410. Response: the .xlsx with `Content-Disposition:
+attachment`. Files are read-only exports kept in the agent store directory, never in Supabase.
+
+### Errors inside the stream
+
+`error {code, message, retryable, partial}` then `final`. `retryable: true` means re-sending the same message later
+may work (`provider_error` after 2 retries, `db_unavailable`, `tool_timeout`). `message` is short and user-facing.
+
+### Approvals on replay
+
+`GET /sessions/{id}/messages` returns `pending_approval` events with their outcome: `approved` (with `result_ref`,
+e.g. the PDF path), `cancelled`, or `expired` (computed when `expires_at` has passed). Only `pending` shows buttons.
+`POST /agent/approve {"session_id", "approval_id", "decision": "cancel"}` declines (the approval is used up).
+
+### 429 from `POST /agent/chat`
+
+```json
+{"detail": {"code": "rate_limited", "scope": "user", "retry_after_s": 312,
+            "message": "Aapne 10 minute mein 20 sawaal pooch liye. Thoda ruk kar phir poochhiye (lagbhag 6 minute)."}}
+```
+
+`scope: institute` = the institute's daily token budget is used up (resets at midnight IST).

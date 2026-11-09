@@ -100,6 +100,16 @@ def clear_identity_cache() -> None:
 
 
 async def get_session(request: Request) -> SessionCtx:
+    """Identity + trial switch: callers from an institute not in AGENT_ENABLED_INSTITUTES get 403."""
+    from .features import NOT_ENABLED_MESSAGE, institute_enabled
+    ctx = await get_identity(request)
+    if not institute_enabled(ctx.institute_id):
+        raise HTTPException(status_code=403, detail=NOT_ENABLED_MESSAGE)
+    return ctx
+
+
+async def get_identity(request: Request) -> SessionCtx:
+    """Verified caller identity (no trial switch). Only /agent/meta uses this directly."""
     from .mode import real_mode
     if real_mode():  # live data: only a verified Supabase JWT; no dev headers of any kind
         from starlette.concurrency import run_in_threadpool

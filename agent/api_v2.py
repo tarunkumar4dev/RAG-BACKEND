@@ -123,6 +123,19 @@ def feedback(body: FeedbackRequest, ctx: SessionCtx = Depends(get_session)):
     return {"ok": True}
 
 
+XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+
+@router.get("/files/{file_id}", response_class=Response,
+            responses={200: {"content": {XLSX: {"schema": {"type": "string", "format": "binary"}}},
+                             "description": "the generated file (Content-Disposition: attachment)"},
+                       404: {"description": "unknown / foreign file"},
+                       410: {"description": "your file, but expired (1 hour); ask the agent again"}})
+def get_file(file_id: str, ctx: SessionCtx = Depends(get_session)):
+    from .files import serve_file
+    return serve_file(ctx, file_id)
+
+
 @router.post("/chat/{request_id}/cancel", status_code=202, response_model=CancelResponse)
 def cancel(request_id: str, ctx: SessionCtx = Depends(get_session)):
     if len(request_id) > 64 or not RUNS.cancel(request_id, Owner.of(ctx)):

@@ -95,3 +95,59 @@ class FeedbackResponse(_Out):
 class CancelResponse(_Out):
     request_id: str
     cancelled: bool = True
+
+
+# ---- 1.3 --------------------------------------------------------------------------------------------------
+class MetaScope(_Out):
+    """What the caller can see. level: institute (admin) > department (HOD) > section (proctor) > classes
+    (teacher's own batch/subject pairs) > none (nothing assigned yet)."""
+    level: Literal["institute", "department", "section", "classes", "none"]
+    batch_count: int
+    student_count: int
+    batches: list[str] = Field(default_factory=list, description="batch names, max 50, sorted")
+
+
+class MetaFeatures(_Out):
+    paper_generation: bool  # false in live read-only mode
+    defaulters_export: bool
+    proctor_month_report: bool
+    cancel: bool = True
+
+
+class MetaLimits(_Out):
+    chat_turns_per_10min: int
+    institute_daily_tokens: Optional[int] = None  # null = no institute budget configured
+
+
+class MetaResponse(_Out):
+    contract_version: str
+    enabled: bool  # false: the agent is not switched on for this institute yet (AGENT_ENABLED_INSTITUTES)
+    data_source: Literal["demo", "live"]
+    read_only: bool
+    role: Literal["admin", "hod", "teacher"]
+    first_name: Optional[str] = None
+    institute_name: Optional[str] = None
+    scope: Optional[MetaScope] = None  # null when enabled is false or the scope could not be loaded
+    features: MetaFeatures
+    limits: MetaLimits
+
+
+class RateLimitDetail(_Out):
+    """`detail` of a 429 from POST /agent/chat (also sent as the Retry-After header). Nothing was stored."""
+    code: Literal["rate_limited"] = "rate_limited"
+    scope: Literal["user", "institute"]  # user: too many turns in 10 min; institute: daily token budget used up
+    message: str  # friendly Hinglish, ready to show
+    retry_after_s: int
+
+
+class RateLimitResponse(_Out):
+    detail: RateLimitDetail
+
+
+class HealthResponse(_Out):
+    status: Literal["ok"] = "ok"
+
+
+class ReadyResponse(_Out):
+    status: Literal["ready", "not_ready"]
+    checks: dict[str, bool]  # e.g. {"store": true, "db": true}

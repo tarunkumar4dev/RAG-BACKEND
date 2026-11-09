@@ -159,3 +159,20 @@ backend `app/core/auth.py:verify_token` calls Supabase `/auth/v1/user`.
   history, messages, PATCH, DELETE, CORS preflight for PATCH; cross-user read -> 404.
 - Not verified: real Supabase (fixture only), the frontend against v2, Anthropic routing on the new cases,
   `agent_store_supabase.sql` (never applied), multi-worker deployments (store / cancel registry are per process).
+
+# v3: production trial readiness (10 Nov 2026) — MSIT 1-month trial
+
+## Decisions
+22. **Contract 1.3 is additive and committed first** (Phase 0). `docs/agent_openapi_v2.json` is generated from the
+    app (`python scripts/export_openapi.py`, same document at `/openapi.json`) and `tests/agent/test_contract.py` fails
+    when it drifts. *Why:* the frontend generates its TS types from that file; one source of truth, no hand edits.
+    It now types every SSE frame (`AgentEvent` = `oneOf` + `type` discriminator), the new `file` event, typed views of
+    the my_scope / section_comparison tables and chart, `/agent/meta` (incl. `scope`), and the 429 body.
+23. **1.3 additions decided up front**, so the frontend regenerates once: `file` event; `error.retryable` + codes
+    `rate_limited` / `db_unavailable` / `tool_timeout`; `pending_approval.status/result_ref/decided_at`;
+    `ApproveRequest.decision` (approve | cancel); `/agent/meta` → `MetaResponse` (enabled, scope, features, limits);
+    `GET /agent/files/{id}`; `/healthz`, `/readyz`, `/agent/metrics`. *Why:* additive fields with defaults keep 1.2
+    clients working; new routes cost nothing until used.
+24. **Trial switch** `AGENT_ENABLED_INSTITUTES` (comma list; unset = all): other institutes get 403 everywhere except
+    `/agent/meta`, which answers `enabled: false` (no 403) so the UI can simply hide the agent. *Why:* MSIT first,
+    no frontend deploy needed to widen it.

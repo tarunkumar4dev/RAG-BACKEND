@@ -162,6 +162,10 @@ class SQLiteStore:
         with self._lock:
             self._c.close()
 
+    def ping(self) -> bool:
+        self._q("select 1")
+        return True
+
     # -- sessions ----------------------------------------------------------
     _SESSION_COLS = (
         "s.id, s.title, s.title_source, s.pinned, s.role, s.created_at, s.last_message_at, "

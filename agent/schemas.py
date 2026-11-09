@@ -12,8 +12,10 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, model_validator
 
-CONTRACT_VERSION = "1.2"  # 1.1: stat_card.period/delta, thinking_status tool.<name> steps
+CONTRACT_VERSION = "1.3"  # 1.1: stat_card.period/delta, thinking_status tool.<name> steps
 # 1.2 (additive): `session` event first in every stream, final.cancelled, clarify chip.hint (docs/AGENT_API_V2.md)
+# 1.3 (additive): `file` event, error.retryable + codes rate_limited/db_unavailable/tool_timeout, pending_approval
+#     status/result_ref/decided_at (replay shows the outcome), ApproveRequest.decision (docs/AGENT_API_V2.md)
 
 QuestionType = Literal["mcq", "numeric", "assertion_reason", "short_answer", "long_answer", "case_study", "very_short"]
 VerifyStatus = Literal["verified", "failed", "manual_review", "rubric_ok"]
@@ -138,13 +140,33 @@ class VerificationSummary(_Base):
     rounds: int = 0
 
 
+ApprovalStatus = Literal["pending", "approved", "cancelled", "expired"]
+
+
 class PendingApproval(_Base):
+    """Streamed with status "pending". Stored copies (GET /messages) carry the outcome once decided, and a pending
+    card past expires_at is returned as "expired", so a replay never shows a stale approve button."""
     type: Literal["pending_approval"] = "pending_approval"
     approval_id: str
     action: Literal["finalize_test", "assign_to_section"]
     summary: str
     args_sha256: str
     expires_at: str
+    status: ApprovalStatus = "pending"
+    result_ref: Optional[str] = None  # e.g. "/agent/drafts/<id>/pdf" after finalize
+    decided_at: Optional[str] = None
+
+
+class FileReady(_Base):
+    """A generated file (read-only export, e.g. defaulters .xlsx). Download with GET download_path and the same
+    Authorization header; owner only; gone after expires_at (1 hour)."""
+    type: Literal["file"] = "file"
+    file_id: str
+    kind: Literal["defaulters_export", "proctor_month_report"]
+    name: str  # suggested file name, e.g. "Defaulters ECE-2 Oct 2026.xlsx"
+    rows: int = Field(ge=0)  # data rows in the sheet (students)
+    expires_at: str
+    download_path: str  # "/agent/files/<file_id>"
 
 
 class SessionStarted(_Base):
@@ -161,19 +183,47 @@ class Final(_Base):
     cancelled: bool = False  # true when POST /agent/chat/{request_id}/cancel stopped the run
 
 
+ErrorCode = Literal["budget_exceeded", "forbidden", "not_found", "provider_error", "invalid_input", "internal",
+                    "rate_limited", "db_unavailable", "tool_timeout"]
+
+
 class Error(_Base):
     type: Literal["error"] = "error"
-    code: Literal["budget_exceeded", "forbidden", "not_found", "provider_error", "invalid_input", "internal"]
-    message: str
+    code: ErrorCode
+    message: str  # short, user-facing (Hinglish / English); never a stack trace
     partial: dict[str, Any] = Field(default_factory=dict)
+    retryable: bool = False  # true: the same message may succeed if re-sent later (provider busy, DB down)
 
 
 AgentEvent = Annotated[
     Union[SessionStarted, TextDelta, ThinkingStatus, StatCard, Chart, Table, Clarify, Blueprint, PaperPreview,
-          VerificationSummary, PendingApproval, Final, Error],
+          VerificationSummary, PendingApproval, FileReady, Final, Error],
     Field(discriminator="type"),
 ]
 AgentEventAdapter: TypeAdapter = TypeAdapter(AgentEvent)
+
+
+# ---- typed views of tool-specific events (documentation for generated clients; NOT extra event types) ---------
+class MyScopeTable(Table):
+    """`table` event from my_scope ("meri classes")."""
+    source: Literal["tool:my_scope"]
+    columns: list[Literal["Batch", "Students", "Role", "Subjects"]]
+
+
+class SectionComparisonTable(Table):
+    """`table` event from section_comparison: rank (ties share a rank, null = no data), class, %, held/tests,
+    marked/graded."""
+    source: Literal["tool:section_comparison"]
+    columns: list[Literal["#", "Class", "%", "Classes held", "Marked", "Tests", "Graded"]]
+
+
+class SectionComparisonChart(Chart):
+    """`chart` event (kind bar) from section_comparison; only classes with data."""
+    source: Literal["tool:section_comparison"]
+    kind: Literal["bar"]
+
+
+TOOL_EVENT_VIEWS = (MyScopeTable, SectionComparisonTable, SectionComparisonChart)
 
 
 # ---- request bodies -------------------------------------------------------
@@ -201,6 +251,7 @@ class ApproveRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     session_id: str
     approval_id: str
+    decision: Literal["approve", "cancel"] = "approve"  # 1.3: cancel = decline; the card is stored as cancelled
 
 
 class SessionCtx(BaseModel):

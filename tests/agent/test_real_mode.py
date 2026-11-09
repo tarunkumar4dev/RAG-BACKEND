@@ -315,8 +315,11 @@ def test_chat_live_end_to_end_no_writes_no_pii_in_trace(client, monkeypatch, rea
     sid = evs[-1]["session_id"]
     assert [s["session_id"] for s in c.get("/agent/sessions", headers=h).json()["sessions"]] == [sid]
     meta = c.get("/agent/meta", headers=h).json()
-    assert meta == {"data_source": "live", "read_only": True, "role": "admin", "first_name": "Demo",
-                    "institute_name": "Demo Institute of Technology"}
+    v11 = {"data_source": "live", "read_only": True, "role": "admin", "first_name": "Demo",
+           "institute_name": "Demo Institute of Technology"}
+    assert {k: meta[k] for k in v11} == v11  # 1.3 is additive
+    assert meta["enabled"] is True and meta["features"]["paper_generation"] is False
+    assert meta["scope"]["level"] == "institute" and meta["scope"]["batch_count"] >= 1
     assert c.get(f"/agent/sessions/{sid}", headers={"Authorization": f"Bearer {tok(sub=U['sharma'])}"}).status_code == 404
     assert c.post("/agent/approve", json={"session_id": sid, "approval_id": "x"}, headers=h).status_code == 403
     with psycopg.connect(real_env["owner"]) as o:
