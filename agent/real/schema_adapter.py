@@ -13,7 +13,7 @@ parent contact, address, gender, user ids of students.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, Optional
@@ -21,8 +21,9 @@ from typing import Any, Optional
 from ..db_real import connect_real
 from ..schemas import SessionCtx
 from ..text import normalize_section, strip_honorifics
-from ..tools.insights import (FORBIDDEN, MAX_MATCHES, NOT_FOUND, AttendanceStatsArgs, AttendanceTrendArgs,
-                              LowAttendanceArgs, MarksStatsArgs, ResolveEntityArgs, TestsCreatedArgs, _like_tokens)
+from ..tools.insights import (EMPTY_SCOPE_MESSAGE, FORBIDDEN, MAX_MATCHES, NOT_FOUND, AttendanceStatsArgs,
+                              AttendanceTrendArgs, LowAttendanceArgs, MarksStatsArgs, MyScopeArgs, ResolveEntityArgs,
+                              SectionComparisonArgs, TestsCreatedArgs, _hinted, _like_tokens, rank_rows, student_hint)
 
 IST_DATE = "((%s at time zone 'UTC') + interval '5 hours 30 minutes')::date"  # no tz database needed
 
@@ -52,6 +53,8 @@ class Scope:
     tb: list              # teaching pairs: batch ids ...
     ts: list              # ... and subject ids (same length)
     vis: list             # full ∪ teaching batches
+    hod_b: list = field(default_factory=list)   # part of `full` from HOD department(s)
+    proc_b: list = field(default_factory=list)  # part of `full` from proctor section(s)
 
     def p(self, **kw) -> dict:
         return {"inst": self.inst, "uid": self.uid, "full": self.full, "tb": self.tb, "ts": self.ts,
@@ -61,18 +64,25 @@ class Scope:
 def load_scope(c, ctx: SessionCtx) -> Scope:
     inst, uid = str(ctx.institute_id), str(ctx.user_id)
     is_admin = ctx.role == "admin"
+    hod_b: list = []
+    proc_b: list = []
     if is_admin:
         full = [r["id"] for r in c.execute("select id from batches where institute_id = %s", (inst,)).fetchall()]
     else:
-        full = [r["id"] for r in c.execute(
+        rows = c.execute(
             "with hod as (select m.department_id from institute_members m where m.institute_id = %(inst)s "
             "  and m.user_id = %(uid)s and m.status = 'active' and m.role = 'hod' and m.department_id is not null), "
             "proc as (select pa.section_id from proctor_assignments pa join institute_members m on m.id = pa.teacher_id "
             "  where m.user_id = %(uid)s and m.institute_id = %(inst)s and m.status = 'active' "
             "  and pa.institute_id = %(inst)s and coalesce(pa.is_active, true)) "
-            "select b.id from batches b left join sections s on s.id = b.section_id "
+            "select b.id, coalesce(b.department_id, s.department_id) in (select * from hod) as via_hod, "
+            "  b.section_id in (select * from proc) as via_proc "
+            "from batches b left join sections s on s.id = b.section_id "
             "where b.institute_id = %(inst)s and (coalesce(b.department_id, s.department_id) in (select * from hod) "
-            "  or b.section_id in (select * from proc))", {"inst": inst, "uid": uid}).fetchall()]
+            "  or b.section_id in (select * from proc))", {"inst": inst, "uid": uid}).fetchall()
+        full = [r["id"] for r in rows]
+        hod_b = [r["id"] for r in rows if r["via_hod"]]
+        proc_b = [r["id"] for r in rows if r["via_proc"]]
     pairs = c.execute(
         "select ta.batch_id, ta.subject_id from teaching_assignments ta join batches b on b.id = ta.batch_id "
         "where ta.teacher_id = %(uid)s and ta.institute_id = %(inst)s and b.institute_id = %(inst)s "
@@ -83,7 +93,7 @@ def load_scope(c, ctx: SessionCtx) -> Scope:
     tb = [r["batch_id"] for r in pairs]
     ts = [r["subject_id"] for r in pairs]
     vis = list(dict.fromkeys(full + tb))
-    return Scope(inst, uid, is_admin, full, tb, ts, vis)
+    return Scope(inst, uid, is_admin, full, tb, ts, vis, hod_b, proc_b)
 
 
 # sessions the caller may see (always this institute, only held classes)
@@ -136,7 +146,11 @@ def resolve_entity(ctx: SessionCtx, args: ResolveEntityArgs) -> dict[str, Any]:
             rows = c.execute("select id, name from batches where id = any(%(vis)s::uuid[]) and "
                              "regexp_replace(lower(name), '[^a-z0-9]', '', 'g') = any(%(k)s) order by name, id",
                              sc.p(k=keys)).fetchall()
-            return _result([{"id": str(r["id"]), "label": r["name"]} for r in rows])
+            res = _result([{"id": str(r["id"]), "label": r["name"]} for r in rows])
+            if res["status"] == "ambiguous":
+                info = {b["id"]: b for b in _batch_info(c, sc, [r["id"] for r in rows])}
+                res = _hinted(res, {str(i): student_hint("Batch", b["n"], b["dept"]) for i, b in info.items()})
+            return res
         toks = _like_tokens(strip_honorifics(args.name))
         if not toks:
             return {"status": "not_found", "matches": []}
@@ -145,14 +159,23 @@ def resolve_entity(ctx: SessionCtx, args: ResolveEntityArgs) -> dict[str, Any]:
             pats = [t.lower() for t in toks]
             hits = [(uid, n) for uid, n in vt.items() if all(p.strip("%") in (n or "").lower() for p in pats)]
             hits.sort(key=lambda x: (x[1], str(x[0])))
-            return _result([{"id": str(u), "label": n} for u, n in hits])
+            res = _result([{"id": str(u), "label": n} for u, n in hits])
+            if res["status"] == "ambiguous":
+                dept = {r["user_id"]: r["dept"] for r in c.execute(
+                    "select m.user_id, string_agg(distinct d.name, ', ') as dept from institute_members m "
+                    "left join departments d on d.id = m.department_id and d.institute_id = %(inst)s "
+                    "where m.institute_id = %(inst)s and m.status = 'active' and m.user_id = any(%(ids)s::uuid[]) "
+                    "group by m.user_id", sc.p(ids=[u for u, _ in hits])).fetchall()}
+                res = _hinted(res, {str(u): f"Teacher · {dept[u]}" if dept.get(u) else "Teacher" for u, _ in hits})
+            return res
         where = " and ".join(f"st.name ilike %(t{i})s" for i in range(len(toks)))
         rows = c.execute(
             "select st.id, st.name, st.roll_no, b.name as batch from students st left join batches b on b.id = st.batch_id "
             f"where {STUDENT_VISIBLE} and {where} order by st.name, b.name, st.id limit 20",
             sc.p(**{f"t{i}": t for i, t in enumerate(toks)})).fetchall()
-        return _result([{"id": str(r["id"]), "label": f"{r['name']} ({r['batch'] or '—'}"
-                         + (f", roll {r['roll_no']})" if r["roll_no"] else ")")} for r in rows])
+        return _hinted(_result([{"id": str(r["id"]), "label": f"{r['name']} ({r['batch'] or '—'}"
+                                 + (f", roll {r['roll_no']})" if r["roll_no"] else ")")} for r in rows]),
+                       {str(r["id"]): f"Student · {r['batch'] or '—'}" for r in rows})
 
 
 def _entity(c, sc: Scope, scope: str, eid) -> tuple[Optional[str], str, dict] | dict:
@@ -350,3 +373,103 @@ def tests_created_by_teacher(ctx: SessionCtx, args: TestsCreatedArgs) -> dict[st
             "recent": [{"title": r["exam_title"], "class_grade": r["class_grade"], "subject": r["subject"],
                         "total_marks": _r2(r["total_marks"]), "status": r["status"],
                         "created_on": r["on_date"].isoformat()} for r in rows[:10]]}
+
+
+# ---- scope + comparison (same output schema as agent/tools/insights.py) -----------------------------------
+def _batch_info(c, sc: Scope, ids: list) -> list[dict]:
+    """name, department, section and active student count (main or lab batch) for batch ids in scope."""
+    return c.execute(
+        "select b.id, b.name, d.name as dept, s.name as section, "
+        "(select count(*) from students st where st.institute_id = %(inst)s and coalesce(st.is_active, true) "
+        " and (st.batch_id = b.id or st.lab_batch_id = b.id)) as n "
+        "from batches b left join sections s on s.id = b.section_id "
+        "left join departments d on d.id = coalesce(b.department_id, s.department_id) and d.institute_id = %(inst)s "
+        "where b.institute_id = %(inst)s and b.id = any(%(ids)s::uuid[]) and b.id = any(%(vis)s::uuid[]) "
+        "order by b.name, b.id", sc.p(ids=ids)).fetchall()
+
+
+def _role_for(sc: Scope, bid) -> str:
+    if sc.is_admin:
+        return "admin"
+    if bid in sc.hod_b:
+        return "hod"
+    if bid in sc.proc_b:
+        return "proctor"
+    return "teacher"
+
+
+def my_scope(ctx: SessionCtx, args: MyScopeArgs) -> dict[str, Any]:
+    with connect_real() as c:
+        sc = load_scope(c, ctx)
+        info = sorted(_batch_info(c, sc, sc.vis), key=lambda b: (b["name"].lower(), str(b["id"])))
+        # subjects: whole batch for fully visible batches, own (batch, subject) pairs otherwise
+        subj_rows = c.execute(
+            "with taught as (select ta.batch_id, ta.subject_id from teaching_assignments ta "
+            "  where ta.institute_id = %(inst)s and coalesce(ta.is_active, true) and ta.batch_id = any(%(full)s::uuid[]) "
+            " union select ts.batch_id, ts.subject_id from timetable_slots ts "
+            "  where ts.institute_id = %(inst)s and coalesce(ts.is_active, true) and ts.batch_id = any(%(full)s::uuid[]) "
+            " union select tp.b, tp.s from unnest(%(tb)s::uuid[], %(ts)s::uuid[]) as tp(b, s)) "
+            "select t.batch_id, sj.id, sj.name from taught t join subjects sj on sj.id = t.subject_id "
+            "and sj.institute_id = %(inst)s order by sj.name, sj.id", sc.p()).fetchall()
+        students = c.execute(f"select count(*) as n from students st where {STUDENT_VISIBLE}", sc.p()).fetchone()["n"]
+    per: dict = {}
+    count: dict = {}
+    for r in subj_rows:
+        per.setdefault(r["batch_id"], [])
+        if r["name"] not in per[r["batch_id"]]:
+            per[r["batch_id"]].append(r["name"])
+        count.setdefault(r["id"], [r["name"], set()])[1].add(r["batch_id"])
+    batches = [{"id": str(b["id"]), "name": b["name"], "student_count": int(b["n"]), "role": _role_for(sc, b["id"]),
+                "section": b["section"], "department": b["dept"], "subjects": per.get(b["id"], [])} for b in info]
+    out = {"status": "ok", "caller_role": ctx.role, "batches": batches,
+           "subjects": sorted(({"id": str(k), "name": v[0], "batch_count": len(v[1])} for k, v in count.items()),
+                              key=lambda x: (x["name"], x["id"])),
+           "students_in_scope": int(students), "empty": not batches}
+    if not batches:
+        out["message"] = EMPTY_SCOPE_MESSAGE
+    return out
+
+
+def section_comparison(ctx: SessionCtx, args: SectionComparisonArgs) -> dict[str, Any]:
+    with connect_real() as c:
+        sc = load_scope(c, ctx)
+        info = sorted(_batch_info(c, sc, sc.vis), key=lambda b: (b["name"].lower(), str(b["id"])))
+        p = sc.p(df=args.date_from, dt=args.date_to)
+        if args.metric == "attendance":
+            agg = c.execute(
+                "select cs.batch_id, count(distinct cs.id) as sessions, count(ar.id) as marked, "
+                "count(ar.id) filter (where ar.status in ('present','late')) as good "
+                "from class_sessions cs join attendance_records ar on ar.session_id = cs.id and ar.institute_id = %(inst)s "
+                f"where {SESS} and cs.batch_id = any(%(vis)s::uuid[]) and cs.session_date between %(df)s and %(dt)s "
+                "group by cs.batch_id", p).fetchall()
+            by = {r["batch_id"]: (int(r["sessions"]), int(r["marked"]), _pct(r["good"], r["marked"])) for r in agg}
+        else:
+            agg = c.execute(
+                f"with {ITEMS} select i.batch_id, count(distinct (i.kind, i.id)) as tests, count(m.mark) as graded, "
+                "array_remove(array_agg(m.mark * 100.0 / nullif(i.max_marks, 0)), null) as pcts "
+                "from items i left join marks m on m.kind = i.kind and m.item_id = i.id "
+                "where i.on_date between %(df)s and %(dt)s group by i.batch_id", p).fetchall()
+            by = {r["batch_id"]: (int(r["tests"]), int(r["graded"]),
+                                  _r1(sum(r["pcts"]) / len(r["pcts"])) if r["pcts"] else None) for r in agg}
+    none = (0, 0, None)
+    rows = [{"id": str(b["id"]), "name": b["name"], "student_count": int(b["n"]),
+             "sessions": by.get(b["id"], none)[0], "marked": by.get(b["id"], none)[1],
+             "pct": by.get(b["id"], none)[2]} for b in info]
+    out = {"status": "ok", "metric": args.metric, "date_from": args.date_from.isoformat(),
+           "date_to": args.date_to.isoformat(), **rank_rows(rows)}
+    if not info:
+        out["message"] = EMPTY_SCOPE_MESSAGE
+    return out
+
+
+def scope_entities(ctx: SessionCtx) -> list[dict[str, Any]]:
+    """For /agent/suggestions: batch / teacher / subject names in the caller's scope (real schema)."""
+    sc_out = my_scope(ctx, MyScopeArgs())
+    out = [{"kind": "batch", "id": b["id"], "name": b["name"], "student_count": b["student_count"],
+            "department": b["department"]} for b in sc_out["batches"]]
+    out += [{"kind": "subject", "id": x["id"], "name": x["name"]} for x in sc_out["subjects"]]
+    with connect_real() as c:
+        vt = _visible_teachers(c, load_scope(c, ctx))
+    out += [{"kind": "teacher", "id": str(u), "name": n} for u, n in sorted(vt.items(), key=lambda x: x[1])
+            if n and n != "—"]
+    return out

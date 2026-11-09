@@ -17,3 +17,14 @@
 | R12 | admin | tests by Sharma Nov 1–5 (IST) | **4** (incl. 01 Nov 00:10 IST and 05 Nov 23:50 IST; excl. Oct 15) ; institute-wide **5** (Sharma 4, Verma 1) |
 | R13 | decoy admin | section "ECE-2" | only the decoy batch ba..04 ; Sharma → not_found |
 | R14 | resolve "Rahul Kumar" | admin → 2 matches (not the decoy one) ; Verma → 2 (CSE-1 roll 12, ECE-2 roll 03 via lab) ; Sharma → 1 (ECE-2) |
+
+## API v2 additions (data.sql "phase 3 additions": ECE 1 = 2 students, 2 HOD classes, 4/4 good; ECE1 = 0 students)
+
+| # | Caller | Question | Expected |
+|---|---|---|---|
+| R15 | admin | my_scope | CSE-1 2 · ECE 1 2 · ECE-2 3 (Left Student inactive) · ECE-2 A 2 (lab: Aarav, Rahul) · ECE1 0 ; all role admin ; subjects ECE-2 [Mathematics], CSE-1 [DSA], ECE-2 A [Physics] ; 7 distinct students |
+| R16 | Sharma / Verma / HOD / proctor / Sunita | my_scope | Sharma: ECE-2 (3, teacher, Mathematics), 3 students · Verma: CSE-1 (2, DSA) + ECE-2 A (2, Physics), 4 students · HOD: ECE 1, ECE-2, ECE-2 A, ECE1 all role hod, 5 students · proctor (ctx role teacher): ECE-2, ECE-2 A role proctor · Sunita: empty + message |
+| R17 | admin | section_comparison attendance Nov 1–5 | ECE 1 **100.0** (2 classes, 4 marked) #1 · ECE-2 **55.6** (3, 9) #2 · CSE-1 **50.0** (2, 4) #3 · ECE-2 A **50.0** (1, 2) #3 · ECE1 — ; highest [ECE 1], lowest [CSE-1, ECE-2 A] (tie), no_data [ECE1] |
+| R18 | HOD / Sharma / Verma / Sunita | section_comparison attendance Nov 1–5 | HOD: ECE 1 100.0, ECE-2 55.6, ECE-2 A 50.0, ECE1 — ; lowest [ECE-2 A] · Sharma: ECE-2 55.6 only · Verma: CSE-1 50.0 and ECE-2 A 50.0 both #1 · Sunita: no rows + message |
+| R19 | admin | section_comparison marks Oct 26–Nov 5 / Nov 1–5 | ECE-2 **68.8** (2 tests, 4 graded: 75, 50, 90, 60) · CSE-1 **65.0** (1, 2) · others — ; Nov 1–5: ECE-2 **75.0** (1, 2: 90, 60) · CSE-1 65.0 |
+| R20 | admin / HOD | resolve section "ECE 1" | ambiguous: ECE 1 hint "Electronics · 2 students", ECE1 hint "Electronics · 0 students (empty)" ; chip values carry the id ; Sharma → not_found |

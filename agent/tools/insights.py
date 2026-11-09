@@ -72,6 +72,14 @@ class TestsCreatedArgs(_DateRange):
     teacher_id: Optional[UUID] = None  # None = me (teacher) / whole scope (admin, HOD)
 
 
+class MyScopeArgs(_Args):
+    """No arguments: the caller's own scope comes from the server-side session."""
+
+
+class SectionComparisonArgs(_DateRange):
+    metric: Literal["attendance", "marks"] = "attendance"
+
+
 ARG_MODELS = {
     "resolve_entity": ResolveEntityArgs,
     "attendance_stats": AttendanceStatsArgs,
@@ -79,7 +87,12 @@ ARG_MODELS = {
     "marks_stats": MarksStatsArgs,
     "attendance_trend": AttendanceTrendArgs,
     "tests_created_by_teacher": TestsCreatedArgs,
+    "my_scope": MyScopeArgs,
+    "section_comparison": SectionComparisonArgs,
 }
+
+EMPTY_SCOPE_MESSAGE = ("No batch or subject is assigned to you yet. The institute admin or your HOD can assign "
+                       "batches (Teaching assignments / timetable).")
 
 NOT_FOUND = {"status": "not_found"}
 FORBIDDEN = {"status": "forbidden"}
@@ -139,12 +152,14 @@ def resolve_entity(ctx: SessionCtx, args: ResolveEntityArgs) -> dict[str, Any]:
         if args.kind == "section":
             norm = normalize_section(args.name)
             rows = conn.execute(
-                f"with {_SCOPE_BATCHES} select id, name from scope_batches "
+                f"with {_SCOPE_BATCHES} select sb.id, sb.name, (select count(*) from agent_demo.students s "
+                "where s.batch_id = sb.id and s.institute_id = %(inst)s and s.is_active) as n from scope_batches sb "
                 "where lower(name) = lower(%(n)s) or (%(n)s ~ '^[0-9]+$' and name ~ ('^' || %(n)s || '[A-Za-z]$')) "
                 "order by name, id",
                 _params(ctx, n=norm),
             ).fetchall()
-            return _result([{"id": str(r["id"]), "label": r["name"]} for r in rows], len(rows))
+            return _hinted(_result([{"id": str(r["id"]), "label": r["name"]} for r in rows], len(rows)),
+                           {str(r["id"]): student_hint("Batch", r["n"]) for r in rows})
 
         cleaned = strip_honorifics(args.name)
         toks = _like_tokens(cleaned)
@@ -159,17 +174,51 @@ def resolve_entity(ctx: SessionCtx, args: ResolveEntityArgs) -> dict[str, Any]:
                 "and user_name ilike all(%(toks)s::text[]) order by user_name, user_id limit 6",
                 _params(ctx, toks=toks),
             ).fetchall()
-            return _result([{"id": str(r["id"]), "label": r["label"]} for r in rows], len(rows))
+            return _hinted(_result([{"id": str(r["id"]), "label": r["label"]} for r in rows], len(rows)),
+                           {str(r["id"]): "Teacher" for r in rows})
 
         rows = conn.execute(
             f"with {_SCOPE_BATCHES} "
-            "select s.id, s.name || ' (' || sb.name || ')' as label from agent_demo.students s "
+            "select s.id, s.name || ' (' || sb.name || ')' as label, sb.name as batch, s.roll_no "
+            "from agent_demo.students s "
             "join scope_batches sb on sb.id = s.batch_id "
             "where s.institute_id = %(inst)s and s.is_active and s.name ilike all(%(toks)s::text[]) "
             "order by s.name, sb.name, s.id limit 6",
             _params(ctx, toks=toks),
         ).fetchall()
-        return _result([{"id": str(r["id"]), "label": r["label"]} for r in rows], len(rows))
+        return _hinted(_result([{"id": str(r["id"]), "label": r["label"]} for r in rows], len(rows)),
+                       {str(r["id"]): f"{r['batch']} · roll {r['roll_no']}" for r in rows})
+
+
+def student_hint(kind: str, n: int, dept: Optional[str] = None) -> str:
+    """'Electronics · 22 students' / 'Batch · 1 student' / 'Batch · 0 students (empty)'."""
+    n = int(n or 0)
+    count = f"{n} student" + ("" if n == 1 else "s") + (" (empty)" if n == 0 else "")
+    return f"{dept or kind} · {count}"
+
+
+def _hinted(res: dict[str, Any], hints: dict[str, str]) -> dict[str, Any]:
+    """Hints only on ambiguous results (chips need them; single matches keep the 1.1 shape)."""
+    if res.get("status") == "ambiguous":
+        res["matches"] = [{**m, "hint": hints.get(m["id"])} for m in res["matches"]]
+    return res
+
+
+def rank_rows(rows: list[dict]) -> dict[str, Any]:
+    """Rank by pct desc (ties share a rank: 1, 2, 3, 3, 5); rows without data go last with rank None.
+    -> {rows, highest: [names], lowest: [names], no_data: [names]}"""
+    have = sorted((r for r in rows if r["pct"] is not None), key=lambda r: (-r["pct"], r["name"], r["id"]))
+    none = sorted((r for r in rows if r["pct"] is None), key=lambda r: (r["name"], r["id"]))
+    prev, rank = None, 0
+    for i, r in enumerate(have, 1):
+        if r["pct"] != prev:
+            rank, prev = i, r["pct"]
+        r["rank"] = rank
+    for r in none:
+        r["rank"] = None
+    hi = [r["name"] for r in have if r["pct"] == have[0]["pct"]] if have else []
+    lo = [r["name"] for r in have if r["pct"] == have[-1]["pct"]] if have else []
+    return {"rows": have + none, "highest": hi, "lowest": lo, "no_data": [r["name"] for r in none]}
 
 
 def attendance_stats(ctx: SessionCtx, args: AttendanceStatsArgs) -> dict[str, Any]:
@@ -389,3 +438,87 @@ def tests_created_by_teacher(ctx: SessionCtx, args: TestsCreatedArgs) -> dict[st
             "count": len(rows), "by_teacher": [{"teacher": k, "count": v} for k, v in sorted(by.items())],
             "recent": [{"title": r["name"], "class_grade": None, "subject": None, "total_marks": _num(r["max_marks"]),
                         "status": None, "created_on": r["test_date"].isoformat()} for r in rows[:10]]}
+
+
+# ---- scope + comparison (seed; same output schema as agent/real/schema_adapter.py) ----------------------------
+def _scope_rows(conn, ctx: SessionCtx) -> list[dict]:
+    rows = conn.execute(
+        f"with {_SCOPE_BATCHES} select sb.id, sb.name, "
+        "(select count(*) from agent_demo.students s where s.batch_id = sb.id and s.institute_id = %(inst)s "
+        " and s.is_active) as n, "
+        "array(select distinct sj.name from agent_demo.teaching_assignments ta join agent_demo.subjects sj "
+        " on sj.id = ta.subject_id where ta.batch_id = sb.id and ta.institute_id = %(inst)s and ta.is_active "
+        " and (%(is_admin)s or ta.teacher_id = %(tid)s::uuid) order by 1) as subjects, "
+        "array(select distinct ta.subject_id::text from agent_demo.teaching_assignments ta where ta.batch_id = sb.id "
+        " and ta.institute_id = %(inst)s and ta.is_active and (%(is_admin)s or ta.teacher_id = %(tid)s::uuid)) "
+        " as subject_ids "
+        "from scope_batches sb", _params(ctx)).fetchall()
+    return sorted(rows, key=lambda r: (r["name"].lower(), str(r["id"])))  # same order in seed and real mode
+
+
+def my_scope(ctx: SessionCtx, args: MyScopeArgs) -> dict[str, Any]:
+    role = "admin" if ctx.role == "admin" else "teacher"
+    with connect(readonly=True) as conn:
+        rows = _scope_rows(conn, ctx)
+        subj = {r["id"]: r["name"] for r in conn.execute(
+            "select id::text as id, name from agent_demo.subjects where institute_id = %(inst)s",
+            _params(ctx)).fetchall()}
+    batches = [{"id": str(r["id"]), "name": r["name"], "student_count": int(r["n"]), "role": role, "section": None,
+                "department": None, "subjects": list(r["subjects"])} for r in rows]
+    count: dict[str, int] = {}
+    for r in rows:
+        for sid in r["subject_ids"]:
+            count[sid] = count.get(sid, 0) + 1
+    out = {"status": "ok", "caller_role": ctx.role, "batches": batches,
+           "subjects": sorted(({"id": k, "name": subj.get(k, "—"), "batch_count": v} for k, v in count.items()),
+                              key=lambda x: (x["name"], x["id"])),
+           "students_in_scope": sum(b["student_count"] for b in batches), "empty": not batches}
+    if not batches:
+        out["message"] = EMPTY_SCOPE_MESSAGE
+    return out
+
+
+def section_comparison(ctx: SessionCtx, args: SectionComparisonArgs) -> dict[str, Any]:
+    p = _params(ctx, df=args.date_from, dt=args.date_to)
+    with connect(readonly=True) as conn:
+        scope = _scope_rows(conn, ctx)
+        if args.metric == "attendance":
+            agg = conn.execute(
+                "select cs.batch_id, count(distinct cs.id) as sessions, count(ar.id) as marked, "
+                "count(ar.id) filter (where ar.status in ('present','late')) as good "
+                "from agent_demo.class_sessions cs left join agent_demo.attendance_records ar "
+                "  on ar.session_id = cs.id and ar.institute_id = %(inst)s "
+                f"where {_SESSION_FILTER} and cs.session_date between %(df)s and %(dt)s group by cs.batch_id",
+                p).fetchall()
+            by = {r["batch_id"]: (int(r["sessions"]), int(r["marked"]), _pct(r["good"], r["marked"])) for r in agg}
+        else:
+            agg = conn.execute(
+                "select t.batch_id, count(distinct t.id) as tests, count(m.marks_obtained) as graded, "
+                "avg(m.marks_obtained * 100.0 / t.max_marks) as pct "
+                "from agent_demo.tests t join agent_demo.test_marks m on m.test_id = t.id "
+                "where t.institute_id = %(inst)s and (%(is_admin)s or t.teacher_id = %(tid)s::uuid) "
+                "and t.test_date between %(df)s and %(dt)s group by t.batch_id", p).fetchall()
+            by = {r["batch_id"]: (int(r["tests"]), int(r["graded"]), _num(r["pct"], 1)) for r in agg}
+    none = (0, 0, None)
+    rows = [{"id": str(b["id"]), "name": b["name"], "student_count": int(b["n"]),
+             "sessions": by.get(b["id"], none)[0], "marked": by.get(b["id"], none)[1],
+             "pct": by.get(b["id"], none)[2]} for b in scope]
+    out = {"status": "ok", "metric": args.metric, "date_from": args.date_from.isoformat(),
+           "date_to": args.date_to.isoformat(), **rank_rows(rows)}
+    if not scope:
+        out["message"] = EMPTY_SCOPE_MESSAGE
+    return out
+
+
+def scope_entities(ctx: SessionCtx) -> list[dict[str, Any]]:
+    """For /agent/suggestions: batch / teacher / subject names in the caller's scope (seed)."""
+    sc = my_scope(ctx, MyScopeArgs())
+    out = [{"kind": "batch", "id": b["id"], "name": b["name"], "student_count": b["student_count"]}
+           for b in sc["batches"]]
+    out += [{"kind": "subject", "id": x["id"], "name": x["name"]} for x in sc["subjects"]]
+    with connect(readonly=True) as conn:
+        rows = conn.execute("select user_id, user_name from agent_demo.institute_members where institute_id = %(inst)s "
+                            "and status = 'active' and role = 'teacher' and (%(is_admin)s or user_id = %(tid)s::uuid) "
+                            "order by user_name", _params(ctx)).fetchall()
+    out += [{"kind": "teacher", "id": str(r["user_id"]), "name": r["user_name"]} for r in rows if r["user_name"]]
+    return out

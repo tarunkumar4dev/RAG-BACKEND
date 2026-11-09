@@ -33,6 +33,13 @@ TOOLS: dict[str, ToolSpec] = {t.name: t for t in [
     ToolSpec("tests_created_by_teacher", "How many test papers a teacher created in a date range (IST), with "
              "recent titles. teacher_id omitted = me (teacher) or my whole scope (admin/HOD).",
              insights.TestsCreatedArgs, "read", insights.tests_created_by_teacher),
+    ToolSpec("my_scope", "The caller's own batches/sections/subjects with student counts and the caller's role "
+             "in each. Use for 'meri class/classes', 'mere students', 'my batches', 'what do I teach'.",
+             insights.MyScopeArgs, "read", insights.my_scope),
+    ToolSpec("section_comparison", "Rank every batch/section in the caller's scope by attendance % or average "
+             "marks % over a date range (IST); returns rows plus `lowest`/`highest` names (ties included). Use for "
+             "'which class has the lowest/highest attendance', 'compare classes'. Shown as a table + bar chart.",
+             insights.SectionComparisonArgs, "read", insights.section_comparison),
     ToolSpec("blueprint_defaults", "CBSE-style blueprint (sections, marks) for a test paper. Show it to the user.",
              paper.BlueprintArgs, "read"),
     ToolSpec("generate_questions", "Generate the whole paper for the current blueprint in one batch (NCERT "
@@ -50,7 +57,7 @@ TOOLS: dict[str, ToolSpec] = {t.name: t for t in [
 
 
 INSIGHT_TOOLS = ("resolve_entity", "attendance_stats", "low_attendance_list", "attendance_trend", "marks_stats",
-                 "tests_created_by_teacher")
+                 "tests_created_by_teacher", "my_scope", "section_comparison")
 WRITE_TOOLS = ("save_draft", "finalize_test", "assign_to_section", "export_pdf")  # disabled in real mode
 
 

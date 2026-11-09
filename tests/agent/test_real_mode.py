@@ -381,3 +381,100 @@ def test_chat_rejects_wrong_role_in_jwt(client):
     resp = c.post("/agent/chat", json={"message": "Hi"}, headers={"Authorization": f"Bearer {tok(role='anon')}"})
     assert resp.status_code == 401
     assert "authenticated" in resp.text.lower()
+
+
+# ---------------- API v2 tools on the fixture (EXPECTED.md R15-R20) ----------------
+from agent.tools.insights import MyScopeArgs, SectionComparisonArgs  # noqa: E402
+
+U["sunita"] = "10000000-0000-0000-0000-00000000000c"
+ECE_1, ECE1 = UUID("ba000000-0000-0000-0000-000000000005"), UUID("ba000000-0000-0000-0000-000000000006")
+
+
+def _scope(who):
+    r = T().my_scope(ctx(who), MyScopeArgs())
+    return [(b["name"], b["student_count"], b["role"], b["subjects"]) for b in r["batches"]], r
+
+
+def test_r15_my_scope_admin():
+    rows, r = _scope("admin")
+    assert rows == [("CSE-1", 2, "admin", ["DSA"]), ("ECE 1", 2, "admin", []), ("ECE-2", 3, "admin", ["Mathematics"]),
+                    ("ECE-2 A", 2, "admin", ["Physics"]), ("ECE1", 0, "admin", [])]
+    assert r["students_in_scope"] == 7 and r["empty"] is False and r["caller_role"] == "admin"
+    assert [(s["name"], s["batch_count"]) for s in r["subjects"]] == [("DSA", 1), ("Mathematics", 1), ("Physics", 1)]
+    b = {x["name"]: x for x in r["batches"]}
+    assert (b["ECE-2"]["department"], b["ECE-2"]["section"], b["CSE-1"]["department"]) == \
+        ("Electronics", "ECE-2", "Computer Science")
+
+
+def test_r16_my_scope_per_role_and_empty():
+    assert _scope("sharma")[0] == [("ECE-2", 3, "teacher", ["Mathematics"])] and _scope("sharma")[1]["students_in_scope"] == 3
+    assert _scope("verma")[0] == [("CSE-1", 2, "teacher", ["DSA"]), ("ECE-2 A", 2, "teacher", ["Physics"])]
+    assert _scope("verma")[1]["students_in_scope"] == 4
+    rows, r = _scope("hod")
+    assert rows == [("ECE 1", 2, "hod", []), ("ECE-2", 3, "hod", ["Mathematics"]), ("ECE-2 A", 2, "hod", ["Physics"]),
+                    ("ECE1", 0, "hod", [])] and r["students_in_scope"] == 5
+    assert [(n, role) for n, _, role, _ in _scope("proctor")[0]] == [("ECE-2", "proctor"), ("ECE-2 A", "proctor")]
+    rows, r = _scope("sunita")
+    assert rows == [] and r["empty"] is True and "admin" in r["message"]
+
+
+def _cmp(who, metric="attendance", **dates):
+    r = T().section_comparison(ctx(who), SectionComparisonArgs(metric=metric, **(dates or NOV)))
+    return [(x["rank"], x["name"], x["pct"], x["sessions"], x["marked"]) for x in r["rows"]], r
+
+
+def test_r17_section_comparison_admin_ties_and_no_data():
+    rows, r = _cmp("admin")
+    assert rows == [(1, "ECE 1", 100.0, 2, 4), (2, "ECE-2", 55.6, 3, 9), (3, "CSE-1", 50.0, 2, 4),
+                    (3, "ECE-2 A", 50.0, 1, 2), (None, "ECE1", None, 0, 0)]
+    assert (r["highest"], r["lowest"], r["no_data"]) == (["ECE 1"], ["CSE-1", "ECE-2 A"], ["ECE1"])
+    # the same number as attendance_stats for each section (one definition of attendance %)
+    for x in r["rows"][:4]:
+        s = T().attendance_stats(ctx("admin"), AttendanceStatsArgs(scope="section", entity_id=x["id"], **NOV))
+        assert (s["pct"], s["marked"], s["sessions"]) == (x["pct"], x["marked"], x["sessions"])
+
+
+def test_r18_section_comparison_scoped():
+    rows, r = _cmp("hod")
+    assert [(n, p) for _, n, p, _, _ in rows] == [("ECE 1", 100.0), ("ECE-2", 55.6), ("ECE-2 A", 50.0), ("ECE1", None)]
+    assert r["lowest"] == ["ECE-2 A"]
+    rows, r = _cmp("sharma")
+    assert rows == [(1, "ECE-2", 55.6, 3, 9)] and r["lowest"] == r["highest"] == ["ECE-2"]
+    rows, r = _cmp("verma")
+    assert rows == [(1, "CSE-1", 50.0, 2, 4), (1, "ECE-2 A", 50.0, 1, 2)] and r["lowest"] == ["CSE-1", "ECE-2 A"]
+    rows, r = _cmp("sunita")
+    assert rows == [] and r["highest"] == [] and "admin" in r["message"]
+    assert all(x["name"] != "ECE-2" or x["id"] != str(B_ECE2) for x in _cmp("admin")[1]["rows"])  # never the decoy
+
+
+def test_r19_section_comparison_marks():
+    rows, r = _cmp("admin", "marks", date_from=date(2026, 10, 26), date_to=date(2026, 11, 5))
+    assert rows[:2] == [(1, "ECE-2", 68.8, 2, 4), (2, "CSE-1", 65.0, 1, 2)] and all(x[2] is None for x in rows[2:])
+    assert (r["highest"], r["lowest"]) == (["ECE-2"], ["CSE-1"])
+    rows, _ = _cmp("admin", "marks")
+    assert rows[:2] == [(1, "ECE-2", 75.0, 1, 2), (2, "CSE-1", 65.0, 1, 2)]
+    assert _cmp("verma", "marks")[0][0] == (1, "CSE-1", 65.0, 1, 2)
+
+
+def test_r20_near_duplicate_sections_get_hints_and_id_chips():
+    from agent.core import clarify_chips
+    for who in ("admin", "hod"):
+        r = T().resolve_entity(ctx(who), ResolveEntityArgs(kind="section", name="ECE 1"))
+        assert r["status"] == "ambiguous"
+        hints = {m["label"]: m["hint"] for m in r["matches"]}
+        assert hints == {"ECE 1": "Electronics · 2 students", "ECE1": "Electronics · 0 students (empty)"}
+        chips = {c["label"]: c for c in clarify_chips(r["matches"])}
+        assert chips["ECE 1"]["value"] == f"ECE 1 (id {ECE_1})" and chips["ECE1"]["value"] == f"ECE1 (id {ECE1})"
+        assert chips["ECE1"]["hint"].endswith("(empty)")
+    assert T().resolve_entity(ctx("sharma"), ResolveEntityArgs(kind="section", name="ECE 1"))["status"] == "not_found"
+    r = T().resolve_entity(ctx("admin"), ResolveEntityArgs(kind="student", name="Rahul Kumar"))
+    assert [m["hint"] for m in r["matches"]] == ["Student · CSE-1", "Student · ECE-2"]
+
+
+def test_scope_entities_only_from_scope():
+    from agent.real.schema_adapter import scope_entities
+    names = lambda who: {(e["kind"], e["name"]) for e in scope_entities(ctx(who))}
+    assert ("batch", "CSE-1") not in names("sharma") and ("batch", "ECE-2") in names("sharma")
+    assert ("teacher", "Rakesh Verma") not in names("sharma") and ("teacher", "Priya Sharma") in names("sharma")
+    assert not any("Anil" in n or "Decoy" in n for _, n in names("admin"))
+    assert {n for k, n in names("badmin") if k == "batch"} == {"ECE-2"}
