@@ -10,9 +10,10 @@ from datetime import datetime
 from typing import Annotated, Any, Literal, Optional, Union
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, model_validator
 
-CONTRACT_VERSION = "1.1"  # 1.1: stat_card.period/delta (optional), thinking_status tool.<name> steps
+CONTRACT_VERSION = "1.2"  # 1.1: stat_card.period/delta, thinking_status tool.<name> steps
+# 1.2 (additive): `session` event first in every stream, final.cancelled, clarify chip.hint (docs/AGENT_API_V2.md)
 
 QuestionType = Literal["mcq", "numeric", "assertion_reason", "short_answer", "long_answer", "case_study", "very_short"]
 VerifyStatus = Literal["verified", "failed", "manual_review", "rubric_ok"]
@@ -74,7 +75,8 @@ class Table(_Sourced):
 class ClarifyChip(BaseModel):
     model_config = ConfigDict(extra="forbid")
     label: str
-    value: str  # entity id or canonical value sent back as the user's choice
+    value: str  # text sent back as the user's next message when the chip is tapped
+    hint: Optional[str] = None  # disambiguation, e.g. "Electronics · 22 students" / "0 students"
 
 
 class Clarify(_Base):
@@ -145,10 +147,18 @@ class PendingApproval(_Base):
     expires_at: str
 
 
+class SessionStarted(_Base):
+    """First event of every /agent/chat stream (seq 0): which session this turn belongs to."""
+    type: Literal["session"] = "session"
+    session_id: str
+    title: str
+
+
 class Final(_Base):
     type: Literal["final"] = "final"
     session_id: str
     usage: dict[str, Any] = Field(default_factory=dict)
+    cancelled: bool = False  # true when POST /agent/chat/{request_id}/cancel stopped the run
 
 
 class Error(_Base):
@@ -159,7 +169,7 @@ class Error(_Base):
 
 
 AgentEvent = Annotated[
-    Union[TextDelta, ThinkingStatus, StatCard, Chart, Table, Clarify, Blueprint, PaperPreview,
+    Union[SessionStarted, TextDelta, ThinkingStatus, StatCard, Chart, Table, Clarify, Blueprint, PaperPreview,
           VerificationSummary, PendingApproval, Final, Error],
     Field(discriminator="type"),
 ]
@@ -168,9 +178,23 @@ AgentEventAdapter: TypeAdapter = TypeAdapter(AgentEvent)
 
 # ---- request bodies -------------------------------------------------------
 class ChatRequest(BaseModel):
+    """message is required, except with regenerate_from_seq (the stored user message is re-run).
+    regenerate_from_seq / edit_of_seq need session_id and are mutually exclusive (docs/AGENT_API_V2.md)."""
     model_config = ConfigDict(extra="forbid")
     session_id: Optional[str] = None
-    message: str = Field(min_length=1, max_length=4000)
+    message: Optional[str] = Field(default=None, min_length=1, max_length=4000)
+    regenerate_from_seq: Optional[int] = Field(default=None, ge=1)
+    edit_of_seq: Optional[int] = Field(default=None, ge=1)
+
+    @model_validator(mode="after")
+    def _check(self):
+        if self.regenerate_from_seq is not None and self.edit_of_seq is not None:
+            raise ValueError("regenerate_from_seq and edit_of_seq are mutually exclusive")
+        if (self.regenerate_from_seq is not None or self.edit_of_seq is not None) and not self.session_id:
+            raise ValueError("regenerate_from_seq / edit_of_seq need session_id")
+        if self.regenerate_from_seq is None and not (self.message or "").strip():
+            raise ValueError("message is required")
+        return self
 
 
 class ApproveRequest(BaseModel):

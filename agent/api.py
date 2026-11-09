@@ -254,9 +254,12 @@ def create_app(env=os.environ, check_real_db: bool = True) -> FastAPI:
     headers = ["Authorization", "Content-Type", "Last-Event-ID"]
     if dev_mode_enabled(env):
         headers.append("X-Dev-Role")  # only in dev mode, so the browser preflight allows the dev header
-    a.add_middleware(CORSMiddleware, allow_origins=cors_origins(env), allow_methods=["GET", "POST", "OPTIONS"],
-                     allow_headers=headers, allow_credentials=False)
+    a.add_middleware(CORSMiddleware, allow_origins=cors_origins(env),
+                     allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"], allow_headers=headers,
+                     expose_headers=["X-Agent-Request-Id"], allow_credentials=False)
+    from . import api_v2
     a.include_router(router)
+    a.include_router(api_v2.router)
     return a
 
 

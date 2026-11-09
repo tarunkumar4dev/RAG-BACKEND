@@ -353,7 +353,7 @@ def test_chat_with_valid_jwt(client, monkeypatch):
     resp = c.post("/agent/chat", json={"message": "Hi"}, headers={"Authorization": f"Bearer {tok(sub=U['admin'])}"})
     assert resp.status_code == 200
     events = _events(resp)
-    assert any(e.get("role") == "assistant" for e in events)
+    assert any(e["type"] == "text_delta" and e["text"] == "Hello" for e in events)  # events have no `role`
 
 
 def test_chat_rejects_expired_jwt(client):
