@@ -65,6 +65,40 @@ def ctx_for_user(user_id: str) -> SessionCtx:
                       teacher_id=UUID(user_id) if role == "teacher" else None)
 
 
+# Identity cache: building SessionCtx costs a DB round trip per request (~60 ms locally, more to Supabase), which alone
+# breaks the suggestions latency budget. The token is still verified on EVERY request; only the DB-derived role /
+# institute is reused for AGENT_IDENTITY_CACHE_S seconds (default 60; 0 disables). Trade-off: a removed staff member
+# keeps access for at most that long. Failures (401/403) are never cached.
+_IDENTITY: dict[tuple, tuple[float, SessionCtx]] = {}
+_IDENTITY_MAX = 5000
+
+
+def _identity_ttl() -> float:
+    try:
+        return max(float(os.getenv("AGENT_IDENTITY_CACHE_S", "60")), 0.0)
+    except ValueError:
+        return 60.0
+
+
+def cached_identity(key: tuple, build) -> SessionCtx:
+    import time
+    ttl = _identity_ttl()
+    now = time.monotonic()
+    hit = _IDENTITY.get(key)
+    if ttl and hit and now - hit[0] < ttl:
+        return hit[1]
+    ctx = build()
+    if ttl:
+        if len(_IDENTITY) >= _IDENTITY_MAX:
+            _IDENTITY.clear()
+        _IDENTITY[key] = (now, ctx)
+    return ctx
+
+
+def clear_identity_cache() -> None:
+    _IDENTITY.clear()
+
+
 async def get_session(request: Request) -> SessionCtx:
     from .mode import real_mode
     if real_mode():  # live data: only a verified Supabase JWT; no dev headers of any kind
@@ -80,18 +114,21 @@ async def get_session(request: Request) -> SessionCtx:
         except AuthError as e:
             logger.warning(f"JWT verification failed: {e}")
             raise HTTPException(status_code=401, detail=str(e))
-        return await run_in_threadpool(ctx_for_real_user, claims["sub"], first_name_from_claims(claims))
+        fn = first_name_from_claims(claims)
+        return await run_in_threadpool(cached_identity, ("live", claims["sub"], fn),
+                                       lambda: ctx_for_real_user(claims["sub"], fn))
     dev_role = request.headers.get("x-dev-role")
     if dev_role is not None and dev_mode_enabled():
         check_dev_mode_safe()
         uid = DEV_ROLE_USERS.get(dev_role.strip().lower())
         if uid is None:
             raise HTTPException(status_code=400, detail="X-Dev-Role must be admin or teacher")
-        return ctx_for_user(uid)
+        return cached_identity(("dev", uid), lambda: ctx_for_user(uid))
     # Local/dev only: header identity. Refused on Vercel and unless AGENT_DEV_AUTH=1.
     dev = request.headers.get("x-agent-dev-user")
     if dev and os.getenv("AGENT_DEV_AUTH") == "1" and not os.getenv("VERCEL"):
-        return ctx_for_user(str(UUID(dev)))
+        uid = str(UUID(dev))
+        return cached_identity(("dev", uid), lambda: ctx_for_user(uid))
     auth = request.headers.get("authorization", "")
     if not auth.lower().startswith("bearer "):
         raise HTTPException(status_code=401, detail="Authentication required")
