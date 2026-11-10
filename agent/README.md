@@ -106,9 +106,27 @@ methods GET/POST/PATCH/DELETE/OPTIONS, headers Authorization, Content-Type, Last
 only), exposed response header `X-Agent-Request-Id`.
 Frontend: `/agent` page and the floating "Ask a4ai" button on staff dashboards.
 
+## v3 additions (contract 1.3)
+
+Production-grade speed, reliability and scale for the MSIT trial (50 concurrent users).
+
+- **Connection pool** (`psycopg_pool`): min 1 / max 5, read-only transactions, tool p50 ~10 ms.
+- **Prompt caching** (Anthropic `cache_control`): 90%+ reuse of system prompt + tools across turns.
+- **Model routing**: insight turns → Haiku (20× cheaper), paper turns → Sonnet. Escalation on non-read tools.
+- **Parallel tools**: independent read tools run concurrently (ThreadPoolExecutor, bounded by `AGENT_TOOL_CONCURRENCY`).
+- **Cancel + retries**: `cancel_event` aborts in-flight streams; 429/5xx retried with jittered backoff (max 2).
+- **Per-tool timeouts** and **DB-down** handling with Hinglish user-facing error messages.
+- **Postgres store** (`AGENT_STORE=postgres`): multi-worker deploys, same interface as SQLite.
+- **Rate limits**: per-user turns + per-institute daily token budget, 429 with Retry-After.
+- **Prometheus metrics** at `/agent/metrics` (no PII); structured JSON logging.
+- **Export tools**: `defaulters_export` and `proctor_month_report` (.xlsx), owner-only download at `/agent/files/{id}`.
+- **Dockerfile** + gunicorn conf for production deployment (non-root, healthcheck, preload).
+
+Full details: `docs/AGENT_PLAN.md` (decisions 22–41), `docs/README_DEPLOY.md` (deployment guide).
+
 ## API v2: sessions, history, suggestions, feedback, cancel (contract 1.2)
 Full contract: `docs/AGENT_API_V2.md` (models `agent/api_models.py`, OpenAPI `docs/agent_openapi_v2.json`,
-regenerate with `python -m agent.openapi_dump`). Every endpoint is scoped to the verified caller (user + institute);
+regenerate with `python scripts/export_openapi.py`). Every endpoint is scoped to the verified caller (user + institute);
 another user's or institute's id returns **404**.
 
 | endpoint | what |
