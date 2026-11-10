@@ -6,7 +6,7 @@ from typing import Callable, Literal
 
 from pydantic import BaseModel
 
-from . import insights, paper
+from . import exports, insights, paper
 
 
 @dataclass(frozen=True)
@@ -53,11 +53,18 @@ TOOLS: dict[str, ToolSpec] = {t.name: t for t in [
     ToolSpec("assign_to_section", "Assign a finalized test to a section. Requires human approval.",
              paper.AssignArgs, "approval"),
     ToolSpec("export_pdf", "Export PDF of an approved test (only after approval).", paper.DraftArgs, "draft"),
+    ToolSpec("defaulters_export", "Export an Excel (.xlsx) list of students below an attendance threshold over a "
+             "date range. Use for '75% se kam wale ki list Excel mein do', 'defaulters list download'.",
+             exports.DefaultersExportArgs, "read", exports.defaulters_export),
+    ToolSpec("proctor_month_report", "Export a subject-wise attendance matrix (.xlsx) for a section in a given "
+             "month. Use for 'proctor report October', 'section attendance Excel'.",
+             exports.ProctorMonthReportArgs, "read", exports.proctor_month_report),
 ]}
 
 
 INSIGHT_TOOLS = ("resolve_entity", "attendance_stats", "low_attendance_list", "attendance_trend", "marks_stats",
-                 "tests_created_by_teacher", "my_scope", "section_comparison")
+                 "tests_created_by_teacher", "my_scope", "section_comparison",
+                 "defaulters_export", "proctor_month_report")
 WRITE_TOOLS = ("save_draft", "finalize_test", "assign_to_section", "export_pdf")  # disabled in real mode
 
 
@@ -68,7 +75,8 @@ def active_tools(real: bool | None = None) -> dict[str, ToolSpec]:
     if not (real_mode() if real is None else real):
         return TOOLS
     from ..real import schema_adapter as real_tools
-    return {n: (replace(t, fn=getattr(real_tools, n)) if n in INSIGHT_TOOLS else t) for n, t in TOOLS.items()}
+    return {n: (replace(t, fn=getattr(real_tools, n)) if n in INSIGHT_TOOLS and hasattr(real_tools, n) else t)
+            for n, t in TOOLS.items()}
 
 
 def tool_schemas(tools: dict[str, ToolSpec] | None = None) -> list[dict]:

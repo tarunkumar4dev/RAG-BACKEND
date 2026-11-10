@@ -273,6 +273,12 @@ def draft_pdf(draft_id: str, ctx: SessionCtx = Depends(get_session)):
     return Response(export_pdf(d["paper"]), media_type="application/pdf")
 
 
+@router.get("/files/{file_id}")
+def download_file(file_id: str, ctx: SessionCtx = Depends(get_session)):
+    from .files import serve_file
+    return serve_file(ctx, file_id)
+
+
 DEFAULT_CORS_ORIGINS = "http://localhost:5173"
 
 

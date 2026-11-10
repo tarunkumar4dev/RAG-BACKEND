@@ -218,3 +218,12 @@ backend `app/core/auth.py:verify_token` calls Supabase `/auth/v1/user`.
     Unknown tools → "unknown". DB pool gauges from psycopg_pool stats.
 36. **Structured JSON logging** (`AGENT_LOG_FORMAT=json`): one JSON object per line with ts, level, logger, message,
     request_id (when available). No PII. Default in production; text format in dev.
+37. **Export tools** (Phase 5): `defaulters_export` and `proctor_month_report` build .xlsx via openpyxl and store in
+    the in-process file store (`agent/files.py`). Both are registered as "read" kind INSIGHT_TOOLS (fast-model route,
+    real-mode replaceable). The file store is per-process, 1-hour expiry, owner-only download at
+    `GET /agent/files/{id}`. The `_ui_events` emits a `file` event with download_path when the tool result
+    contains file_id. *Why:* teachers/proctors ask "75% se kam wale ki list do" — the agent should answer with a
+    downloadable spreadsheet, not just text. openpyxl is lightweight; no external service needed.
+38. **active_tools graceful fallback** for real mode: `hasattr(real_tools, n)` guard so export tools that don't have
+    real-mode adapters yet use their seed-mode functions. *Why:* the real `schema_adapter` only has insight query
+    tools; export tools reuse the same DB queries, so the seed-mode code works on live data too (read-only connect).

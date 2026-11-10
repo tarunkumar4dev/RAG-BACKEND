@@ -303,6 +303,55 @@
     }
    }
   },
+  "/agent/files/{file_id}": {
+   "get": {
+    "tags": [
+     "agent-v2"
+    ],
+    "summary": "Get File",
+    "operationId": "get_file_agent_files__file_id__get",
+    "parameters": [
+     {
+      "name": "file_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "File Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "the generated file (Content-Disposition: attachment)",
+      "content": {
+       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
+        "schema": {
+         "type": "string",
+         "format": "binary"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "unknown / foreign file"
+     },
+     "410": {
+      "description": "your file, but expired (1 hour); ask the agent again"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/agent/sessions": {
    "get": {
     "tags": [
@@ -675,55 +724,6 @@
         }
        }
       }
-     },
-     "422": {
-      "description": "Validation Error",
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
-        }
-       }
-      }
-     }
-    }
-   }
-  },
-  "/agent/files/{file_id}": {
-   "get": {
-    "tags": [
-     "agent-v2"
-    ],
-    "summary": "Get File",
-    "operationId": "get_file_agent_files__file_id__get",
-    "parameters": [
-     {
-      "name": "file_id",
-      "in": "path",
-      "required": true,
-      "schema": {
-       "type": "string",
-       "title": "File Id"
-      }
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "the generated file (Content-Disposition: attachment)",
-      "content": {
-       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
-        "schema": {
-         "type": "string",
-         "format": "binary"
-        }
-       }
-      }
-     },
-     "404": {
-      "description": "unknown / foreign file"
-     },
-     "410": {
-      "description": "your file, but expired (1 hour); ask the agent again"
      },
      "422": {
       "description": "Validation Error",
@@ -2951,13 +2951,6 @@
      "type": {
       "type": "string",
       "title": "Error Type"
-     },
-     "input": {
-      "title": "Input"
-     },
-     "ctx": {
-      "type": "object",
-      "title": "Context"
      }
     },
     "type": "object",

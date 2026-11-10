@@ -288,6 +288,13 @@ class Agent:
                             columns=["Test", "Date", "Max", "Avg %"],
                             rows=[[t.get("test"), str(t.get("date")), str(t.get("max_marks")),
                                    None if t.get("avg_pct") is None else str(t["avg_pct"])] for t in res["tests"]])]
+        if st == "ok" and res.get("file_id"):
+            from .files import file_info
+            info = file_info(res["file_id"])
+            if info:
+                return [self.ev("file", file_id=info["file_id"], kind=res.get("kind", name),
+                                name=info["name"], rows=res.get("rows", 0),
+                                expires_at=info["expires_at"], download_path=info["download_path"])]
         return []
 
     # -- paper tools (server-side state) ----------------------------------
