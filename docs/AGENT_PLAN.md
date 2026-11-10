@@ -227,3 +227,13 @@ backend `app/core/auth.py:verify_token` calls Supabase `/auth/v1/user`.
 38. **active_tools graceful fallback** for real mode: `hasattr(real_tools, n)` guard so export tools that don't have
     real-mode adapters yet use their seed-mode functions. *Why:* the real `schema_adapter` only has insight query
     tools; export tools reuse the same DB queries, so the seed-mode code works on live data too (read-only connect).
+39. **Dockerfile** (Phase 6): python:3.12-slim, non-root `agent` user, pip install from requirements.txt + gunicorn.
+    HEALTHCHECK pings `/healthz`. `preload_app=True` in gunicorn.conf.py so the pool + routing is shared across
+    workers. `max_requests=1000` recycles workers to guard against memory leaks. *Why:* slim image (~180 MB), no
+    build tools in prod, non-root per security baseline.
+40. **Gunicorn conf** (`agent/gunicorn.conf.py`): UvicornWorker, 2 workers (WEB_CONCURRENCY), 300 s timeout (paper
+    gen takes 4+ min), keepalive 5 s, preload_app. *Why:* uvicorn workers handle async lifespan + sync endpoints
+    via anyio; 2 workers is enough for the 50-user MSIT trial.
+41. **CORS** via `AGENT_CORS_ORIGINS` (comma-separated, no wildcard, validated at startup). The Dockerfile sets it
+    empty; the deploy env file must provide the real origin. *Why:* wildcard CORS + credentials is a security hole;
+    exact origins are the only safe option.
