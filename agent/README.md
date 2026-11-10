@@ -170,6 +170,46 @@ Invoke-RestMethod "http://localhost:8000/agent/suggestions?q=10" -Headers @{ "X-
 $env:AGENT_DB="embedded"; agent\.devdata\venv\Scripts\python -m pytest tests/agent -q
 ```
 
+## Voice (contract 1.4) — speak a question, hear a one-line answer
+Voice is an input/output layer only (`agent/voice/`): speech → transcript → the same agent loop → the same events →
+one short spoken sentence. Hindi, English and Roman Hinglish. Plan, data flow, latency budget and costs:
+`docs/VOICE_PLAN.md`; deploy + kill switch: `docs/VOICE_DEPLOY.md`; data note (needs legal review):
+`docs/VOICE_DATA_NOTE.md`; usability script: `docs/VOICE_USABILITY_TEST.md`; eval results: `evals/VOICE_EVAL_RESULTS.md`.
+
+| endpoint | what |
+|---|---|
+| `GET /agent/voice/config` | enabled?, speakers (female + male), paces 0.9/1.0/1.1, limits, consent version. Never 403. |
+| `POST /agent/voice/transcribe` | raw audio body (`audio/webm` Chrome Android, `audio/mp4` iOS Safari, ogg, wav), `Idempotency-Key`. Container decoded for the real duration: ≤ 30 s, ≤ 1 MB. → `{transcript (Roman), language hi\|en\|hi-en, confidence, next auto\|confirm\|repeat\|pick, clarify?}` |
+| `POST /agent/voice/speak` | `{text, language?, speaker?, pace?, phrase?}` → streamed `audio/mpeg`; 204 when `VOICE_TTS=none` |
+| `POST /agent/voice/chat` | same body / SSE as `/agent/chat`, plus a `speech` event; approve-by-voice answered without the model |
+
+- STT: Sarvam `saaras:v3` + `mode=translit` (Roman script) → Gemini audio fallback → "Likh kar poochhiye". A breaker
+  skips a provider for 60 s after 3 failures in a row. TTS: Sarvam `bulbul:v4-flash` (stream), speaker/pace allowlist.
+- Entity repair: misheard names are matched against the caller's own teachers / sections / students (cache 5 min per
+  user) and confirmed with `resolve_entity`; ambiguous → chips, never auto-picked.
+- `open_feature` tool + `ui_action navigate`: one typed route registry `agent/routes/registry.json` (frontend copy via
+  `npm run agent:routes`), role-gated keys, typed params.
+- Voice never approves, saves, assigns, deletes or sends: "haan kar do" / "approve kar do" → "Voice se approve nahi
+  hota. Screen par Confirm dabaiye." + `ui_action highlight_confirm`.
+- Raw audio is never stored or logged; transcript text never appears in logs or traces (the trace's `kind: voice`
+  lines hold stage ms, bytes, provider, estimated ₹, outcome). A voice question is a normal chat message.
+- Switches: `VOICE_ENABLED=1` (kill switch), `VOICE_INSTITUTE_ALLOWLIST`, `SARVAM_API_KEY`, `VOICE_USER_PER_10MIN`
+  (30), `VOICE_USER_DAILY` (100).
+
+### Windows PowerShell (voice, dev mode)
+```powershell
+$k = Read-Host -AsSecureString "Sarvam key"; $env:SARVAM_API_KEY = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($k))
+$env:VOICE_ENABLED = "1"
+powershell -ExecutionPolicy Bypass -File scriptsun_agent_dev.ps1
+```
+Frontend (a4ai repo, second window): `npm run dev`, open `http://localhost:8080` (Chrome allows the mic on
+localhost; a phone needs HTTPS). Tests and evals:
+```powershell
+$env:AGENT_DB="embedded"; agent\.devdataenv\Scripts\python -m pytest tests/agent -q
+$env:AGENT_DB="embedded"; agent\.devdataenv\Scripts\python evalsun_voice_evals.py            # add --live anthropic with a key
+$env:AGENT_DB="embedded"; agent\.devdataenv\Scripts\python evalsun_voice_audio_eval.py --provider sarvam
+```
+
 ## Security model
 - **Identity is server-side and DB-derived.** Real mode: the Supabase access token is verified locally
   (`agent/jwt_auth.py`: JWKS RS256/ES256 or HS256 with `SUPABASE_JWT_SECRET`; signature, `exp`, `iss =
@@ -217,7 +257,7 @@ $env:AGENT_DB="embedded"; agent\.devdata\venv\Scripts\python -m pytest tests/age
 Failed ids (only those) are regenerated, max 3 rounds. `verification_summary` reports objective and rubric
 separately plus the manual-review list — never a flat "18/18 verified".
 
-## Events (`schemas.py`, contract 1.2 — every event has `seq` + `request_id`)
+## Events (`schemas.py`, contract 1.4 — every event has `seq` + `request_id`)
 | type | payload | notes |
 |---|---|---|
 | session | session_id, title | always first (seq 0), 1.2 |
@@ -233,6 +273,8 @@ separately plus the manual-review list — never a flat "18/18 verified".
 | pending_approval | approval_id, action, summary, args_sha256, expires_at | |
 | final | session_id, usage (tokens, cost, latency, tools), cancelled | always last; `cancelled` 1.2 |
 | error | code, message, partial | budget / provider / internal |
+| speech | text, language | voice turns only: 1–2 sentence spoken headline (1.4) |
+| ui_action | action navigate\|highlight_confirm, route_key, params, label | registry key only, never a URL (1.4) |
 
 ## Results
 Live run, 5 Nov 2026, Anthropic `claude-sonnet-5-5`, local seed (`python evals/run_evals.py anthropic`):
@@ -274,7 +316,7 @@ The 10 original cases were not re-run on Gemini (quota); their Anthropic results
 - Golden numbers (hand-computed with independent SQL, `tests/agent/test_golden.py`): 5/5 exact.
 - Trig demo: `evals/sample_trigonometry_preview.html`, `evals/sample_trigonometry_review.md`; admin Hinglish demo event log:
   `evals/sample_sharma_attendance_events.jsonl` (83.8 % over 160 marks = golden #1).
-- Tests: `python -m pytest tests/agent -q` → 146 passed (9 Nov 2026, embedded Postgres).
+- Tests: `python -m pytest tests/agent -q` → 353 passed, 13 skipped (10 Nov 2026, embedded Postgres, voice included).
 
 ## Known limitations
 - **Real mode is verified on a schema-faithful fixture only** (live-audit baseline + migrations 01/02/05/06a/10/11/12 +

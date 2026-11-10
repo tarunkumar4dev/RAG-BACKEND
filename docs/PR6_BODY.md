@@ -91,3 +91,29 @@ in-process file store (1-hour expiry, owner-only), `GET /agent/files/{id}`, `fil
 - [ ] Eval set: Gemini-only (no A4AI_ANTHROPIC_API_KEY set in test env)
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+
+---
+
+## Voice agent (contract 1.4, commits c91be18 → 5a17c3f)
+
+Voice as an input/output layer over the same agent loop. One commit per phase, tests green before each.
+
+| phase | commit | what |
+|---|---|---|
+| 0 | c91be18 | `docs/VOICE_PLAN.md`: recon with file:line refs, route inventory, data flow, latency budget, cost table from current Sarvam prices |
+| 1 | 8ac50ea | `agent/voice/`: Sarvam / Gemini / Fake STT, Sarvam TTS, `/agent/voice/{config,transcribe,speak,chat}`, container-level 30 s / 1 MB checks, Idempotency-Key, per-user limits, entity repair, kill switch + allowlist, `kind: voice` trace + metrics |
+| 2 | e4120bd | confidence bands (repeat / confirm / auto / pick), approve-by-voice guard, refusal shape |
+| 3 | 8dc00c4 | `agent/routes/registry.json` + `open_feature` (role-gated, typed params) → `ui_action navigate` |
+| 5 | 2cbcee6 | 40-utterance regression set, audio eval (WER / entity / SNR), fallback + latency tests |
+| 6 | 5a17c3f | founder docs: usability test, data note (needs legal review), Mumbai deploy + kill switch |
+
+Contract 1.4 is additive: `speech` and `ui_action` events, new `/agent/voice/*` routes. `POST /agent/chat` is
+unchanged (its body moved into `run_chat()`; same events, same storage). `docs/agent_openapi_v2.json` regenerated.
+
+**Ran and passed:** `pytest tests/agent` 353 passed / 13 skipped (embedded Postgres); voice eval offline layers
+40/40 (entity repair 4/4, approve-by-voice blocked 4/4, 0/35 false positives).
+**Written, not run:** the full-loop regression (`--live`) and the audio eval: no LLM key, no Sarvam key and no
+recordings in this environment. **Not done:** streaming STT (v2), server-side consent log.
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
