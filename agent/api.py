@@ -126,6 +126,12 @@ CHAT_RESPONSES = {
 
 @router.post("/chat", responses=CHAT_RESPONSES)
 def chat(body: ChatRequest, ctx: SessionCtx = Depends(get_session)):
+    return run_chat(body, ctx)
+
+
+def run_chat(body: ChatRequest, ctx: SessionCtx, voice: bool = False, on_done=None, canned=None):
+    """One chat turn (POST /agent/chat, and POST /agent/voice/chat with voice=True). `on_done(events, agent)` runs
+    when the stream ends; `canned` (agent/voice/guard.Canned) answers without the model."""
     live = ctx.data_source == "live"
     store, owner = get_store(), Owner.of(ctx)
     # Rate limits: before anything is stored
@@ -156,7 +162,7 @@ def chat(body: ChatRequest, ctx: SessionCtx = Depends(get_session)):
                          "on conflict (id) do nothing", (sid, str(ctx.user_id), str(ctx.institute_id), ctx.role))
         agent = Agent(provider, ctx, sid, conn_rw=conn, history=hist, memory_store=DRAFTS if live else None,
                       request_id=request_id, session_title=title, cancel_event=cancel_event,
-                      fast_provider=fast_provider_for(provider))
+                      fast_provider=fast_provider_for(provider), voice=voice)
     except Exception:
         RUNS.unregister(request_id)
         if conn is not None:
@@ -165,12 +171,18 @@ def chat(body: ChatRequest, ctx: SessionCtx = Depends(get_session)):
 
     def stream() -> Iterator[str]:
         events: list[dict] = []
+        run = agent.run_canned(text, canned.text, canned.speech, canned.action) if canned is not None else agent.run(text)
         try:
-            for ev in agent.run(text):
+            for ev in run:
                 events.append(ev)
                 yield _sse(ev)
         finally:
             RUNS.unregister(request_id)
+            if on_done is not None:
+                try:
+                    on_done(events, agent)
+                except Exception:  # noqa: BLE001  a trace hook must never break the turn
+                    pass
             turn = agent.history[len(hist) + 1:] if len(agent.history) > len(hist) else []
             texts = [e["text"] for e in events if e.get("type") == "text_delta" and e.get("text")]
             store.add_message(owner, sid, "assistant", "\n\n".join(texts) or None, events=events, llm=turn)
@@ -326,7 +338,7 @@ def create_app(env=os.environ, check_real_db: bool = True) -> FastAPI:
         from .db_real import startup_check
         startup_check()  # refuses to start if the DB role can write or read auth/storage
     a = FastAPI(title="a4ai Agent", version=CONTRACT_VERSION, lifespan=_lifespan)
-    headers = ["Authorization", "Content-Type", "Last-Event-ID"]
+    headers = ["Authorization", "Content-Type", "Last-Event-ID", "Idempotency-Key"]  # Idempotency-Key: voice uploads
     if dev_mode_enabled(env):
         headers.append("X-Dev-Role")  # only in dev mode, so the browser preflight allows the dev header
     a.add_middleware(CORSMiddleware, allow_origins=cors_origins(env),
@@ -337,6 +349,8 @@ def create_app(env=os.environ, check_real_db: bool = True) -> FastAPI:
     a.include_router(router)
     a.include_router(api_v2.router)
     a.include_router(ops.router)
+    from .voice.api import router as voice_router  # voice layer: new routes only (VOICE_ENABLED=1 to switch on)
+    a.include_router(voice_router)
     install_openapi(a)
     install_log_redaction()
     from .logging_config import configure as configure_logging

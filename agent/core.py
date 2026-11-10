@@ -46,8 +46,11 @@ MSG_PROVIDER_BUSY = "AI model abhi busy hai. Thodi der baad dobara poochhiye."
 MSG_PROVIDER_FAILED = "AI model se jawab nahi mil paaya."
 
 
-def system_prompt(ctx: SessionCtx) -> str:
+def system_prompt(ctx: SessionCtx, voice: bool = False) -> str:
     today = datetime.now(IST).date().isoformat()
+    if voice:  # voice turns: short answers, one-line refusals, a final SPEECH line (agent/voice/speech.py)
+        from .voice.speech import VOICE_PROMPT_ADDENDUM
+        return system_prompt(ctx) + VOICE_PROMPT_ADDENDUM
     return (
         f"You are a4ai Agent for an Indian school. Today is {today} (Asia/Kolkata). Caller role: {ctx.role}. "
         "Answer attendance/marks questions ONLY with numbers returned by tools — never invent or estimate a number; "
@@ -189,8 +192,10 @@ class Agent:
     def __init__(self, provider: LLMProvider, ctx: SessionCtx, session_id: str, conn_rw=None,
                  request_id: Optional[str] = None, history: Optional[list[dict]] = None, memory_store=None,
                  tools: Optional[dict] = None, session_title: Optional[str] = None,
-                 cancel_event: Optional[threading.Event] = None, fast_provider: Optional[LLMProvider] = None):
+                 cancel_event: Optional[threading.Event] = None, fast_provider: Optional[LLMProvider] = None,
+                 voice: bool = False):
         self.p, self.ctx, self.session_id, self.conn = provider, ctx, session_id, conn_rw
+        self.voice = voice  # spoken turn: prompt addendum + `speech` event (agent/voice); loop otherwise identical
         self.fast = fast_provider  # insight turns (agent/routing.py); None = one model for everything
         self.route, self.route_reason = "main", "single_model"
         self.retries = 0
@@ -413,7 +418,7 @@ class Agent:
         kw = {"cancel": self.cancel_event} if (self.cancel_event is not None and
                                                getattr(prov, "supports_cancel", False)) else {}
         try:
-            return prov.complete(system_prompt(self.ctx), msgs, tools, max_tokens=2048, **kw)
+            return prov.complete(system_prompt(self.ctx, self.voice), msgs, tools, max_tokens=2048, **kw)
         except LLMAborted as a:  # the stream saw the cancel and was closed: no more tokens are generated
             self.tracer.llm_abort(a.model, a.tokens_out_est, a.max_tokens)
             raise
@@ -521,7 +526,12 @@ class Agent:
                              "tool_calls": [{"id": c.id, "name": c.name, "args": c.args} for c in r.tool_calls]})
                 if not r.tool_calls:
                     if r.text:
-                        yield self.ev("text_delta", text=plain_text(r.text))
+                        from .voice.speech import classify, split_speech
+                        prose, speech = split_speech(r.text)  # the SPEECH line never reaches the screen
+                        if prose:
+                            yield self.ev("text_delta", text=plain_text(prose))
+                        if speech and self.voice:
+                            yield self.ev("speech", text=speech, language=classify(speech))
                     break
                 if prov is self.fast and routing.escalate([c.name for c in r.tool_calls],
                                                           [n for n in self.tools if self._read_tool(n)]):
@@ -572,6 +582,24 @@ class Agent:
                              "cost_usd": round(self.cost, 5), "tool_calls": self.tool_calls,
                              "latency_s": round(time.time() - t0, 2), "tools_used": self.tools_used,
                              "route": self.route, "cache_read_tokens": self.cache_read, "retries": self.retries})
+
+    def run_canned(self, message: str, text: str, speech: str, action: str) -> Iterator[dict]:
+        """A turn answered WITHOUT the model (voice guard, e.g. approve-by-voice): same event shape, same storage, no
+        tool and no write. The user's words stay in the history so the next turn has the context."""
+        from .voice.speech import classify
+        t0 = time.time()
+        if self.session_title is not None:
+            yield self.ev("session", session_id=self.session_id, title=self.session_title)
+        yield self.ev("text_delta", text=text)
+        yield self.ev("ui_action", action=action)
+        if self.voice:
+            yield self.ev("speech", text=speech, language=classify(speech))
+        self.history = self.history + [{"role": "user", "text": message},
+                                       {"role": "assistant", "text": text, "tool_calls": []}]
+        yield self.ev("final", session_id=self.session_id, cancelled=False,
+                      usage={"tokens_in": 0, "tokens_out": 0, "cost_usd": 0.0, "tool_calls": 0,
+                             "latency_s": round(time.time() - t0, 2), "tools_used": [], "route": "guard",
+                             "cache_read_tokens": 0, "retries": 0})
 
     def _call(self, name: str, raw: dict, emit) -> dict:
         t = time.time()

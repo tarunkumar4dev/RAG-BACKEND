@@ -17,6 +17,7 @@ BUCKETS = {
     "agent_llm_seconds": (0.25, 0.5, 1, 2, 3, 5, 8, 13, 20, 40, 90),
     "agent_chat_turn_seconds": (0.25, 0.5, 1, 1.5, 2, 2.5, 3, 5, 8, 13, 30, 60, 150),
     "agent_http_request_seconds": (0.005, 0.01, 0.025, 0.05, 0.1, 0.15, 0.25, 0.5, 1, 2.5, 5),
+    "agent_voice_stage_seconds": (0.01, 0.05, 0.1, 0.25, 0.5, 1, 1.5, 2, 3, 5, 7, 10),
 }
 HELP = {
     "agent_http_requests_total": ("counter", "HTTP requests by method, route template and status"),
@@ -37,7 +38,12 @@ HELP = {
     "agent_rate_limit_hits_total": ("counter", "Chat requests refused by a rate limit, by scope"),
     "agent_runs_in_progress": ("gauge", "Chat streams running in this process"),
     "agent_db_pool_connections": ("gauge", "DB pool connections by pool and state"),
+    "agent_voice_requests_total": ("counter", "Voice requests by endpoint, provider and outcome"),
+    "agent_voice_stage_seconds": ("histogram", "Voice stage latency by endpoint and stage (decode, stt, repair, tts, turn)"),
+    "agent_voice_cost_inr_total": ("counter", "Estimated voice vendor cost in INR by endpoint and provider"),
 }
+_VOICE_OUTCOMES = {"ok", "empty", "clarified", "rejected", "failed", "cached", "answered", "refused", "navigated"}
+_VOICE_STAGES = {"decode", "stt", "repair", "tts", "turn"}
 
 
 def _known_tool(name: str) -> str:
@@ -118,6 +124,17 @@ class Metrics:
 
     def error(self, code: str) -> None:
         self.inc("agent_errors_total", {"code": code})
+
+    def voice(self, endpoint: str, outcome: str, provider: str, stages_ms: dict, cost_inr: float) -> None:
+        ep = endpoint if endpoint in ("transcribe", "speak", "chat") else "unknown"
+        prov = provider if provider in ("sarvam", "gemini", "fake", "none", "agent") else "unknown"
+        self.inc("agent_voice_requests_total", {"endpoint": ep, "provider": prov,
+                                                "outcome": outcome if outcome in _VOICE_OUTCOMES else "unknown"})
+        for stage, ms in stages_ms.items():
+            if stage in _VOICE_STAGES:
+                self.observe("agent_voice_stage_seconds", {"endpoint": ep, "stage": stage}, ms / 1000)
+        if cost_inr:
+            self.inc("agent_voice_cost_inr_total", {"endpoint": ep, "provider": prov}, cost_inr)
 
     def request(self, method: str, route: str, status: int, seconds: float) -> None:
         self.inc("agent_http_requests_total", {"method": method, "route": route, "status": str(status)})

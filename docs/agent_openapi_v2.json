@@ -2,8 +2,8 @@
  "openapi": "3.1.0",
  "info": {
   "title": "a4ai Agent",
-  "description": "a4ai Agent API (contract 1.3). Human-readable spec: docs/AGENT_API_V2.md. Auth: Authorization: Bearer <Supabase access token>. Foreign ids return 404.",
-  "version": "1.3"
+  "description": "a4ai Agent API (contract 1.4). Human-readable spec: docs/AGENT_API_V2.md. Auth: Authorization: Bearer <Supabase access token>. Foreign ids return 404.",
+  "version": "1.4"
  },
  "paths": {
   "/agent/meta": {
@@ -852,6 +852,174 @@
      }
     }
    }
+  },
+  "/agent/voice/config": {
+   "get": {
+    "tags": [
+     "agent-voice"
+    ],
+    "summary": "Voice Config",
+    "description": "Never 403: a disabled institute gets enabled=false so the mic button is hidden, not broken.",
+    "operationId": "voice_config_agent_voice_config_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/VoiceConfig"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/agent/voice/transcribe": {
+   "post": {
+    "tags": [
+     "agent-voice"
+    ],
+    "summary": "Transcribe",
+    "description": "Body = the recorded audio bytes (Content-Type audio/webm | audio/mp4 | audio/ogg | audio/wav). The container\nis decoded for its real duration; the client's own headers are not trusted.",
+    "operationId": "transcribe_agent_voice_transcribe_post",
+    "parameters": [
+     {
+      "name": "Idempotency-Key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "maxLength": 80
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Idempotency-Key"
+      }
+     },
+     {
+      "name": "content-type",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Content-Type"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/TranscribeResponse"
+        }
+       }
+      }
+     },
+     "413": {
+      "description": "audio over VOICE_MAX_BYTES"
+     },
+     "422": {
+      "description": "format / over 30 s"
+     },
+     "429": {
+      "description": "per-user voice limit"
+     },
+     "503": {
+      "description": "voice off or STT down -> type"
+     }
+    }
+   }
+  },
+  "/agent/voice/speak": {
+   "post": {
+    "tags": [
+     "agent-voice"
+    ],
+    "summary": "Speak",
+    "description": "Speaker and pace only from the allowlist (`GET /agent/voice/config`). Static phrases (`phrase`) come from an\nin-process cache; data answers are never cached (they carry names and numbers).",
+    "operationId": "speak_agent_voice_speak_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/SpeakRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "audio stream",
+      "content": {
+       "audio/mpeg": {}
+      }
+     },
+     "204": {
+      "description": "TTS is off (VOICE_TTS=none): use browser speechSynthesis"
+     },
+     "422": {
+      "description": "speaker / pace not in the allowlist"
+     },
+     "503": {
+      "description": "TTS down"
+     }
+    }
+   }
+  },
+  "/agent/voice/chat": {
+   "post": {
+    "tags": [
+     "agent-voice"
+    ],
+    "summary": "Voice Chat",
+    "description": "The transcript becomes a normal chat message (same session, history, retention, clear-all). The only\ndifferences: the model is told the message was spoken (untrusted, keep it short, one-line refusals) and ends its\nanswer with a `speech` event. Writes stay behind the on-screen approval gate — this endpoint never approves.",
+    "operationId": "voice_chat_agent_voice_chat_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ChatRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "SSE, as POST /agent/chat, plus a `speech` event",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
   }
  },
  "components": {
@@ -868,10 +1036,12 @@
       "paper_preview": "#/components/schemas/PaperPreview",
       "pending_approval": "#/components/schemas/PendingApproval",
       "session": "#/components/schemas/SessionStarted",
+      "speech": "#/components/schemas/Speech",
       "stat_card": "#/components/schemas/StatCard",
       "table": "#/components/schemas/Table",
       "text_delta": "#/components/schemas/TextDelta",
       "thinking_status": "#/components/schemas/ThinkingStatus",
+      "ui_action": "#/components/schemas/UiAction",
       "verification_summary": "#/components/schemas/VerificationSummary"
      },
      "propertyName": "type"
@@ -918,6 +1088,12 @@
      },
      {
       "$ref": "#/components/schemas/Error"
+     },
+     {
+      "$ref": "#/components/schemas/Speech"
+     },
+     {
+      "$ref": "#/components/schemas/UiAction"
      }
     ],
     "description": "One SSE frame of POST /agent/chat (`data: <json>`). Discriminated by `type`."
@@ -1314,6 +1490,57 @@
     ],
     "title": "ClarifyChip"
    },
+   "ClarifyChipOut": {
+    "properties": {
+     "label": {
+      "type": "string",
+      "title": "Label"
+     },
+     "value": {
+      "type": "string",
+      "title": "Value"
+     },
+     "hint": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Hint"
+     }
+    },
+    "type": "object",
+    "required": [
+     "label",
+     "value"
+    ],
+    "title": "ClarifyChipOut"
+   },
+   "ClarifyOut": {
+    "properties": {
+     "question": {
+      "type": "string",
+      "title": "Question"
+     },
+     "chips": {
+      "items": {
+       "$ref": "#/components/schemas/ClarifyChipOut"
+      },
+      "type": "array",
+      "maxItems": 5,
+      "title": "Chips"
+     }
+    },
+    "type": "object",
+    "required": [
+     "question",
+     "chips"
+    ],
+    "title": "ClarifyOut"
+   },
    "Error": {
     "properties": {
      "seq": {
@@ -1661,6 +1888,12 @@
           },
           {
            "$ref": "#/components/schemas/Error"
+          },
+          {
+           "$ref": "#/components/schemas/Speech"
+          },
+          {
+           "$ref": "#/components/schemas/UiAction"
           }
          ],
          "discriminator": {
@@ -1675,10 +1908,12 @@
            "paper_preview": "#/components/schemas/PaperPreview",
            "pending_approval": "#/components/schemas/PendingApproval",
            "session": "#/components/schemas/SessionStarted",
+           "speech": "#/components/schemas/Speech",
            "stat_card": "#/components/schemas/StatCard",
            "table": "#/components/schemas/Table",
            "text_delta": "#/components/schemas/TextDelta",
            "thinking_status": "#/components/schemas/ThinkingStatus",
+           "ui_action": "#/components/schemas/UiAction",
            "verification_summary": "#/components/schemas/VerificationSummary"
           }
          }
@@ -2652,6 +2887,144 @@
     "title": "SessionStarted",
     "description": "First event of every /agent/chat stream (seq 0): which session this turn belongs to."
    },
+   "SpeakRequest": {
+    "properties": {
+     "text": {
+      "type": "string",
+      "maxLength": 300,
+      "minLength": 1,
+      "title": "Text"
+     },
+     "language": {
+      "anyOf": [
+       {
+        "type": "string",
+        "enum": [
+         "hi",
+         "en",
+         "hi-en"
+        ]
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Language"
+     },
+     "speaker": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Speaker"
+     },
+     "pace": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Pace"
+     },
+     "phrase": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Phrase"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "text"
+    ],
+    "title": "SpeakRequest"
+   },
+   "Speaker": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "title": "Id"
+     },
+     "label": {
+      "type": "string",
+      "title": "Label"
+     },
+     "gender": {
+      "type": "string",
+      "enum": [
+       "female",
+       "male"
+      ],
+      "title": "Gender"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "label",
+     "gender"
+    ],
+    "title": "Speaker"
+   },
+   "Speech": {
+    "properties": {
+     "seq": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Seq"
+     },
+     "request_id": {
+      "type": "string",
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Request Id"
+     },
+     "type": {
+      "type": "string",
+      "const": "speech",
+      "title": "Type",
+      "default": "speech"
+     },
+     "text": {
+      "type": "string",
+      "maxLength": 300,
+      "minLength": 1,
+      "title": "Text"
+     },
+     "language": {
+      "type": "string",
+      "enum": [
+       "hi",
+       "en",
+       "hi-en"
+      ],
+      "title": "Language"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "seq",
+     "request_id",
+     "text",
+     "language"
+    ],
+    "title": "Speech",
+    "description": "1.4 (voice turns only): the one- or two-sentence spoken headline of the answer. Hindi words come in Devanagari,\nEnglish words in Latin (the script the TTS reads best); the screen keeps the full prose / cards. Never cached."
+   },
    "StatCard": {
     "properties": {
      "seq": {
@@ -2928,6 +3301,141 @@
     ],
     "title": "ThinkingStatus"
    },
+   "TranscribeResponse": {
+    "properties": {
+     "request_id": {
+      "type": "string",
+      "title": "Request Id"
+     },
+     "transcript": {
+      "type": "string",
+      "title": "Transcript"
+     },
+     "language": {
+      "type": "string",
+      "enum": [
+       "hi",
+       "en",
+       "hi-en"
+      ],
+      "title": "Language"
+     },
+     "confidence": {
+      "type": "number",
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "title": "Confidence"
+     },
+     "duration_ms": {
+      "type": "integer",
+      "title": "Duration Ms"
+     },
+     "provider": {
+      "type": "string",
+      "title": "Provider"
+     },
+     "repaired": {
+      "type": "boolean",
+      "title": "Repaired",
+      "default": false
+     },
+     "clarify": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/ClarifyOut"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "replayed": {
+      "type": "boolean",
+      "title": "Replayed",
+      "default": false
+     }
+    },
+    "type": "object",
+    "required": [
+     "request_id",
+     "transcript",
+     "language",
+     "confidence",
+     "duration_ms",
+     "provider"
+    ],
+    "title": "TranscribeResponse",
+    "description": "`clarify` set = the name was ambiguous inside the caller's scope: show the chips, do NOT auto-send."
+   },
+   "UiAction": {
+    "properties": {
+     "seq": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Seq"
+     },
+     "request_id": {
+      "type": "string",
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Request Id"
+     },
+     "type": {
+      "type": "string",
+      "const": "ui_action",
+      "title": "Type",
+      "default": "ui_action"
+     },
+     "action": {
+      "type": "string",
+      "enum": [
+       "navigate",
+       "highlight_confirm"
+      ],
+      "title": "Action"
+     },
+     "route_key": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 64,
+        "pattern": "^[a-z0-9_.]+$"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Route Key"
+     },
+     "params": {
+      "additionalProperties": {
+       "type": "string"
+      },
+      "type": "object",
+      "title": "Params"
+     },
+     "label": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Label"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "seq",
+     "request_id",
+     "action"
+    ],
+    "title": "UiAction",
+    "description": "1.4: a UI instruction, never a data write. `navigate` opens a registry route (agent/routes/registry.json —\nthe frontend executes only keys in its copy, with the typed params); `highlight_confirm` points at the on-screen\nConfirm/Approve button after an approve-by-voice attempt (voice never approves)."
+   },
    "ValidationError": {
     "properties": {
      "loc": {
@@ -2951,6 +3459,13 @@
      "type": {
       "type": "string",
       "title": "Error Type"
+     },
+     "input": {
+      "title": "Input"
+     },
+     "ctx": {
+      "type": "object",
+      "title": "Context"
      }
     },
     "type": "object",
@@ -3033,6 +3548,107 @@
      "marks_sum_ok"
     ],
     "title": "VerificationSummary"
+   },
+   "VoiceConfig": {
+    "properties": {
+     "enabled": {
+      "type": "boolean",
+      "title": "Enabled"
+     },
+     "reason": {
+      "anyOf": [
+       {
+        "type": "string",
+        "enum": [
+         "kill_switch",
+         "not_allowlisted",
+         "not_configured"
+        ]
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Reason"
+     },
+     "tts": {
+      "type": "string",
+      "enum": [
+       "sarvam",
+       "none"
+      ],
+      "title": "Tts"
+     },
+     "stt_provider": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Stt Provider"
+     },
+     "speakers": {
+      "items": {
+       "$ref": "#/components/schemas/Speaker"
+      },
+      "type": "array",
+      "title": "Speakers"
+     },
+     "default_speaker": {
+      "type": "string",
+      "title": "Default Speaker"
+     },
+     "paces": {
+      "items": {
+       "type": "number"
+      },
+      "type": "array",
+      "title": "Paces"
+     },
+     "max_seconds": {
+      "type": "integer",
+      "title": "Max Seconds"
+     },
+     "max_bytes": {
+      "type": "integer",
+      "title": "Max Bytes"
+     },
+     "formats": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Formats"
+     },
+     "consent_version": {
+      "type": "string",
+      "title": "Consent Version"
+     },
+     "limits": {
+      "additionalProperties": {
+       "type": "integer"
+      },
+      "type": "object",
+      "title": "Limits"
+     }
+    },
+    "type": "object",
+    "required": [
+     "enabled",
+     "tts",
+     "speakers",
+     "default_speaker",
+     "paces",
+     "max_seconds",
+     "max_bytes",
+     "formats",
+     "consent_version",
+     "limits"
+    ],
+    "title": "VoiceConfig"
    }
   }
  }

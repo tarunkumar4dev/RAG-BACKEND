@@ -12,7 +12,9 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, model_validator
 
-CONTRACT_VERSION = "1.3"  # 1.1: stat_card.period/delta, thinking_status tool.<name> steps
+CONTRACT_VERSION = "1.4"  # 1.1: stat_card.period/delta, thinking_status tool.<name> steps
+# 1.4 (additive, voice): `speech` event (voice turns), `ui_action` event (navigate / highlight_confirm); new
+#     endpoints under /agent/voice/* (docs/VOICE_PLAN.md). No existing event or field changed.
 # 1.2 (additive): `session` event first in every stream, final.cancelled, clarify chip.hint (docs/AGENT_API_V2.md)
 # 1.3 (additive): `file` event, error.retryable + codes rate_limited/db_unavailable/tool_timeout, pending_approval
 #     status/result_ref/decided_at (replay shows the outcome), ApproveRequest.decision (docs/AGENT_API_V2.md)
@@ -195,9 +197,28 @@ class Error(_Base):
     retryable: bool = False  # true: the same message may succeed if re-sent later (provider busy, DB down)
 
 
+class Speech(_Base):
+    """1.4 (voice turns only): the one- or two-sentence spoken headline of the answer. Hindi words come in Devanagari,
+    English words in Latin (the script the TTS reads best); the screen keeps the full prose / cards. Never cached."""
+    type: Literal["speech"] = "speech"
+    text: str = Field(min_length=1, max_length=300)
+    language: Literal["hi", "en", "hi-en"]
+
+
+class UiAction(_Base):
+    """1.4: a UI instruction, never a data write. `navigate` opens a registry route (agent/routes/registry.json —
+    the frontend executes only keys in its copy, with the typed params); `highlight_confirm` points at the on-screen
+    Confirm/Approve button after an approve-by-voice attempt (voice never approves)."""
+    type: Literal["ui_action"] = "ui_action"
+    action: Literal["navigate", "highlight_confirm"]
+    route_key: Optional[str] = Field(default=None, max_length=64, pattern=r"^[a-z0-9_.]+$")
+    params: dict[str, str] = Field(default_factory=dict)
+    label: Optional[str] = None  # human label of the target ("Attendance kholi"), for the status line
+
+
 AgentEvent = Annotated[
     Union[SessionStarted, TextDelta, ThinkingStatus, StatCard, Chart, Table, Clarify, Blueprint, PaperPreview,
-          VerificationSummary, PendingApproval, FileReady, Final, Error],
+          VerificationSummary, PendingApproval, FileReady, Final, Error, Speech, UiAction],
     Field(discriminator="type"),
 ]
 AgentEventAdapter: TypeAdapter = TypeAdapter(AgentEvent)

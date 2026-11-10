@@ -75,3 +75,22 @@ class Tracer:
                      "tokens_saved_max": saved})
         from .metrics import METRICS
         METRICS.inc("agent_llm_aborts_total", {"model": model})
+
+    def voice(self, endpoint: str, outcome: str, stages_ms: dict, provider: str = "", model: str = "",
+              audio_bytes: int = 0, duration_ms: int = 0, chars: int = 0, cost_inr: float = 0.0, **extra) -> None:
+        """Voice layer record: endpoint (transcribe / speak / chat), outcome (ok / empty / clarified / rejected /
+        failed / cached / answered / refused / navigated), per-stage ms, audio size + duration, provider, estimated
+        INR cost. `extra` holds ids, flags, counts and reasons only — never transcript or speech text."""
+        rec = {"kind": "voice", "endpoint": endpoint, "outcome": outcome, "provider": provider, "model": model,
+               "audio_bytes": audio_bytes, "duration_ms": duration_ms, "chars": chars, "cost_inr": round(cost_inr, 5),
+               "stages_ms": {k: round(v, 1) for k, v in stages_ms.items()}}
+        for k, v in extra.items():
+            if isinstance(v, (bool, int, float)) or v is None:
+                rec[k] = v
+            elif isinstance(v, str):
+                rec[k] = v[:32]
+            elif isinstance(v, (list, tuple)):
+                rec[k] = [str(x)[:32] for x in v][:10]
+        self._write(rec)
+        from .metrics import METRICS
+        METRICS.voice(endpoint, outcome, provider, stages_ms, cost_inr)
