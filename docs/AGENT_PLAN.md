@@ -208,3 +208,13 @@ backend `app/core/auth.py:verify_token` calls Supabase `/auth/v1/user`.
 33. **Identity cache per-key invalidation** (`invalidate_identity(user_id)`): evict one user without clearing all.
     Refusals (build() raises) are never cached (existing test + new test). *Why:* a removed user should lose access
     within one TTL, but invalidating all caches on every admin action is wasteful.
+34. **Rate limits** (Phase 4): per-user (AGENT_USER_TURNS_PER_10MIN, default 20) and per-institute daily token budget
+    (AGENT_INSTITUTE_DAILY_TOKENS, unset = unlimited). In-process counters (a dict + lock). 429 response with
+    `RateLimitDetail` body and `Retry-After` header, Hinglish message. Token recording after each turn.
+    *Why:* MSIT trial needs a safety net; in-process is OK for WEB_CONCURRENCY=2.
+35. **Prometheus metrics** at GET /agent/metrics: counters (requests, turns, tools, LLM calls, tokens, cost, cache
+    hits, rate-limit hits, errors, retries, aborts) and histograms (tool, LLM, turn, HTTP latency). No PII by
+    construction: label values from fixed vocabularies only (route templates, registered tool names, model ids).
+    Unknown tools → "unknown". DB pool gauges from psycopg_pool stats.
+36. **Structured JSON logging** (`AGENT_LOG_FORMAT=json`): one JSON object per line with ts, level, logger, message,
+    request_id (when available). No PII. Default in production; text format in dev.

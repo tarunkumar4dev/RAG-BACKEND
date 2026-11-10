@@ -20,12 +20,13 @@ from fastapi.responses import Response, StreamingResponse
 
 from .approval import ApprovalError, execute_approval
 from .api_v2 import own_session
-from .api_models import MetaResponse, RateLimitResponse
+from .api_models import MetaResponse, RateLimitDetail, RateLimitResponse
 from .auth import check_dev_mode_safe, dev_mode_enabled, get_identity, get_session
 from .mode import READ_ONLY_MESSAGE, check_modes, real_mode
 from .core import Agent
 from .db import connect
 from .llm import fast_provider_for, get_provider
+from .rate_limit import check_institute_budget, check_user_rate, record_tokens
 from .runs import RUNS
 from .schemas import CONTRACT_VERSION, ApproveRequest, ChatRequest, SessionCtx
 from .store import DRAFTS, Owner, auto_title, get_store, iso, valid_id
@@ -127,6 +128,16 @@ CHAT_RESPONSES = {
 def chat(body: ChatRequest, ctx: SessionCtx = Depends(get_session)):
     live = ctx.data_source == "live"
     store, owner = get_store(), Owner.of(ctx)
+    # Rate limits: before anything is stored
+    for rl_check in (lambda: check_user_rate(str(ctx.user_id)),
+                     lambda: check_institute_budget(str(ctx.institute_id))):
+        hit = rl_check()
+        if hit is not None:
+            detail = RateLimitDetail(scope=hit.scope, message=hit.message, retry_after_s=hit.retry_after_s)
+            return Response(
+                content=RateLimitResponse(detail=detail).model_dump_json(),
+                status_code=429, media_type="application/json",
+                headers={"Retry-After": str(hit.retry_after_s)})
     try:  # before anything is written: no key -> clean 503, no half-created session
         provider = get_provider()
     except KeyError:
@@ -163,6 +174,10 @@ def chat(body: ChatRequest, ctx: SessionCtx = Depends(get_session)):
             turn = agent.history[len(hist) + 1:] if len(agent.history) > len(hist) else []
             texts = [e["text"] for e in events if e.get("type") == "text_delta" and e.get("text")]
             store.add_message(owner, sid, "assistant", "\n\n".join(texts) or None, events=events, llm=turn)
+            # Record token usage for per-institute daily budget
+            total_tokens = agent.tokens[0] + agent.tokens[1] + agent.cache_read
+            if total_tokens > 0:
+                record_tokens(str(ctx.institute_id), total_tokens)
             if conn is not None:
                 conn.close()
 
@@ -318,6 +333,8 @@ def create_app(env=os.environ, check_real_db: bool = True) -> FastAPI:
     a.include_router(ops.router)
     install_openapi(a)
     install_log_redaction()
+    from .logging_config import configure as configure_logging
+    configure_logging()
     try:
         get_store().purge()  # retention: sessions / queries unused for 90 days
     except Exception as e:  # noqa: BLE001  never block startup on the purge; message has no user content

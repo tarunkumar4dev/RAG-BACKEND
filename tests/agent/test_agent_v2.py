@@ -184,10 +184,13 @@ def api(monkeypatch, tmp_path):
     st = MemoryStore()
     set_store(st)
     ENTITIES.clear()
+    from agent.rate_limit import reset as reset_rate_limits
+    reset_rate_limits()
     prov = Scripted()
     monkeypatch.setattr(api_mod, "get_provider", lambda: prov)
     yield TestClient(api_mod.create_app({})), prov, st, tmp_path / "trace.jsonl"
     set_store(None)
+    reset_rate_limits()
 
 
 def H(u):
