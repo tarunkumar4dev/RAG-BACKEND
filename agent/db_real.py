@@ -2,8 +2,10 @@
 
 - URL: AGENT_REAL_DB_URL, e.g. the Supabase *Session pooler* (IPv4) postgresql://agent_ro.<project-ref>:<pw>@
   aws-0-<region>.pooler.supabase.com:5432/postgres?sslmode=require. Never printed or logged.
-- Every query runs inside BEGIN READ ONLY with SET LOCAL statement_timeout = 8s (works with transaction poolers too),
-  and the transaction is always rolled back. The session also gets default_transaction_read_only = on.
+- Every checkout runs inside BEGIN READ ONLY with SET LOCAL statement_timeout = 8s (works with transaction poolers
+  too), and the transaction is always rolled back. Each connection also gets default_transaction_read_only = on.
+- Connections come from a small psycopg_pool pool (agent/pool.py; health-checked on checkout). AGENT_DB_POOL=0 = one
+  connection per call.
 - startup_check(): refuses to start if the role is superuser / can create roles or DBs / bypasses RLS, or holds
   INSERT/UPDATE/DELETE/TRUNCATE on any table, or can read auth.* / storage.*.
 """
@@ -26,11 +28,24 @@ def _url() -> str:
     return url
 
 
+_KWARGS = dict(row_factory=dict_row, autocommit=True, prepare_threshold=None, connect_timeout=10,
+               application_name="a4ai-agent-ro")
+
+
+def _configure(conn: psycopg.Connection) -> None:
+    conn.execute("SET default_transaction_read_only = on")
+
+
 @contextmanager
 def connect_real() -> Iterator[psycopg.Connection]:
     """Read-only transaction on the real DB. Callers only SELECT; nothing is ever committed."""
-    conn = psycopg.connect(_url(), row_factory=dict_row, autocommit=True, prepare_threshold=None,
-                           connect_timeout=10, application_name="a4ai-agent-ro")
+    from . import pool
+    if pool.enabled():
+        with pool.get_pool("real_ro", _url(), _KWARGS, _configure).connection() as conn:
+            with pool.read_only_tx(conn, STATEMENT_TIMEOUT, "public") as c:
+                yield c
+        return
+    conn = psycopg.connect(_url(), **_KWARGS)
     try:
         conn.execute("SET default_transaction_read_only = on")
         conn.execute("BEGIN READ ONLY")

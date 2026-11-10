@@ -176,3 +176,21 @@ backend `app/core/auth.py:verify_token` calls Supabase `/auth/v1/user`.
 24. **Trial switch** `AGENT_ENABLED_INSTITUTES` (comma list; unset = all): other institutes get 403 everywhere except
     `/agent/meta`, which answers `enabled: false` (no 403) so the UI can simply hide the agent. *Why:* MSIT first,
     no frontend deploy needed to widen it.
+25. **psycopg_pool for all read paths** (min 1 / max 5, AGENT_DB_POOL_TIMEOUT 5 s). Each checkout runs
+    `BEGIN READ ONLY; SET LOCAL statement_timeout; SET LOCAL search_path … ROLLBACK`; `default_transaction_read_only=on`
+    is set once via the configure callback. The pool replaces per-call TCP+TLS+auth (≈75 ms embedded → ~8 ms pooled).
+    *Why:* tool p50 dropped from ~100 ms to ~10 ms; turn p50 from 143 ms to 24 ms (10-rep mock bench).
+26. **Prompt caching** (`AGENT_PROMPT_CACHE`, default on): Anthropic `cache_control` on the last tool def + system +
+    last message block; Gemini reports implicit `cached_content_token_count`. Cache read 0.1× input price, write 1.25×.
+    *Why:* same system prompt + tool schemas reused across turns and users of the same role.
+27. **Model routing** (`AGENT_ROUTING`, default on): insight turns → AGENT_FAST_MODEL (default `claude-haiku-5-5`);
+    paper intent / paper-in-progress → AGENT_MODEL (default `claude-sonnet-5-5`). Deterministic regex classifier:
+    paper verbs × paper nouns (Hindi + English + Devanagari), PAPER_WORDS, paper_in_progress (last 2 user turns).
+    "kitne tests bane" is excluded (it's a stats query). Escalation: fast model asks for a non-read tool → rest of
+    turn runs on main. *Why:* Haiku 5.5 is 20× cheaper than Sonnet for insight turns that only call read tools.
+28. **Parallel independent read tools** (ThreadPoolExecutor, bounded by AGENT_TOOL_CONCURRENCY 4). Separate
+    `_LLM_POOL` (64 threads) and `_POOL` (16 threads) so 50 concurrent streams never starve tool I/O. *Why:* a model
+    response with two `resolve_entity` calls runs them simultaneously instead of serially.
+29. **No-cancel fast path** in `_wait`: when `cancel_event is None` the future is awaited with a single blocking
+    `fut.result(timeout=…)` instead of a 50 ms polling loop. *Why:* the polling added ≈50 ms overhead per tool call;
+    removing it brought turn p50 from 60 ms back down to 24 ms.

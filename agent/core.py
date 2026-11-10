@@ -1,7 +1,14 @@
-"""Agent loop: native tool use through LLMProvider. No frameworks. Budgets enforced."""
+"""Agent loop: native tool use through LLMProvider. No frameworks. Budgets enforced.
+
+v3: deterministic model routing (agent/routing.py), independent read tools of one model response run concurrently
+(bounded), per-tool timeouts, DB-down -> retryable error event, LLM retries with jittered backoff, and cancel closes
+the provider stream (agent/llm.py) so tokens stop being generated.
+"""
 from __future__ import annotations
 
 import json
+import os
+import random
 import re
 import threading
 from collections import deque
@@ -12,11 +19,12 @@ from datetime import date, datetime
 from typing import Any, Iterator, Optional
 from zoneinfo import ZoneInfo
 
+import psycopg
 from pydantic import ValidationError
 
-from . import config
+from . import config, routing
 from .approval import create_approval
-from .llm import LLMProvider
+from .llm import LLMAborted, LLMProvider
 from .schemas import AgentEventAdapter, SessionCtx, now_ist
 from .tools import paper as P
 from .mode import READ_ONLY_MESSAGE
@@ -25,7 +33,17 @@ from .trace import Tracer
 from .verify import can_finalize, verify_paper
 
 IST = ZoneInfo("Asia/Kolkata")
-_POOL = ThreadPoolExecutor(max_workers=8, thread_name_prefix="agent-tool")
+# LLM calls (seconds each, I/O bound) and tool calls (DB) get separate pools so 50 waiting streams never starve the
+# tools. Tool concurrency is further bounded per turn (config.tool_concurrency) and by the DB pool size.
+_LLM_POOL = ThreadPoolExecutor(max_workers=int(os.getenv("AGENT_LLM_THREADS", "64")), thread_name_prefix="agent-llm")
+_POOL = ThreadPoolExecutor(max_workers=int(os.getenv("AGENT_TOOL_THREADS", "16")), thread_name_prefix="agent-tool")
+
+MSG_DB_DOWN = ("Data abhi load nahi ho pa raha (database se connection nahi ho paaya). "
+               "Thodi der baad dobara poochhiye.")
+MSG_TOOL_TIMEOUT = ("Ye data nikalne mein bahut samay lag gaya. Thodi der baad dobara try karein, "
+                    "ya chhota time period chunein.")
+MSG_PROVIDER_BUSY = "AI model abhi busy hai. Thodi der baad dobara poochhiye."
+MSG_PROVIDER_FAILED = "AI model se jawab nahi mil paaya."
 
 
 def system_prompt(ctx: SessionCtx) -> str:
@@ -44,6 +62,8 @@ def system_prompt(ctx: SessionCtx) -> str:
         "metric='marks'. NEVER use low_attendance_list for that: it lists individual students. section_comparison "
         "returns `lowest`/`highest` (several names when tied) — name every tied class. "
         "If a user message contains '(id <uuid>)', that is a picked chip: use that id directly, do not resolve again. "
+        "When several independent numbers are needed (e.g. attendance AND marks of a class), call those tools together "
+        "in one response. "
         "my_scope, section_comparison, attendance_stats, attendance_trend, low_attendance_list, marks_stats and "
         "tests_created_by_teacher results are shown to the user as cards, tables and charts automatically. After those, write exactly ONE short takeaway "
         "sentence (max 20 words) with NO statistics (no percentages, counts or marks; names like 10A or ECE-2 are fine) — the card already shows every number. Say what it "
@@ -66,10 +86,51 @@ class Cancelled(Exception):
     pass
 
 
+class DataUnavailable(Exception):
+    """A tool could not reach the data DB (code db_unavailable) or ran past its timeout (code tool_timeout)."""
+
+    def __init__(self, code: str):
+        super().__init__(code)
+        self.code = code
+
+
+class ProviderFailed(Exception):
+    def __init__(self, cause: Exception, retryable: bool):
+        super().__init__(type(cause).__name__)
+        self.cause, self.retryable = cause, retryable
+
+
 def _is_provider_error(e: Exception) -> bool:
     """Anthropic APIError family, google.genai ClientError/ServerError (e.g. 429 quota), httpx transport errors."""
     mod = type(e).__module__ or ""
     return "api" in type(e).__name__.lower() or mod.startswith(("anthropic", "google.genai", "httpx", "httpcore"))
+
+
+def is_retryable(e: Exception) -> bool:
+    """429 / 408 / 409 / 5xx / overloaded (529) / connection + timeout errors, for any provider SDK."""
+    status = getattr(e, "status_code", None)
+    if status is None:
+        status = getattr(e, "code", None)
+    if isinstance(status, int) and (status in (408, 409, 429) or status >= 500):
+        return True
+    name = type(e).__name__.lower()
+    if any(k in name for k in ("connection", "timeout", "overloaded", "ratelimit", "internalserver", "servererror",
+                               "unavailable")):
+        return True
+    return (type(e).__module__ or "").startswith(("httpx", "httpcore"))
+
+
+def backoff_s(attempt: int, e: Optional[Exception] = None) -> float:
+    """Jittered exponential backoff; honours a Retry-After header (capped)."""
+    delay = config.LLM_BACKOFF_BASE_S * (2 ** attempt) + random.uniform(0, config.LLM_BACKOFF_BASE_S)
+    resp = getattr(e, "response", None)
+    try:
+        ra = float(resp.headers.get("retry-after")) if resp is not None and resp.headers.get("retry-after") else None
+    except (TypeError, ValueError, AttributeError):
+        ra = None
+    if ra is not None:
+        delay = max(delay, ra)
+    return min(delay, config.LLM_BACKOFF_MAX_S)
 
 
 def close_turn(msgs: list[dict]) -> list[dict]:
@@ -128,8 +189,12 @@ class Agent:
     def __init__(self, provider: LLMProvider, ctx: SessionCtx, session_id: str, conn_rw=None,
                  request_id: Optional[str] = None, history: Optional[list[dict]] = None, memory_store=None,
                  tools: Optional[dict] = None, session_title: Optional[str] = None,
-                 cancel_event: Optional[threading.Event] = None):
+                 cancel_event: Optional[threading.Event] = None, fast_provider: Optional[LLMProvider] = None):
         self.p, self.ctx, self.session_id, self.conn = provider, ctx, session_id, conn_rw
+        self.fast = fast_provider  # insight turns (agent/routing.py); None = one model for everything
+        self.route, self.route_reason = "main", "single_model"
+        self.retries = 0
+        self.cache_read = 0
         self.session_title = session_title  # set -> the stream starts with a `session` event (API v2)
         self.cancel_event = cancel_event    # set() by POST /agent/chat/{request_id}/cancel
         self.cancelled = False
@@ -296,17 +361,136 @@ class Agent:
         if self.cancel_event is not None and self.cancel_event.is_set():
             raise Cancelled()
 
-    def _wait(self, fut, t0: float, out: deque):
-        """Wait for a worker future; stream tool events, honour the wall-clock budget and cancel meanwhile."""
+    def _wait(self, fut, t0: float, out: deque, deadline: Optional[float] = None):
+        """Wait for a worker future; stream tool events, honour the wall-clock budget, a per-tool deadline and cancel
+        meanwhile.  When there is no cancel event the fast path blocks directly on the future (no 50 ms polling)."""
+        if self.cancel_event is None:
+            # Fast path: no cancellation possible, block until done or deadline
+            remaining = (deadline - time.time()) if deadline is not None else max(config.MAX_WALL_S - (time.time() - t0), 0.1)
+            try:
+                return fut.result(timeout=max(remaining, 0.01))
+            except FutureTimeout:
+                while out:
+                    yield out.popleft()
+                if deadline is not None and time.time() >= deadline:
+                    raise DataUnavailable("tool_timeout")
+                raise Budget("max_wall_s")
+        # Slow path: poll so we can check the cancel event between waits
         while True:
             try:
-                return fut.result(timeout=0.15)
+                return fut.result(timeout=0.05)
             except FutureTimeout:
                 while out:
                     yield out.popleft()
                 self._check_cancel()
                 if time.time() - t0 > config.MAX_WALL_S:
                     raise Budget("max_wall_s")
+                if deadline is not None and time.time() > deadline:
+                    raise DataUnavailable("tool_timeout")
+
+    def _sleep(self, seconds: float, t0: float, out: deque):
+        end = time.time() + seconds
+        while time.time() < end:
+            while out:
+                yield out.popleft()
+            step = min(0.1, max(end - time.time(), 0))
+            if self.cancel_event is not None:
+                if self.cancel_event.wait(step):
+                    raise Cancelled()
+            else:
+                time.sleep(step)
+            if time.time() - t0 > config.MAX_WALL_S:
+                raise Budget("max_wall_s")
+
+    def _complete(self, prov: LLMProvider, msgs: list[dict], tools: list[dict]):
+        kw = {"cancel": self.cancel_event} if (self.cancel_event is not None and
+                                               getattr(prov, "supports_cancel", False)) else {}
+        try:
+            return prov.complete(system_prompt(self.ctx), msgs, tools, max_tokens=2048, **kw)
+        except LLMAborted as a:  # the stream saw the cancel and was closed: no more tokens are generated
+            self.tracer.llm_abort(a.model, a.tokens_out_est, a.max_tokens)
+            raise
+
+    def _llm(self, prov: LLMProvider, msgs: list[dict], tools: list[dict], t0: float, out: deque):
+        """One model call with retries (429 / 5xx / overloaded / connection: max config.LLM_RETRIES, jittered)."""
+        attempt = 0
+        while True:
+            self._check_cancel()
+            tl = time.time()
+            try:
+                if self.cancel_event is None:
+                    r = self._complete(prov, msgs, tools)
+                else:  # cancellable: runs in a worker; a cancel closes the provider stream (agent/llm.py)
+                    r = yield from self._wait(_LLM_POOL.submit(self._complete, prov, msgs, tools), t0, out)
+            except (Cancelled, Budget):
+                raise
+            except LLMAborted:
+                raise Cancelled()
+            except Exception as e:  # noqa: BLE001
+                if is_retryable(e) and attempt < config.LLM_RETRIES:
+                    delay = backoff_s(attempt, e)
+                    attempt += 1
+                    self.retries += 1
+                    self.tracer.retry(getattr(prov, "model", ""), attempt, type(e).__name__, delay)
+                    yield from self._sleep(delay, t0, out)
+                    continue
+                raise ProviderFailed(e, is_retryable(e))
+            self.cost += self.tracer.llm(r.model, r.tokens_in, r.tokens_out, (time.time() - tl) * 1000,
+                                         cache_read=getattr(r, "cache_read", 0) or 0,
+                                         cache_write=getattr(r, "cache_write", 0) or 0)
+            self.cache_read += getattr(r, "cache_read", 0) or 0
+            self.tokens[0] += r.tokens_in
+            self.tokens[1] += r.tokens_out
+            return r
+
+    def _read_tool(self, name: str) -> bool:
+        spec = self.tools.get(name)
+        return spec is not None and spec.kind == "read" and spec.fn is not None
+
+    def _bounded(self, sem: threading.Semaphore, name: str, args: dict, emit) -> dict:
+        with sem:
+            return self._call(name, args, emit)
+
+    def _run_tools(self, calls: list, t0: float, out: deque, emit):
+        """Run one model response's tool calls; yields events, returns the provider-neutral results list.
+        Independent read tools (all calls are read tools) run concurrently, bounded by config.tool_concurrency()."""
+        for _ in calls:
+            self.tool_calls += 1
+            if self.tool_calls > config.MAX_TOOL_CALLS:
+                raise Budget("max_tool_calls")
+        parallel = len(calls) > 1 and all(self._read_tool(c.name) for c in calls)
+        sem = threading.BoundedSemaphore(config.tool_concurrency())
+        futs: list = []
+        if parallel:
+            for c in calls:
+                yield self.ev("thinking_status", key=f"tool.{c.name}", params={"phase": "start"})
+                futs.append((time.time(), _POOL.submit(self._bounded, sem, c.name, c.args, emit)))
+        results = []
+        for i, c in enumerate(calls):
+            if parallel:
+                ts, fut = futs[i]
+            else:
+                yield self.ev("thinking_status", key=f"tool.{c.name}", params={"phase": "start"})
+                ts, fut = time.time(), _POOL.submit(self._call, c.name, c.args, emit)
+            kind = "read" if self._read_tool(c.name) else "paper"
+            try:
+                res = yield from self._wait(fut, t0, out, deadline=ts + config.tool_timeout_s(kind))
+            except DataUnavailable:
+                res = {"status": "timeout"}
+                self.tracer.tool(c.name, c.args if isinstance(c.args, dict) else {}, (time.time() - ts) * 1000,
+                                 False, "timeout")
+            while out:  # the tool's own events (paper tools emit from the worker) go first
+                yield out.popleft()
+            if self._read_tool(c.name):
+                for e in self._ui_events(c.name, res):
+                    yield e
+            ok = res.get("status") not in ("error", "invalid_args", "timeout", "db_unavailable")
+            yield self.ev("thinking_status", key=f"tool.{c.name}",
+                          params={"phase": "done", "ms": int((time.time() - ts) * 1000), "ok": ok})
+            results.append({"id": c.id, "name": c.name, "content": json.dumps(res, default=str)[:12000]})
+            if time.time() - t0 > config.MAX_WALL_S:
+                raise Budget("max_wall_s")
+        return results
 
     def run(self, message: str) -> Iterator[dict]:
         t0 = time.time()
@@ -314,6 +498,10 @@ class Agent:
         emit = out.append
         msgs = self.history + [{"role": "user", "text": message}]
         tools = tool_schemas(self.tools)
+        if self.fast is not None and self.fast is not self.p:
+            self.route, self.route_reason = routing.choose(message, self.history)
+        prov = self.fast if self.route == "fast" else self.p
+        self.tracer.route(self.route, self.route_reason, getattr(prov, "model", ""))
         if self.session_title is not None:
             yield self.ev("session", session_id=self.session_id, title=self.session_title)
         try:
@@ -321,42 +509,25 @@ class Agent:
                 self._check_cancel()
                 if time.time() - t0 > config.MAX_WALL_S:
                     raise Budget("max_wall_s")
-                tl = time.time()
-                if self.cancel_event is None:
-                    r = self.p.complete(system_prompt(self.ctx), msgs, tools, max_tokens=2048)
-                else:  # cancellable: the call runs in a worker; a cancel abandons it (it cannot be interrupted)
-                    fut = _POOL.submit(self.p.complete, system_prompt(self.ctx), msgs, tools, max_tokens=2048)
-                    r = yield from self._wait(fut, t0, out)
-                self.tokens[0] += r.tokens_in
-                self.tokens[1] += r.tokens_out
-                self.cost += self.tracer.llm(r.model, r.tokens_in, r.tokens_out, (time.time() - tl) * 1000)
+                r = yield from self._llm(prov, msgs, tools, t0, out)
                 msgs.append({"role": "assistant", "text": r.text,
                              "tool_calls": [{"id": c.id, "name": c.name, "args": c.args} for c in r.tool_calls]})
                 if not r.tool_calls:
                     if r.text:
                         yield self.ev("text_delta", text=plain_text(r.text))
                     break
-                results = []
-                for c in r.tool_calls:
-                    self.tool_calls += 1
-                    if self.tool_calls > config.MAX_TOOL_CALLS:
-                        raise Budget("max_tool_calls")
-                    yield self.ev("thinking_status", key=f"tool.{c.name}", params={"phase": "start"})
-                    ts = time.time()
-                    fut = _POOL.submit(self._call, c.name, c.args, emit)
-                    res = yield from self._wait(fut, t0, out)  # streams the tool's own status events meanwhile
-                    while out:  # the tool's own events (lower seq) go first
-                        yield out.popleft()
-                    ok = res.get("status") not in ("error", "invalid_args")
-                    yield self.ev("thinking_status", key=f"tool.{c.name}",
-                                  params={"phase": "done", "ms": int((time.time() - ts) * 1000), "ok": ok})
-                    results.append({"id": c.id, "name": c.name, "content": json.dumps(res, default=str)[:12000]})
-                    while out:
-                        yield out.popleft()
-                    if time.time() - t0 > config.MAX_WALL_S:
-                        raise Budget("max_wall_s")
+                if prov is self.fast and routing.escalate([c.name for c in r.tool_calls],
+                                                          [n for n in self.tools if self._read_tool(n)]):
+                    prov, self.route = self.p, "main"  # a paper / write tool: the rest of the turn on the main model
+                    self.tracer.route("main", "escalated_tool", getattr(prov, "model", ""))
+                results = yield from self._run_tools(r.tool_calls, t0, out, emit)
                 msgs.append({"role": "tool", "results": results})
-                if any(json.loads(x["content"]).get("status") == "ambiguous" for x in results):
+                statuses = {json.loads(x["content"]).get("status") for x in results}
+                if "db_unavailable" in statuses:
+                    raise DataUnavailable("db_unavailable")
+                if "timeout" in statuses:
+                    raise DataUnavailable("tool_timeout")
+                if "ambiguous" in statuses:
                     break  # never auto-pick: wait for the user's chip
             else:
                 raise Budget("max_llm_steps")
@@ -370,7 +541,20 @@ class Agent:
                 yield out.popleft()
             yield self.ev("error", code="budget_exceeded", message=f"Budget exceeded: {b}",
                           partial={"tools_used": self.tools_used, "drafts": list(self.drafts)})
-        except Exception as e:  # provider/internal error -> structured error, never a stack trace
+        except DataUnavailable as d:
+            while out:
+                yield out.popleft()
+            msgs = msgs + [{"role": "assistant", "text": "[data unavailable]", "tool_calls": []}]
+            yield self.ev("error", code=d.code, retryable=True,
+                          message=MSG_DB_DOWN if d.code == "db_unavailable" else MSG_TOOL_TIMEOUT,
+                          partial={"tools_used": self.tools_used})
+        except ProviderFailed as pf:
+            while out:
+                yield out.popleft()
+            yield self.ev("error", code="provider_error", retryable=pf.retryable,
+                          message=(MSG_PROVIDER_BUSY if pf.retryable else MSG_PROVIDER_FAILED) +
+                          f" ({type(pf.cause).__name__})", partial={"tools_used": self.tools_used})
+        except Exception as e:  # internal error -> structured error, never a stack trace
             while out:
                 yield out.popleft()
             yield self.ev("error", code="provider_error" if _is_provider_error(e) else "internal",
@@ -379,7 +563,8 @@ class Agent:
         yield self.ev("final", session_id=self.session_id, cancelled=self.cancelled,
                       usage={"tokens_in": self.tokens[0], "tokens_out": self.tokens[1],
                              "cost_usd": round(self.cost, 5), "tool_calls": self.tool_calls,
-                             "latency_s": round(time.time() - t0, 2), "tools_used": self.tools_used})
+                             "latency_s": round(time.time() - t0, 2), "tools_used": self.tools_used,
+                             "route": self.route, "cache_read_tokens": self.cache_read, "retries": self.retries})
 
     def _call(self, name: str, raw: dict, emit) -> dict:
         t = time.time()
@@ -394,11 +579,13 @@ class Agent:
             return {"status": "invalid_args", "errors": [er["loc"] for er in e.errors()][:5]}
         try:
             if spec.fn is not None:
-                res = spec.fn(self.ctx, args)
-                for e in self._ui_events(name, res):
-                    emit(e)
+                res = spec.fn(self.ctx, args)  # UI events are built by the caller (main thread, in call order)
             else:
                 res = self._paper_tool(name, args, emit)
+        except psycopg.errors.QueryCanceled:  # statement_timeout (8 s) inside the read-only transaction
+            res = {"status": "timeout"}
+        except psycopg.OperationalError:  # DB unreachable, pool exhausted (PoolTimeout), connection lost
+            res = {"status": "db_unavailable"}
         except Exception as e:
             res = {"status": "error", "error": type(e).__name__}
         self.tracer.tool(name, raw, (time.time() - t) * 1000, res.get("status") not in ("error",), res.get("status", ""))

@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import logging
 import uuid
+from contextlib import asynccontextmanager
 from typing import Iterator, Optional
 
 import os
@@ -24,7 +25,7 @@ from .auth import check_dev_mode_safe, dev_mode_enabled, get_identity, get_sessi
 from .mode import READ_ONLY_MESSAGE, check_modes, real_mode
 from .core import Agent
 from .db import connect
-from .llm import get_provider
+from .llm import fast_provider_for, get_provider
 from .runs import RUNS
 from .schemas import CONTRACT_VERSION, ApproveRequest, ChatRequest, SessionCtx
 from .store import DRAFTS, Owner, auto_title, get_store, iso, valid_id
@@ -143,7 +144,8 @@ def chat(body: ChatRequest, ctx: SessionCtx = Depends(get_session)):
             conn.execute("insert into agent_sessions(id, user_id, institute_id, role) values (%s,%s,%s,%s) "
                          "on conflict (id) do nothing", (sid, str(ctx.user_id), str(ctx.institute_id), ctx.role))
         agent = Agent(provider, ctx, sid, conn_rw=conn, history=hist, memory_store=DRAFTS if live else None,
-                      request_id=request_id, session_title=title, cancel_event=cancel_event)
+                      request_id=request_id, session_title=title, cancel_event=cancel_event,
+                      fast_provider=fast_provider_for(provider))
     except Exception:
         RUNS.unregister(request_id)
         if conn is not None:
@@ -275,13 +277,25 @@ def install_log_redaction() -> None:
         lg.addFilter(RedactAgentQueryStrings())
 
 
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    """Sync endpoints and SSE generators run in anyio's worker threads (default limit 40): each running stream holds
+    one while it waits for the model, so 50 concurrent users need more. AGENT_THREADPOOL (default 200)."""
+    import anyio.to_thread
+    try:
+        anyio.to_thread.current_default_thread_limiter().total_tokens = int(os.getenv("AGENT_THREADPOOL", "200"))
+    except (ValueError, RuntimeError):
+        pass
+    yield
+
+
 def create_app(env=os.environ, check_real_db: bool = True) -> FastAPI:
     check_modes(env)  # dev + real together -> refuse
     check_dev_mode_safe(env)  # refuse to start: dev mode + non-local DB
     if real_mode(env) and check_real_db:
         from .db_real import startup_check
         startup_check()  # refuses to start if the DB role can write or read auth/storage
-    a = FastAPI(title="a4ai Agent", version=CONTRACT_VERSION)
+    a = FastAPI(title="a4ai Agent", version=CONTRACT_VERSION, lifespan=_lifespan)
     headers = ["Authorization", "Content-Type", "Last-Event-ID"]
     if dev_mode_enabled(env):
         headers.append("X-Dev-Role")  # only in dev mode, so the browser preflight allows the dev header
