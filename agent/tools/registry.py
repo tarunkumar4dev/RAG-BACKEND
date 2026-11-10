@@ -7,6 +7,7 @@ from typing import Callable, Literal
 from pydantic import BaseModel
 
 from . import exports, insights, paper
+from .. import routes
 
 
 @dataclass(frozen=True)
@@ -59,6 +60,7 @@ TOOLS: dict[str, ToolSpec] = {t.name: t for t in [
     ToolSpec("proctor_month_report", "Export a subject-wise attendance matrix (.xlsx) for a section in a given "
              "month. Use for 'proctor report October', 'section attendance Excel'.",
              exports.ProctorMonthReportArgs, "read", exports.proctor_month_report),
+    ToolSpec("open_feature", routes.TOOL_DESCRIPTION, routes.OpenFeatureArgs, "read", routes.open_feature),
 ]}
 
 

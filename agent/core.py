@@ -245,6 +245,9 @@ class Agent:
         st = res.get("status")
         if name == "resolve_entity" and st == "ambiguous":
             return [self.ev("clarify", question="Kaun sa? / Which one?", chips=clarify_chips(res["matches"][:5]))]
+        if name == "open_feature" and st == "ok":  # navigation only: the frontend executes registry keys, never URLs
+            return [self.ev("ui_action", action="navigate", route_key=res["route_key"], params=res.get("params") or {},
+                            label=(res.get("label") or {}).get("hi"))]
         if name == "my_scope" and st == "ok" and res.get("batches"):
             return [self.ev("table", source=src, as_of=as_of, title=f"Meri classes · {len(res['batches'])}",
                             columns=["Batch", "Students", "Role", "Subjects"],
