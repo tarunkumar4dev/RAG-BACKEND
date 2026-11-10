@@ -34,6 +34,8 @@ USER_DAILY_DEFAULT = 100
 IDEMPOTENCY_TTL_S = 600
 SPEAK_MAX_CHARS = 300
 ENTITY_TTL_S = 300          # entity list per (institute, user)
+CONFIDENCE_REPEAT = 0.45    # below: "Dobara boliye" (nothing is sent)
+CONFIDENCE_AUTO = 0.75      # below: "Maine suna: … Sahi hai?" (user confirms); at/above: auto-send after the pause
 
 # ---- TTS catalog allowlist (bulbul:v4-flash, `enhi` = Hindi-English code-mixed personas) ----------------------
 # Gender is inferred from the name (the catalog has no gender field) — confirm by listening (docs/VOICE_DATA_NOTE).

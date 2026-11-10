@@ -92,6 +92,9 @@ class TranscribeResponse(BaseModel):
     repaired: bool = False
     clarify: Optional[ClarifyOut] = None
     replayed: bool = False   # served from the Idempotency-Key cache
+    # what the UI does next (Phase 2): auto = send after the short pause; confirm = ask "Maine suna: … Sahi hai?";
+    # repeat = nothing usable, say "Dobara boliye" (never guess); pick = clarify chips are shown
+    next: Literal["auto", "confirm", "repeat", "pick"] = "auto"
 
 
 class SpeakRequest(BaseModel):
@@ -104,6 +107,18 @@ class SpeakRequest(BaseModel):
 
 
 # ---- helpers -----------------------------------------------------------------------------------------------------
+def next_step(conf: float, text: str, clarify: bool) -> str:
+    """Confidence bands (Phase 2). Below REPEAT: 'Dobara boliye' — never guess. Below CONFIRM: show the transcript
+    and ask. A single word is never auto-sent either (one misheard word = a wrong question)."""
+    if clarify:
+        return "pick"
+    if not text.strip() or conf < vc.CONFIDENCE_REPEAT:
+        return "repeat"
+    if conf < vc.CONFIDENCE_AUTO or len(text.split()) < 2:
+        return "confirm"
+    return "auto"
+
+
 def voice_gate(ctx: SessionCtx = Depends(get_session)) -> SessionCtx:
     if not vc.enabled():
         raise HTTPException(503, VOICE_OFF_MESSAGE)
@@ -179,13 +194,14 @@ def _transcribe_sync(ctx: SessionCtx, audio: bytes, request_id: str) -> tuple[di
         tracer.voice("transcribe", "empty", stages, provider=tr.provider, model=tr.model, audio_bytes=len(audio),
                      duration_ms=info.duration_ms, cost_inr=cost, tried=res.tried, skipped=res.skipped)
         return ({"request_id": request_id, "transcript": "", "language": "hi", "confidence": 0.0,
-                 "duration_ms": info.duration_ms, "provider": tr.provider}, {})
+                 "duration_ms": info.duration_ms, "provider": tr.provider, "next": "repeat"}, {})
     t = time.time()
     rep = repair_entities(ctx, text)
     stages["repair"] = (time.time() - t) * 1000
+    conf = confidence_of(rep.text, tr.language_probability)
     out = {"request_id": request_id, "transcript": rep.text, "language": classify(rep.text, tr.language_code),
-           "confidence": confidence_of(rep.text, tr.language_probability), "duration_ms": info.duration_ms,
-           "provider": tr.provider, "repaired": rep.changed, "clarify": rep.clarify}
+           "confidence": conf, "duration_ms": info.duration_ms, "provider": tr.provider, "repaired": rep.changed,
+           "clarify": rep.clarify, "next": next_step(conf, rep.text, rep.clarify is not None)}
     tracer.voice("transcribe", "clarified" if rep.clarify else "ok", stages, provider=tr.provider, model=tr.model,
                  audio_bytes=len(audio), duration_ms=info.duration_ms, cost_inr=cost, tried=res.tried,
                  skipped=res.skipped, repaired=rep.changed, repair_db_calls=rep.db_calls, words=len(rep.text.split()),

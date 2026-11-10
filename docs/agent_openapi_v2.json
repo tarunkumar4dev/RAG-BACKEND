@@ -3353,6 +3353,17 @@
       "type": "boolean",
       "title": "Replayed",
       "default": false
+     },
+     "next": {
+      "type": "string",
+      "enum": [
+       "auto",
+       "confirm",
+       "repeat",
+       "pick"
+      ],
+      "title": "Next",
+      "default": "auto"
      }
     },
     "type": "object",
