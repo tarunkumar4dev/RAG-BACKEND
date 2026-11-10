@@ -95,7 +95,21 @@ def cached_identity(key: tuple, build) -> SessionCtx:
     return ctx
 
 
+def invalidate_identity(user_id: str | None = None) -> int:
+    """Evict one user's cached identity (by user_id prefix in the key tuple), or all entries if user_id is None.
+    Returns the number of entries evicted."""
+    if user_id is None:
+        n = len(_IDENTITY)
+        _IDENTITY.clear()
+        return n
+    evicted = [k for k in _IDENTITY if any(str(v) == user_id for v in k)]
+    for k in evicted:
+        _IDENTITY.pop(k, None)
+    return len(evicted)
+
+
 def clear_identity_cache() -> None:
+    """Deprecated alias; use invalidate_identity()."""
     _IDENTITY.clear()
 
 

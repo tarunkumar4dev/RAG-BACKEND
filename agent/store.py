@@ -438,13 +438,18 @@ _STORE: Optional[SQLiteStore] = None
 _STORE_LOCK = threading.Lock()
 
 
-def get_store() -> SQLiteStore:
-    """AGENT_STORE=memory -> MemoryStore, else SQLite at AGENT_STORE_PATH (default agent/.devdata/agent_store.db)."""
+def get_store():
+    """AGENT_STORE=memory -> MemoryStore, postgres -> PostgresStore, else SQLite (default)."""
     global _STORE
     with _STORE_LOCK:
         if _STORE is None:
-            if os.getenv("AGENT_STORE", "sqlite").lower() == "memory":
+            mode = os.getenv("AGENT_STORE", "sqlite").lower()
+            if mode == "memory":
                 _STORE = MemoryStore()
+            elif mode == "postgres":
+                from .store_pg import PostgresStore
+                url = os.environ["AGENT_STORE_URL"]
+                _STORE = PostgresStore(url)
             else:
                 _STORE = SQLiteStore(os.getenv("AGENT_STORE_PATH") or DEFAULT_PATH)
         return _STORE

@@ -201,3 +201,10 @@ backend `app/core/auth.py:verify_token` calls Supabase `/auth/v1/user`.
 31. **Retries already in Phase 1**: `_llm` generator retries 429/5xx/connection errors with jittered backoff (max 2),
     then yields a `provider_error` event with `retryable=True`. Cancel aborts the in-flight stream (LLMAborted).
     Per-tool timeouts (`tool_timeout_s`) and DB-down (`OperationalError → db_unavailable`) are caught in `_call`.
+32. **PostgresStore** (`AGENT_STORE=postgres AGENT_STORE_URL=...`): same interface as SQLiteStore, using psycopg_pool.
+    DDL in `agent/sql/agent_store_local.sql` (dev) and `agent_store_supabase.sql` (production with RLS). The store
+    is NOT applied from code — migrations are external. SQLite stays the dev default. *Why:* multi-worker deploys
+    need a shared store; SQLite WAL doesn't survive across processes on networked filesystems.
+33. **Identity cache per-key invalidation** (`invalidate_identity(user_id)`): evict one user without clearing all.
+    Refusals (build() raises) are never cached (existing test + new test). *Why:* a removed user should lose access
+    within one TTL, but invalidating all caches on every admin action is wasteful.
