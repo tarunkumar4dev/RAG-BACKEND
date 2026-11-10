@@ -194,3 +194,10 @@ backend `app/core/auth.py:verify_token` calls Supabase `/auth/v1/user`.
 29. **No-cancel fast path** in `_wait`: when `cancel_event is None` the future is awaited with a single blocking
     `fut.result(timeout=…)` instead of a 50 ms polling loop. *Why:* the polling added ≈50 ms overhead per tool call;
     removing it brought turn p50 from 60 ms back down to 24 ms.
+30. **Approval persistence** (Phase 2): POST /approve with `decision=cancel` stores "cancelled" without executing;
+    `decision=approve` (default) executes then stores "approved" + result_ref in the message events. On replay
+    (`list_messages`, `all_messages`), pending_approval events past `expires_at` are returned as "expired". The card
+    in the frontend never shows a stale "Approve" button. *Why:* spec says "replay never shows a stale pending card".
+31. **Retries already in Phase 1**: `_llm` generator retries 429/5xx/connection errors with jittered backoff (max 2),
+    then yields a `provider_error` event with `retryable=True`. Cancel aborts the in-flight stream (LLMAborted).
+    Per-tool timeouts (`tool_timeout_s`) and DB-down (`OperationalError → db_unavailable`) are caught in `_call`.

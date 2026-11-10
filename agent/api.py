@@ -200,13 +200,22 @@ def make_executor(conn, ctx: SessionCtx, session_id: str):
 def approve(body: ApproveRequest, ctx: SessionCtx = Depends(get_session)):
     if ctx.data_source == "live":
         raise HTTPException(403, READ_ONLY_MESSAGE)
+    store, owner = get_store(), Owner.of(ctx)
+    if body.decision == "cancel":
+        # Cancel = decline: persist the outcome without executing anything
+        store.update_approval_in_events(owner, body.session_id, body.approval_id, "cancelled")
+        return {"approval_id": body.approval_id, "status": "cancelled"}
     with connect(readonly=False) as conn:
         _own_session(conn, ctx, body.session_id)
         try:
-            return execute_approval(conn, ctx, body.session_id, body.approval_id,
-                                    make_executor(conn, ctx, body.session_id))
+            result = execute_approval(conn, ctx, body.session_id, body.approval_id,
+                                      make_executor(conn, ctx, body.session_id))
         except ApprovalError as e:
             raise HTTPException({"not_found": 404, "expired": 410, "forbidden": 403}.get(e.code, 400), str(e))
+    # Persist the approval outcome in the stored events so replay shows "approved" not "pending"
+    result_ref = result.get("download_path")
+    store.update_approval_in_events(owner, body.session_id, body.approval_id, "approved", result_ref=result_ref)
+    return result
 
 
 @router.get("/sessions/{session_id}")

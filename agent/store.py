@@ -269,8 +269,9 @@ class SQLiteStore:
 
     @staticmethod
     def _msg_out(r: sqlite3.Row, with_llm: bool = False) -> dict:
+        events = json.loads(r["events"]) if r["events"] is not None else None
         d = {"seq": r["seq"], "role": r["role"], "text": r["text"],
-             "events": json.loads(r["events"]) if r["events"] is not None else None,
+             "events": SQLiteStore.resolve_expired_approvals(events),
              "created_at": iso(r["created_at"])}
         if with_llm:
             d["llm"] = json.loads(r["llm"]) if r["llm"] is not None else None
@@ -308,6 +309,55 @@ class SQLiteStore:
                       "and message_seq >= ?", (sid, o.user_id, o.institute_id, from_seq))
             return n
         return self._tx(run)
+
+    # -- approval persistence -----------------------------------------------
+    def update_approval_in_events(self, o: Owner, sid: str, approval_id: str, status: str,
+                                  result_ref: Optional[str] = None) -> bool:
+        """Find the assistant message containing the pending_approval event with this approval_id and update it.
+        Returns True if found and updated."""
+        def run(c):
+            rows = c.execute(
+                "select seq, events from messages where session_id = ? and user_id = ? and institute_id = ? "
+                "and role = 'assistant' and events is not null order by seq desc",
+                (sid, o.user_id, o.institute_id)).fetchall()
+            now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+            for r in rows:
+                events = json.loads(r[1])
+                changed = False
+                for e in events:
+                    if e.get("type") == "pending_approval" and e.get("approval_id") == approval_id:
+                        e["status"] = status
+                        e["decided_at"] = now
+                        if result_ref is not None:
+                            e["result_ref"] = result_ref
+                        changed = True
+                if changed:
+                    c.execute("update messages set events = ? where session_id = ? and seq = ? "
+                              "and user_id = ? and institute_id = ?",
+                              (json.dumps(events, default=str, ensure_ascii=False), sid, r[0],
+                               o.user_id, o.institute_id))
+                    return True
+            return False
+        return self._tx(run)
+
+    @staticmethod
+    def resolve_expired_approvals(events: Optional[list]) -> Optional[list]:
+        """On replay: any pending_approval past expires_at becomes 'expired'. Returns the list (mutated in place)."""
+        if not events:
+            return events
+        now = datetime.now(timezone.utc)
+        for e in events:
+            if (e.get("type") == "pending_approval" and e.get("status") == "pending"
+                    and e.get("expires_at")):
+                try:
+                    exp = datetime.fromisoformat(e["expires_at"])
+                    if exp.tzinfo is None:
+                        exp = exp.replace(tzinfo=timezone.utc)
+                    if now > exp:
+                        e["status"] = "expired"
+                except (ValueError, TypeError):
+                    pass
+        return events
 
     # -- query history -----------------------------------------------------
     def record_query(self, o: Owner, text: str) -> None:
