@@ -291,7 +291,8 @@ def download_file(file_id: str, ctx: SessionCtx = Depends(get_session)):
     return serve_file(ctx, file_id)
 
 
-DEFAULT_CORS_ORIGINS = "http://localhost:5173"
+# Vite dev runs the a4ai frontend on 8080 (vite.config.ts); 5173 is Vite's stock port. Production sets AGENT_CORS_ORIGINS.
+DEFAULT_CORS_ORIGINS = "http://localhost:8080,http://localhost:5173"
 
 
 def cors_origins(env=os.environ) -> list[str]:

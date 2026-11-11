@@ -47,6 +47,7 @@ stay in the agent process, and save/finalize/assign are switched off ("Abhi read
    ```powershell
    powershell -ExecutionPolicy Bypass -File scripts\run_agent_real.ps1 -ProjectRef <your-project-ref> -Region ap-south-1
    ```
+   Add `-Voice` for the mic (needs `SARVAM_API_KEY`). Keys missing from the shell are read from `<repo>\.env`.
    It refuses to start if the role can write anything, read `auth.*`/`storage.*`, is superuser/bypassrls, or if
    `AGENT_DEV_MODE` is also set.
 5. **Start the frontend** in a second window (a4ai repo): put `VITE_AGENT_URL=http://localhost:8000` in
@@ -198,9 +199,15 @@ one short spoken sentence. Hindi, English and Roman Hinglish. Plan, data flow, l
 
 ### Windows PowerShell (voice, dev mode)
 ```powershell
+powershell -ExecutionPolicy Bypass -File scriptsun_agent_dev.ps1 -Voice
+```
+`-Voice` sets `VOICE_ENABLED=1`. `SARVAM_API_KEY` (and the model key) come from this shell, else from `<repo>\.env`
+(`scriptsgent_env.ps1`, whitelisted names only, never printed). Same switch for `run_agent_real.ps1`. The mic
+only shows in the UI when `GET /agent/voice/config` answers `enabled: true`; "Connecting…" in the header means the
+page cannot reach the agent at all (CORS: the default allows Vite on 8080 and 5173).
+```powershell
+# set the key by hand instead (not stored in history):
 $k = Read-Host -AsSecureString "Sarvam key"; $env:SARVAM_API_KEY = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($k))
-$env:VOICE_ENABLED = "1"
-powershell -ExecutionPolicy Bypass -File scriptsun_agent_dev.ps1
 ```
 Frontend (a4ai repo, second window): `npm run dev`, open `http://localhost:8080` (Chrome allows the mic on
 localhost; a phone needs HTTPS). Tests and evals:

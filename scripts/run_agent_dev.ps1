@@ -1,14 +1,17 @@
 # a4ai Agent - local dev on plain Windows PowerShell. No Docker, no Git Bash, no Postgres install:
 # the database is embedded Postgres from the `pgserver` pip wheel (Python 3.9-3.12; no 3.13 wheel yet).
-#   powershell -ExecutionPolicy Bypass -File scripts\run_agent_dev.ps1 [-Port 8000] [-KeepData] [-WithBackendRequirements]
-# Reads A4AI_ANTHROPIC_API_KEY / GEMINI_API_KEY from the environment (never printed). Refuses to start if a
+#   powershell -ExecutionPolicy Bypass -File scripts\run_agent_dev.ps1 [-Port 8000] [-KeepData] [-WithBackendRequirements] [-Voice]
+# Reads A4AI_ANTHROPIC_API_KEY / GEMINI_API_KEY from the environment, else from <repo>\.env (never printed; see
+# scripts\agent_env.ps1). -Voice switches the mic on (VOICE_ENABLED=1, needs SARVAM_API_KEY). Refuses to start if a
 # production DB URL (Supabase etc.) is configured in this shell.
 param(
   [int]$Port = 8000,
   [switch]$KeepData,
-  [switch]$WithBackendRequirements
+  [switch]$WithBackendRequirements,
+  [switch]$Voice
 )
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot "agent_env.ps1") -Voice:$Voice
 $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
 $Venv = Join-Path $Root "agent\.devdata\venv"   # gitignored (agent/.gitignore)
