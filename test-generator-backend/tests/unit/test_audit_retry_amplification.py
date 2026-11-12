@@ -58,8 +58,16 @@ ONE_BATCH = ChapterSection(chapter="Light", quantity=4, difficulty="medium", for
 
 # ── test generator (Gate 2 #4: first attempt per batch + PAID_EXTRA_BUDGET=3 extras per paper, no top-ups) ──
 
+def test_generator_single_batch_is_at_most_3_calls_total(gen):
+    """One-batch paper, provider always failing: first attempt + 2 extras = 3 calls in total, then a fast 503."""
+    models = gen(_fail_429_then_500_forever)
+    with pytest.raises(g.GenerationError) as e:
+        g.generate_questions(_req(ONE_BATCH), CHUNKS)
+    assert e.value.status_code == 503 and len(models.calls) == TARGET_MAX_PAID_PER_ACTION == 3
+
+
 def test_generator_429_then_500_then_fallback_ok(gen):
-    """429 -> retry (extra 1) -> 500 -> primary exhausted -> fallback model (extra 2) -> usable."""
+    """429 -> retry (extra 1) -> 500 -> primary exhausted -> fallback model (extra 2) -> usable: 3 calls total."""
     models = gen(lambda n: Exception("429 RESOURCE_EXHAUSTED") if n == 1 else
                  (Exception("500 INTERNAL") if n == 2 else json.dumps({"questions": []})))
     qs = g.generate_questions(_req(ONE_BATCH), CHUNKS)
@@ -68,17 +76,17 @@ def test_generator_429_then_500_then_fallback_ok(gen):
 
 
 def test_generator_429_then_500_forever_stops_after_budget(gen):
-    """Two batches (5 + 1 questions): 2 first attempts + 3 extras = 5 provider requests, then a fast 503."""
+    """Two batches (5 + 1 questions): 2 first attempts + 2 extras = 4 provider requests, then a fast 503."""
     models = gen(_fail_429_then_500_forever)
     with pytest.raises(g.GenerationError) as e:
         g.generate_questions(_req(LIGHT), CHUNKS)
     assert e.value.status_code == 503 and str(e.value) == g.MSG_PAPER_FAILED
-    assert len(models.calls) == 2 + g.PAID_EXTRA_BUDGET == 5
-    assert g.MAX_RETRIES == 2 and g.PAID_EXTRA_BUDGET == 3
+    assert len(models.calls) == 2 + g.PAID_EXTRA_BUDGET == 4
+    assert g.MAX_RETRIES == 2 and g.PAID_EXTRA_BUDGET == 2
 
 
 def test_generator_paid_calls_capped_one_chapter(gen):
-    """Every reply billed but unusable: 2 first attempts + 3 extras = 5 paid calls (was 10)."""
+    """Every reply billed but unusable: 2 first attempts + 2 extras = 4 paid calls (was 10)."""
     models = gen(lambda n: "UNUSABLE")
     with pytest.raises(g.GenerationError) as e:
         g.generate_questions(_req(LIGHT), CHUNKS)
@@ -88,13 +96,13 @@ def test_generator_paid_calls_capped_one_chapter(gen):
 
 
 def test_generator_paid_calls_capped_cbse_paper(gen):
-    """2-chapter CBSE paper, every reply unusable: 14 first-wave batches (cost_guard_baseline) + 3 extras at most
+    """2-chapter CBSE paper, every reply unusable: 14 first-wave batches (cost_guard_baseline) + 2 extras at most
     (was 100)."""
     models = gen(lambda n: "UNUSABLE")
     with pytest.raises(g.GenerationError) as e:
         g.generate_questions(_req(LIGHT, ELEC), CHUNKS, cbse_pattern=True)
     assert e.value.status_code == 503
-    assert len(models.calls) <= 14 + TARGET_MAX_PAID_PER_ACTION
+    assert len(models.calls) <= 14 + g.PAID_EXTRA_BUDGET
 
 
 def test_generator_no_top_up_rounds(gen):
@@ -113,7 +121,8 @@ def test_generator_no_top_up_rounds(gen):
 
 
 def test_generator_deepseek_fallback_counts_against_budget(gen, monkeypatch):
-    """LLM_PROVIDER=deepseek: DeepSeek retry (1) + Gemini fallback (2) + Gemini retry (3) -> then 503."""
+    """LLM_PROVIDER=deepseek, one batch: DeepSeek, DeepSeek retry (extra 1), Gemini fallback (extra 2) = 3 calls in
+    total, then a fast 503."""
     from app.core.config import settings
     monkeypatch.setattr(settings, "LLM_PROVIDER", "deepseek")
     monkeypatch.setattr(settings, "DEEPSEEK_API_KEY", "audit-not-a-key")
@@ -131,7 +140,7 @@ def test_generator_deepseek_fallback_counts_against_budget(gen, monkeypatch):
     with pytest.raises(g.GenerationError) as e:
         g.generate_questions(_req(ONE_BATCH), CHUNKS)
     assert e.value.status_code == 503
-    assert len(ds_calls) + len(models.calls) == 1 + TARGET_MAX_PAID_PER_ACTION
+    assert len(ds_calls) + len(models.calls) == TARGET_MAX_PAID_PER_ACTION == 3
 
 
 # ── copy checker (smart_assignment_service) ─────────────────────────────────────────────────────────────────
@@ -213,3 +222,21 @@ def test_checker_paid_calls_per_copy_capped():
     assert paid_per_run == 2 and getattr(e.value, "final", False) is True
     assert code == "AI_UNREADABLE" and "manually" in msg
     assert paid_per_run * 1 <= TARGET_MAX_PAID_PER_ACTION      # final -> exactly one run
+
+
+def test_checker_billed_calls_per_copy_capped_across_runs(checker):
+    """Gate 2 #4 (3 in total): two earlier runs each billed one unreadable reply; this run may bill only one more."""
+    client, calls = checker(["not json", "not json", "not json"])
+    with svc.usage_meter() as meter, svc.billed_budget(svc.MAX_BILLED_PER_COPY - 2):
+        with pytest.raises(svc.CallCapExceeded):
+            svc._generate_json(client, ["x"], "GRADE")
+    assert len(calls) == 1 and meter.billed_calls == 1
+    assert svc.MAX_BILLED_PER_COPY == TARGET_MAX_PAID_PER_ACTION == 3
+
+
+def test_checker_failed_run_keeps_billed_count():
+    """grade_copy attaches the meter to the exception so the worker can store billed calls of a failed run."""
+    from app.services import job_worker as jw
+    assert "billed_calls" in jw._COUNTERS
+    u = jw.add_usage({"billed_calls": 2}, {"billed_calls": 1})
+    assert u["billed_calls"] == 3

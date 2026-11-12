@@ -119,7 +119,7 @@ class JobError(Exception):
 
 # ── usage / cost ──────────────────────────────────────────────────────
 
-_COUNTERS = ("gemini_calls", "input_tokens", "output_tokens", "thinking_tokens")
+_COUNTERS = ("gemini_calls", "billed_calls", "input_tokens", "output_tokens", "thinking_tokens")
 
 
 def est_cost_inr(u: dict) -> float:
@@ -210,6 +210,7 @@ class JobWorker:
         self._run_usage = {}
         self._stages = {}
         self._job_tag = f"job={str(job['id'])[:8]}"
+        self._job = job
         t0 = time.time()
         cp = job.get("checkpoint") or {}
         kind = ("rubric" if cp.get("stage") == "rubric" else "chunk" if cp.get("parent")
@@ -406,9 +407,15 @@ class JobWorker:
     def _grade(self, temps: list, rubric: dict, strictness: str) -> tuple:
         """grade_copy with the grade stage's per-call timeout; logs page prep and the Gemini call separately."""
         t = time.time()
-        with svc.call_settings(timeout_s=GRADE_CALL_TIMEOUT_S):
+        prior = int(((getattr(self, "_job", None) or {}).get("usage") or {}).get("billed_calls") or 0)
+        with svc.call_settings(timeout_s=GRADE_CALL_TIMEOUT_S), \
+                svc.billed_budget(svc.MAX_BILLED_PER_COPY - prior):
             try:
                 result, ordered, gusage = copy_check.grade_copy(temps, rubric, strictness)
+            except Exception as e:
+                if getattr(e, "usage", None):
+                    self._run_usage = add_usage(self._run_usage, e.usage)
+                raise
             finally:
                 self._stages["grade_total"] = round(time.time() - t, 2)
                 logger.info(f"[jobs] {self._job_tag} stage=grade_total {self._stages['grade_total']:.1f}s")

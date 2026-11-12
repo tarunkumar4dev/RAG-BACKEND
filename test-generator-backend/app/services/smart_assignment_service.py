@@ -110,6 +110,18 @@ MAX_ATTEMPTS_PER_RUN = 3   # Gate 2 #4: retries + fallback models together, per 
 MSG_UNREADABLE = ("AI ka jawab padha nahi ja saka; yeh copy manually check karein. / "
                   "The AI reply could not be read; please check this copy manually.")
 _attempts_left: contextvars.ContextVar = contextvars.ContextVar("a4ai_checker_attempts", default=None)
+MAX_BILLED_PER_COPY = 3    # Gate 2 #4 (step 3): billed grading calls per copy, summed over every job run
+_billed_left: contextvars.ContextVar = contextvars.ContextVar("a4ai_checker_billed_left", default=None)
+
+
+@contextlib.contextmanager
+def billed_budget(left: int):
+    """Billed calls still allowed for this copy (MAX_BILLED_PER_COPY minus earlier runs)."""
+    token = _billed_left.set([left])
+    try:
+        yield
+    finally:
+        _billed_left.reset(token)
 
 
 class UnreadableReply(ValueError):
@@ -163,12 +175,14 @@ class UsageMeter:
     input_tokens: int = 0
     output_tokens: int = 0
     thinking_tokens: int = 0
+    billed_calls: int = 0             # calls that returned a reply (Google bills those; 429/5xx are not billed)
     ms_by_tag: dict = field(default_factory=dict)
     model: Optional[str] = None       # model that answered the last call (stored as model_version)
 
     def as_dict(self) -> dict:
-        return {"gemini_calls": self.calls, "input_tokens": self.input_tokens, "output_tokens": self.output_tokens,
-                "thinking_tokens": self.thinking_tokens, "ms_by_tag": dict(self.ms_by_tag), "model": self.model}
+        return {"gemini_calls": self.calls, "billed_calls": self.billed_calls, "input_tokens": self.input_tokens,
+                "output_tokens": self.output_tokens, "thinking_tokens": self.thinking_tokens,
+                "ms_by_tag": dict(self.ms_by_tag), "model": self.model}
 
 
 _meter: contextvars.ContextVar[Optional[UsageMeter]] = contextvars.ContextVar("checker_meter", default=None)
@@ -193,6 +207,10 @@ def _log_usage(tag: str, model: str, response, seconds: float) -> None:
     if meter is not None:
         meter.ms_by_tag[tag] = meter.ms_by_tag.get(tag, 0) + int(seconds * 1000)
         meter.model = model
+        meter.billed_calls += 1
+    left = _billed_left.get()
+    if left is not None:
+        left[0] -= 1
     um = getattr(response, "usage_metadata", None)
     if um is None:
         return
@@ -263,7 +281,10 @@ def _generate(client: genai.Client, contents: list, tag: str):
 
     last_error: Optional[Exception] = None
     budget = _attempts_left.get()
+    billed_left = _billed_left.get()
     for model in [CHECKER_MODEL, *CHECKER_FALLBACK_MODELS]:
+        if billed_left is not None and billed_left[0] <= 0:
+            raise CallCapExceeded(f"[{tag}] {MAX_BILLED_PER_COPY} billed Gemini calls already spent on this copy")
         if budget is not None:
             if budget[0] <= 0:
                 break

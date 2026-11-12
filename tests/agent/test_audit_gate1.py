@@ -57,7 +57,7 @@ class FailingSTT(FakeSTT):
 
 # ── §2 retry + fallback amplification ─────────────────────────────────────────────────────────────────────────
 
-def test_agent_turn_429_then_500_is_three_requests(monkeypatch):
+def test_agent_turn_429_then_500_is_three_requests_total(monkeypatch):
     monkeypatch.setattr(config, "LLM_BACKOFF_BASE_S", 0.0)
     prov = Failing()
     evs = list(Agent(prov, CTX, str(uuid.uuid4())).run("attendance batao"))
@@ -67,7 +67,7 @@ def test_agent_turn_429_then_500_is_three_requests(monkeypatch):
 
 
 class FlakyThenTool:
-    """Fails twice, answers with a tool call, then fails for good: 3 + 2 requests, 3 retries, then the budget."""
+    """Fails twice, answers with a tool call, then fails for good: 3 + 1 requests, 2 retries, then the budget."""
     model = "audit-model"
 
     def __init__(self):
@@ -82,12 +82,12 @@ class FlakyThenTool:
 
 
 def test_agent_turn_retries_capped_at_3_across_steps(monkeypatch):
-    """Gate 2 #4: TURN_RETRY_BUDGET=3 across all steps of one turn (LLM_RETRIES=2 is per step)."""
+    """Gate 2 #4: TURN_RETRY_BUDGET=2 across all steps of one turn, so a one-step turn is <= 3 attempts total."""
     monkeypatch.setattr(config, "LLM_BACKOFF_BASE_S", 0.0)
     prov = FlakyThenTool()
     evs = list(Agent(prov, CTX, str(uuid.uuid4())).run("meri classes batao"))
-    assert prov.calls == 5                                   # step 1: fail, fail, ok; step 2: fail, fail -> stop
-    assert evs[-1]["usage"]["retries"] == config.TURN_RETRY_BUDGET == 3
+    assert prov.calls == 4                                   # step 1: fail, fail, ok; step 2: fail -> stop
+    assert evs[-1]["usage"]["retries"] == config.TURN_RETRY_BUDGET == 2
     assert any(e["type"] == "error" and e.get("retryable") for e in evs)
 
 

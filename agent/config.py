@@ -41,7 +41,7 @@ def tool_concurrency() -> int:
     return max(int(_float("AGENT_TOOL_CONCURRENCY", 4)), 1)
 
 
-TURN_RETRY_BUDGET = 3      # Gate 2 #4: retries across ALL steps of one turn; then a retryable error event
+TURN_RETRY_BUDGET = 2      # Gate 2 #4: retries across ALL steps of one turn (a one-step turn: <= 3 attempts)
 LLM_RETRIES = 2            # retries on 429 / 5xx / overloaded / connection errors (then a retryable error event)
 LLM_BACKOFF_BASE_S = 0.6   # delay = base * 2**attempt + uniform(0, base), capped by LLM_BACKOFF_MAX_S
 LLM_BACKOFF_MAX_S = 8.0
