@@ -14,7 +14,7 @@ This branch starts from `claude/youthful-archimedes-tw0p0s`. It has not been mer
 |---|---|---|
 | `CHECKER_GEMINI_FALLBACK_MODELS` | `gemini-3.6-flash`, or **delete the variable** | If it's set, it overrides the new code default, and the old list (`gemini-2.5-flash,gemini-3-flash-preview`) would stay live. |
 | `CHECKER_GEMINI_MODEL` | keep `gemini-3.8-flash` | This is the primary model and is unchanged. |
-| `CHECKER_JOB_MAX_DURATION_S` | **the real Vercel `maxDuration` of the function in seconds** (TODO, Tarun) | The code defaults to 300. If the real limit is lower, a run can still be killed mid-call. |
+| `CHECKER_JOB_MAX_DURATION_S` | leave unset (300) | **Verified 300 s** on 13 Nov 2026 from the Vercel project settings: `defaultResourceConfig.functionDefaultTimeout = 300`, fluid compute on, no override in `resourceConfig`, no `maxDuration` in `vercel.json`. If the project limit is ever changed, set this variable to match. |
 | `CHECKER_JOB_RUN_MARGIN_S` | leave unset (30) | Time kept back for database writes and the response. |
 | `CHECKER_GRADE_TIMEOUT_S` | leave unset (150), or keep it at or below `MAX_DURATION − 30 − 20` | Timeout for one grade call. |
 | `CHECKER_GEMINI_TIMEOUT_S` | leave unset (60) | Timeout on the sync path, where a teacher is waiting. |

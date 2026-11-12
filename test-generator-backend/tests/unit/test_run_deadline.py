@@ -84,6 +84,8 @@ def test_run_deadline_is_a_retryable_timeout_for_the_worker():
     assert code == "TIMEOUT" and code in jw._RETRY_CODES
 
 
-def test_defaults():
+def test_defaults_match_vercel_limit():
+    """Vercel function limit verified 13 Nov 2026: 300 s (defaultResourceConfig.functionDefaultTimeout)."""
     assert jw.GRADE_CALL_TIMEOUT_S == 150 and svc.CHECKER_TIMEOUT_S == 60
     assert jw.JOB_MAX_DURATION_S == 300 and jw.JOB_RUN_MARGIN_S == 30
+    assert jw.GRADE_CALL_TIMEOUT_S <= jw.JOB_MAX_DURATION_S - jw.JOB_RUN_MARGIN_S - svc.MIN_CALL_S

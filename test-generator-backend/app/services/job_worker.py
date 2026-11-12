@@ -54,8 +54,9 @@ RUBRIC_CALL_TIMEOUT_S = float(os.getenv("CHECKER_RUBRIC_TIMEOUT_S", "180"))
 GRADE_CALL_TIMEOUT_S = float(os.getenv("CHECKER_GRADE_TIMEOUT_S", "150"))
 # Total deadline per job run (checker bundle): retries + fallbacks of one run must finish inside the serverless
 # function's max duration, or Vercel kills the run mid-call (paid, no result, job stuck until the 6-min sweep).
-# CHECKER_JOB_MAX_DURATION_S = the function's maxDuration on Vercel; TODO(Tarun): set it in Vercel env to the
-# project's real value. Default 300 s. JOB_RUN_MARGIN_S is kept free for page prep before the clock starts being
+# CHECKER_JOB_MAX_DURATION_S = the function's max duration on Vercel: 300 s, verified 13 Nov 2026 from the project
+# settings (Vercel API /v9/projects: defaultResourceConfig.functionDefaultTimeout = 300, fluid compute on, no
+# override in resourceConfig, no maxDuration in vercel.json). Change both together if the project limit changes. JOB_RUN_MARGIN_S is kept free for page prep before the clock starts being
 # tight, DB writes and the response.
 JOB_MAX_DURATION_S = float(os.getenv("CHECKER_JOB_MAX_DURATION_S", "300"))
 JOB_RUN_MARGIN_S = float(os.getenv("CHECKER_JOB_RUN_MARGIN_S", "30"))
