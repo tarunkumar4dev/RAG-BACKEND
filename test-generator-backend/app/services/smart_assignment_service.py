@@ -65,8 +65,13 @@ _log_tag: contextvars.ContextVar[str] = contextvars.ContextVar("checker_log_tag"
 
 
 @contextlib.contextmanager
-def call_settings(timeout_s: Optional[float] = None, log_tag: Optional[str] = None):
+def call_settings(timeout_s: Optional[float] = None, log_tag: Optional[str] = None,
+                  deadline: Optional[float] = None):
+    """timeout_s: per-call HTTP timeout. deadline: time.monotonic() by which the whole job run must be done —
+    every call's timeout is cut to the time left, and no call starts with less than MIN_CALL_S left."""
     tokens = [(_call_timeout, _call_timeout.set(timeout_s))] if timeout_s else []
+    if deadline is not None:
+        tokens.append((_run_deadline, _run_deadline.set(deadline)))
     if log_tag is not None:
         tokens.append((_log_tag, _log_tag.set(log_tag)))
     try:
@@ -81,10 +86,29 @@ def _tag_prefix() -> str:
     return f"{t} " if t else ""
 
 
+MIN_CALL_S = 20          # a grade call that cannot get this long is not started (it would be paid and cut off)
+_run_deadline: contextvars.ContextVar = contextvars.ContextVar("a4ai_checker_run_deadline", default=None)
+
+
+class RunDeadline(TimeoutError):
+    """Not enough time left in this job run for another Gemini call. No call was made; the job is re-queued."""
+
+
+def _effective_timeout() -> float:
+    timeout = _call_timeout.get() or CHECKER_TIMEOUT_S
+    deadline = _run_deadline.get()
+    if deadline is None:
+        return timeout
+    left = deadline - time.monotonic()
+    if left < MIN_CALL_S:
+        raise RunDeadline(f"{left:.0f} s left in this job run (< {MIN_CALL_S} s): not starting another Gemini call")
+    return float(int(min(timeout, left)))   # whole seconds: a bounded number of cached clients
+
+
 def _get_client() -> genai.Client:
     if GEMINI_MOCK:
         return None  # _generate never touches the client in mock mode
-    timeout = _call_timeout.get() or CHECKER_TIMEOUT_S
+    timeout = _effective_timeout()
     if timeout not in _clients:
         key = CHECKER_API_KEY or settings.GEMINI_API_KEY
         if not key:
@@ -286,6 +310,8 @@ def _generate(client: genai.Client, contents: list, tag: str):
     budget = _attempts_left.get()
     billed_left = _billed_left.get()
     for model in [CHECKER_MODEL, *CHECKER_FALLBACK_MODELS]:
+        if not GEMINI_MOCK and _run_deadline.get() is not None:
+            client = _get_client()          # raises RunDeadline before a call that could not finish in time
         if billed_left is not None and billed_left[0] <= 0:
             raise CallCapExceeded(f"[{tag}] {MAX_BILLED_PER_COPY} billed Gemini calls already spent on this copy")
         if budget is not None:
@@ -359,6 +385,9 @@ def _generate_json_budgeted(client, contents: list, tag: str, attempts: int, bud
             if e.code == 429:
                 wait = min(e.retry_after if e.retry_after is not None else 5.0, CHECKER_MAX_RETRY_WAIT_S)
         if attempt < attempts:
+            deadline = _run_deadline.get()
+            if deadline is not None and deadline - time.monotonic() - wait < MIN_CALL_S:
+                break                       # no time for wait + one more useful call: re-queue instead
             time.sleep(wait)
     if isinstance(last_error, GeminiBusy):
         raise last_error

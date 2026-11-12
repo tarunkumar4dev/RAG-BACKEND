@@ -52,6 +52,13 @@ MIN_LEFT_TO_CLAIM_S = float(os.getenv("CHECKER_MIN_LEFT_TO_CLAIM_S", "200"))
 # copy needed more than the global 60 s and timed out 3 times; a rubric call takes ~75 s on a 30-mark paper.
 RUBRIC_CALL_TIMEOUT_S = float(os.getenv("CHECKER_RUBRIC_TIMEOUT_S", "180"))
 GRADE_CALL_TIMEOUT_S = float(os.getenv("CHECKER_GRADE_TIMEOUT_S", "150"))
+# Total deadline per job run (checker bundle): retries + fallbacks of one run must finish inside the serverless
+# function's max duration, or Vercel kills the run mid-call (paid, no result, job stuck until the 6-min sweep).
+# CHECKER_JOB_MAX_DURATION_S = the function's maxDuration on Vercel; TODO(Tarun): set it in Vercel env to the
+# project's real value. Default 300 s. JOB_RUN_MARGIN_S is kept free for page prep before the clock starts being
+# tight, DB writes and the response.
+JOB_MAX_DURATION_S = float(os.getenv("CHECKER_JOB_MAX_DURATION_S", "300"))
+JOB_RUN_MARGIN_S = float(os.getenv("CHECKER_JOB_RUN_MARGIN_S", "30"))
 RUBRIC_WAIT_S = 60                    # a copy waiting for its rubric looks again at least this often
 MAX_RUNNING_JOBS = int(os.getenv("MAX_RUNNING_JOBS", "5"))
 CHUNK_MAX_PAGES = 12                  # > 12 pages → chunks of 10-12 pages
@@ -211,6 +218,7 @@ class JobWorker:
         self._stages = {}
         self._job_tag = f"job={str(job['id'])[:8]}"
         self._job = job
+        self._deadline = time.monotonic() + JOB_MAX_DURATION_S - JOB_RUN_MARGIN_S
         t0 = time.time()
         cp = job.get("checkpoint") or {}
         kind = ("rubric" if cp.get("stage") == "rubric" else "chunk" if cp.get("parent")
@@ -408,7 +416,7 @@ class JobWorker:
         """grade_copy with the grade stage's per-call timeout; logs page prep and the Gemini call separately."""
         t = time.time()
         prior = int(((getattr(self, "_job", None) or {}).get("usage") or {}).get("billed_calls") or 0)
-        with svc.call_settings(timeout_s=GRADE_CALL_TIMEOUT_S), \
+        with svc.call_settings(timeout_s=GRADE_CALL_TIMEOUT_S, deadline=getattr(self, "_deadline", None)), \
                 svc.billed_budget(svc.MAX_BILLED_PER_COPY - prior):
             try:
                 result, ordered, gusage = copy_check.grade_copy(temps, rubric, strictness)
@@ -469,7 +477,8 @@ class JobWorker:
                 if asg.get("file_url"):
                     qp = [self._download_temp("assignments", _storage_path(asg["file_url"], "assignments"))]
                     temps += qp
-            with self._stage("rubric_gemini"), svc.call_settings(timeout_s=RUBRIC_CALL_TIMEOUT_S):
+            with self._stage("rubric_gemini"), svc.call_settings(timeout_s=RUBRIC_CALL_TIMEOUT_S,
+                                                                 deadline=getattr(self, "_deadline", None)):
                 with svc.usage_meter() as meter:
                     try:
                         # no question paper attached: the answer key usually prints the questions too
