@@ -35,7 +35,6 @@ KNOWN = {
     "test-generator-backend/app/services/module_service.py": {"gemini-3.5-flash-lite"},
     "test-generator-backend/app/services/smart_assignment_service.py": {"gemini-2.5-flash", "gemini-3-flash-preview",
                                                                        "gemini-3.8-flash"},
-    "test-generator-backend/app/services/test_checker_service.py": {"gemini-3.8-flash"},
     # gemini-3.6-flash here is a key of the cost table _PRICE_PER_M (Gate 2 #7), not a model selection
     "test-generator-backend/app/services/test_generator_service.py": {"deepseek-flash", "gemini-3.5-flash-lite",
                                                                       "gemini-3.6-flash"},
@@ -82,7 +81,7 @@ def test_no_new_hardcoded_model_ids():
     assert not new, f"model ids hardcoded outside config (move them to config): {new}"
 
 
-@pytest.mark.xfail(strict=True, reason="AUDIT: ids are hardcoded in 13 non-config files; GEMINI_MODEL is read "
+@pytest.mark.xfail(strict=True, reason="AUDIT: ids are hardcoded in 12 non-config files; GEMINI_MODEL is read "
                                        "with its own default in 4 places")
 def test_all_model_ids_come_from_one_config():
     found = _ids_by_file()

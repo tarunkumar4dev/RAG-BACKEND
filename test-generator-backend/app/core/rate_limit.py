@@ -35,7 +35,6 @@ ROUTE_LIMITS = {
     # AI / Gemini — cost money
     "POST /api/v1/test-generator/generate-frontend": 20,
     "POST /api/v1/test-generator/generate": 20,
-    "POST /api/v1/test-generator/verify-answers": 20,
     "POST /api/v1/test-generator/feedback": 30,
     "POST /api/v1/test-generator/export": 30,
     "POST /api/v1/test-generator/export-answer-key": 30,
@@ -49,9 +48,6 @@ ROUTE_LIMITS = {
     "POST /worksheet/generate-direct": 20,
     "POST /api/v1/community-quizzes/preview-video": 20,
     "POST /api/v1/community-quizzes": 20,
-    "POST /api/v1/test-checker/extract-key": 10,
-    "POST /api/v1/test-checker/check": 20,
-    "POST /api/v1/test-checker/check-with-test": 20,
     "POST /api/v1/chat": 20,
     "POST /api/v1/smart-assignment-checker/check": 20,
     "POST /api/v1/smart-assignment-checker/assignments/{assignment_id}/rubric": 10,
