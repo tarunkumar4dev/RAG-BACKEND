@@ -55,6 +55,10 @@ STT_INR_PER_MIN = 0.49               # billed per second
 TTS_INR_PER_1000_CHARS = {"bulbul:v4-flash": 1.00, "bulbul:v3": 3.00, "bulbul:v2": 3.00}
 GEMINI_AUDIO_TOKENS_PER_S = 32       # aistudio.google.com/docs/audio
 INR_PER_USD = 84.0
+# Gemini AUDIO input is priced separately from text (aistudio.google.com/docs/pricing, read 12 Nov 2026, Gate 2 #7):
+# gemini-2.5-flash $1.00/M audio (text $0.30), gemini-3-flash-preview $1.00, gemini-2.5-flash-lite $0.30.
+# The old code used the text price, undercounting Gemini STT ~3.3x. Unknown model -> $1.00 (conservative).
+GEMINI_AUDIO_USD_PER_M = {"gemini-2.5-flash": 1.00, "gemini-3-flash-preview": 1.00, "gemini-2.5-flash-lite": 0.30}
 
 # ---- static phrases (no names, no numbers): the only TTS audio that is cached -----------------------------------
 STATIC_PHRASES: dict[str, dict[str, str]] = {
@@ -136,7 +140,7 @@ def user_daily(env=os.environ) -> int:
 def stt_cost_inr(seconds: float, provider: str) -> float:
     if provider == "gemini":
         from .. import config as agent_config
-        pin, _ = agent_config.PRICES.get(agent_config.GEMINI_MODEL, (0.30, 2.50))
+        pin = GEMINI_AUDIO_USD_PER_M.get(agent_config.GEMINI_MODEL, 1.00)
         return round(seconds * GEMINI_AUDIO_TOKENS_PER_S * pin / 1e6 * INR_PER_USD, 5)
     if provider == "sarvam":
         return round(seconds / 60.0 * STT_INR_PER_MIN, 5)

@@ -59,8 +59,31 @@ PARK_RECHECK_S = 600                  # a waiting long copy looks at its chunks 
 # Daily Gemini spend cap for checking (estimate from token counts × price; the Google project cap stays the
 # last line of defence). Over the cap the worker claims nothing until the next IST day.
 DAILY_BUDGET_INR = float(os.getenv("CHECKER_DAILY_BUDGET_INR", "150"))
-PRICE_IN_PER_M_INR = float(os.getenv("CHECKER_PRICE_IN_PER_M_INR", "26"))
-PRICE_OUT_PER_M_INR = float(os.getenv("CHECKER_PRICE_OUT_PER_M_INR", "213"))
+# Gemini paid-tier list prices for the checker model, USD per 1M tokens (input, output incl. thinking).
+# Source: aistudio.google.com/docs/pricing, read 12 Nov 2026 (Gate 2 #7). gemini-3.8-flash: $0.75 / $3.75
+# through 31 Dec 2026, $1.50 / $7.50 from 1 Jan 2027. The old defaults (Rs 26 / Rs 213) were gemini-2.5-flash
+# prices and undercounted the checker ~1.5x. CHECKER_PRICE_*_PER_M_INR env vars still override.
+INR_PER_USD = 84.0
+_CHECKER_PRICES_USD = (            # (first day, input $/M, output $/M)
+    ("2026-01-01", 0.75, 3.75),
+    ("2027-01-01", 1.50, 7.50),
+)
+
+
+def _price_inr(which: int, today: Optional[str] = None) -> float:
+    today = today or time.strftime("%Y-%m-%d")
+    row = [p for p in _CHECKER_PRICES_USD if p[0] <= today][-1]
+    return row[which] * INR_PER_USD
+
+
+def price_in_per_m_inr(today: Optional[str] = None) -> float:
+    env = os.getenv("CHECKER_PRICE_IN_PER_M_INR")
+    return float(env) if env else _price_inr(1, today)
+
+
+def price_out_per_m_inr(today: Optional[str] = None) -> float:
+    env = os.getenv("CHECKER_PRICE_OUT_PER_M_INR")
+    return float(env) if env else _price_inr(2, today)
 
 SUBMISSIONS_BUCKET = "submissions"
 SHEETS_BUCKET = "answer-sheets"
@@ -101,7 +124,7 @@ _COUNTERS = ("gemini_calls", "input_tokens", "output_tokens", "thinking_tokens")
 
 def est_cost_inr(u: dict) -> float:
     out = (u.get("output_tokens") or 0) + (u.get("thinking_tokens") or 0)    # thinking is billed as output
-    return round(((u.get("input_tokens") or 0) * PRICE_IN_PER_M_INR + out * PRICE_OUT_PER_M_INR) / 1e6, 4)
+    return round(((u.get("input_tokens") or 0) * price_in_per_m_inr() + out * price_out_per_m_inr()) / 1e6, 4)
 
 
 def add_usage(total: dict, part: dict) -> dict:
