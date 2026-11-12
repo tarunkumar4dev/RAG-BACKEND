@@ -962,7 +962,8 @@ def _score_leaf(leaf: dict, ans: Optional[dict], answer_type: str, scheme_source
         "student_answer_summary": str((ans or {}).get("student_answer") or ""),
         "key_concepts_found": [pt["text"] or pt["expected"] for pt in points_out if pt["verdict"] in ("full", "mostly")],
         "key_concepts_missed": [pt["text"] or pt["expected"] for pt in points_out if pt["verdict"] in ("partial", "none")],
-        "feedback": str((ans or {}).get("feedback") or ("Not attempted" if not attempted else "")),
+        "feedback": _feedback_with_reason(str((ans or {}).get("feedback") or ("Not attempted" if not attempted else "")),
+                                          points_out, awarded, leaf["marks"], attempted),
         "confidence": confidence if confidence in ("high", "medium", "low") else "medium",
         "legibility_issue": legibility,
         "not_attempted": not attempted,
@@ -972,6 +973,36 @@ def _score_leaf(leaf: dict, ans: Optional[dict], answer_type: str, scheme_source
         "page_index": page_index,
         "y_start": y_start,
     }
+
+
+# Gate 2 bundle: every deduction says why. Server-side, deterministic, no extra model call, marks untouched.
+FEEDBACK_REASON = os.getenv("CHECKER_FEEDBACK_REASON", "1") != "0"
+_VERDICT_RANK = {"none": 0, "partial": 1, "mostly": 2, "full": 3}
+
+
+def _weakest_reason(points_out: list) -> str:
+    """One line: the model's "reason" for the weakest non-full point (fewest marks kept), else what was expected."""
+    lost = [pt for pt in points_out if pt["verdict"] != "full"]
+    if not lost:
+        return ""
+    weakest = min(lost, key=lambda pt: (pt["marks_awarded"] / pt["max_marks"] if pt["max_marks"] else 0,
+                                        _VERDICT_RANK.get(pt["verdict"], 0)))
+    line = (weakest.get("reason") or "").strip()
+    if not line:
+        target = (weakest.get("text") or weakest.get("expected") or "").strip()
+        line = f"Missing: {target}" if target else ""
+    return " ".join(line.split())          # one line
+
+
+def _feedback_with_reason(feedback: str, points_out: list, awarded: float, max_marks: float, attempted: bool) -> str:
+    """Below full marks on an attempted answer: put the weakest point's reason first (if the feedback does not
+    already contain it). Full marks, unattempted answers and composite rows are left as they are."""
+    if not FEEDBACK_REASON or not attempted or awarded >= max_marks:
+        return feedback
+    reason = _weakest_reason(points_out)
+    if not reason or reason.lower() in feedback.lower():
+        return feedback
+    return (reason + "\n" + feedback) if feedback else reason
 
 
 def _score(grading: dict, rubric: dict) -> dict:
