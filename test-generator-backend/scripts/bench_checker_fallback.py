@@ -146,6 +146,9 @@ def main():
     ap.add_argument("--models", nargs=2, default=["gemini-3.8-flash", "gemini-3.6-flash"])
     ap.add_argument("--budget-inr", type=float, default=95.0)
     ap.add_argument("--confirm-spend", action="store_true")
+    ap.add_argument("--resume", action="store_true",
+                    help="keep successful runs from <out>/raw.json, retry only the failed ones (spend carries over)")
+    ap.add_argument("--only", nargs="*", default=None, help="copy numbers to (re)run, e.g. 1 4")
     args = ap.parse_args()
     out = Path(args.out).resolve()
     if str(out).lower().startswith(str(ROOT.parent).lower()):
@@ -158,15 +161,25 @@ def main():
     copies = _download(rows, out)
     print(f"pages ready: {sum(len(c) for c in copies)} files for {len(copies)} copies", flush=True)
 
-    spent, runs, stopped = 0.0, [], None
+    prev = {}
+    if args.resume and (out / "raw.json").exists():
+        prev = {c["label"]: c for c in json.loads((out / "raw.json").read_text(encoding="utf-8"))}
+    spent = sum(r["cost_inr"] for c in prev.values() for r in c["runs"].values())
+    runs, stopped = [], None
     for i, (r, paths) in enumerate(zip(rows, copies), 1):
-        if spent + 2 * HEADROOM_INR > args.budget_inr:
-            stopped = f"budget: Rs {spent:.2f} spent, the next pair could pass Rs {args.budget_inr:.0f}"
-            break
-        c = {"label": f"Copy {i:02d}", "pages": len(paths), "prod_marks": r.get("ai_marks"),
-             "max_marks": r.get("max_marks"), "runs": {}}
-        for m in args.models:
+        label = f"Copy {i:02d}"
+        c = prev.get(label) or {"label": label, "pages": len(paths), "prod_marks": r.get("ai_marks"),
+                                "max_marks": r.get("max_marks"), "runs": {}}
+        todo = [m for m in args.models if m not in c["runs"] or c["runs"][m]["error"]]
+        if args.only is not None and str(i) not in args.only and f"{i:02d}" not in args.only:
+            todo = []
+        if todo and spent + len(todo) * HEADROOM_INR > args.budget_inr:
+            stopped = f"budget: Rs {spent:.2f} spent, the next run could pass Rs {args.budget_inr:.0f}"
+            runs.append(c)
+            continue
+        for m in todo:
             run = _grade(m, paths, r["rubric"], r.get("strictness") or "medium")
+            run["attempts"] = c["runs"].get(m, {}).get("attempts", 1 if m in c["runs"] else 0) + 1
             spent += run["cost_inr"]
             c["runs"][m] = run
             print(f"{c['label']} {m}: {'ERR ' + run['error'] if run['error'] else (run['result'] or {}).get('total_marks_awarded')} "
