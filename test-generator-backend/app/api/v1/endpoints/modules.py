@@ -16,6 +16,7 @@ from app.services.module_service import ModuleService
 from app.core.sanitize import sanitize_uuid
 from app.core.auth import AuthUser, require_user
 from app.core.quota import ACTION_PAPER, consume, release, reserve
+from app.core.usage_log import log_usage, usage_from_response
 from app.api.v1.endpoints.chat import _SlidingWindow
 import os as _os_env
 from fastapi.responses import Response
@@ -447,6 +448,10 @@ Output ONLY valid JSON, no markdown, no backticks."""
             model=model_name,
             contents=prompt,
             config={"temperature": 0.3, "max_output_tokens": 16000, "response_mime_type": "application/json"})
+        u = usage_from_response(model_name, response)
+        log_usage("worksheet_direct", user.id, u,
+                  est_cost_usd=(u["input_tokens"] * 0.30 + u["output_tokens"] * 2.50) / 1e6
+                  if model_name == "gemini-3.5-flash-lite" else None)
 
         raw_text = response.text
         try:

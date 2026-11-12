@@ -32,7 +32,8 @@ from app.models.test_generator import (
     QuestionFormat,
     ManualQuestionPayload,
 )
-from app.services.test_generator_service import generate_test, handle_feedback, verify_answer_key
+from app.services.test_generator_service import generate_test, handle_feedback, paper_usage, verify_answer_key
+from app.core.usage_log import log_usage
 from app.api.v1.endpoints.chat import _SlidingWindow
 from starlette.concurrency import run_in_threadpool
 from app.services.rag_service import retrieve_context
@@ -456,6 +457,16 @@ def _transform_backend_to_frontend(resp, req: FrontendGenerateRequest) -> Fronte
 # ENDPOINT: Generate from Frontend (v3.3 — hardened)
 # ═══════════════════════════════════════════════════════════════════════
 
+def _log_failed_paper(stats, req, already) -> None:
+    """A failed paper still spent money: log what it used (unless the success line was already written)."""
+    if already is not None:
+        return
+    u = stats.as_usage()
+    if u["calls"]:
+        log_usage("paper_cbse" if getattr(req, "cbsePattern", False) else "paper", req.userId, u,
+                  outcome="failed", est_cost_usd=u.get("est_cost_usd"))
+
+
 @router.post("/generate-frontend", response_model=FrontendGenerateResponse)
 async def generate_from_frontend(req: FrontendGenerateRequest, user: AuthUser = Depends(require_user),
                                  idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key", max_length=80)):
@@ -463,6 +474,9 @@ async def generate_from_frontend(req: FrontendGenerateRequest, user: AuthUser = 
     start = time.time()
     logger.info(f"Frontend generate: {req.subject} {req.classGrade}, {len(req.simpleData)} chapters")
     rsv = None
+    ai_usage = None
+    usage_ctx = paper_usage()
+    stats = usage_ctx.__enter__()
 
     try:
         # Gate 2 #5: one quota unit is reserved atomically under the client's Idempotency-Key, consumed on success
@@ -498,6 +512,9 @@ async def generate_from_frontend(req: FrontendGenerateRequest, user: AuthUser = 
             backend_response = generate_cbse_accountancy_paper(backend_request, context_chunks)
         else:
             backend_response = generate_test(backend_request, context_chunks, cbse_pattern=req.cbsePattern)
+        u = stats.as_usage()
+        ai_usage = log_usage("paper_cbse" if req.cbsePattern else "paper", req.userId, u,
+                             est_cost_usd=u.get("est_cost_usd"))
 
         frontend_response = _transform_backend_to_frontend(backend_response, req)
 
@@ -521,6 +538,8 @@ async def generate_from_frontend(req: FrontendGenerateRequest, user: AuthUser = 
                 "total_marks": frontend_response.totalMarks,
                 "paper_date": req.paperDate,
                 "cbse_pattern": req.cbsePattern,
+                # Gate 2 #8: tokens + cost + institute for this paper (ids only; request_payload was unused)
+                "request_payload": {"ai_usage": ai_usage} if ai_usage else None,
             }
             supabase = get_supabase_admin()
             insert_result = supabase.table("tests").insert(tests_row).execute()
@@ -541,14 +560,17 @@ async def generate_from_frontend(req: FrontendGenerateRequest, user: AuthUser = 
     except HTTPException:
         if rsv is not None:
             release(rsv)
+        _log_failed_paper(stats, req, ai_usage)
         raise
     except ValueError as e:
         if rsv is not None:
             release(rsv)
+        _log_failed_paper(stats, req, ai_usage)
         raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
         if rsv is not None:
             release(rsv)
+        _log_failed_paper(stats, req, ai_usage)
         error_str = str(e)
         if getattr(e, "status_code", None) == 503:   # paid-call budget spent / provider down: fail fast, clear text
             raise HTTPException(status_code=503, detail=error_str, headers={"Retry-After": "120"})
@@ -568,6 +590,8 @@ async def generate_from_frontend(req: FrontendGenerateRequest, user: AuthUser = 
                 )
         logger.error(f"Frontend generate error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Generation failed. Please try again.")
+    finally:
+        usage_ctx.__exit__(None, None, None)
 
 
 # ═══════════════════════════════════════════════════════════════════════

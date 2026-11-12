@@ -359,6 +359,11 @@ Output ONLY valid JSON."""
                 contents=prompt,
                 config={"temperature": 0.3, "max_output_tokens": 16000, "response_mime_type": "application/json"},
             )
+            from app.core.usage_log import log_usage, usage_from_response
+            u = usage_from_response(GEMINI_MODEL, response)
+            log_usage("worksheet_module", teacher_id, u,
+                      est_cost_usd=(u["input_tokens"] * 0.30 + u["output_tokens"] * 2.50) / 1e6
+                      if GEMINI_MODEL == "gemini-3.5-flash-lite" else None)
 
             data = json.loads(response.text)
             questions = data.get("questions", [])

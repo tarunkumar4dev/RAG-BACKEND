@@ -17,6 +17,7 @@ import json
 import logging
 import random
 import re
+import contextlib
 import time
 import uuid
 from typing import List, Dict, Optional
@@ -2166,6 +2167,16 @@ class _PaperStats:
         with self._lock:
             self.dropped += 1
 
+    def as_usage(self) -> dict:
+        """{calls, input_tokens, output_tokens, models} + est. cost — for app/core/usage_log (Gate 2 #8)."""
+        with self._lock:
+            models = {m: list(v) for m, v in self.calls.items()}
+        cost = sum((tin * _PRICE_PER_M[m][0] + tout * _PRICE_PER_M[m][1]) / 1e6
+                   for m, (n, tin, tout) in models.items() if m in _PRICE_PER_M)
+        return {"calls": sum(v[0] for v in models.values()), "input_tokens": sum(v[1] for v in models.values()),
+                "output_tokens": sum(v[2] for v in models.values()), "models": models,
+                "est_cost_usd": round(cost, 6), "extra_attempts": self.extra}
+
     def summary(self) -> str:
         parts, cost, cost_known = [], 0.0, True
         for model, (n, tin, tout) in self.calls.items():
@@ -2193,6 +2204,18 @@ def _spend_extra():
     stats = _PAPER_STATS.get()
     if stats:
         stats.spend_extra()
+
+
+@contextlib.contextmanager
+def paper_usage():
+    """Collect LLM usage for one paper across every path (custom, CBSE, accountancy) — the endpoint wraps the
+    generate call in this and records the result with feature + institute (Gate 2 #8)."""
+    stats = _PaperStats()
+    token = _PAPER_STATS.set(stats)
+    try:
+        yield stats
+    finally:
+        _PAPER_STATS.reset(token)
 
 
 def _submit(pool, fn, *args, **kwargs):
