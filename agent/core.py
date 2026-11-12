@@ -442,7 +442,7 @@ class Agent:
             except LLMAborted:
                 raise Cancelled()
             except Exception as e:  # noqa: BLE001
-                if is_retryable(e) and attempt < config.LLM_RETRIES:
+                if is_retryable(e) and attempt < config.LLM_RETRIES and self.retries < config.TURN_RETRY_BUDGET:
                     delay = backoff_s(attempt, e)
                     attempt += 1
                     self.retries += 1

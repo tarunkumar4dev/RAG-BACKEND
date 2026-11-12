@@ -109,11 +109,11 @@ def test_bad_json_gets_exactly_one_retry(live):
 
 def test_call_cap_stops_before_the_next_call(live):
     client, models, _ = live([503, 503, 503, 503, 503, 503])
-    with svc.usage_meter(cap=4) as meter:
+    with svc.usage_meter(cap=2) as meter:
         with pytest.raises(svc.CallCapExceeded):
-            svc._generate_json(client, ["x"], "GRADE")     # 3 models, then the retry hits the cap
-    assert meter.calls == 4
-    assert len(models.calls) == 4
+            svc._generate_json(client, ["x"], "GRADE")     # 2 models, then the 3rd attempt hits the sheet cap
+    assert meter.calls == 2
+    assert len(models.calls) == 2
 
 
 def test_usage_is_counted(live):

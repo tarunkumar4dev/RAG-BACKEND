@@ -66,15 +66,29 @@ def test_agent_turn_429_then_500_is_three_requests(monkeypatch):
     assert any(e["type"] == "error" and e.get("retryable") for e in evs)
 
 
-def test_agent_turn_worst_case_billed_steps_today():
-    """Billed worst case for ONE question: every step succeeds with another tool call -> MAX_LLM_STEPS billed
-    model calls (each may also have 2 unbilled retries). Inner paper tools add generator + solver calls."""
-    assert config.MAX_LLM_STEPS == 10 and config.LLM_RETRIES == 2
+class FlakyThenTool:
+    """Fails twice, answers with a tool call, then fails for good: 3 + 2 requests, 3 retries, then the budget."""
+    model = "audit-model"
+
+    def __init__(self):
+        self.calls = 0
+
+    def complete(self, system, messages, tools, max_tokens=2048, json_mode=False, cancel=None):
+        from agent.llm import ToolCall
+        self.calls += 1
+        if self.calls in (1, 2, 4, 5, 6):
+            raise Http500("boom")
+        return LLMResponse(text="", model=self.model, tool_calls=[ToolCall("t1", "my_scope", {})])
 
 
-@pytest.mark.xfail(strict=True, reason="AUDIT: one agent question can bill up to MAX_LLM_STEPS=10 model calls")
-def test_agent_turn_billed_calls_capped():
-    assert config.MAX_LLM_STEPS <= TARGET_MAX_PAID_PER_ACTION
+def test_agent_turn_retries_capped_at_3_across_steps(monkeypatch):
+    """Gate 2 #4: TURN_RETRY_BUDGET=3 across all steps of one turn (LLM_RETRIES=2 is per step)."""
+    monkeypatch.setattr(config, "LLM_BACKOFF_BASE_S", 0.0)
+    prov = FlakyThenTool()
+    evs = list(Agent(prov, CTX, str(uuid.uuid4())).run("meri classes batao"))
+    assert prov.calls == 5                                   # step 1: fail, fail, ok; step 2: fail, fail -> stop
+    assert evs[-1]["usage"]["retries"] == config.TURN_RETRY_BUDGET == 3
+    assert any(e["type"] == "error" and e.get("retryable") for e in evs)
 
 
 def test_voice_stt_fallback_is_two_requests():

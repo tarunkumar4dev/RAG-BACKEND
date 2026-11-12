@@ -543,6 +543,8 @@ async def generate_from_frontend(req: FrontendGenerateRequest, user: AuthUser = 
         raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
         error_str = str(e)
+        if getattr(e, "status_code", None) == 503:   # paid-call budget spent / provider down: fail fast, clear text
+            raise HTTPException(status_code=503, detail=error_str, headers={"Retry-After": "120"})
         if "No NCERT content found" in error_str:
             if 'backend_request' in locals():
                 real_names = [
