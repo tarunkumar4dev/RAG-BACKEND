@@ -105,28 +105,30 @@ def _daily_used(uid):
     return d[1] if d else 0
 
 
-def test_voice_failure_after_quota_check_is_counted_today(api):  # noqa: F811
+def test_voice_failure_after_quota_check_is_released(api):  # noqa: F811
+    """Gate 2 #5: STT down -> 503 and the unit goes back."""
     c, *_ = api
     set_providers([FailingSTT("sarvam", 500)], None)
     r = c.post("/agent/voice/transcribe", headers=H(ADMIN, **{"Content-Type": "audio/webm"}), content=webm(2))
     assert r.status_code == 503
-    assert _daily_used(ADMIN) == 1          # charged although nothing was transcribed
+    assert _daily_used(ADMIN) == 0
 
 
-def test_voice_rejected_upload_is_counted_today(api):  # noqa: F811
+def test_voice_rejected_upload_is_released(api):  # noqa: F811
     c, *_ = api
     r = c.post("/agent/voice/transcribe", headers=H(ADMIN, **{"Content-Type": "audio/webm"}),
                content=b"\x00" * (vc.max_bytes() + 1))
     assert r.status_code == 413
-    assert _daily_used(ADMIN) == 1          # counted before the size / format checks
-
-
-@pytest.mark.xfail(strict=True, reason="AUDIT: check_user counts before validation and before STT")
-def test_voice_failed_request_not_counted(api):  # noqa: F811
-    c, *_ = api
-    set_providers([FailingSTT("sarvam", 500)], None)
-    c.post("/agent/voice/transcribe", headers=H(ADMIN, **{"Content-Type": "audio/webm"}), content=webm(2))
     assert _daily_used(ADMIN) == 0
+    r = c.post("/agent/voice/transcribe", headers=H(ADMIN, **{"Content-Type": "audio/webm"}), content=b"\x00" * 40)
+    assert r.status_code == 422
+    assert _daily_used(ADMIN) == 0
+
+
+def test_voice_success_is_counted_once(api):  # noqa: F811
+    c, *_ = api
+    assert c.post("/agent/voice/transcribe", headers=H(ADMIN, **{"Content-Type": "audio/webm"}), content=webm(2)).status_code == 200
+    assert _daily_used(ADMIN) == 1
 
 
 def test_voice_concurrent_last_unit_single_process_ok(monkeypatch):
@@ -154,24 +156,40 @@ def test_voice_retry_same_key_after_success_not_counted_twice(api):  # noqa: F81
     assert _daily_used(ADMIN) == 1          # correct
 
 
-def test_voice_retry_same_key_after_failure_counted_again_today(api):  # noqa: F811
-    c, *_ = api
+def test_voice_retry_same_key_after_failure_counted_once(api):  # noqa: F811
+    """failure (released) -> retry succeeds (counted) = exactly one unit."""
+    c, _prov, _st, _trace, stt, _tts = api
     h = H(ADMIN, **{"Content-Type": "audio/webm", "Idempotency-Key": "k2"})
     set_providers([FailingSTT("sarvam", 500)], None)
-    c.post("/agent/voice/transcribe", headers=h, content=webm(2))
-    c.post("/agent/voice/transcribe", headers=h, content=webm(2))
-    assert _daily_used(ADMIN) == 2
+    assert c.post("/agent/voice/transcribe", headers=h, content=webm(2)).status_code == 503
+    set_providers([stt], None)
+    assert c.post("/agent/voice/transcribe", headers=h, content=webm(2)).status_code == 200
+    assert _daily_used(ADMIN) == 1
 
 
-def test_voice_speak_has_no_per_user_quota_today(api):  # noqa: F811
+def test_voice_speak_is_counted_and_released_on_failure(api):  # noqa: F811
+    from agent.voice.providers import FakeTTS
+
+    class DeadTTS(FakeTTS):
+        def synthesize(self, *a, **k):
+            raise ProviderError("sarvam", "http_500")
+            yield b""  # pragma: no cover
+    c, _prov, _st, _trace, stt, tts = api
+    for _ in range(3):
+        assert c.post("/agent/voice/speak", headers=H(ADMIN), json={"text": "Aaj attendance 92% hai."}).status_code == 200
+    assert _daily_used(ADMIN) == 3
+    set_providers([stt], DeadTTS())
+    assert c.post("/agent/voice/speak", headers=H(ADMIN), json={"text": "Aaj attendance 92% hai."}).status_code == 503
+    assert _daily_used(ADMIN) == 3
+
+
+def test_voice_daily_cap_is_the_burst_guard_and_month_is_per_plan(api):  # noqa: F811
+    """Daily/10-min caps stay in-process (burst guard); the plan allowance is monthly (agent/voice/allowance.py)."""
+    from agent.voice import allowance
     c, *_ = api
-    for _ in range(5):
-        c.post("/agent/voice/speak", headers=H(ADMIN), json={"text": "Aaj attendance 92% hai."})
-    assert _daily_used(ADMIN) == 0          # TTS (paid per character) is never counted
-
-
-def test_voice_default_daily_cap_is_not_plan_aware():
-    assert vc.USER_DAILY_DEFAULT == 100     # same for every plan, incl. Free
+    assert vc.USER_DAILY_DEFAULT == 100
+    cfg = c.get("/agent/voice/config", headers=H(ADMIN)).json()
+    assert cfg["limits"]["per_month"] == allowance.DEMO_MONTHLY_DEFAULT and cfg["limits"]["month_used"] == 0
 
 
 # ── §4 cache isolation (agent) ────────────────────────────────────────────────────────────────────────────────

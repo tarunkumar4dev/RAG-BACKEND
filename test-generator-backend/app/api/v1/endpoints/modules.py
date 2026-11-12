@@ -15,7 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.services.module_service import ModuleService
 from app.core.sanitize import sanitize_uuid
 from app.core.auth import AuthUser, require_user
-from app.core.quota import check_usage, record_usage
+from app.core.quota import ACTION_PAPER, consume, release, reserve
 from app.api.v1.endpoints.chat import _SlidingWindow
 import os as _os_env
 from fastapi.responses import Response
@@ -31,13 +31,14 @@ WORKSHEET_PER_USER_PER_MIN = 5
 _worksheet_limiter = _SlidingWindow(limit=WORKSHEET_PER_USER_PER_MIN, window_seconds=60.0)
 
 
-def _worksheet_gate(user: AuthUser) -> dict:
-    """Rate limit on the VERIFIED user id (never the body's teacher_id), then the plan quota."""
+def _worksheet_gate(user: AuthUser, idempotency_key: Optional[str] = None):
+    """Rate limit on the VERIFIED user id (never the body's teacher_id), then reserve one plan-quota unit
+    (consumed on success, released on failure — Gate 2 #5)."""
     if not _worksheet_limiter.hit(user.id):
         raise HTTPException(429, {"error": "rate_limited",
                                   "message": "Thodi der ruk kar phir try karein. / Too many worksheet requests, "
                                              "please wait a minute."}, headers={"Retry-After": "60"})
-    return check_usage(user.id)
+    return reserve(user.id, ACTION_PAPER, idempotency_key)
 
 # ── Security: Max limits ────────────────────────────────────
 MAX_FILENAME_LENGTH = 255
@@ -210,10 +211,11 @@ async def generate_test_from_module(
     
 
 @router.post("/modules/{module_id}/generate-worksheet")
-async def generate_worksheet(module_id: str, req: dict, user: AuthUser = Depends(require_user)):
+async def generate_worksheet(module_id: str, req: dict, user: AuthUser = Depends(require_user),
+                             idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key", max_length=80)):
     """Generate worksheet questions from module content. Owner = the JWT; the body's teacher_id is ignored."""
     teacher_id = user.id
-    _worksheet_gate(user)
+    rsv = _worksheet_gate(user, idempotency_key)
 
     from app.services.worksheet_service import WorksheetService
 
@@ -230,9 +232,10 @@ async def generate_worksheet(module_id: str, req: dict, user: AuthUser = Depends
     )
 
     if error:
+        release(rsv)
         raise HTTPException(500, error)
 
-    record_usage(user.id)
+    consume(rsv)
     return {"success": True, "worksheet": worksheet_data}
 
 
@@ -301,19 +304,23 @@ async def download_worksheet(module_id: str, req: dict, authorization: Optional[
  
  
 @router.post("/worksheet/generate-direct")
-async def generate_worksheet_direct(req: dict, user: AuthUser = Depends(require_user)):
+async def generate_worksheet_direct(req: dict, user: AuthUser = Depends(require_user),
+                                    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key",
+                                                                            max_length=80)):
     """Generate worksheet directly from an uploaded PDF — no module needed. Owner = the JWT (body teacher_id
     ignored); the file must live under the caller's own folder in the Modules bucket."""
     teacher_id = user.id
-    _worksheet_gate(user)
+    rsv = _worksheet_gate(user, idempotency_key)
 
     from app.services.module_service import ModuleService, get_supabase, get_genai
     import tempfile, os, json
 
     storage_path = str(req.get("storage_path") or "")
     if not storage_path:
+        release(rsv)
         raise HTTPException(400, "storage_path required")
     if not storage_path.startswith(f"{teacher_id}/") or ".." in storage_path:
+        release(rsv)
         raise HTTPException(403, "storage_path must be under your own folder")
 
     try:
@@ -450,7 +457,7 @@ Output ONLY valid JSON, no markdown, no backticks."""
             data = json.loads(cleaned)
         from app.services.worksheet_service import convert_worksheet_symbols
         data = convert_worksheet_symbols(data)
-        record_usage(user.id)
+        consume(rsv)
 
         return {
             "success": True,
@@ -463,8 +470,10 @@ Output ONLY valid JSON, no markdown, no backticks."""
             }
         }
     except HTTPException:
+        release(rsv)
         raise
     except Exception as e:
+        release(rsv)
         raise HTTPException(500, str(e))
 
 

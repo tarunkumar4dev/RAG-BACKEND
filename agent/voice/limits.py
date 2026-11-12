@@ -53,6 +53,18 @@ def check_user(user_id: str, now: Optional[float] = None) -> Optional[Hit]:
     return None
 
 
+def release(user_id: str) -> None:
+    """Give back the unit check_user() just counted: the request failed before anything billable happened
+    (bad upload, STT down). Gate 2 #5: only successful requests stay counted."""
+    with _lock:
+        ts = _recent.get(user_id)
+        if ts:
+            ts.pop()
+        d = _daily.get(user_id)
+        if d and d[1] > 0:
+            _daily[user_id] = (d[0], d[1] - 1)
+
+
 def idem_get(user_id: str, key: Optional[str], now: Optional[float] = None) -> Optional[Any]:
     if not key:
         return None
@@ -85,3 +97,5 @@ def reset() -> None:
         _recent.clear()
         _daily.clear()
         _idem.clear()
+    from . import allowance
+    allowance.reset()

@@ -26,6 +26,7 @@ from starlette.concurrency import run_in_threadpool
 from ..auth import get_session
 from ..schemas import ChatRequest, SessionCtx
 from ..trace import Tracer
+from . import allowance
 from . import config as vc
 from . import limits
 from .audio import ACCEPTED_MIMES, AudioError, inspect
@@ -127,6 +128,14 @@ def voice_gate(ctx: SessionCtx = Depends(get_session)) -> SessionCtx:
     return ctx
 
 
+def voice_paid_gate(ctx: SessionCtx = Depends(voice_gate)) -> SessionCtx:
+    """transcribe / speak: the plan's monthly allowance on top of the kill switch (Gate 2 #5)."""
+    blocked = allowance.check(ctx)
+    if blocked:
+        raise HTTPException(403, blocked)
+    return ctx
+
+
 def _config_for(ctx: SessionCtx) -> VoiceConfig:
     chain = stt_chain()
     tts = tts_provider()
@@ -143,7 +152,8 @@ def _config_for(ctx: SessionCtx) -> VoiceConfig:
         speakers=[Speaker(id=k, label=v["label"], gender=v["gender"]) for k, v in vc.SPEAKERS.items()],
         default_speaker=vc.DEFAULT_SPEAKER, paces=list(vc.PACES), max_seconds=vc.max_seconds(), max_bytes=vc.max_bytes(),
         formats=list(ACCEPTED_MIMES), consent_version=CONSENT_VERSION,
-        limits={"per_10min": vc.user_per_10min(), "per_day": vc.user_daily()})
+        limits={"per_10min": vc.user_per_10min(), "per_day": vc.user_daily(),
+                "per_month": allowance.get(ctx).limit, "month_used": allowance.get(ctx).used})
 
 
 @router.get("/config", response_model=VoiceConfig)
@@ -212,7 +222,7 @@ def _transcribe_sync(ctx: SessionCtx, audio: bytes, request_id: str) -> tuple[di
 @router.post("/transcribe", response_model=TranscribeResponse,
              responses={413: {"description": "audio over VOICE_MAX_BYTES"}, 422: {"description": "format / over 30 s"},
                         429: {"description": "per-user voice limit"}, 503: {"description": "voice off or STT down -> type"}})
-async def transcribe(request: Request, ctx: SessionCtx = Depends(voice_gate),
+async def transcribe(request: Request, ctx: SessionCtx = Depends(voice_paid_gate),
                      idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key", max_length=80),
                      content_type: Optional[str] = Header(None)):
     """Body = the recorded audio bytes (Content-Type audio/webm | audio/mp4 | audio/ogg | audio/wav). The container
@@ -221,18 +231,23 @@ async def transcribe(request: Request, ctx: SessionCtx = Depends(voice_gate),
     cached = limits.idem_get(uid, idempotency_key)
     if cached is not None:
         return {**cached, "replayed": True}
-    hit = limits.check_user(uid)
+    hit = limits.check_user(uid)       # reserved here, released below on any failure (Gate 2 #5)
     if hit is not None:
         raise HTTPException(429, hit.message, headers={"Retry-After": str(hit.retry_after_s)})
-    ct = (content_type or "").split(";")[0].strip().lower()
-    if ct and ct not in ACCEPTED_MIMES and ct != "application/octet-stream":
-        raise HTTPException(415, MSG_FORMAT)
-    audio = await _read_limited(request, vc.max_bytes())
-    if not audio:
-        raise HTTPException(422, MSG_EMPTY)
-    request_id = uuid.uuid4().hex[:16]
-    out, _ = await run_in_threadpool(_transcribe_sync, ctx, audio, request_id)
-    del audio
+    try:
+        ct = (content_type or "").split(";")[0].strip().lower()
+        if ct and ct not in ACCEPTED_MIMES and ct != "application/octet-stream":
+            raise HTTPException(415, MSG_FORMAT)
+        audio = await _read_limited(request, vc.max_bytes())
+        if not audio:
+            raise HTTPException(422, MSG_EMPTY)
+        request_id = uuid.uuid4().hex[:16]
+        out, _ = await run_in_threadpool(_transcribe_sync, ctx, audio, request_id)
+        del audio
+    except Exception:
+        limits.release(uid)            # nothing was billed, or the provider failed: the user keeps the unit
+        raise
+    allowance.consume(ctx)             # STT ran and was billed (even if the transcript came back empty)
     limits.idem_put(uid, idempotency_key, out)
     return out
 
@@ -253,7 +268,7 @@ def _phrase_text(key: str, lang: str) -> Optional[str]:
              responses={200: {"content": {"audio/mpeg": {}}, "description": "audio stream"},
                         204: {"description": "TTS is off (VOICE_TTS=none): use browser speechSynthesis"},
                         422: {"description": "speaker / pace not in the allowlist"}, 503: {"description": "TTS down"}})
-def speak(body: SpeakRequest, ctx: SessionCtx = Depends(voice_gate)):
+def speak(body: SpeakRequest, ctx: SessionCtx = Depends(voice_paid_gate)):
     """Speaker and pace only from the allowlist (`GET /agent/voice/config`). Static phrases (`phrase`) come from an
     in-process cache; data answers are never cached (they carry names and numbers)."""
     speaker = body.speaker or vc.DEFAULT_SPEAKER
@@ -283,6 +298,11 @@ def speak(body: SpeakRequest, ctx: SessionCtx = Depends(voice_gate)):
             tracer.voice("speak", "cached", {}, provider=tts.name, model=model, chars=len(text), cost_inr=0.0, phrase=body.phrase)
             return Response(content=hit, media_type=getattr(tts, "mime", "audio/mpeg"), headers={"X-Agent-Request-Id": request_id})
 
+    uid = str(ctx.user_id)
+    limit_hit = limits.check_user(uid)     # TTS is paid per character: counted like transcribe (Gate 2 #5)
+    if limit_hit is not None:
+        raise HTTPException(429, limit_hit.message, headers={"Retry-After": str(limit_hit.retry_after_s)})
+
     def stream() -> Iterator[bytes]:
         t0 = time.time()
         got = bytearray()
@@ -292,12 +312,14 @@ def speak(body: SpeakRequest, ctx: SessionCtx = Depends(voice_gate)):
                     got.extend(chunk)
                 yield chunk
         except ProviderError as e:
+            limits.release(uid)
             tracer.voice("speak", "failed", {"tts": (time.time() - t0) * 1000}, provider=tts.name, model=model,
                          chars=len(text), reason=e.kind)
             return
         if body.phrase and got:
             with _PHRASE_LOCK:
                 _PHRASE_CACHE[key] = bytes(got)
+        allowance.consume(ctx)
         tracer.voice("speak", "ok", {"tts": (time.time() - t0) * 1000}, provider=tts.name, model=model, chars=len(text),
                      cost_inr=vc.tts_cost_inr(len(text), model), phrase=body.phrase, language=lang)
 
