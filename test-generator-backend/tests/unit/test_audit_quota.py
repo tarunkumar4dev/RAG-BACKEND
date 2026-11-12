@@ -56,6 +56,8 @@ class FakeDB:
 def env(monkeypatch, no_network):  # noqa: F811
     def make(limit, used=0, generate=None):
         db = FakeDB(limit, used)
+        from app.core import quota
+        monkeypatch.setattr(quota, "get_supabase_admin", lambda: db)
         monkeypatch.setattr(ep, "get_supabase_admin", lambda: db)
         monkeypatch.setattr(ep, "retrieve_context", lambda *a, **k: [{"chapter": "Light", "content": "x"}])
         monkeypatch.setattr(ep, "generate_test", generate or (lambda *a, **k: SimpleNamespace()))

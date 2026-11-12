@@ -84,10 +84,15 @@ def test_measure_worksheet_direct(monkeypatch, no_network):  # noqa: F811
     monkeypatch.setattr(ms, "get_supabase", lambda: SimpleNamespace(storage=SimpleNamespace(
         from_=lambda b: SimpleNamespace(download=lambda p: b"%PDF-fake"))))
     monkeypatch.setattr(ms.ModuleService, "_extract_pdf", staticmethod(lambda path: ("Photosynthesis. " * 60, 1, False)))
-    out = asyncio.run(ep.generate_worksheet_direct({"teacher_id": "11111111-2222-3333-4444-555555555555",
-                                                    "storage_path": "t/w.pdf", "subject": "Science",
+    from app.core.auth import AuthUser
+    uid = "11111111-2222-3333-4444-555555555555"
+    monkeypatch.setattr(ep, "check_usage", lambda u: {"allowed": True})
+    monkeypatch.setattr(ep, "record_usage", lambda u: {})
+    ep._worksheet_limiter._hits.clear()
+    user = AuthUser(id=uid, email=None, is_anonymous=False, role="authenticated")
+    out = asyncio.run(ep.generate_worksheet_direct({"storage_path": f"{uid}/worksheets/w.pdf", "subject": "Science",
                                                     "class_level": "10", "chapter_name": "Life processes",
-                                                    "num_questions": 10}))
+                                                    "num_questions": 10}, user))
     assert out["success"]
     _record("worksheet_direct", prompts)
 

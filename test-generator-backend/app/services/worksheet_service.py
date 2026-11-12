@@ -276,7 +276,8 @@ class WorksheetService:
                     summary = summary_raw
 
             # Use full text for small docs, chunks for large
-            context_text = full_text if (token_count and token_count < 100000) else (full_text[:200000] if full_text else "")
+            from app.api.v1.endpoints.modules import WORKSHEET_MAX_INPUT_CHARS
+            context_text = (full_text or "")[:min(200000, WORKSHEET_MAX_INPUT_CHARS)]
 
             if question_types is None:
                 question_types = ["MCQ", "Fill in the Blanks", "True/False", "Short Answer", "Long Answer"]
