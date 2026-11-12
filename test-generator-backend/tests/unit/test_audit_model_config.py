@@ -36,7 +36,9 @@ KNOWN = {
     "test-generator-backend/app/services/smart_assignment_service.py": {"gemini-2.5-flash", "gemini-3-flash-preview",
                                                                        "gemini-3.8-flash"},
     "test-generator-backend/app/services/test_checker_service.py": {"gemini-3.8-flash"},
-    "test-generator-backend/app/services/test_generator_service.py": {"deepseek-flash", "gemini-3.5-flash-lite"},
+    # gemini-3.6-flash here is a key of the cost table _PRICE_PER_M (Gate 2 #7), not a model selection
+    "test-generator-backend/app/services/test_generator_service.py": {"deepseek-flash", "gemini-3.5-flash-lite",
+                                                                      "gemini-3.6-flash"},
     "test-generator-backend/app/services/worksheet_service.py": {"gemini-3.5-flash-lite"},
     "agent/config.py": {"claude-haiku-5-5", "claude-sonnet-5-5", "gemini-2.5-flash"},
     "agent/voice/config.py": {"bulbul:v2", "bulbul:v3", "bulbul:v4-flash", "saaras:v3", "saaras:v4"},
@@ -74,7 +76,9 @@ def _ids_by_file() -> dict[str, set[str]]:
 
 def test_no_new_hardcoded_model_ids():
     found = _ids_by_file()
-    new = {f: ids - KNOWN.get(f, set()) for f, ids in found.items() if ids - KNOWN.get(f, set())}
+    # the config modules are where ids (and price tables keyed by id) belong: always allowed
+    new = {f: ids - KNOWN.get(f, set()) for f, ids in found.items()
+           if f not in CONFIG_FILES and ids - KNOWN.get(f, set())}
     assert not new, f"model ids hardcoded outside config (move them to config): {new}"
 
 

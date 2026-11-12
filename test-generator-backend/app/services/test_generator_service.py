@@ -2129,9 +2129,12 @@ def _is_retryable(error_str: str) -> bool:
 
 _LLM_SLOTS = threading.BoundedSemaphore(max(1, settings.LLM_MAX_CONCURRENCY))
 
-# USD per 1M tokens (input, output), Oct 2026 list prices; DeepSeek at peak rate (conservative).
+# USD per 1M tokens (input, output). Gemini: aistudio.google.com/docs/pricing, read 12 Nov 2026 (gemini-3.6-flash
+# is the generator's fallback; $0.75/$3.75 until 31 Dec 2026, $1.50/$7.50 from 1 Jan 2027). DeepSeek: Oct 2026 list,
+# peak rate (conservative).
 _PRICE_PER_M = {
     "gemini-3.5-flash-lite": (0.30, 2.50),
+    "gemini-3.6-flash": (0.75, 3.75) if time.strftime("%Y-%m-%d") < "2027-01-01" else (1.50, 7.50),
     "deepseek-flash": (0.30, 1.20),
 }
 
