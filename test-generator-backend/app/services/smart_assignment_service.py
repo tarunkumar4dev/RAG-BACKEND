@@ -45,7 +45,7 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 CHECKER_API_KEY = os.getenv("CHECKER_GEMINI_API_KEY")
-# gemini-3.6-flash retires 19 Nov 2026. Production also sets CHECKER_GEMINI_MODEL explicitly.
+# Production also sets CHECKER_GEMINI_MODEL explicitly.
 CHECKER_MODEL = os.getenv("CHECKER_GEMINI_MODEL", "gemini-3.8-flash")
 # One HTTP request to Gemini never waits longer than this. 60 s since 23 Oct: an overloaded model held calls for
 # ~90 s and then answered 504, which ate most of a 240 s job budget (the timeout → TIMEOUT retry with backoff).
@@ -95,8 +95,11 @@ def _get_client() -> genai.Client:
 
 # Tried in order, but only when the model is gone (404) or overloaded (503). 429 (quota) and other 5xx are
 # not retried on another model: the caller re-queues the work later instead of burning calls now.
+# Gate 2 #2: gemini-2.5-flash shuts down 1 Dec 2026 (silently re-routed to 3.5-flash-lite) and
+# gemini-3-flash-preview is a preview model. gemini-3.6-flash is Stable, takes image + PDF input, supports JSON
+# output and has no shutdown date (aistudio.google.com/docs/models/gemini-3.6-flash, read 12 Nov 2026).
 CHECKER_FALLBACK_MODELS = [
-    m.strip() for m in os.getenv("CHECKER_GEMINI_FALLBACK_MODELS", "gemini-2.5-flash,gemini-3-flash-preview").split(",")
+    m.strip() for m in os.getenv("CHECKER_GEMINI_FALLBACK_MODELS", "gemini-3.6-flash").split(",")
     if m.strip() and m.strip() != CHECKER_MODEL
 ]
 _FALLBACK_CODES = {404, 503}
