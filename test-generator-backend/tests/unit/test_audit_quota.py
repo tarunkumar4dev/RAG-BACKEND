@@ -92,7 +92,7 @@ def env(monkeypatch, no_network):  # noqa: F811
         monkeypatch.setattr(ep, "retrieve_context", lambda *a, **k: [{"chapter": "Light", "content": "x"}])
         monkeypatch.setattr(ep, "generate_test", generate or (lambda *a, **k: SimpleNamespace()))
         monkeypatch.setattr(ep, "_transform_backend_to_frontend",
-                            lambda resp, req: SimpleNamespace(generationTime=0, testId="t1", totalQuestions=5,
+                            lambda resp, req: SimpleNamespace(generationTime=0, testId="t1", totalQuestions=5, examTitle="T", totalMarks=5,
                                                               meta={}, questions=[]))
         monkeypatch.setattr(ep, "_transform_frontend_to_backend",
                             lambda req: SimpleNamespace(chapters=[SimpleNamespace(quantity=5, chapter="Light",
@@ -104,7 +104,7 @@ def env(monkeypatch, no_network):  # noqa: F811
 
 def _call(key="k-1"):
     req = SimpleNamespace(userId=None, subject="Science", classGrade="10", simpleData=[1], cbsePattern=False,
-                          examTitle="T", board="CBSE")
+                          examTitle="T", board="CBSE", paperDate=None)
     user = AuthUser(id=USER, email=None, is_anonymous=False, role="authenticated")
     return asyncio.run(ep.generate_from_frontend(req, user, key))
 
