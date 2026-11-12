@@ -25,9 +25,14 @@ def ws(monkeypatch, no_network):  # noqa: F811
     async def verify(token):
         return auth.AuthUser(id=USER, email=None, is_anonymous=False, role="authenticated") if token == "good" else None
     monkeypatch.setattr(auth, "verify_token", verify)
-    monkeypatch.setattr(ep, "check_usage", lambda uid: usage.__setitem__("checks", usage["checks"] + 1) or (
-        {"allowed": True} if usage["allowed"] else (_ for _ in ()).throw(ep.HTTPException(403, "limit"))))
-    monkeypatch.setattr(ep, "record_usage", lambda uid: usage.__setitem__("records", usage["records"] + 1) or {})
+    def reserve(uid, action, key):
+        usage["checks"] += 1
+        if not usage["allowed"]:
+            raise ep.HTTPException(403, "limit")
+        return SimpleNamespace(open=True)
+    monkeypatch.setattr(ep, "reserve", reserve)
+    monkeypatch.setattr(ep, "consume", lambda r: usage.__setitem__("records", usage["records"] + 1) or {})
+    monkeypatch.setattr(ep, "release", lambda r: usage.__setitem__("released", usage.get("released", 0) + 1))
     import google.genai as genai_mod
     from app.services import module_service as ms
 
@@ -74,10 +79,10 @@ def test_quota_exhausted_blocks_before_gemini(ws):
 
 
 def test_other_users_folder_is_refused(ws):
-    c, body, prompts, _ = ws
+    c, body, prompts, usage = ws
     assert _post(c, {**body, "storage_path": f"{OTHER}/worksheets/a.pdf"}).status_code == 403
     assert _post(c, {**body, "storage_path": f"{USER}/../{OTHER}/a.pdf"}).status_code == 403
-    assert prompts == []
+    assert prompts == [] and usage.get("released") == 2 and usage["records"] == 0
 
 
 def test_rate_limit_is_on_verified_user_not_body_id(ws):

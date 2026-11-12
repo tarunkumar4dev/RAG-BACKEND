@@ -11,7 +11,7 @@ v3.3 changes (SECURITY):
   - Removed debug INSERT logs that printed full row data
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel, ConfigDict, Field
 from typing import List, Optional
@@ -51,7 +51,7 @@ router = APIRouter(prefix="/test-generator", tags=["Test Generator"])
 # USAGE CHECK HELPERS
 # ═══════════════════════════════════════════════════════════════════════
 
-from app.core.quota import check_usage, record_usage  # noqa: E402  (moved to app/core/quota.py)
+from app.core.quota import ACTION_PAPER, check_usage, consume, record_usage, release, reserve  # noqa: E402
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -457,13 +457,18 @@ def _transform_backend_to_frontend(resp, req: FrontendGenerateRequest) -> Fronte
 # ═══════════════════════════════════════════════════════════════════════
 
 @router.post("/generate-frontend", response_model=FrontendGenerateResponse)
-async def generate_from_frontend(req: FrontendGenerateRequest, user: AuthUser = Depends(require_user)):
+async def generate_from_frontend(req: FrontendGenerateRequest, user: AuthUser = Depends(require_user),
+                                 idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key", max_length=80)):
     req.userId = user.id  # usage and test owner come from the JWT; the client value is ignored
     start = time.time()
     logger.info(f"Frontend generate: {req.subject} {req.classGrade}, {len(req.simpleData)} chapters")
+    rsv = None
 
     try:
-        usage = check_usage(req.userId)
+        # Gate 2 #5: one quota unit is reserved atomically under the client's Idempotency-Key, consumed on success
+        # and released on failure (see app/core/quota.py).
+        rsv = reserve(req.userId, ACTION_PAPER, idempotency_key)
+        usage = rsv.usage
 
         backend_request = _transform_frontend_to_backend(req)
         total_q = sum(c.quantity for c in backend_request.chapters)
@@ -499,11 +504,7 @@ async def generate_from_frontend(req: FrontendGenerateRequest, user: AuthUser = 
         elapsed = round(time.time() - start, 2)
         frontend_response.generationTime = elapsed
 
-        recorded = record_usage(req.userId)
-        usage.update(recorded)
-        # check_usage ran before this paper was counted; refresh "remaining" from the new count.
-        if isinstance(usage.get("limit"), int) and usage["limit"] >= 0 and isinstance(usage.get("used"), int):
-            usage["remaining"] = max(usage["limit"] - usage["used"], 0)
+        usage = dict(consume(rsv))
 
         # Insert test row
         try:
@@ -538,10 +539,16 @@ async def generate_from_frontend(req: FrontendGenerateRequest, user: AuthUser = 
         return frontend_response
 
     except HTTPException:
+        if rsv is not None:
+            release(rsv)
         raise
     except ValueError as e:
+        if rsv is not None:
+            release(rsv)
         raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
+        if rsv is not None:
+            release(rsv)
         error_str = str(e)
         if getattr(e, "status_code", None) == 503:   # paid-call budget spent / provider down: fail fast, clear text
             raise HTTPException(status_code=503, detail=error_str, headers={"Retry-After": "120"})
@@ -1134,24 +1141,32 @@ async def _ncert_question_stats_impl(subject: str = "Science", class_grade: str 
 # ═══════════════════════════════════════════════════════════════════════
 
 @router.post("/generate", response_model=TestGenerationResponse)
-async def generate(request: TestGenerationRequest, user: AuthUser = Depends(require_user)):
+async def generate(request: TestGenerationRequest, user: AuthUser = Depends(require_user),
+                   idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key", max_length=80)):
     # Same plan quota as /generate-frontend: one AI paper per call, owner from the JWT.
     request.teacher_id = user.id
+    rsv = None
     try:
-        check_usage(user.id)
+        rsv = reserve(user.id, ACTION_PAPER, idempotency_key)
         chapters = [ch.chapter for ch in request.chapters]
         topics = [ch.topic for ch in request.chapters if ch.topic]
         if not topics:
             topics = chapters
         context_chunks = retrieve_context(chapters, topics, request.subject, request.class_grade)
         result = generate_test(request, context_chunks)
-        record_usage(user.id)
+        consume(rsv)
         return result
     except HTTPException:
+        if rsv is not None:
+            release(rsv)
         raise
     except ValueError as e:
+        if rsv is not None:
+            release(rsv)
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        if rsv is not None:
+            release(rsv)
         logger.error(f"Generate error: {e}")
         raise HTTPException(status_code=500, detail="Generation failed.")
 
