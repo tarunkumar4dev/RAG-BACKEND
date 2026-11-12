@@ -113,8 +113,9 @@ def _report(runs: list[dict], models: list[str], spent: float, budget: float, st
         L += [f"**Stopped early:** {stopped}", ""]
     L += ["## Summary", "", f"| Copy | Pages | Oct prod marks | {a} | {b} | Δ total | {a} Rs | {b} Rs | {a} s | {b} s |",
           "|---|---|---|---|---|---|---|---|---|---|"]
+    blank = {"error": "not run", "result": {}, "cost_inr": 0.0, "seconds": ""}
     for c in runs:
-        ra, rb = c["runs"][a], c["runs"][b]
+        ra, rb = c["runs"].get(a) or blank, c["runs"].get(b) or blank
         ta = (ra["result"] or {}).get("total_marks_awarded")
         tb = (rb["result"] or {}).get("total_marks_awarded")
         d = (tb - ta) if isinstance(ta, (int, float)) and isinstance(tb, (int, float)) else ""
@@ -122,7 +123,7 @@ def _report(runs: list[dict], models: list[str], spent: float, budget: float, st
                  f"{ta if ra['error'] is None else 'ERROR'} | {tb if rb['error'] is None else 'ERROR'} | {d} | "
                  f"{ra['cost_inr']:.2f} | {rb['cost_inr']:.2f} | {ra['seconds']} | {rb['seconds']} |")
     for c in runs:
-        ra, rb = c["runs"][a], c["runs"][b]
+        ra, rb = c["runs"].get(a) or blank, c["runs"].get(b) or blank
         L += ["", f"## {c['label']} ({c['pages']} pages, max {c['max_marks']})", ""]
         for r in (ra, rb):
             if r["error"]:
@@ -178,6 +179,9 @@ def main():
             runs.append(c)
             continue
         for m in todo:
+            if spent + HEADROOM_INR > args.budget_inr:
+                stopped = f"budget: Rs {spent:.2f} spent, the next run could pass Rs {args.budget_inr:.0f}"
+                break
             run = _grade(m, paths, r["rubric"], r.get("strictness") or "medium")
             run["attempts"] = c["runs"].get(m, {}).get("attempts", 1 if m in c["runs"] else 0) + 1
             spent += run["cost_inr"]
@@ -185,10 +189,19 @@ def main():
             print(f"{c['label']} {m}: {'ERR ' + run['error'] if run['error'] else (run['result'] or {}).get('total_marks_awarded')} "
                   f"Rs {run['cost_inr']:.2f} {run['seconds']}s (total Rs {spent:.2f})", flush=True)
         runs.append(c)
+        _save(out, runs, prev, args, spent, stopped)       # after every copy: a stop (cap, 09:00) loses nothing
 
-    (out / "raw.json").write_text(json.dumps(runs, ensure_ascii=False, indent=1), encoding="utf-8")
-    (out / "benchmark.md").write_text(_report(runs, args.models, spent, args.budget_inr, stopped), encoding="utf-8")
+    _save(out, runs, prev, args, spent, stopped)
     print(f"done: Rs {spent:.2f}; {out / 'benchmark.md'}", flush=True)
+
+
+def _save(out: Path, runs: list, prev: dict, args, spent: float, stopped) -> None:
+    done = {c["label"] for c in runs}
+    merged = runs + [c for label, c in sorted(prev.items()) if label not in done]
+    merged.sort(key=lambda c: c["label"])
+    (out / "raw.json").write_text(json.dumps(merged, ensure_ascii=False, indent=1), encoding="utf-8")
+    (out / "benchmark.md").write_text(_report(merged, args.models, spent, args.budget_inr, stopped),
+                                      encoding="utf-8")
 
 
 if __name__ == "__main__":
