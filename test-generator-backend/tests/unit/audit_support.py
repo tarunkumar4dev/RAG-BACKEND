@@ -26,10 +26,12 @@ def _blocked(*_a, **_k):
 def no_network(monkeypatch):
     import httpx
     import requests
+    # Block at the transport layer so FastAPI's TestClient (an httpx.Client with its own in-process transport)
+    # keeps working while anything that would open a socket fails loudly.
     monkeypatch.setattr(httpx, "post", _blocked)
     monkeypatch.setattr(httpx, "get", _blocked)
-    monkeypatch.setattr(httpx.Client, "send", _blocked)
-    monkeypatch.setattr(httpx.AsyncClient, "send", _blocked)
+    monkeypatch.setattr(httpx.HTTPTransport, "handle_request", _blocked)
+    monkeypatch.setattr(httpx.AsyncHTTPTransport, "handle_async_request", _blocked)
     monkeypatch.setattr(requests.Session, "request", _blocked)
 
 
