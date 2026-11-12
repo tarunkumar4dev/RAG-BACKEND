@@ -46,7 +46,13 @@ from app.models.test_generator import (
 
 logger = logging.getLogger(__name__)
 
-MAX_RETRIES = 4
+MAX_RETRIES = 2            # attempts per model per batch; the per-paper budget below is the real cap (Gate 2 #4)
+# Gate 2 #4: at most this many EXTRA provider attempts per paper (every retry, fallback model or unusable reply
+# beyond a batch's first attempt). When it is spent the paper fails fast with MSG_PAPER_FAILED instead of
+# burning more paid calls. No top-up rounds any more.
+PAID_EXTRA_BUDGET = 3
+MSG_PAPER_FAILED = ("AI se poora paper nahi ban paaya. Thodi der baad dobara try karein. / "
+                    "The AI could not complete this paper. Please try again in a few minutes.")
 BASE_BACKOFF_SECONDS = 2
 MAX_BACKOFF_SECONDS = 20
 JITTER_RANGE = (0.5, 1.2)
@@ -2137,6 +2143,14 @@ class _PaperStats:
         self._lock = threading.Lock()
         self.calls = {}  # model -> [calls, input tokens, output tokens]
         self.dropped = 0
+        self.extra = 0   # retries + fallbacks + unusable replies spent, out of PAID_EXTRA_BUDGET
+
+    def spend_extra(self) -> None:
+        """One more attempt beyond a batch's first. Raises when the paper's budget is gone."""
+        with self._lock:
+            if self.extra >= PAID_EXTRA_BUDGET:
+                raise GenerationError(MSG_PAPER_FAILED, 503)
+            self.extra += 1
 
     def add_call(self, model: str, tokens_in: int, tokens_out: int):
         with self._lock:
@@ -2169,6 +2183,13 @@ def _record_call(model: str, tokens_in: int, tokens_out: int):
     stats = _PAPER_STATS.get()
     if stats:
         stats.add_call(model, tokens_in, tokens_out)
+
+
+def _spend_extra():
+    """Charge one extra attempt to the paper's PAID_EXTRA_BUDGET (no-op outside a paper, e.g. verify)."""
+    stats = _PAPER_STATS.get()
+    if stats:
+        stats.spend_extra()
 
 
 def _submit(pool, fn, *args, **kwargs):
@@ -2246,6 +2267,7 @@ def _call_deepseek(prompt):
             if resp.status_code not in DEEPSEEK_RETRYABLE_STATUS:
                 raise GenerationError(f"deepseek: {last_err}", 502)
         if attempt < MAX_RETRIES - 1:
+            _spend_extra()
             wait = min(BASE_BACKOFF_SECONDS ** (attempt + 1), MAX_BACKOFF_SECONDS) * random.uniform(*JITTER_RANGE)
             logger.warning(f"[deepseek] Retry {attempt + 1}: {last_err[:80]}... waiting {wait:.1f}s")
             time.sleep(wait)
@@ -2266,6 +2288,9 @@ def _call_llm(client, prompt, model):
         try:
             return _call_deepseek(prompt)
         except GenerationError as e:
+            if e.status_code == 503 and str(e) == MSG_PAPER_FAILED:
+                raise
+            _spend_extra()                      # the Gemini fallback is one more paid attempt
             logger.warning(f"DeepSeek failed, falling back to Gemini {model}: {e}")
     return _call_gemini_model(client, prompt, model)
 
@@ -2306,6 +2331,7 @@ def _call_gemini_model(client, prompt, model, temperature=None):
                 # Fail fast with actual reason
                 raise GenerationError(f"{model}: {err[:200]}", 502)
             if attempt < MAX_RETRIES - 1:
+                _spend_extra()
                 wait = min(BASE_BACKOFF_SECONDS ** (attempt + 1), MAX_BACKOFF_SECONDS) * random.uniform(*JITTER_RANGE)
                 logger.warning(f"[{model}] Retry {attempt + 1}: {err[:80]}... waiting {wait:.1f}s")
                 time.sleep(wait)
@@ -2367,14 +2393,19 @@ def _generate_for_chapter(client, chapter, request, context_chunks, models, sect
             )
 
         batch_qs = []
-        for m in models:
+        for i, m in enumerate(models):
+            if i:
+                _spend_extra()            # a fallback model is an extra paid attempt
             try:
                 raw = _call_gemini(client, prompt, m)
                 batch_qs = _parse_batch(raw, chapter, request, section_key)
                 if batch_qs:
                     logger.info(f"    Batch {batch_num}: {len(batch_qs)}/{bc} [{m}]")
                     break
+                _spend_extra()            # billed reply, nothing usable in it
             except GenerationError as e:
+                if e.status_code == 503 and str(e) == MSG_PAPER_FAILED:
+                    raise                 # budget gone: fail the whole paper fast
                 if errors is not None:
                     errors.append(f"{chapter.chapter}/{section_key or 'simple'}: {str(e)}")
                 if m != models[-1]:
@@ -2393,11 +2424,7 @@ def _generate_for_chapter(client, chapter, request, context_chunks, models, sect
         for f in futures:
             all_qs.extend(f.result())
     all_qs = _dedupe_questions(all_qs)
-
-    batch_num = len(sizes)
-    while len(all_qs) < target and batch_num < len(sizes) + 3:
-        batch_num += 1
-        all_qs = _dedupe_questions(all_qs + run_batch(min(target - len(all_qs) + settings.OVERSHOOT_PER_CHAPTER, batch_size), batch_num))
+    # No top-up rounds (Gate 2 #4): a shortfall is returned as-is rather than paid for again.
 
     if len(all_qs) > target:
         all_qs = all_qs[:target]
@@ -2625,12 +2652,17 @@ def generate_cbse_accountancy_paper(request, context_chunks, feedback=None):
         def ask(count, with_or):
             # with_or: `count` main questions, each with its OR alternative.
             prompt = make_prompt(count=count, generate_or=with_or)
-            for m in models:
+            for i, m in enumerate(models):
+                if i:
+                    _spend_extra()
                 try:
                     qs = _parse_batch(_call_gemini(client, prompt, m), chapter_section, request, section_tag)
                     if qs:
                         return qs
+                    _spend_extra()
                 except GenerationError as e:
+                    if e.status_code == 503 and str(e) == MSG_PAPER_FAILED:
+                        raise
                     errors.append(f"{error_tag}: {str(e)}")
             return []
 
@@ -2652,21 +2684,7 @@ def generate_cbse_accountancy_paper(request, context_chunks, feedback=None):
             for f in [_submit(pool, ask, c, w) for c, w in requests]:
                 add(f.result())
 
-        # Up to 3 top-up rounds for whatever the parser or the quality checks rejected
-        # (e.g. unbalanced journals); each round asks for the whole shortfall in parallel.
-        for _ in range(3):
-            need_main, need_or = main_n - len(main_qs), or_n - len(or_qs)
-            if need_main <= 0 and need_or <= 0:
-                break
-            pairs_needed = max(min(need_or, max(need_main, 0)), 0)
-            top = [(min(per_call, pairs_needed - i), True) for i in range(0, pairs_needed, per_call)]
-            singles = max(need_main - pairs_needed, 0)
-            top += [(min(per_call, singles - i), False) for i in range(0, singles, per_call)]
-            if need_or > pairs_needed:  # mains are complete but OR alternatives are missing
-                top += [(min(per_call, need_or - pairs_needed - i), True) for i in range(0, need_or - pairs_needed, per_call)]
-            with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, len(top))) as pool:
-                for f in [_submit(pool, ask, c, w) for c, w in top]:
-                    add(f.result())
+        # No top-up rounds (Gate 2 #4): the shortfall is reported, not paid for again.
 
         if len(or_qs) < or_n and len(main_qs) > main_n:
             # Not enough marked OR alternatives: use surplus main questions as the alternatives.

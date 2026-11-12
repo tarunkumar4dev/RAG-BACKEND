@@ -233,6 +233,8 @@ class JobWorker:
             return e.code, e.message, None
         if isinstance(e, preprocess.BadFile):
             return "BAD_FILE", upload_validation.bad_file_message(e), None
+        if isinstance(e, svc.UnreadableReply):
+            return "AI_UNREADABLE", svc.MSG_UNREADABLE, None     # final (e.final): no re-queue, no more paid calls
         if isinstance(e, svc.GeminiBusy):
             code = "GEMINI_429" if e.code == 429 else "GEMINI_5XX"
             return code, MSG[code], e.retry_after

@@ -106,6 +106,17 @@ _TRANSIENT_CODES = {500, 503, 504}
 _preferred_model: Optional[str] = None
 
 
+MAX_ATTEMPTS_PER_RUN = 3   # Gate 2 #4: retries + fallback models together, per grading / rubric run
+MSG_UNREADABLE = ("AI ka jawab padha nahi ja saka; yeh copy manually check karein. / "
+                  "The AI reply could not be read; please check this copy manually.")
+_attempts_left: contextvars.ContextVar = contextvars.ContextVar("a4ai_checker_attempts", default=None)
+
+
+class UnreadableReply(ValueError):
+    """Two billed replies in a row were not JSON: final for this copy (the worker does not re-queue it)."""
+    final = True
+
+
 class GeminiBusy(RuntimeError):
     """Quota (429) or overload: retry later (re-queue), never in a hot loop. retry_after = seconds Gemini asked
     us to wait (Retry-After header or RetryInfo.retryDelay), None if it didn't say."""
@@ -251,7 +262,12 @@ def _generate(client: genai.Client, contents: list, tag: str):
         return response
 
     last_error: Optional[Exception] = None
+    budget = _attempts_left.get()
     for model in [CHECKER_MODEL, *CHECKER_FALLBACK_MODELS]:
+        if budget is not None:
+            if budget[0] <= 0:
+                break
+            budget[0] -= 1
         _count_call(tag)
         try:
             t_call = time.time()
@@ -290,9 +306,20 @@ def _generate_json(client: genai.Client, contents: list, tag: str, max_retries: 
       5xx / bad JSON      → wait 2 s
     The call cap is never retried. A second failure raises (GeminiBusy → HTTP 503 AI_BUSY)."""
     attempts = max(1, min(max_retries, 2))
+    budget = [MAX_ATTEMPTS_PER_RUN]
+    token = _attempts_left.set(budget)
+    try:
+        return _generate_json_budgeted(client, contents, tag, attempts, budget)
+    finally:
+        _attempts_left.reset(token)
+
+
+def _generate_json_budgeted(client, contents: list, tag: str, attempts: int, budget: list) -> dict:
     last_error: Optional[Exception] = None
     for attempt in range(1, attempts + 1):
         wait = 2.0
+        if budget[0] <= 0:
+            break
         try:
             response = _generate(client, contents, tag)
             data = json.loads(response.text)
@@ -311,6 +338,8 @@ def _generate_json(client: genai.Client, contents: list, tag: str, max_retries: 
             time.sleep(wait)
     if isinstance(last_error, GeminiBusy):
         raise last_error
+    if isinstance(last_error, (json.JSONDecodeError, ValueError)):
+        raise UnreadableReply(MSG_UNREADABLE)
     raise ValueError(f"{tag} failed: {type(last_error).__name__}")
 
 
