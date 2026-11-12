@@ -2808,7 +2808,7 @@ def handle_feedback(*args, **kwargs):
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# ANSWER-KEY CHECKER (runs after the paper is shown; see /verify-answers)
+# ANSWER-KEY CHECKER (offline eval only: scripts/eval_generation.py; no API route since Gate 2 #10)
 # ═══════════════════════════════════════════════════════════════════════
 
 CHECKER_BATCH_SIZE = 8
