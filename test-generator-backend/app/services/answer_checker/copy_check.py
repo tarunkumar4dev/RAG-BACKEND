@@ -50,7 +50,11 @@ def grade_copy(source_paths: list, rubric: dict, strictness: str = "medium") -> 
             tmp.close()
             temps.append(tmp.name)
         with svc.usage_meter() as meter:
-            result = svc.grade_sheet(temps, rubric, strictness, require_identity=False, page_meta=True)
+            try:
+                result = svc.grade_sheet(temps, rubric, strictness, require_identity=False, page_meta=True)
+            except Exception as e:
+                e.usage = meter.as_dict()      # billed calls of a failed run still count (Gate 2 #4)
+                raise
     finally:
         for t in temps:
             try:

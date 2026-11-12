@@ -48,10 +48,11 @@ from app.models.test_generator import (
 logger = logging.getLogger(__name__)
 
 MAX_RETRIES = 2            # attempts per model per batch; the per-paper budget below is the real cap (Gate 2 #4)
-# Gate 2 #4: at most this many EXTRA provider attempts per paper (every retry, fallback model or unusable reply
-# beyond a batch's first attempt). When it is spent the paper fails fast with MSG_PAPER_FAILED instead of
-# burning more paid calls. No top-up rounds any more.
-PAID_EXTRA_BUDGET = 3
+# Gate 2 #4: at most 3 provider calls IN TOTAL for any failing unit of work: a batch's first attempt plus at most
+# PAID_EXTRA_BUDGET extra attempts per paper (retries, the fallback model, billed-but-unusable replies). A paper with
+# N batches needs N first attempts for its questions; the extras on top are capped at 2 per paper. When they are spent
+# the paper fails fast with MSG_PAPER_FAILED. No top-up rounds.
+PAID_EXTRA_BUDGET = 2
 MSG_PAPER_FAILED = ("AI se poora paper nahi ban paaya. Thodi der baad dobara try karein. / "
                     "The AI could not complete this paper. Please try again in a few minutes.")
 BASE_BACKOFF_SECONDS = 2
