@@ -12,14 +12,22 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from fastapi.testclient import TestClient  # noqa: E402
 
+from app.core.config import settings  # noqa: E402
 from app.main import app  # noqa: E402
 
 SUBMIT = "/api/v1/contests/00000000-0000-0000-0000-000000000000/submit"
 
+# Settings are evaluated when app.core.config is first imported, so the
+# setdefault above only takes effect if this module happens to import config
+# first. Reading the origin back from the app's own configuration keeps these
+# tests order-independent — what they actually assert is that X-Attempt-Id is
+# an allowed request header, not which origin is configured.
+ALLOWED_ORIGIN = (settings.cors_origin_list or ["https://www.a4ai.in"])[0]
+
 
 def _preflight(headers: str):
     return TestClient(app).options(SUBMIT, headers={
-        "Origin": "https://www.a4ai.in",
+        "Origin": ALLOWED_ORIGIN,
         "Access-Control-Request-Method": "POST",
         "Access-Control-Request-Headers": headers,
     })
