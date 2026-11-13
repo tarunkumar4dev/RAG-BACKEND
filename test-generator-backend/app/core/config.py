@@ -11,7 +11,7 @@ Changes vs previous version:
 
 import os
 import logging
-from typing import List
+from typing import List, Optional
 
 from dotenv import load_dotenv
 
@@ -110,6 +110,23 @@ class Settings:
     MAX_ITERATIONS: int = 1
     MAX_QUESTIONS_PER_REQUEST: int = 100
     DEDUP_THRESHOLD: float = 0.82
+
+    # ── Strict correctness pipeline (Plan->Generate->Verify->Integrity->Quality) ──
+    # When true, numeric Accountancy MCQs are built SOLVE-FIRST: a deterministic
+    # Python solver computes the answer + distractors and the LLM only writes the
+    # stem prose. Default false keeps the legacy generate-and-ship path untouched
+    # until the flag is flipped (staging turns it on).
+    STRICT_PIPELINE: bool = os.getenv("STRICT_PIPELINE", "false").lower() == "true"
+
+    # Semantic dedup gate (Phase 2A), active under STRICT_PIPELINE. Hard duplicates
+    # (same structure + same numbers, or lexical >= DEDUP_LEXICAL) are always
+    # removed. DEDUP_MAX_PER_STRUCTURE optionally caps how many same-structure-
+    # different-number questions a paper may keep (empty / 0 = unlimited).
+    DEDUP_LEXICAL: float = float(os.getenv("DEDUP_LEXICAL", "0.90"))
+    _dedup_cap_raw: str = os.getenv("DEDUP_MAX_PER_STRUCTURE", "").strip()
+    DEDUP_MAX_PER_STRUCTURE: Optional[int] = (int(_dedup_cap_raw)
+                                              if _dedup_cap_raw.isdigit() and int(_dedup_cap_raw) > 0
+                                              else None)
 
     # ── CBSE Pattern ────────────────────────────────────────────────
     CBSE_PATTERN_DEFAULT: bool = os.getenv("CBSE_PATTERN_DEFAULT", "true").lower() == "true"

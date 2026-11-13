@@ -43,6 +43,9 @@ from app.models.test_generator import (
     SubPart,
     MarkingStep,
 )
+from app.services import accountancy_scenarios as acc_scen
+from app.services import dedup_gate
+from app.services import blueprint as acc_blueprint
 
 logger = logging.getLogger(__name__)
 
@@ -1817,7 +1820,22 @@ def _answer_table_issue(table) -> Optional[str]:
 
 
 def _dedupe_questions(qs: list) -> list:
-    """Parallel batches don't see each other, so drop repeats across batches."""
+    """Parallel batches don't see each other, so drop repeats across batches.
+
+    Under STRICT_PIPELINE this uses the Phase 2A semantic gate (structural + exact
+    + lexical, with an optional per-structure cap). Otherwise the legacy
+    first-160-chars exact-prefix check is kept so production is unchanged.
+    """
+    if settings.STRICT_PIPELINE:
+        res = dedup_gate.dedup(
+            qs,
+            lexical_threshold=settings.DEDUP_LEXICAL,
+            max_per_structure=settings.DEDUP_MAX_PER_STRUCTURE,
+        )
+        if res.removed_count:
+            logger.info(f"  Dedup gate: removed {res.removed_count} "
+                        f"({_dedup_reasons(res.removed)}), kept {len(res.kept)}")
+        return res.kept
     seen, out = set(), []
     for q in qs:
         key = _norm_text(getattr(q, "text", ""))[:160]
@@ -1826,6 +1844,11 @@ def _dedupe_questions(qs: list) -> list:
         seen.add(key)
         out.append(q)
     return out
+
+
+def _dedup_reasons(removed: list) -> str:
+    from collections import Counter
+    return ", ".join(f"{k}:{v}" for k, v in Counter(r["reason"] for r in removed).items())
 
 
 def _parse_batch(raw, chapter, request, section_key=None):
@@ -2091,7 +2114,10 @@ def _parse_batch(raw, chapter, request, section_key=None):
                 chapter=chapter.chapter,
                 topic=q.get("topic"),
                 format=QuestionFormat(fmt),
-                validation_status="verified",
+                # Honest status (1D): under STRICT the question is unverified until
+                # the blocking _verify_gate re-solves it; the legacy default stays
+                # "verified" so production behaviour is unchanged until the flag flips.
+                validation_status=("needs_review" if settings.STRICT_PIPELINE else "verified"),
                 answer_table=answer_table,
                 question_table=question_table,
                 marking_scheme=marking_scheme,
@@ -2119,6 +2145,53 @@ def _parse_batch(raw, chapter, request, section_key=None):
 
 def _is_retryable(error_str: str) -> bool:
     return any(kw in error_str.upper() for kw in (k.upper() for k in RETRYABLE_KEYWORDS))
+
+
+# ── Phase 2C: corrective re-prompt + JSON repair (STRICT_PIPELINE) ─────────
+
+_CORRECTIVE_LINES = {
+    "wrong_answer": "Recompute every answer and ensure EXACTLY ONE option equals the computed value.",
+    "bad_options": "Give four distinct, plausible options; the correct option text must match the answer verbatim.",
+    "duplicate": "Each question must test a DIFFERENT scenario — do not repeat an earlier question's structure or numbers.",
+    "unverified": "Keep each question self-contained and unambiguous, with a clearly correct answer.",
+    "malformed": "Return STRICTLY valid JSON only — no prose, no markdown fences.",
+    "low_quality": "Make stems specific and the explanation show the full working.",
+}
+
+
+def _corrective_note(reason_counts: dict) -> str:
+    """Build a corrective instruction block from the previous round's drop reasons.
+    Empty string when there is nothing to correct (so the first round is unchanged)."""
+    if not reason_counts:
+        return ""
+    # Most frequent reasons first; cap to the top 3 so the prompt stays tight.
+    top = sorted(reason_counts.items(), key=lambda kv: kv[1], reverse=True)
+    lines = [_CORRECTIVE_LINES[r] for r, _ in top if r in _CORRECTIVE_LINES][:3]
+    if not lines:
+        return ""
+    return ("\nThe previous attempt had problems. Fix these specifically:\n"
+            + "\n".join(f"- {ln}" for ln in lines) + "\n")
+
+
+def _repair_json(raw: str, llm_call) -> Optional[str]:
+    """Ask the model to repair malformed JSON. Returns repaired JSON text that
+    parses, or None. `llm_call` takes a prompt and returns text (injectable for tests)."""
+    if not raw or not raw.strip():
+        return None
+    prompt = ("The following was meant to be a single valid JSON object but does not parse. "
+              "Return ONLY the corrected JSON (no prose, no markdown fences), preserving all "
+              "question content as-is:\n\n" + raw[:12000])
+    try:
+        fixed = llm_call(prompt)
+    except Exception:
+        return None
+    if not fixed:
+        return None
+    try:
+        _extract_json(fixed)          # validate it parses
+        return fixed
+    except (ValueError, AttributeError):
+        return None
 
 
 _LLM_SLOTS = threading.BoundedSemaphore(max(1, settings.LLM_MAX_CONCURRENCY))
@@ -2318,11 +2391,101 @@ def _split_batches(total: int, size: int) -> List[int]:
     return [min(size, total - i) for i in range(0, total, size)] if total > 0 else []
 
 
+def _solve_first_numeric(chapter, request, count: int, client=None) -> Optional[list]:
+    """Phase 1B SOLVE-FIRST path for numeric Accountancy MCQs.
+
+    Returns GeneratedQuestion objects whose answer + options come from the
+    deterministic solver (never the LLM), or None if this chapter is not a
+    numeric Fundamentals family (caller keeps the legacy path).
+
+    The LLM, when a client is given, only rewrites the stem prose and only if it
+    preserves every number (see accountancy_scenarios.polish_stem_with_llm).
+    """
+    fmt_val = chapter.format.value if hasattr(chapter.format, 'value') else str(chapter.format)
+    if fmt_val != "mcq":
+        return None
+
+    topic = getattr(chapter, 'topic', None)
+    family = acc_scen.detect_numeric_family(chapter.chapter, topic)
+    families = None
+    if family:
+        families = [family]
+    elif acc_scen.is_fundamentals_chapter(chapter.chapter):
+        families = None  # use the full Fundamentals rotation
+    else:
+        return None
+
+    diff_val = chapter.difficulty.value if hasattr(chapter.difficulty, 'value') else str(chapter.difficulty)
+    seed = random.randrange(1_000_000)
+
+    def _polish(stem: str) -> str:
+        if client is None:
+            return stem
+        # Phase 2C: numeric work is deterministic; the prose rewrite runs at
+        # temperature 0 so the wording is stable and never re-rolls the numbers.
+        return acc_scen.polish_stem_with_llm(
+            stem, lambda p: _call_gemini_model(client, p, settings.GEMINI_GEN_MODEL, temperature=0))
+
+    # Phase 2B: when the whole chapter is in play (no single sub-topic), follow the
+    # weighted blueprint so coverage is planned, not left to a flat rotation.
+    family_sequence = None
+    bp = None if family else acc_blueprint.get_blueprint(chapter.chapter)
+    if bp is not None:
+        family_sequence = acc_blueprint.plan_sequence(bp, count)
+
+    dicts = acc_scen.generate_numeric_mcqs(count, seed=seed, difficulty=diff_val,
+                                           families=families, family_sequence=family_sequence)
+
+    # Coverage gate: a planned paper must not be lopsided. Logged; solve-first is
+    # built from the plan so it passes by construction.
+    if bp is not None:
+        from collections import Counter
+        actual = Counter(d.get("family") for d in dicts)
+        plan = acc_blueprint.plan_allocation(bp, len(dicts))
+        cov = acc_blueprint.coverage_report(dict(actual), plan)
+        if not cov.ok:
+            logger.warning(f"  Coverage gate: {cov.summary()}")
+    out = []
+    for d in dicts:
+        text = _polish(d["text"])
+        try:
+            bloom = BloomLevel(d.get("bloom_level", "apply"))
+        except ValueError:
+            bloom = BloomLevel.APPLY
+        gq = GeneratedQuestion(
+            id=str(uuid.uuid4()),
+            text=text,
+            options=d["options"],
+            correct_answer=d["correct_answer"],
+            explanation=d["explanation"],
+            marks=int(chapter.marks_per_question or 1),
+            difficulty=DifficultyLevel(diff_val),
+            bloom_level=bloom,
+            chapter=chapter.chapter,
+            topic=d.get("topic"),
+            format=QuestionFormat.MCQ,
+            validation_status="verified",   # solver-guaranteed; Phase 1C gate re-confirms
+        )
+        gq._section = None
+        gq._is_or = False
+        gq._or_of = None
+        out.append(gq)
+    logger.info(f"  SOLVE-FIRST: built {len(out)} numeric MCQ(s) for '{chapter.chapter}'"
+                f" (family={family or 'rotation'})")
+    return out
+
+
 def _generate_for_chapter(client, chapter, request, context_chunks, models, section_key=None, section_info=None, errors=None):
     target = chapter.quantity
     ask = target + settings.OVERSHOOT_PER_CHAPTER
     batch_size = settings.BATCH_SIZE
     is_accountancy = request.subject.lower() in ACCOUNTANCY_SUBJECTS
+
+    # Phase 1B: numeric Accountancy MCQs are built SOLVE-FIRST under STRICT_PIPELINE.
+    if settings.STRICT_PIPELINE and is_accountancy:
+        solved = _solve_first_numeric(chapter, request, target, client=client)
+        if solved is not None:
+            return solved[:target]
     is_stats = _is_statistics_question(chapter.chapter, getattr(chapter, 'topic', None))
     is_english = (request.subject or "").lower() == "english"
     is_writing = is_english and "writing" in chapter.chapter.lower()
@@ -2341,7 +2504,15 @@ def _generate_for_chapter(client, chapter, request, context_chunks, models, sect
 
     logger.info(f"  '{chapter.chapter}': target={target}, fmt={fmt_val}, diff={chapter.difficulty}, marks={chapter.marks_per_question}" + (f", section={section_key}" if section_key else "") + routing_tag)
 
-    def run_batch(bc: int, batch_num: int) -> list:
+    # Phase 2C: drop reasons accumulated across batches feed the corrective re-prompt.
+    reason_counts: dict = {}
+    _reason_lock = threading.Lock()
+
+    def _bump_reason(tag: str):
+        with _reason_lock:
+            reason_counts[tag] = reason_counts.get(tag, 0) + 1
+
+    def run_batch(bc: int, batch_num: int, feedback: str = "") -> list:
         if is_accountancy and fmt_val in ACCOUNTANCY_TABLE_FORMATS:
             prompt = _build_accountancy_prompt(
                 chapter, request, context_chunks, bc,
@@ -2366,12 +2537,28 @@ def _generate_for_chapter(client, chapter, request, context_chunks, models, sect
                 section_key, section_info
             )
 
+        # Phase 2C: on a top-up round, tell the model what went wrong last time
+        # instead of resending the identical prompt.
+        if feedback:
+            prompt = prompt + feedback
+
         batch_qs = []
         for m in models:
             try:
                 raw = _call_gemini(client, prompt, m)
                 batch_qs = _parse_batch(raw, chapter, request, section_key)
+                # Phase 2C: malformed JSON -> repair-prompt instead of a silent drop.
+                if not batch_qs and settings.STRICT_PIPELINE and raw and raw.strip():
+                    repaired = _repair_json(raw, lambda p: _call_gemini(client, p, m))
+                    if repaired:
+                        batch_qs = _parse_batch(repaired, chapter, request, section_key)
+                        if batch_qs:
+                            logger.info(f"    Batch {batch_num}: recovered {len(batch_qs)} via JSON repair")
+                    if not batch_qs:
+                        _bump_reason("malformed")
                 if batch_qs:
+                    if len(batch_qs) < bc:
+                        _bump_reason("low_quality")
                     logger.info(f"    Batch {batch_num}: {len(batch_qs)}/{bc} [{m}]")
                     break
             except GenerationError as e:
@@ -2381,11 +2568,19 @@ def _generate_for_chapter(client, chapter, request, context_chunks, models, sect
                     continue
                 logger.error(f"    '{chapter.chapter}' batch {batch_num} failed: {e}")
                 break
+        # Phase 1C: blocking verify gate (STRICT_PIPELINE only). Drops here reduce
+        # the batch, so the top-up loop below regenerates replacements.
+        if batch_qs and settings.STRICT_PIPELINE:
+            gate_reasons: list = []
+            batch_qs = _verify_gate(batch_qs, request, reasons_out=gate_reasons)
+            for tag in gate_reasons:
+                _bump_reason(tag)
         return batch_qs
 
     # Batches are independent (no prompt depends on an earlier batch), so the first
     # wave runs in parallel. Shortfalls from the parser/quality filter are topped up
-    # afterwards, up to 3 more rounds.
+    # afterwards, up to 3 more rounds — each with corrective feedback, and stopping
+    # early if a round makes no progress (circuit-breaker).
     all_qs = []
     sizes = _split_batches(ask, batch_size)
     with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, len(sizes))) as pool:
@@ -2395,13 +2590,24 @@ def _generate_for_chapter(client, chapter, request, context_chunks, models, sect
     all_qs = _dedupe_questions(all_qs)
 
     batch_num = len(sizes)
+    rounds = 0
     while len(all_qs) < target and batch_num < len(sizes) + 3:
         batch_num += 1
-        all_qs = _dedupe_questions(all_qs + run_batch(min(target - len(all_qs) + settings.OVERSHOOT_PER_CHAPTER, batch_size), batch_num))
+        rounds += 1
+        before = len(all_qs)
+        note = _corrective_note(dict(reason_counts)) if settings.STRICT_PIPELINE else ""
+        topup = run_batch(min(target - len(all_qs) + settings.OVERSHOOT_PER_CHAPTER, batch_size),
+                          batch_num, feedback=note)
+        all_qs = _dedupe_questions(all_qs + topup)
+        # Circuit-breaker (STRICT only, so the legacy loop is unchanged): stop once
+        # a round adds nothing rather than burning the remaining rounds.
+        if settings.STRICT_PIPELINE and len(all_qs) <= before:
+            logger.info(f"  '{chapter.chapter}': top-up round {rounds} made no progress — stopping")
+            break
 
     if len(all_qs) > target:
         all_qs = all_qs[:target]
-    logger.info(f"  '{chapter.chapter}': {len(all_qs)}/{target}")
+    logger.info(f"  '{chapter.chapter}': {len(all_qs)}/{target} (top-up rounds: {rounds})")
     return all_qs
 
 
@@ -2629,7 +2835,11 @@ def generate_cbse_accountancy_paper(request, context_chunks, feedback=None):
                 try:
                     qs = _parse_batch(_call_gemini(client, prompt, m), chapter_section, request, section_tag)
                     if qs:
-                        return qs
+                        # Phase 1C: blocking verify gate (STRICT_PIPELINE only).
+                        if settings.STRICT_PIPELINE:
+                            qs = _verify_gate(qs, request)
+                        if qs:
+                            return qs
                 except GenerationError as e:
                     errors.append(f"{error_tag}: {str(e)}")
             return []
@@ -2921,4 +3131,137 @@ def verify_answer_key(questions: List[dict], subject: str, class_grade: str) -> 
     unchecked = len(by_id) - len(checked_ids)
     logger.info(f"Answer-key check: {len(checked_ids)}/{len(by_id)} checked, {fixed} fixed, {flagged} flagged [{model}]")
     return {"results": results, "checked": len(checked_ids), "unchecked": unchecked,
-            "fixed": fixed, "flagged": flagged, "model": model}
+            "checked_ids": sorted(checked_ids), "fixed": fixed, "flagged": flagged, "model": model}
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# Phase 1C/1D — BLOCKING verify gate for the legacy (LLM) generation path.
+#
+# Runs under STRICT_PIPELINE only. A second model re-solves every generated
+# question. The gate is BLOCKING for discrete-answer formats:
+#   MCQ / Assertion-Reason:
+#     - checker agrees (ok)            -> status "verified", keep
+#     - checker rejects (flawed Q)     -> DROP (regenerated by the top-up loop)
+#     - checker fixes the key          -> DROP (generator & checker disagreed; a
+#                                         single-model correction is not agreement)
+#     - checker could not check it     -> DROP (an unverified MCQ must not ship)
+# For free-text (short/long/case) there is no "answer not among options" failure,
+# so the honest-status rule (1D) applies instead of a hard block:
+#     - reject (question itself flawed) -> DROP
+#     - fix                             -> apply the correction, status "needs_review"
+#     - ok                              -> status "verified"
+#     - unchecked                       -> status "needs_review" (human reviews)
+# "verified" is therefore never hard-coded; it is the result of this gate.
+# ═══════════════════════════════════════════════════════════════════════
+
+_BLOCKING_FORMATS = {"mcq", "assertion_reason"}
+# Formats the checker cannot adjudicate as right/wrong (keep, do not gate).
+_UNGATED_FORMATS = {"image", "manual"}
+
+
+def _gq_fmt(q) -> str:
+    return q.format.value if hasattr(q.format, "value") else str(q.format)
+
+
+def _gq_to_checker_dict(q) -> dict:
+    return {
+        "id": q.id,
+        "text": q.text,
+        "options": q.options,
+        "correct_answer": q.correct_answer,
+        "explanation": q.explanation,
+        "format": _gq_fmt(q),
+        "marks": q.marks,
+        "answer_table": q.answer_table.model_dump() if getattr(q, "answer_table", None) else None,
+        "sub_parts": [sp.model_dump() for sp in q.sub_parts] if getattr(q, "sub_parts", None) else None,
+    }
+
+
+def _verify_gate(questions: list, request, verifier=None, reasons_out=None) -> list:
+    """Blocking verification for legacy-path questions. Returns the survivors with
+    honest validation_status. No-op when STRICT_PIPELINE is off or the list is empty.
+
+    `verifier` is injectable for tests; defaults to verify_answer_key.
+    `reasons_out`, if given, collects drop-reason tags for the corrective re-prompt.
+    """
+    def _note(tag):
+        if reasons_out is not None:
+            reasons_out.append(tag)
+
+    if not settings.STRICT_PIPELINE or not questions:
+        return questions
+
+    gated = [q for q in questions if _gq_fmt(q) not in _UNGATED_FORMATS]
+    passthrough = [q for q in questions if _gq_fmt(q) in _UNGATED_FORMATS]
+    if not gated:
+        return questions
+
+    verifier = verifier or verify_answer_key
+    subject = getattr(request, "subject", "") or ""
+    class_grade = str(getattr(request, "class_grade", "") or "")
+
+    try:
+        report = verifier([_gq_to_checker_dict(q) for q in gated], subject, class_grade)
+    except Exception as e:
+        # Checker unavailable. Blocking path: do not ship unverified MCQ/AR; keep
+        # free-text as needs_review so the paper is not silently emptied.
+        logger.error(f"Verify gate: checker failed ({e}); dropping discrete-answer items, "
+                     f"flagging free-text for review")
+        kept = []
+        for q in gated:
+            if _gq_fmt(q) in _BLOCKING_FORMATS:
+                _note("unverified")
+                continue
+            q.validation_status = "needs_review"
+            q.validation_notes = "answer-key checker unavailable"
+            kept.append(q)
+        return kept + passthrough
+
+    results_by_id = {str(r.get("id")): r for r in report.get("results", [])}
+    checked_ids = set(report.get("checked_ids", []))
+
+    kept, dropped = [], 0
+    for q in gated:
+        rid = str(q.id)
+        fmt = _gq_fmt(q)
+        is_blocking = fmt in _BLOCKING_FORMATS
+        r = results_by_id.get(rid)
+        verdict = r.get("verdict") if r else None
+
+        if verdict == "reject":
+            dropped += 1
+            _note("wrong_answer")
+            continue
+
+        if verdict == "fix":
+            if is_blocking:
+                dropped += 1            # generator & checker disagreed -> drop, regenerate
+                _note("wrong_answer")
+                continue
+            # free-text: apply the checker's correction, flag for human review
+            if r.get("correctAnswer"):
+                q.correct_answer = str(r["correctAnswer"])
+            if r.get("explanation"):
+                q.explanation = str(r["explanation"])
+            q.validation_status = "needs_review"
+            q.validation_notes = (r.get("issue") or "key corrected by checker")[:300]
+            kept.append(q)
+            continue
+
+        # no fix/reject entry: either checked-and-ok, or not checked at all
+        if rid in checked_ids:
+            q.validation_status = "verified"
+            kept.append(q)
+        else:
+            if is_blocking:
+                dropped += 1            # unverified MCQ/AR must not ship
+                _note("unverified")
+            else:
+                q.validation_status = "needs_review"
+                q.validation_notes = "not verified by the answer-key checker"
+                kept.append(q)
+
+    if dropped:
+        logger.info(f"Verify gate: dropped {dropped}/{len(gated)} (failed/unverified); "
+                    f"kept {len(kept)}")
+    return kept + passthrough
