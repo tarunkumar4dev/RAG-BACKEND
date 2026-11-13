@@ -1,45 +1,70 @@
 # Checker fallback benchmark (Gate 2 #2): `gemini-3.8-flash` (current) vs `gemini-3.6-flash` (proposed fallback)
 
-**Status: INCOMPLETE.** Only 3 of the 10 copies have a usable side-by-side.
+**Status: INCOMPLETE after two sessions.** Only 3 of the 10 copies have a usable side-by-side. `gemini-3.8-flash` graded **0 of 10** copies in both sessions.
 
-**Run:** 12 Nov 2026, 22:46–23:04 IST.
+**Root cause, found on 13 Nov.** The API key in the local `.env` belongs to a Gemini **Free Tier** project. On 13 Nov a diagnostic call to `gemini-3.8-flash` returned 429 `RESOURCE_EXHAUSTED`:
+- Message: "Generate content requests per day limit exceeded on **Free Tier**".
+- `quotaId`: `GenerateRequestsPerDayPerProjectPerModel-FreeTier`.
+- `retryDelay`: 8,167 s, so it resets at about 13:30 IST.
 
-**Spend: ₹6.95, MEASURED.** That is the token counts Gemini returned in `usage_metadata`, priced at the list price below. Only successful calls are counted. Gemini does not bill 503 and 504 responses. For the 3 calls that hit our client timeout, whether Google billed them is unknown. If it did, it would add about ₹7 at most.
+Free-tier traffic also gets lower priority, which fits the 503s on 12 Nov. That part is likely but not verified.
 
-**Price used:** $0.75 per million input tokens and $3.75 per million output tokens (thinking included), the same for both models until 31 Dec 2026. From 1 Jan 2027 it is $1.50 / $7.50. Converted at ₹84/$. Source: aistudio.google.com/docs/pricing, read 12 Nov 2026.
+**Sessions:**
+1. 12 Nov, 22:46–23:04 IST, with our 60 s client timeout.
+2. 13 Nov, 10:59–11:15 IST, with the 150 s production background timeout. This was the approved rerun of the 7 missing copies on both models, then 02, 07 and 08 on 3.8-flash.
+
+The planned 07:00 start on 13 Nov did not happen, because the PC slept from 06:04 to 10:33.
+
+**Spend: ₹6.95 MEASURED.** That's the tokens Gemini returned in `usage_metadata` for the 3 successful 3.6-flash gradings, priced at list price. **₹0 was charged**, because these calls ran on a free-tier key. Session 2 added ₹0.00, since every call was refused before any output. I also made one 7-token diagnostic call, which cost effectively nothing. The ₹50 rerun cap was not touched.
+
+**Price used for the ₹ figures:** $0.75 per million input tokens and $3.75 per million output tokens (thinking included), the same for both models until 31 Dec 2026. From 1 Jan 2027 it is $1.50 / $7.50. Converted at ₹84/$. Source: aistudio.google.com/docs/pricing, read 12 Nov 2026.
 
 **Method:**
 - Production code path: `copy_check.grade_copy`, using the October rubric with strictness "medium".
 - Fallbacks were off, so each column is one model only.
 - Copies are 10 Economics copies from October, anonymised as Copy 01–10. No names, roll numbers or ids appear here.
 - Runner: `test-generator-backend/scripts/bench_checker_fallback.py`.
-- Raw output, which stays outside the repo because it contains page images: `C:\Users\login\Downloads\a4ai_checker_bench_2026-11-12\`.
+- Raw output, outside the repo: `C:\Users\login\Downloads\a4ai_checker_bench_2026-11-12\` (`raw.json`, `rerun.log`, page images).
 
-## 1. What happened
+## 0. Failure counts per model (every request, both sessions)
 
-| Copy | Pages | Oct prod model → marks | `gemini-3.8-flash` today | `gemini-3.6-flash` today |
+| Model | Requests | OK | 503 | 504 | 429 | Timeout | Unreadable reply |
+|---|---|---|---|---|---|---|---|
+| `gemini-3.8-flash` | 42 | **0** | 19 | 6 | 17 | 0 | 0 |
+| `gemini-3.6-flash` | 27 | **3** | 13 | 0 | 6 | 4 | 1 |
+
+Split by session:
+- **`gemini-3.8-flash`:**
+  - 12 Nov: 17 × 503 and 4 × 504 in the run, plus 1 × 503 and 1 × 429 in the probe retry.
+  - 13 Nov: 2 × 503, 2 × 504 and 16 × 429. Most of the 429s are the free-tier daily quota.
+- **`gemini-3.6-flash`:**
+  - 12 Nov: 3 OK, 7 × 503, 3 timeouts at 60 s, and 1 unreadable reply (Google bills those, but I couldn't count its tokens).
+  - 13 Nov: 6 × 503, 6 × 429, and 1 timeout at **150 s**, on copy 01 (6 pages).
+
+On 12 Nov the log was cut after 40 lines. The copy 09 and 10 counts for that session come from `raw.json` (2 attempts each, both 503).
+
+## 1. What happened, per copy
+
+| Copy | Pages | Oct prod model → marks | `gemini-3.8-flash`, 12 Nov / 13 Nov | `gemini-3.6-flash`, 12 Nov / 13 Nov |
 |---|---|---|---|---|
-| 01 | 6 | 3-flash-preview → 23/30 | ❌ 503 overloaded (2 tries) | ❌ client timeout at 60 s |
-| 02 | 2 | **3.8-flash → 14/30** | ❌ 503 ×2; a retry at 23:04 got 429, then 503 | ✅ **16/30** |
-| 03 | 3 | 3.8-flash → 16/30 | ❌ 503 ×2 | ❌ unreadable reply, then 503 |
-| 04 | 1 | 3-flash-preview → 22/30 | ❌ 503 ×2 | ❌ client timeout at 60 s |
-| 05 | 6 | 3-flash-preview → 19.5/30 | ❌ 503 ×2 | ❌ 503 ×2 |
-| 06 | 6 | 3.8-flash → 18/30 | ❌ 503 ×2 | ❌ client timeout at 60 s |
-| 07 | 1 | **3.8-flash → 6.5/30** | ❌ 504, then 503 | ✅ **7.5/30** |
-| 08 | 3 | **3.8-flash → 18.5/30** | ❌ 504, then 503 | ✅ **18.5/30** |
-| 09 | 4 | 3.8-flash → 19.5/30 | ❌ 504 ×2 | ❌ 503 |
-| 10 | 4 | 3-flash-preview → 21/30 | ❌ 503 ×2 | ❌ 503 |
+| 01 | 6 | 3-flash-preview → 23/30 | 503 ×2 / 503 ×2 | timeout 60 s / **timeout 150 s** |
+| 02 | 2 | **3.8-flash → 14/30** | 503 ×2, then a probe got 429 + 503 / 429 ×2 | ✅ **16/30** (12 Nov) |
+| 03 | 3 | 3.8-flash → 16/30 | 503 ×2 / 429 ×2 | unreadable + 503 / 503 ×2 |
+| 04 | 1 | 3-flash-preview → 22/30 | 503 ×2 / 429 + 504 | timeout 60 s / 503 ×2 |
+| 05 | 6 | 3-flash-preview → 19.5/30 | 503 ×2 / 504 + 429 | 503 ×2 / 503 ×2 |
+| 06 | 6 | 3.8-flash → 18/30 | 503 ×2 / 429 ×2 | timeout 60 s / 429 ×2 |
+| 07 | 1 | **3.8-flash → 6.5/30** | 504 + 503 / 429 ×2 | ✅ **7.5/30** (12 Nov) |
+| 08 | 3 | **3.8-flash → 18.5/30** | 504 + 503 / 429 ×2 | ✅ **18.5/30** (12 Nov) |
+| 09 | 4 | 3.8-flash → 19.5/30 | 504 ×2 / 429 ×2 | 503 ×2 / 429 ×2 |
+| 10 | 4 | 3-flash-preview → 21/30 | 503 ×2 / 429 ×2 | 503 ×2 / 429 ×2 |
 
-**Why it's incomplete.**
-- **`gemini-3.8-flash` graded 0 of 10 copies tonight.** Every attempt was refused by Google: 503 "overloaded" or 504, and once 429. This is Google capacity, not our code. The same requests would have failed in production at this hour.
-- **`gemini-3.6-flash` graded 3 of 10.**
-  - Copies 01, 04 and 06 hit **our** 60 s client timeout (`CHECKER_GEMINI_TIMEOUT_S`, the production value).
-  - Copies 03, 05, 09 and 10 got 503s.
-  - Copy 03 also returned one unreadable reply before a 503.
-- I stopped after one probe retry. I'm not retrying further tonight, because with the current model down a rerun would mostly buy more 503s.
-- **The ₹100 cap leaves about ₹86 for a rerun** (₹93 if the timed-out calls were not billed). A full 10 × 2 pass costs about ₹45–50. I suggest running it off-peak, for example 7–9 am IST, with the timeout raised to 180 s for the benchmark only. That needs your go: `--resume` keeps the 3 finished copies.
+**Why it's still incomplete:**
+- **The key the runner used is on the Free Tier.** Its daily per-model request quota ran out for `gemini-3.8-flash`, which explains the 429s on 13 Nov. Its lower priority probably explains the earlier 503/504s.
+- This is a problem with **this key**, not with the models or our code.
+- **A same-day comparison needs a paid-tier key.** With a paid key, a full 10 × 2 pass costs about ₹45–50 at list price.
+- I did not retry further. The approved ₹50 is untouched, and so is the remaining Gate 2 cap (about ₹86–93).
 
-**What I compared instead.** The 3 copies that 3.6-flash graded (02, 07, 08) were all graded by **`gemini-3.8-flash` in production on 24 Oct**. Their stored October per-question results are the "current model" column below. Caveats:
+**What is compared below.** The 3 copies that 3.6-flash graded (02, 07, 08) were all graded by **`gemini-3.8-flash` in production on 24 Oct**. Their stored October per-question results are the "current model" column. Caveats:
 - It's a different day.
 - The October run had the production fallbacks on, but all three show one call, so it was 3.8-flash alone.
 - The grading code is unchanged since then, apart from the Gate 2 #4 retry cap, which does not affect a successful call.
@@ -110,7 +135,9 @@
 
 Both columns use October/today token counts as MEASURED, priced at today's list price. The 3.8 time is October's grading call (`ms_by_tag.GRADE`). The 3.6 time is today's whole `grade_copy`.
 
-## 4. Summary flags
+## 4. Summary flags, over all 10 copies
+
+For **7 of the 10 copies (01, 03, 04, 05, 06, 09, 10), neither model produced a grade** in either session; the counts are in §0. So none of the flags below can be raised for those 7. Everything below is about the 3 copies that have both a 3.8 grade (24 Oct) and a 3.6 grade (12 Nov).
 
 **a) Copies where totals differ by more than 2 marks: none.** The largest gap is Copy 02 at exactly +2.0, so it doesn't pass the threshold. It comes from three questions: Q4 +0.5, Q9 +0.5, Q10 +1.
 
@@ -134,18 +161,29 @@ Overall 3.6 was slightly more generous: +3 marks over 33 questions, and +1.0 on 
 - **3.6, Copy 07 Q10:** "Excellent answer for Question 10." is fine but redundant.
 - **3.8 has one similar gap: Copy 02 Q4** gave 0.5 with advice to add a point the key may not require. Please judge.
 - **Both models:** Q11 shows "See sub-part feedback" on the parent row. That's fine in the UI, but not self-contained in exports.
+- The server-side rule on branch `checker-bundle` (d7e224d) addresses the first two points: every below-full answer starts with its weakest point's reason. It has not been re-measured on these copies.
 
 **d) Average cost and time per copy, old vs new (3 copies).**
 - **Cost:** ₹1.90 (3.8, October) vs ₹2.32 (3.6, today), **+22 %**. The difference is driven by 3.6's thinking tokens: 2,571 vs 1,242 on average.
 - **Time:** 111.5 s vs 31.3 s.
 - Three copies is far too few to call either difference real.
 
-**Benchmark spend: ₹6.95 MEASURED** of the ₹100 cap. Add up to about ₹7 if the 3 timed-out calls were billed, which is unknown.
+**Benchmark spend: ₹6.95 MEASURED** at list price across both sessions (session 2 added ₹0.00). **₹0 was actually charged**, because the key is on the free tier.
 
-## 5. Operational finding (not part of the comparison)
+## 5. Operational findings (not part of the comparison)
 
-Tonight, 22:46–23:04 IST, the production primary `gemini-3.8-flash` refused every request. That was 22 attempts: 17 got 503, 4 got 504 after about 59 s, and 1 got 429.
+1. **The key the benchmark used is on the Free Tier.** It's the key in the local `.env` (`CHECKER_GEMINI_API_KEY`, falling back to `GEMINI_API_KEY`). It has a per-model **daily request quota** and gets lower priority, so it can't run a reliable side-by-side.
+   - **Please check the key set in Vercel for production** (`CHECKER_GEMINI_API_KEY`). It should belong to a billed (paid-tier) Google Cloud project.
+   - If production uses a free-tier key too, its 503s and the fallback to the preview model on 23–24 Oct would have the same cause.
+   - I have not read the production env.
+2. On 12 Nov, 22:46–23:04 IST, `gemini-3.8-flash` refused all 22 attempts (17 × 503, 4 × 504, 1 × 429). In production those copies would have gone to the fallbacks of the time, `gemini-2.5-flash` and then `gemini-3-flash-preview`, which were not tested here.
+3. **Timeouts.** On 13 Nov one `gemini-3.6-flash` call on a 6-page copy ran past **150 s**, the production background timeout. The 3 timeouts on 12 Nov were at the 60 s sync value, so they don't say anything about production. The deadline per job run on `checker-bundle` keeps a run inside Vercel's 300 s limit.
 
-In production, those copies would have gone to today's fallbacks, `gemini-2.5-flash` and then `gemini-3-flash-preview`. Neither was tested tonight.
+## 6. To finish the benchmark
 
-`gemini-3.6-flash` was not overloaded in the same way, but 3 of its 10 attempts ran past our 60 s client timeout. The 60 s timeout (`CHECKER_GEMINI_TIMEOUT_S`) is a candidate to revisit with fix #3. I have not changed it.
+1. Use a paid-tier key, run with `CHECKER_GEMINI_API_KEY` set in the shell only (not committed), and keep the approved ₹50 cap:
+   ```
+   python scripts/bench_checker_fallback.py --resume ...
+   ```
+   It keeps the 3 finished copies and runs the other 17 model × copy pairs.
+2. Or wait for the free quota to reset (about 13:30 IST). The error doesn't say how large the daily free limit is, and free-tier priority caused 503s, so a paid-tier key is the reliable route.
