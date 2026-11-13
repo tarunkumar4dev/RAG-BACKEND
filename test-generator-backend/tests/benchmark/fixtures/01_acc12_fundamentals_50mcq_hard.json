@@ -1,0 +1,35 @@
+{
+  "id": "acc12_fundamentals_50mcq_hard",
+  "description": "The paper that shipped defects D1-D6. Target config: Class 12 Accountancy, Fundamentals of Partnership, 50 MCQ, Hard. All numeric items pending SME verification (Phase 1A solver will supply the keys).",
+  "request": {
+    "examTitle": "Fundamentals of Partnership — 50 MCQ (Hard)",
+    "board": "CBSE",
+    "classGrade": "12",
+    "subject": "Accountancy",
+    "cbsePattern": false,
+    "simpleData": [
+      {
+        "topic": "Fundamentals of Partnership",
+        "subtopic": null,
+        "quantity": 50,
+        "difficulty": "hard",
+        "format": "mcq",
+        "marks": 1
+      }
+    ]
+  },
+  "expected_total_questions": 50,
+  "expected_total_marks": 50,
+  "expected_numeric_items": [
+    {
+      "qid": "pending",
+      "description": "Target numeric items will be enumerated once the Phase 1A solver is in place; SME to hand-verify.",
+      "expected_answer": 0.0,
+      "tolerance": 1.0,
+      "unit": "INR",
+      "key_source": "pending_sme"
+    }
+  ],
+  "key_source": "pending_sme",
+  "notes": "Hold until Phase 1A solver lands; then regenerate a paper against this config and populate expected_numeric_items with hand-verified rupee amounts for every numeric item in the generated paper."
+}

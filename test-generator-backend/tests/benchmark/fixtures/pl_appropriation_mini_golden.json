@@ -1,0 +1,32 @@
+{
+  "subject": "Accountancy",
+  "classGrade": "12",
+  "chapters": ["Fundamentals of Partnership"],
+  "totalMarks": 3,
+  "questions": [
+    {
+      "id": "pla_1",
+      "text": "A, B and C share profits in the ratio 3:2:1. The divisible profit for the year is Rs. 1,80,000. A's share of profit is:",
+      "format": "mcq",
+      "options": ["A) Rs. 72,000", "B) Rs. 90,000", "C) Rs. 60,000", "D) Rs. 45,000"],
+      "correct_answer": "B) Rs. 90,000",
+      "marks": 1
+    },
+    {
+      "id": "pla_2",
+      "text": "A, B and C share profits in the ratio 3:2:1. The divisible profit for the year is Rs. 1,80,000. B's share of profit is:",
+      "format": "mcq",
+      "options": ["A) Rs. 60,000", "B) Rs. 45,000", "C) Rs. 90,000", "D) Rs. 30,000"],
+      "correct_answer": "A) Rs. 60,000",
+      "marks": 1
+    },
+    {
+      "id": "pla_3",
+      "text": "A, B and C share profits in the ratio 3:2:1. The divisible profit for the year is Rs. 1,80,000. C's share of profit is:",
+      "format": "mcq",
+      "options": ["A) Rs. 45,000", "B) Rs. 60,000", "C) Rs. 30,000", "D) Rs. 90,000"],
+      "correct_answer": "C) Rs. 30,000",
+      "marks": 1
+    }
+  ]
+}

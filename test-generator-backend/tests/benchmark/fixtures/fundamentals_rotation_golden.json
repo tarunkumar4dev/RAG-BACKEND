@@ -1,0 +1,960 @@
+{
+  "subject": "Accountancy",
+  "classGrade": "12",
+  "chapters": [
+    "Fundamentals of Partnership"
+  ],
+  "totalMarks": 50,
+  "questions": [
+    {
+      "text": "Sahil's capital on 1 April is Rs. 5,00,000 and stays unchanged through the year. Interest on capital is allowed @ 9% p.a. Interest on Sahil's capital for the year is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 55,000",
+        "B) Rs. 22,500",
+        "C) Rs. 45,000",
+        "D) Rs. 45,00,000"
+      ],
+      "correct_answer": "C) Rs. 45,000",
+      "explanation": "IOC = 500000 x 9% = Rs. 45,000  Correct option C. Distractors: A = used 11% instead of 9%; B = charged interest for only half the year; D = forgot to divide the rate by 100.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Capital",
+      "family": "interest_on_capital",
+      "validation_status": "verified",
+      "id": "rot_1"
+    },
+    {
+      "text": "Ishan withdrew Rs. 6,000 at the beginning of every month during the year. Interest on drawings is charged @ 9% p.a. The interest on Ishan's drawings for the year is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 3,240",
+        "B) Rs. 3,510",
+        "C) Rs. 2,970",
+        "D) Rs. 6,480"
+      ],
+      "correct_answer": "B) Rs. 3,510",
+      "explanation": "total drawings = Rs. 72,000; average-period method, drawn at the beginning IOD = Rs. 3,510  Correct option B. Distractors: A = used 6 months average regardless of timing; C = used the end-of-period average period (timing trap); D = charged a flat rate with no time factor.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Drawings",
+      "family": "interest_on_drawings",
+      "validation_status": "verified",
+      "id": "rot_2"
+    },
+    {
+      "text": "Priya's total drawings during the year were Rs. 60,000. Interest on drawings is to be charged @ 8% (the deed does NOT say per annum). Interest on Priya's drawings is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 2,400",
+        "B) Rs. 2,600",
+        "C) Rs. 2,200",
+        "D) Rs. 4,800"
+      ],
+      "correct_answer": "D) Rs. 4,800",
+      "explanation": "rate is not p.a. -> flat % on total drawings IOD = 60000 x 8/100 = Rs. 4,800  Correct option D. Distractors: A = applied a 6-month time factor though the rate is not p.a.; B = treated it as drawn at the beginning of every month; C = treated it as drawn at the end of every month.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Drawings",
+      "family": "interest_on_drawings_flat",
+      "validation_status": "verified",
+      "id": "rot_3"
+    },
+    {
+      "text": "Priya made the following drawings: Rs. 16,000 outstanding for 10 months; Rs. 10,000 outstanding for 6 months; Rs. 6,000 outstanding for 2 months. Interest on drawings is charged @ 11% p.a. using the product method. Interest on Priya's drawings is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 1,760",
+        "B) Rs. 2,127",
+        "C) Rs. 2,017",
+        "D) Rs. 3,520"
+      ],
+      "correct_answer": "B) Rs. 2,127",
+      "explanation": "product = sum(amount x months) = 232000 IOD = product x 11/100/12 = Rs. 2,127  Correct option B. Distractors: A = used a flat 6-month average on total drawings; C = left out the last withdrawal; D = charged a flat rate with no time factor.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Drawings",
+      "family": "interest_on_drawings_irregular",
+      "validation_status": "verified",
+      "id": "rot_4"
+    },
+    {
+      "text": "A firm's net profit for the year is Rs. 3,20,000. The deed provides interest on capital Rs. 30,000, partner's salary Rs. 18,000, and interest on drawings recovered Rs. 4,000. The profit available for distribution among the partners (divisible profit) is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 2,72,000",
+        "B) Rs. 2,68,000",
+        "C) Rs. 2,76,000",
+        "D) Rs. 3,36,000"
+      ],
+      "correct_answer": "C) Rs. 2,76,000",
+      "explanation": "divisible = 320000 + IOD 4000 - IOC 30000 - salary 18000 = Rs. 2,76,000  Correct option C. Distractors: A = ignored interest on drawings; B = subtracted interest on drawings instead of adding it; D = added interest on capital instead of subtracting it.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "P&L Appropriation Account",
+      "family": "pl_appropriation",
+      "validation_status": "verified",
+      "id": "rot_5"
+    },
+    {
+      "text": "Jatin, Kavya and Lokesh are partners sharing profits in the ratio 5:3:2. The divisible profit for the year is Rs. 2,00,000. Jatin's share of profit is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 66,667",
+        "B) Rs. 1,00,000",
+        "C) Rs. 40,000",
+        "D) Rs. 60,000"
+      ],
+      "correct_answer": "B) Rs. 1,00,000",
+      "explanation": "Jatin's share = 200000 x 5/10 = Rs. 1,00,000  Correct option B. Distractors: A = divided the profit equally instead of in the ratio; C = gave Jatin the share belonging to Lokesh; D = gave Jatin the share belonging to Kavya.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Distribution of Profit",
+      "family": "profit_share",
+      "validation_status": "verified",
+      "id": "rot_6"
+    },
+    {
+      "text": "A firm allows its accountant 20% commission computed on net profit BEFORE the commission is charged. Net profit is Rs. 3,80,000. The commission equals:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 1,52,000",
+        "B) Rs. 76,000",
+        "C) Rs. 7,600",
+        "D) Rs. 63,333"
+      ],
+      "correct_answer": "B) Rs. 76,000",
+      "explanation": "commission = 380000 x 20% = Rs. 76,000  Correct option B. Distractors: A = doubled the rate; C = misplaced the decimal (divided by 1000); D = used the after-charging formula.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Manager's Commission",
+      "family": "commission_before",
+      "validation_status": "verified",
+      "id": "rot_7"
+    },
+    {
+      "text": "The manager of a firm is entitled to a commission of 20% of the net profit AFTER charging such commission. Net profit before commission is Rs. 12,000. The commission is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 2,400",
+        "B) Rs. 2,000",
+        "C) Rs. 1,714",
+        "D) Rs. 3,000"
+      ],
+      "correct_answer": "B) Rs. 2,000",
+      "explanation": "commission = 12000 x 20/(100+20) = Rs. 2,000  Correct option B. Distractors: A = used the before-charging formula; C = used a wrong denominator (100 + 2*rate); D = subtracted the rate in the denominator (100 - rate).",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Manager's Commission",
+      "family": "commission_after",
+      "validation_status": "verified",
+      "id": "rot_8"
+    },
+    {
+      "text": "Jatin, Kavya and Lokesh share profits 5:3:2. Lokesh is guaranteed a minimum profit of Rs. 1,20,000; any deficiency is borne by Jatin and Kavya in the ratio 5:3. Divisible profit is Rs. 4,00,000. Jatin's final share is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 1,75,000",
+        "B) Rs. 2,00,000",
+        "C) Rs. 1,80,000",
+        "D) Rs. 1,20,000"
+      ],
+      "correct_answer": "A) Rs. 1,75,000",
+      "explanation": "deficiency 40000 borne by ['Jatin', 'Kavya'] in ['5', '3'] Jatin's final share = Rs. 1,75,000  Correct option A. Distractors: B = ignored the guarantee; C = split the deficiency equally instead of in the given ratio; D = reported the guaranteed minimum instead.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Guarantee of Profit",
+      "family": "guarantee_to_partner",
+      "validation_status": "verified",
+      "id": "rot_9"
+    },
+    {
+      "text": "Arun, Bela and Charu share profits 2:2:1. Charu has guaranteed the firm a minimum profit of Rs. 1,50,000. Actual profit is Rs. 1,30,000; Charu meets the shortfall. Charu's net share is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 30,000",
+        "B) Rs. 20,000",
+        "C) Rs. 10,000",
+        "D) Rs. 26,000"
+      ],
+      "correct_answer": "C) Rs. 10,000",
+      "explanation": "base profit = max(130000,150000) = 150000 shortfall 20000 borne by Charu Charu's net share = Rs. 10,000  Correct option C. Distractors: A = did not deduct the shortfall from the guarantor's share; B = reported only the shortfall; D = shared the actual profit, not the guaranteed minimum.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Guarantee of Profit",
+      "family": "guarantee_to_firm",
+      "validation_status": "verified",
+      "id": "rot_10"
+    },
+    {
+      "text": "Esha's capital account (fluctuating method) shows a closing balance of Rs. 5,00,000. During the year Esha introduced additional capital Rs. 50,000, withdrew Rs. 30,000, and was credited with a profit share of Rs. 1,00,000. Esha's opening capital was:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 4,30,000",
+        "B) Rs. 4,80,000",
+        "C) Rs. 3,20,000",
+        "D) Rs. 3,80,000"
+      ],
+      "correct_answer": "D) Rs. 3,80,000",
+      "explanation": "opening = 500000 - 50000 - 0 - 0 - 100000 + 30000 + 0 = 380000  Correct option D. Distractors: A = ignored the additional capital; B = ignored the profit share; C = added drawings instead of subtracting them.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Fundamentals of Partnership",
+      "family": "opening_capital_plain",
+      "validation_status": "verified",
+      "id": "rot_11"
+    },
+    {
+      "text": "Esha (fluctuating capital) has a closing capital of Rs. 3,10,000. Interest on capital @ 12% p.a. was allowed on the OPENING capital, profit credited Rs. 60,000, drawings Rs. 30,000. Esha's opening capital was:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 2,50,000",
+        "B) Rs. 2,25,806",
+        "C) Rs. 3,10,000",
+        "D) Rs. 2,80,000"
+      ],
+      "correct_answer": "A) Rs. 2,50,000",
+      "explanation": "opening = 280000 / (1 + 12/100) = 250000  Correct option A. Distractors: B = divided by (1 + 2*rate) instead of (1 + rate); C = took the closing balance as the opening; D = forgot to divide by (1 + rate).",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Capital",
+      "family": "opening_capital_ioc_on_opening",
+      "validation_status": "verified",
+      "id": "rot_12"
+    },
+    {
+      "text": "Chetan and Disha are entitled to interest on capital of Rs. 60,000 and Rs. 50,000 respectively. Interest on capital is an appropriation. The firm's profit for the year is only Rs. 87,500. The interest on capital actually allowed to Chetan is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 43,750",
+        "B) Rs. 60,000",
+        "C) Rs. 47,727",
+        "D) Rs. 39,773"
+      ],
+      "correct_answer": "C) Rs. 47,727",
+      "explanation": "profit 87500 < total IOC 110000: allocate in IOC ratio Chetan gets 87500 x 60000/110000 = Rs. 47,727  Correct option C. Distractors: A = split the available profit equally; B = allowed the full interest on capital despite the shortage; D = gave Chetan the amount due to Disha.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Capital",
+      "family": "ioc_when_inadequate",
+      "validation_status": "verified",
+      "id": "rot_13"
+    },
+    {
+      "text": "Ishan advanced a loan of Rs. 1,20,000 to the firm 9 months before the year end. The partnership deed is silent on loan interest. Interest on Ishan's loan for the year is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 7,200",
+        "B) Rs. 9,000",
+        "C) Rs. 5,400",
+        "D) Rs. 10,800"
+      ],
+      "correct_answer": "C) Rs. 5,400",
+      "explanation": "no deed -> 6% p.a. for 9 months = Rs. 5,400  Correct option C. Distractors: A = charged a full year's interest; B = used 10% instead of the statutory 6%; D = used 12% instead of the statutory 6%.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Partner's Loan",
+      "family": "partners_loan_interest",
+      "validation_status": "verified",
+      "id": "rot_14"
+    },
+    {
+      "text": "On a past adjustment, Chetan should have received Rs. 56,000 and Disha Rs. 44,000, but the profit of Rs. 1,00,000 was wrongly shared equally. In the single adjusting entry, Chetan's capital account is credited by:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 12,000",
+        "B) Rs. 3,000",
+        "C) Rs. 44,000",
+        "D) Rs. 6,000"
+      ],
+      "correct_answer": "D) Rs. 6,000",
+      "explanation": "Chetan: Cr 6000 Disha: Dr 6000 Chetan net = Rs. 6,000 (credited)  Correct option D. Distractors: A = doubled the adjustment; B = halved the adjustment; C = subtracted the correct share from the whole profit.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Past Adjustments",
+      "family": "past_adjustment",
+      "validation_status": "verified",
+      "id": "rot_15"
+    },
+    {
+      "text": "On 1 April Mohan's capital was Rs. 6,00,000. Mohan introduced further capital of Rs. 1,50,000 on 1 July. Interest on capital is allowed @ 7% p.a. Interest on Mohan's capital for the year is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 49,875",
+        "B) Rs. 42,000",
+        "C) Rs. 52,500",
+        "D) Rs. 44,625"
+      ],
+      "correct_answer": "A) Rs. 49,875",
+      "explanation": "Rs. 6,00,000 for 3 mo + Rs. 7,50,000 for 9 mo IOC = Rs. 49,875  Correct option A. Distractors: B = ignored the additional capital; C = treated the addition as brought in for the whole year; D = counted the elapsed months, not the remaining months.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Capital",
+      "family": "interest_on_capital",
+      "validation_status": "verified",
+      "id": "rot_16"
+    },
+    {
+      "text": "Every month, Chetan drew Rs. 3,000 at the end of the period. At 9% p.a., the interest on Chetan's drawings for the year is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 3,240",
+        "B) Rs. 1,485",
+        "C) Rs. 1,620",
+        "D) Rs. 1,755"
+      ],
+      "correct_answer": "B) Rs. 1,485",
+      "explanation": "total drawings = Rs. 36,000; average-period method, drawn at the end IOD = Rs. 1,485  Correct option B. Distractors: A = charged a flat rate with no time factor; C = used 6 months average regardless of timing; D = used the beginning-of-period average period (timing trap).",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Drawings",
+      "family": "interest_on_drawings",
+      "validation_status": "verified",
+      "id": "rot_17"
+    },
+    {
+      "text": "During the year Gita drew Rs. 80,000 in total. The deed charges interest on drawings at a flat 8% (not per annum). The interest is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 6,400",
+        "B) Rs. 2,933",
+        "C) Rs. 3,467",
+        "D) Rs. 3,200"
+      ],
+      "correct_answer": "A) Rs. 6,400",
+      "explanation": "rate is not p.a. -> flat % on total drawings IOD = 80000 x 8/100 = Rs. 6,400  Correct option A. Distractors: B = treated it as drawn at the end of every month; C = treated it as drawn at the beginning of every month; D = applied a 6-month time factor though the rate is not p.a..",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Drawings",
+      "family": "interest_on_drawings_flat",
+      "validation_status": "verified",
+      "id": "rot_18"
+    },
+    {
+      "text": "Arun's drawings on different dates were: Rs. 16,000 outstanding for 10 months; Rs. 16,000 outstanding for 6 months; Rs. 10,000 outstanding for 2 months. Using the product method at 15% p.a., the interest on drawings is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 6,300",
+        "B) Rs. 3,150",
+        "C) Rs. 3,450",
+        "D) Rs. 3,200"
+      ],
+      "correct_answer": "C) Rs. 3,450",
+      "explanation": "product = sum(amount x months) = 276000 IOD = product x 15/100/12 = Rs. 3,450  Correct option C. Distractors: A = charged a flat rate with no time factor; B = used a flat 6-month average on total drawings; D = left out the last withdrawal.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Drawings",
+      "family": "interest_on_drawings_irregular",
+      "validation_status": "verified",
+      "id": "rot_19"
+    },
+    {
+      "text": "Before appropriations a firm earned Rs. 1,40,000. After allowing interest on capital of Rs. 45,000 and a salary of Rs. 24,000, and charging Rs. 10,000 as interest on drawings, the divisible profit is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 1,71,000",
+        "B) Rs. 71,000",
+        "C) Rs. 81,000",
+        "D) Rs. 61,000"
+      ],
+      "correct_answer": "C) Rs. 81,000",
+      "explanation": "divisible = 140000 + IOD 10000 - IOC 45000 - salary 24000 = Rs. 81,000  Correct option C. Distractors: A = added interest on capital instead of subtracting it; B = ignored interest on drawings; D = subtracted interest on drawings instead of adding it.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "P&L Appropriation Account",
+      "family": "pl_appropriation",
+      "validation_status": "verified",
+      "id": "rot_20"
+    },
+    {
+      "text": "Mira, Nikhil and Omkar share profits 5:3:2. If the profit available for distribution is Rs. 3,00,000, how much does Mira receive?",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 90,000",
+        "B) Rs. 1,00,000",
+        "C) Rs. 60,000",
+        "D) Rs. 1,50,000"
+      ],
+      "correct_answer": "D) Rs. 1,50,000",
+      "explanation": "Mira's share = 300000 x 5/10 = Rs. 1,50,000  Correct option D. Distractors: A = gave Mira the share belonging to Nikhil; B = divided the profit equally instead of in the ratio; C = gave Mira the share belonging to Omkar.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Distribution of Profit",
+      "family": "profit_share",
+      "validation_status": "verified",
+      "id": "rot_21"
+    },
+    {
+      "text": "5% of the pre-commission net profit of Rs. 4,80,000 is payable to the works manager as commission (charged before the commission). That amount is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 48,000",
+        "B) Rs. 24,000",
+        "C) Rs. 22,857",
+        "D) Rs. 2,400"
+      ],
+      "correct_answer": "B) Rs. 24,000",
+      "explanation": "commission = 480000 x 5% = Rs. 24,000  Correct option B. Distractors: A = doubled the rate; C = used the after-charging formula; D = misplaced the decimal (divided by 1000).",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Manager's Commission",
+      "family": "commission_before",
+      "validation_status": "verified",
+      "id": "rot_22"
+    },
+    {
+      "text": "A firm's works manager earns 20% commission on profit remaining after the commission itself. Profit before commission is Rs. 48,000. The commission is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 8,000",
+        "B) Rs. 12,000",
+        "C) Rs. 9,600",
+        "D) Rs. 6,857"
+      ],
+      "correct_answer": "A) Rs. 8,000",
+      "explanation": "commission = 48000 x 20/(100+20) = Rs. 8,000  Correct option A. Distractors: B = subtracted the rate in the denominator (100 - rate); C = used the before-charging formula; D = used a wrong denominator (100 + 2*rate).",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Manager's Commission",
+      "family": "commission_after",
+      "validation_status": "verified",
+      "id": "rot_23"
+    },
+    {
+      "text": "Profits of Rs. 2,00,000 are shared by Arun, Bela and Charu in 5:3:2, but Charu must get at least Rs. 50,000; Arun and Bela meet any shortfall in 5:3. Arun's final share is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 50,000",
+        "B) Rs. 95,000",
+        "C) Rs. 1,00,000",
+        "D) Rs. 93,750"
+      ],
+      "correct_answer": "D) Rs. 93,750",
+      "explanation": "deficiency 10000 borne by ['Arun', 'Bela'] in ['5', '3'] Arun's final share = Rs. 93,750  Correct option D. Distractors: A = reported the guaranteed minimum instead; B = split the deficiency equally instead of in the given ratio; C = ignored the guarantee.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Guarantee of Profit",
+      "family": "guarantee_to_partner",
+      "validation_status": "verified",
+      "id": "rot_24"
+    },
+    {
+      "text": "Lokesh guarantees the firm a minimum profit of Rs. 1,50,000, profits being shared 2:2:1 with Jatin and Kavya. The firm actually earns Rs. 1,40,000. After making good the shortfall, Lokesh's share is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 28,000",
+        "B) Rs. 10,000",
+        "C) Rs. 30,000",
+        "D) Rs. 20,000"
+      ],
+      "correct_answer": "D) Rs. 20,000",
+      "explanation": "base profit = max(140000,150000) = 150000 shortfall 10000 borne by Lokesh Lokesh's net share = Rs. 20,000  Correct option D. Distractors: A = shared the actual profit, not the guaranteed minimum; B = reported only the shortfall; C = did not deduct the shortfall from the guarantor's share.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Guarantee of Profit",
+      "family": "guarantee_to_firm",
+      "validation_status": "verified",
+      "id": "rot_25"
+    },
+    {
+      "text": "At year end Priya's capital stood at Rs. 7,00,000. In the year Priya added Rs. 1,00,000 of capital, drew Rs. 50,000, and earned a profit share of Rs. 40,000. Working back, Priya's opening capital was:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 7,10,000",
+        "B) Rs. 5,10,000",
+        "C) Rs. 6,50,000",
+        "D) Rs. 6,10,000"
+      ],
+      "correct_answer": "D) Rs. 6,10,000",
+      "explanation": "opening = 700000 - 100000 - 0 - 0 - 40000 + 50000 + 0 = 610000  Correct option D. Distractors: A = ignored the additional capital; B = added drawings instead of subtracting them; C = ignored the profit share.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Fundamentals of Partnership",
+      "family": "opening_capital_plain",
+      "validation_status": "verified",
+      "id": "rot_26"
+    },
+    {
+      "text": "Arun's closing capital is Rs. 2,60,000 after a profit of Rs. 60,000, drawings of Rs. 20,000, and interest on capital @ 10% p.a. computed on the opening balance. Arun's opening capital was:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 2,00,000",
+        "B) Rs. 2,20,000",
+        "C) Rs. 1,83,333",
+        "D) Rs. 2,60,000"
+      ],
+      "correct_answer": "A) Rs. 2,00,000",
+      "explanation": "opening = 220000 / (1 + 10/100) = 200000  Correct option A. Distractors: B = forgot to divide by (1 + rate); C = divided by (1 + 2*rate) instead of (1 + rate); D = took the closing balance as the opening.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Capital",
+      "family": "opening_capital_ioc_on_opening",
+      "validation_status": "verified",
+      "id": "rot_27"
+    },
+    {
+      "text": "Interest on capital due to Priya and Rakesh is Rs. 25,000 and Rs. 50,000, treated as an appropriation. As the year's profit is only Rs. 23,750, the interest on capital allowed to Priya is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 7,917",
+        "B) Rs. 15,833",
+        "C) Rs. 25,000",
+        "D) Rs. 11,875"
+      ],
+      "correct_answer": "A) Rs. 7,917",
+      "explanation": "profit 23750 < total IOC 75000: allocate in IOC ratio Priya gets 23750 x 25000/75000 = Rs. 7,917  Correct option A. Distractors: B = gave Priya the amount due to Rakesh; C = allowed the full interest on capital despite the shortage; D = split the available profit equally.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Capital",
+      "family": "ioc_when_inadequate",
+      "validation_status": "verified",
+      "id": "rot_28"
+    },
+    {
+      "text": "The firm took a loan of Rs. 2,20,000 from Karan 9 months ago. With no agreement on the rate, the interest on Karan's loan for the year is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 19,800",
+        "B) Rs. 13,200",
+        "C) Rs. 9,900",
+        "D) Rs. 16,500"
+      ],
+      "correct_answer": "C) Rs. 9,900",
+      "explanation": "no deed -> 6% p.a. for 9 months = Rs. 9,900  Correct option C. Distractors: A = used 12% instead of the statutory 6%; B = charged a full year's interest; D = used 10% instead of the statutory 6%.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Partner's Loan",
+      "family": "partners_loan_interest",
+      "validation_status": "verified",
+      "id": "rot_29"
+    },
+    {
+      "text": "A profit of Rs. 1,10,000 was divided equally by mistake; it should have gone Rs. 42,000 to Mohan and Rs. 68,000 to Nisha. In the rectifying entry, Mohan's capital account is debited by:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 26,000",
+        "B) Rs. 13,000",
+        "C) Rs. 6,500",
+        "D) Rs. 68,000"
+      ],
+      "correct_answer": "B) Rs. 13,000",
+      "explanation": "Mohan: Dr 13000 Nisha: Cr 13000 Mohan net = Rs. -13,000 (debited)  Correct option B. Distractors: A = doubled the adjustment; C = halved the adjustment; D = subtracted the correct share from the whole profit.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Past Adjustments",
+      "family": "past_adjustment",
+      "validation_status": "verified",
+      "id": "rot_30"
+    },
+    {
+      "text": "Mohan's capital on 1 April was Rs. 2,50,000. Mohan permanently withdrew Rs. 1,50,000 of capital on 1 August. Interest on capital is allowed @ 7% p.a. Interest on Mohan's capital for the year is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 10,500",
+        "B) Rs. 7,000",
+        "C) Rs. 17,500",
+        "D) Rs. 14,000"
+      ],
+      "correct_answer": "A) Rs. 10,500",
+      "explanation": "Rs. 2,50,000 for 4 mo + Rs. 1,00,000 for 8 mo IOC = Rs. 10,500  Correct option A. Distractors: B = treated the reduced capital as the balance all year; C = ignored the capital withdrawn; D = counted the elapsed months, not the remaining months.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Capital",
+      "family": "interest_on_capital",
+      "validation_status": "verified",
+      "id": "rot_31"
+    },
+    {
+      "text": "Sahil made regular drawings of Rs. 14,000 at the beginning of each quarter. Charging interest @ 12% p.a., Sahil's interest on drawings comes to:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 2,520",
+        "B) Rs. 3,360",
+        "C) Rs. 4,200",
+        "D) Rs. 6,720"
+      ],
+      "correct_answer": "C) Rs. 4,200",
+      "explanation": "total drawings = Rs. 56,000; average-period method, drawn at the beginning IOD = Rs. 4,200  Correct option C. Distractors: A = used the end-of-period average period (timing trap); B = used 6 months average regardless of timing; D = charged a flat rate with no time factor.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Drawings",
+      "family": "interest_on_drawings",
+      "validation_status": "verified",
+      "id": "rot_32"
+    },
+    {
+      "text": "Gita withdrew Rs. 30,000 in all. Interest on drawings is 4% (the rate is not stated per annum). Gita's interest on drawings is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 1,200",
+        "B) Rs. 600",
+        "C) Rs. 650",
+        "D) Rs. 550"
+      ],
+      "correct_answer": "A) Rs. 1,200",
+      "explanation": "rate is not p.a. -> flat % on total drawings IOD = 30000 x 4/100 = Rs. 1,200  Correct option A. Distractors: B = applied a 6-month time factor though the rate is not p.a.; C = treated it as drawn at the beginning of every month; D = treated it as drawn at the end of every month.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Drawings",
+      "family": "interest_on_drawings_flat",
+      "validation_status": "verified",
+      "id": "rot_33"
+    },
+    {
+      "text": "During the year Sahil withdrew Rs. 14,000 outstanding for 10 months; Rs. 14,000 outstanding for 6 months; Rs. 4,000 outstanding for 2 months. By the product method, interest on drawings @ 7% p.a. works out to:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 1,120",
+        "B) Rs. 1,353",
+        "C) Rs. 2,240",
+        "D) Rs. 1,307"
+      ],
+      "correct_answer": "B) Rs. 1,353",
+      "explanation": "product = sum(amount x months) = 232000 IOD = product x 7/100/12 = Rs. 1,353  Correct option B. Distractors: A = used a flat 6-month average on total drawings; C = charged a flat rate with no time factor; D = left out the last withdrawal.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Drawings",
+      "family": "interest_on_drawings_irregular",
+      "validation_status": "verified",
+      "id": "rot_34"
+    },
+    {
+      "text": "A partnership's net profit is Rs. 2,20,000. Interest on capital Rs. 30,000 and salary Rs. 48,000 are to be allowed and interest on drawings Rs. 6,000 recovered. What profit is left to be divided among the partners?",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 1,42,000",
+        "B) Rs. 1,36,000",
+        "C) Rs. 2,08,000",
+        "D) Rs. 1,48,000"
+      ],
+      "correct_answer": "D) Rs. 1,48,000",
+      "explanation": "divisible = 220000 + IOD 6000 - IOC 30000 - salary 48000 = Rs. 1,48,000  Correct option D. Distractors: A = ignored interest on drawings; B = subtracted interest on drawings instead of adding it; C = added interest on capital instead of subtracting it.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "P&L Appropriation Account",
+      "family": "pl_appropriation",
+      "validation_status": "verified",
+      "id": "rot_35"
+    },
+    {
+      "text": "The divisible profit of a firm is Rs. 2,00,000. Gaurav, Hina and Imran share profits in the ratio 5:3:2. Gaurav's share comes to:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 60,000",
+        "B) Rs. 1,00,000",
+        "C) Rs. 40,000",
+        "D) Rs. 66,667"
+      ],
+      "correct_answer": "B) Rs. 1,00,000",
+      "explanation": "Gaurav's share = 200000 x 5/10 = Rs. 1,00,000  Correct option B. Distractors: A = gave Gaurav the share belonging to Hina; C = gave Gaurav the share belonging to Imran; D = divided the profit equally instead of in the ratio.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Distribution of Profit",
+      "family": "profit_share",
+      "validation_status": "verified",
+      "id": "rot_36"
+    },
+    {
+      "text": "The branch head's commission is 10% of profit, taken before charging the commission. On a net profit of Rs. 3,80,000, the commission is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 38,000",
+        "B) Rs. 76,000",
+        "C) Rs. 34,545",
+        "D) Rs. 3,800"
+      ],
+      "correct_answer": "A) Rs. 38,000",
+      "explanation": "commission = 380000 x 10% = Rs. 38,000  Correct option A. Distractors: B = doubled the rate; C = used the after-charging formula; D = misplaced the decimal (divided by 1000).",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Manager's Commission",
+      "family": "commission_before",
+      "validation_status": "verified",
+      "id": "rot_37"
+    },
+    {
+      "text": "The general manager is paid 20% of the net profit after charging that commission. If the profit before commission is Rs. 60,000, the commission works out to:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 12,000",
+        "B) Rs. 10,000",
+        "C) Rs. 8,571",
+        "D) Rs. 15,000"
+      ],
+      "correct_answer": "B) Rs. 10,000",
+      "explanation": "commission = 60000 x 20/(100+20) = Rs. 10,000  Correct option B. Distractors: A = used the before-charging formula; C = used a wrong denominator (100 + 2*rate); D = subtracted the rate in the denominator (100 - rate).",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Manager's Commission",
+      "family": "commission_after",
+      "validation_status": "verified",
+      "id": "rot_38"
+    },
+    {
+      "text": "Mira, Nikhil and Omkar divide Rs. 1,20,000 in the ratio 3:2:1. Omkar has a guaranteed minimum of Rs. 40,000, the deficiency being borne by Mira and Nikhil in 3:2. What is Mira's final share?",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 50,000",
+        "B) Rs. 48,000",
+        "C) Rs. 60,000",
+        "D) Rs. 40,000"
+      ],
+      "correct_answer": "B) Rs. 48,000",
+      "explanation": "deficiency 20000 borne by ['Mira', 'Nikhil'] in ['3', '2'] Mira's final share = Rs. 48,000  Correct option B. Distractors: A = split the deficiency equally instead of in the given ratio; C = ignored the guarantee; D = reported the guaranteed minimum instead.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Guarantee of Profit",
+      "family": "guarantee_to_partner",
+      "validation_status": "verified",
+      "id": "rot_39"
+    },
+    {
+      "text": "Partners Mira, Nikhil and Omkar share 2:2:1. The firm's guaranteed minimum is Rs. 2,00,000 (guaranteed by Omkar) but it earned only Rs. 1,90,000. Omkar's net share after bearing the shortfall is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 38,000",
+        "B) Rs. 10,000",
+        "C) Rs. 30,000",
+        "D) Rs. 40,000"
+      ],
+      "correct_answer": "C) Rs. 30,000",
+      "explanation": "base profit = max(190000,200000) = 200000 shortfall 10000 borne by Omkar Omkar's net share = Rs. 30,000  Correct option C. Distractors: A = shared the actual profit, not the guaranteed minimum; B = reported only the shortfall; D = did not deduct the shortfall from the guarantor's share.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Guarantee of Profit",
+      "family": "guarantee_to_firm",
+      "validation_status": "verified",
+      "id": "rot_40"
+    },
+    {
+      "text": "Chetan (fluctuating capital) closed the year with Rs. 5,00,000 after introducing Rs. 1,00,000, withdrawing Rs. 60,000, and being credited Rs. 80,000 of profit. Chetan's opening capital was:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 3,80,000",
+        "B) Rs. 2,60,000",
+        "C) Rs. 4,60,000",
+        "D) Rs. 4,80,000"
+      ],
+      "correct_answer": "A) Rs. 3,80,000",
+      "explanation": "opening = 500000 - 100000 - 0 - 0 - 80000 + 60000 + 0 = 380000  Correct option A. Distractors: B = added drawings instead of subtracting them; C = ignored the profit share; D = ignored the additional capital.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Fundamentals of Partnership",
+      "family": "opening_capital_plain",
+      "validation_status": "verified",
+      "id": "rot_41"
+    },
+    {
+      "text": "With interest on capital @ 12% p.a. charged on the opening balance, Arun ends the year with Rs. 2,44,000, having drawn Rs. 20,000 and earned Rs. 40,000. Arun's opening capital was:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 2,24,000",
+        "B) Rs. 1,80,645",
+        "C) Rs. 2,44,000",
+        "D) Rs. 2,00,000"
+      ],
+      "correct_answer": "D) Rs. 2,00,000",
+      "explanation": "opening = 224000 / (1 + 12/100) = 200000  Correct option D. Distractors: A = forgot to divide by (1 + rate); B = divided by (1 + 2*rate) instead of (1 + rate); C = took the closing balance as the opening.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Capital",
+      "family": "opening_capital_ioc_on_opening",
+      "validation_status": "verified",
+      "id": "rot_42"
+    },
+    {
+      "text": "Ishan and Juhi were each credited with half of Rs. 98,000, though their correct dues were Rs. 50,000 and Rs. 48,000. The single adjusting entry crediteds Ishan's capital account by:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 500",
+        "B) Rs. 1,000",
+        "C) Rs. 48,000",
+        "D) Rs. 2,000"
+      ],
+      "correct_answer": "B) Rs. 1,000",
+      "explanation": "Ishan: Cr 1000 Juhi: Dr 1000 Ishan net = Rs. 1,000 (credited)  Correct option B. Distractors: A = halved the adjustment; C = subtracted the correct share from the whole profit; D = doubled the adjustment.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Past Adjustments",
+      "family": "past_adjustment",
+      "validation_status": "verified",
+      "id": "rot_43"
+    },
+    {
+      "text": "Arun began the year with capital of Rs. 5,50,000, introduced Rs. 1,50,000 on 1 August and withdrew Rs. 1,00,000 on 1 January. Interest on capital is allowed @ 11% p.a. Interest on Arun's capital for the year is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 60,500",
+        "B) Rs. 71,500",
+        "C) Rs. 57,750",
+        "D) Rs. 68,750"
+      ],
+      "correct_answer": "D) Rs. 68,750",
+      "explanation": "product method over three balances; IOC = Rs. 68,750  Correct option D. Distractors: A = ignored both movements; B = ignored the withdrawal; C = ignored the addition.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Capital",
+      "family": "interest_on_capital",
+      "validation_status": "verified",
+      "id": "rot_44"
+    },
+    {
+      "text": "Drawings of Rs. 14,000 were made by Esha at the end of every quarter. Interest on drawings @ 15% p.a. for the year is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 8,400",
+        "B) Rs. 4,200",
+        "C) Rs. 5,250",
+        "D) Rs. 3,150"
+      ],
+      "correct_answer": "D) Rs. 3,150",
+      "explanation": "total drawings = Rs. 56,000; average-period method, drawn at the end IOD = Rs. 3,150  Correct option D. Distractors: A = charged a flat rate with no time factor; B = used 6 months average regardless of timing; C = used the beginning-of-period average period (timing trap).",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Drawings",
+      "family": "interest_on_drawings",
+      "validation_status": "verified",
+      "id": "rot_45"
+    },
+    {
+      "text": "From a net profit of Rs. 3,00,000, a firm allows interest on capital Rs. 45,000 and partner's salary Rs. 30,000, and recovers interest on drawings Rs. 6,000. The divisible profit works out to:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 2,31,000",
+        "B) Rs. 2,19,000",
+        "C) Rs. 2,25,000",
+        "D) Rs. 3,21,000"
+      ],
+      "correct_answer": "A) Rs. 2,31,000",
+      "explanation": "divisible = 300000 + IOD 6000 - IOC 45000 - salary 30000 = Rs. 2,31,000  Correct option A. Distractors: B = subtracted interest on drawings instead of adding it; C = ignored interest on drawings; D = added interest on capital instead of subtracting it.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "P&L Appropriation Account",
+      "family": "pl_appropriation",
+      "validation_status": "verified",
+      "id": "rot_46"
+    },
+    {
+      "text": "Partners Mira, Nikhil and Omkar divide Rs. 1,20,000 of profit in the ratio 5:3:2. The amount credited to Mira is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 24,000",
+        "B) Rs. 36,000",
+        "C) Rs. 40,000",
+        "D) Rs. 60,000"
+      ],
+      "correct_answer": "D) Rs. 60,000",
+      "explanation": "Mira's share = 120000 x 5/10 = Rs. 60,000  Correct option D. Distractors: A = gave Mira the share belonging to Omkar; B = gave Mira the share belonging to Nikhil; C = divided the profit equally instead of in the ratio.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Distribution of Profit",
+      "family": "profit_share",
+      "validation_status": "verified",
+      "id": "rot_47"
+    },
+    {
+      "text": "Commission to the sales manager is 25% of profit after charging it. On a pre-commission profit of Rs. 31,250, the commission is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 10,417",
+        "B) Rs. 5,208",
+        "C) Rs. 6,250",
+        "D) Rs. 7,813"
+      ],
+      "correct_answer": "C) Rs. 6,250",
+      "explanation": "commission = 31250 x 25/(100+25) = Rs. 6,250  Correct option C. Distractors: A = subtracted the rate in the denominator (100 - rate); B = used a wrong denominator (100 + 2*rate); D = used the before-charging formula.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Manager's Commission",
+      "family": "commission_after",
+      "validation_status": "verified",
+      "id": "rot_48"
+    },
+    {
+      "text": "Chetan took out Rs. 20,000 at the beginning of each half-year through the year. The interest on drawings at 15% p.a. is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 4,500",
+        "B) Rs. 3,000",
+        "C) Rs. 6,000",
+        "D) Rs. 1,500"
+      ],
+      "correct_answer": "A) Rs. 4,500",
+      "explanation": "total drawings = Rs. 40,000; average-period method, drawn at the beginning IOD = Rs. 4,500  Correct option A. Distractors: B = used 6 months average regardless of timing; C = charged a flat rate with no time factor; D = used the end-of-period average period (timing trap).",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Drawings",
+      "family": "interest_on_drawings",
+      "validation_status": "verified",
+      "id": "rot_49"
+    },
+    {
+      "text": "At the end of every half-year, Ishan withdrew Rs. 20,000. Interest on drawings is 7% p.a.; the interest on Ishan's drawings is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 2,100",
+        "B) Rs. 2,800",
+        "C) Rs. 700",
+        "D) Rs. 1,400"
+      ],
+      "correct_answer": "C) Rs. 700",
+      "explanation": "total drawings = Rs. 40,000; average-period method, drawn at the end IOD = Rs. 700  Correct option C. Distractors: A = used the beginning-of-period average period (timing trap); B = charged a flat rate with no time factor; D = used 6 months average regardless of timing.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Drawings",
+      "family": "interest_on_drawings",
+      "validation_status": "verified",
+      "id": "rot_50"
+    }
+  ]
+}

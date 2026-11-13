@@ -1,0 +1,200 @@
+{
+  "subject": "Accountancy",
+  "classGrade": "12",
+  "chapters": [
+    "Fundamentals of Partnership"
+  ],
+  "totalMarks": 10,
+  "questions": [
+    {
+      "text": "Mohan withdrew Rs. 5,000 at the beginning of every month during the year. Interest on drawings is charged @ 15% p.a. The interest on Mohan's drawings for the year is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 4,875",
+        "B) Rs. 4,125",
+        "C) Rs. 4,500",
+        "D) Rs. 9,000"
+      ],
+      "correct_answer": "A) Rs. 4,875",
+      "explanation": "total drawings = Rs. 60,000; average-period method, drawn at the beginning IOD = Rs. 4,875  Correct option A. Distractors: B = used the end-of-period average period (timing trap); C = used 6 months average regardless of timing; D = charged a flat rate with no time factor.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Drawings",
+      "family": "interest_on_drawings",
+      "validation_status": "verified",
+      "id": "interest_on_drawings_1"
+    },
+    {
+      "text": "Every month, Arun drew Rs. 2,000 at the end of the period. At 11% p.a., the interest on Arun's drawings for the year is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 1,320",
+        "B) Rs. 2,640",
+        "C) Rs. 1,210",
+        "D) Rs. 1,430"
+      ],
+      "correct_answer": "C) Rs. 1,210",
+      "explanation": "total drawings = Rs. 24,000; average-period method, drawn at the end IOD = Rs. 1,210  Correct option C. Distractors: A = used 6 months average regardless of timing; B = charged a flat rate with no time factor; D = used the beginning-of-period average period (timing trap).",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Drawings",
+      "family": "interest_on_drawings",
+      "validation_status": "verified",
+      "id": "interest_on_drawings_2"
+    },
+    {
+      "text": "Esha made regular drawings of Rs. 16,000 at the beginning of each quarter. Charging interest @ 7% p.a., Esha's interest on drawings comes to:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 2,800",
+        "B) Rs. 2,240",
+        "C) Rs. 4,480",
+        "D) Rs. 1,680"
+      ],
+      "correct_answer": "A) Rs. 2,800",
+      "explanation": "total drawings = Rs. 64,000; average-period method, drawn at the beginning IOD = Rs. 2,800  Correct option A. Distractors: B = used 6 months average regardless of timing; C = charged a flat rate with no time factor; D = used the end-of-period average period (timing trap).",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Drawings",
+      "family": "interest_on_drawings",
+      "validation_status": "verified",
+      "id": "interest_on_drawings_3"
+    },
+    {
+      "text": "Drawings of Rs. 12,000 were made by Mohan at the end of every quarter. Interest on drawings @ 15% p.a. for the year is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 3,600",
+        "B) Rs. 4,500",
+        "C) Rs. 2,700",
+        "D) Rs. 7,200"
+      ],
+      "correct_answer": "C) Rs. 2,700",
+      "explanation": "total drawings = Rs. 48,000; average-period method, drawn at the end IOD = Rs. 2,700  Correct option C. Distractors: A = used 6 months average regardless of timing; B = used the beginning-of-period average period (timing trap); D = charged a flat rate with no time factor.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Drawings",
+      "family": "interest_on_drawings",
+      "validation_status": "verified",
+      "id": "interest_on_drawings_4"
+    },
+    {
+      "text": "Karan took out Rs. 36,000 at the beginning of each half-year through the year. The interest on drawings at 12% p.a. is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 6,480",
+        "B) Rs. 4,320",
+        "C) Rs. 2,160",
+        "D) Rs. 8,640"
+      ],
+      "correct_answer": "A) Rs. 6,480",
+      "explanation": "total drawings = Rs. 72,000; average-period method, drawn at the beginning IOD = Rs. 6,480  Correct option A. Distractors: B = used 6 months average regardless of timing; C = used the end-of-period average period (timing trap); D = charged a flat rate with no time factor.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Drawings",
+      "family": "interest_on_drawings",
+      "validation_status": "verified",
+      "id": "interest_on_drawings_5"
+    },
+    {
+      "text": "At the end of every half-year, Chetan withdrew Rs. 40,000. Interest on drawings is 11% p.a.; the interest on Chetan's drawings is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 8,800",
+        "B) Rs. 2,200",
+        "C) Rs. 4,400",
+        "D) Rs. 6,600"
+      ],
+      "correct_answer": "B) Rs. 2,200",
+      "explanation": "total drawings = Rs. 80,000; average-period method, drawn at the end IOD = Rs. 2,200  Correct option B. Distractors: A = charged a flat rate with no time factor; C = used 6 months average regardless of timing; D = used the beginning-of-period average period (timing trap).",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Drawings",
+      "family": "interest_on_drawings",
+      "validation_status": "verified",
+      "id": "interest_on_drawings_6"
+    },
+    {
+      "text": "Esha withdrew Rs. 1,000 at the beginning of every month during the year. Interest on drawings is charged @ 15% p.a. The interest on Esha's drawings for the year is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 1,800",
+        "B) Rs. 975",
+        "C) Rs. 825",
+        "D) Rs. 900"
+      ],
+      "correct_answer": "B) Rs. 975",
+      "explanation": "total drawings = Rs. 12,000; average-period method, drawn at the beginning IOD = Rs. 975  Correct option B. Distractors: A = charged a flat rate with no time factor; C = used the end-of-period average period (timing trap); D = used 6 months average regardless of timing.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Drawings",
+      "family": "interest_on_drawings",
+      "validation_status": "verified",
+      "id": "interest_on_drawings_7"
+    },
+    {
+      "text": "Every month, Karan drew Rs. 1,000 at the end of the period. At 11% p.a., the interest on Karan's drawings for the year is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 715",
+        "B) Rs. 1,320",
+        "C) Rs. 660",
+        "D) Rs. 605"
+      ],
+      "correct_answer": "D) Rs. 605",
+      "explanation": "total drawings = Rs. 12,000; average-period method, drawn at the end IOD = Rs. 605  Correct option D. Distractors: A = used the beginning-of-period average period (timing trap); B = charged a flat rate with no time factor; C = used 6 months average regardless of timing.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Drawings",
+      "family": "interest_on_drawings",
+      "validation_status": "verified",
+      "id": "interest_on_drawings_8"
+    },
+    {
+      "text": "Priya made regular drawings of Rs. 6,000 at the beginning of each quarter. Charging interest @ 15% p.a., Priya's interest on drawings comes to:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 1,350",
+        "B) Rs. 2,250",
+        "C) Rs. 3,600",
+        "D) Rs. 1,800"
+      ],
+      "correct_answer": "B) Rs. 2,250",
+      "explanation": "total drawings = Rs. 24,000; average-period method, drawn at the beginning IOD = Rs. 2,250  Correct option B. Distractors: A = used the end-of-period average period (timing trap); C = charged a flat rate with no time factor; D = used 6 months average regardless of timing.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Drawings",
+      "family": "interest_on_drawings",
+      "validation_status": "verified",
+      "id": "interest_on_drawings_9"
+    },
+    {
+      "text": "Drawings of Rs. 20,000 were made by Ishan at the end of every quarter. Interest on drawings @ 7% p.a. for the year is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 5,600",
+        "B) Rs. 2,800",
+        "C) Rs. 3,500",
+        "D) Rs. 2,100"
+      ],
+      "correct_answer": "D) Rs. 2,100",
+      "explanation": "total drawings = Rs. 80,000; average-period method, drawn at the end IOD = Rs. 2,100  Correct option D. Distractors: A = charged a flat rate with no time factor; B = used 6 months average regardless of timing; C = used the beginning-of-period average period (timing trap).",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Drawings",
+      "family": "interest_on_drawings",
+      "validation_status": "verified",
+      "id": "interest_on_drawings_10"
+    }
+  ]
+}

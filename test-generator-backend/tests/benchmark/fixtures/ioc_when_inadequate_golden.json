@@ -1,0 +1,200 @@
+{
+  "subject": "Accountancy",
+  "classGrade": "12",
+  "chapters": [
+    "Fundamentals of Partnership"
+  ],
+  "totalMarks": 10,
+  "questions": [
+    {
+      "text": "Priya and Rakesh are entitled to interest on capital of Rs. 30,000 and Rs. 35,000 respectively. Interest on capital is an appropriation. The firm's profit for the year is only Rs. 16,250. The interest on capital actually allowed to Priya is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 30,000",
+        "B) Rs. 8,750",
+        "C) Rs. 8,125",
+        "D) Rs. 7,500"
+      ],
+      "correct_answer": "D) Rs. 7,500",
+      "explanation": "profit 16250 < total IOC 65000: allocate in IOC ratio Priya gets 16250 x 30000/65000 = Rs. 7,500  Correct option D. Distractors: A = allowed the full interest on capital despite the shortage; B = gave Priya the amount due to Rakesh; C = split the available profit equally.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Capital",
+      "family": "ioc_when_inadequate",
+      "validation_status": "verified",
+      "id": "ioc_when_inadequate_1"
+    },
+    {
+      "text": "Interest on capital due to Karan and Lata is Rs. 20,000 and Rs. 30,000, treated as an appropriation. As the year's profit is only Rs. 12,500, the interest on capital allowed to Karan is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 7,500",
+        "B) Rs. 20,000",
+        "C) Rs. 5,000",
+        "D) Rs. 6,250"
+      ],
+      "correct_answer": "C) Rs. 5,000",
+      "explanation": "profit 12500 < total IOC 50000: allocate in IOC ratio Karan gets 12500 x 20000/50000 = Rs. 5,000  Correct option C. Distractors: A = gave Karan the amount due to Lata; B = allowed the full interest on capital despite the shortage; D = split the available profit equally.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Capital",
+      "family": "ioc_when_inadequate",
+      "validation_status": "verified",
+      "id": "ioc_when_inadequate_2"
+    },
+    {
+      "text": "The firm earned just Rs. 26,250 this year. Interest on capital (an appropriation) claimed by Karan and Lata is Rs. 40,000 and Rs. 25,000. How much interest on capital does Karan actually get?",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 13,125",
+        "B) Rs. 16,154",
+        "C) Rs. 10,096",
+        "D) Rs. 40,000"
+      ],
+      "correct_answer": "B) Rs. 16,154",
+      "explanation": "profit 26250 < total IOC 65000: allocate in IOC ratio Karan gets 26250 x 40000/65000 = Rs. 16,154  Correct option B. Distractors: A = split the available profit equally; C = gave Karan the amount due to Lata; D = allowed the full interest on capital despite the shortage.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Capital",
+      "family": "ioc_when_inadequate",
+      "validation_status": "verified",
+      "id": "ioc_when_inadequate_3"
+    },
+    {
+      "text": "Arun and Bela are entitled to interest on capital of Rs. 55,000 and Rs. 30,000 respectively. Interest on capital is an appropriation. The firm's profit for the year is only Rs. 31,250. The interest on capital actually allowed to Arun is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 55,000",
+        "B) Rs. 15,625",
+        "C) Rs. 11,029",
+        "D) Rs. 20,221"
+      ],
+      "correct_answer": "D) Rs. 20,221",
+      "explanation": "profit 31250 < total IOC 85000: allocate in IOC ratio Arun gets 31250 x 55000/85000 = Rs. 20,221  Correct option D. Distractors: A = allowed the full interest on capital despite the shortage; B = split the available profit equally; C = gave Arun the amount due to Bela.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Capital",
+      "family": "ioc_when_inadequate",
+      "validation_status": "verified",
+      "id": "ioc_when_inadequate_4"
+    },
+    {
+      "text": "Interest on capital due to Ishan and Juhi is Rs. 25,000 and Rs. 20,000, treated as an appropriation. As the year's profit is only Rs. 36,250, the interest on capital allowed to Ishan is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 25,000",
+        "B) Rs. 20,139",
+        "C) Rs. 16,111",
+        "D) Rs. 18,125"
+      ],
+      "correct_answer": "B) Rs. 20,139",
+      "explanation": "profit 36250 < total IOC 45000: allocate in IOC ratio Ishan gets 36250 x 25000/45000 = Rs. 20,139  Correct option B. Distractors: A = allowed the full interest on capital despite the shortage; C = gave Ishan the amount due to Juhi; D = split the available profit equally.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Capital",
+      "family": "ioc_when_inadequate",
+      "validation_status": "verified",
+      "id": "ioc_when_inadequate_5"
+    },
+    {
+      "text": "The firm earned just Rs. 73,750 this year. Interest on capital (an appropriation) claimed by Priya and Rakesh is Rs. 45,000 and Rs. 50,000. How much interest on capital does Priya actually get?",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 34,934",
+        "B) Rs. 45,000",
+        "C) Rs. 38,816",
+        "D) Rs. 36,875"
+      ],
+      "correct_answer": "A) Rs. 34,934",
+      "explanation": "profit 73750 < total IOC 95000: allocate in IOC ratio Priya gets 73750 x 45000/95000 = Rs. 34,934  Correct option A. Distractors: B = allowed the full interest on capital despite the shortage; C = gave Priya the amount due to Rakesh; D = split the available profit equally.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Capital",
+      "family": "ioc_when_inadequate",
+      "validation_status": "verified",
+      "id": "ioc_when_inadequate_6"
+    },
+    {
+      "text": "Chetan and Disha are entitled to interest on capital of Rs. 55,000 and Rs. 45,000 respectively. Interest on capital is an appropriation. The firm's profit for the year is only Rs. 50,000. The interest on capital actually allowed to Chetan is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 25,000",
+        "B) Rs. 27,500",
+        "C) Rs. 55,000",
+        "D) Rs. 22,500"
+      ],
+      "correct_answer": "B) Rs. 27,500",
+      "explanation": "profit 50000 < total IOC 100000: allocate in IOC ratio Chetan gets 50000 x 55000/100000 = Rs. 27,500  Correct option B. Distractors: A = split the available profit equally; C = allowed the full interest on capital despite the shortage; D = gave Chetan the amount due to Disha.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Capital",
+      "family": "ioc_when_inadequate",
+      "validation_status": "verified",
+      "id": "ioc_when_inadequate_7"
+    },
+    {
+      "text": "Interest on capital due to Arun and Bela is Rs. 55,000 and Rs. 40,000, treated as an appropriation. As the year's profit is only Rs. 43,750, the interest on capital allowed to Arun is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 21,875",
+        "B) Rs. 18,421",
+        "C) Rs. 25,329",
+        "D) Rs. 55,000"
+      ],
+      "correct_answer": "C) Rs. 25,329",
+      "explanation": "profit 43750 < total IOC 95000: allocate in IOC ratio Arun gets 43750 x 55000/95000 = Rs. 25,329  Correct option C. Distractors: A = split the available profit equally; B = gave Arun the amount due to Bela; D = allowed the full interest on capital despite the shortage.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Capital",
+      "family": "ioc_when_inadequate",
+      "validation_status": "verified",
+      "id": "ioc_when_inadequate_8"
+    },
+    {
+      "text": "The firm earned just Rs. 42,500 this year. Interest on capital (an appropriation) claimed by Arun and Bela is Rs. 45,000 and Rs. 25,000. How much interest on capital does Arun actually get?",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 27,321",
+        "B) Rs. 45,000",
+        "C) Rs. 21,250",
+        "D) Rs. 15,179"
+      ],
+      "correct_answer": "A) Rs. 27,321",
+      "explanation": "profit 42500 < total IOC 70000: allocate in IOC ratio Arun gets 42500 x 45000/70000 = Rs. 27,321  Correct option A. Distractors: B = allowed the full interest on capital despite the shortage; C = split the available profit equally; D = gave Arun the amount due to Bela.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Capital",
+      "family": "ioc_when_inadequate",
+      "validation_status": "verified",
+      "id": "ioc_when_inadequate_9"
+    },
+    {
+      "text": "Priya and Rakesh are entitled to interest on capital of Rs. 50,000 and Rs. 45,000 respectively. Interest on capital is an appropriation. The firm's profit for the year is only Rs. 68,750. The interest on capital actually allowed to Priya is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 36,184",
+        "B) Rs. 34,375",
+        "C) Rs. 32,566",
+        "D) Rs. 50,000"
+      ],
+      "correct_answer": "A) Rs. 36,184",
+      "explanation": "profit 68750 < total IOC 95000: allocate in IOC ratio Priya gets 68750 x 50000/95000 = Rs. 36,184  Correct option A. Distractors: B = split the available profit equally; C = gave Priya the amount due to Rakesh; D = allowed the full interest on capital despite the shortage.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Capital",
+      "family": "ioc_when_inadequate",
+      "validation_status": "verified",
+      "id": "ioc_when_inadequate_10"
+    }
+  ]
+}

@@ -1,0 +1,200 @@
+{
+  "subject": "Accountancy",
+  "classGrade": "12",
+  "chapters": [
+    "Fundamentals of Partnership"
+  ],
+  "totalMarks": 10,
+  "questions": [
+    {
+      "text": "Arun's total drawings during the year were Rs. 90,000. Interest on drawings is to be charged @ 5% (the deed does NOT say per annum). Interest on Arun's drawings is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 2,250",
+        "B) Rs. 4,500",
+        "C) Rs. 2,438",
+        "D) Rs. 2,063"
+      ],
+      "correct_answer": "B) Rs. 4,500",
+      "explanation": "rate is not p.a. -> flat % on total drawings IOD = 90000 x 5/100 = Rs. 4,500  Correct option B. Distractors: A = applied a 6-month time factor though the rate is not p.a.; C = treated it as drawn at the beginning of every month; D = treated it as drawn at the end of every month.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Drawings",
+      "family": "interest_on_drawings_flat",
+      "validation_status": "verified",
+      "id": "interest_on_drawings_flat_1"
+    },
+    {
+      "text": "During the year Priya drew Rs. 60,000 in total. The deed charges interest on drawings at a flat 5% (not per annum). The interest is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 3,000",
+        "B) Rs. 1,375",
+        "C) Rs. 1,625",
+        "D) Rs. 1,500"
+      ],
+      "correct_answer": "A) Rs. 3,000",
+      "explanation": "rate is not p.a. -> flat % on total drawings IOD = 60000 x 5/100 = Rs. 3,000  Correct option A. Distractors: B = treated it as drawn at the end of every month; C = treated it as drawn at the beginning of every month; D = applied a 6-month time factor though the rate is not p.a..",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Drawings",
+      "family": "interest_on_drawings_flat",
+      "validation_status": "verified",
+      "id": "interest_on_drawings_flat_2"
+    },
+    {
+      "text": "Esha withdrew Rs. 60,000 in all. Interest on drawings is 6% (the rate is not stated per annum). Esha's interest on drawings is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 1,800",
+        "B) Rs. 1,650",
+        "C) Rs. 3,600",
+        "D) Rs. 1,950"
+      ],
+      "correct_answer": "C) Rs. 3,600",
+      "explanation": "rate is not p.a. -> flat % on total drawings IOD = 60000 x 6/100 = Rs. 3,600  Correct option C. Distractors: A = applied a 6-month time factor though the rate is not p.a.; B = treated it as drawn at the end of every month; D = treated it as drawn at the beginning of every month.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Drawings",
+      "family": "interest_on_drawings_flat",
+      "validation_status": "verified",
+      "id": "interest_on_drawings_flat_3"
+    },
+    {
+      "text": "Ishan's total drawings during the year were Rs. 50,000. Interest on drawings is to be charged @ 8% (the deed does NOT say per annum). Interest on Ishan's drawings is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 4,000",
+        "B) Rs. 1,833",
+        "C) Rs. 2,000",
+        "D) Rs. 2,167"
+      ],
+      "correct_answer": "A) Rs. 4,000",
+      "explanation": "rate is not p.a. -> flat % on total drawings IOD = 50000 x 8/100 = Rs. 4,000  Correct option A. Distractors: B = treated it as drawn at the end of every month; C = applied a 6-month time factor though the rate is not p.a.; D = treated it as drawn at the beginning of every month.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Drawings",
+      "family": "interest_on_drawings_flat",
+      "validation_status": "verified",
+      "id": "interest_on_drawings_flat_4"
+    },
+    {
+      "text": "During the year Karan drew Rs. 50,000 in total. The deed charges interest on drawings at a flat 8% (not per annum). The interest is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 2,000",
+        "B) Rs. 1,833",
+        "C) Rs. 2,167",
+        "D) Rs. 4,000"
+      ],
+      "correct_answer": "D) Rs. 4,000",
+      "explanation": "rate is not p.a. -> flat % on total drawings IOD = 50000 x 8/100 = Rs. 4,000  Correct option D. Distractors: A = applied a 6-month time factor though the rate is not p.a.; B = treated it as drawn at the end of every month; C = treated it as drawn at the beginning of every month.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Drawings",
+      "family": "interest_on_drawings_flat",
+      "validation_status": "verified",
+      "id": "interest_on_drawings_flat_5"
+    },
+    {
+      "text": "Esha withdrew Rs. 60,000 in all. Interest on drawings is 8% (the rate is not stated per annum). Esha's interest on drawings is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 2,600",
+        "B) Rs. 4,800",
+        "C) Rs. 2,200",
+        "D) Rs. 2,400"
+      ],
+      "correct_answer": "B) Rs. 4,800",
+      "explanation": "rate is not p.a. -> flat % on total drawings IOD = 60000 x 8/100 = Rs. 4,800  Correct option B. Distractors: A = treated it as drawn at the beginning of every month; C = treated it as drawn at the end of every month; D = applied a 6-month time factor though the rate is not p.a..",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Drawings",
+      "family": "interest_on_drawings_flat",
+      "validation_status": "verified",
+      "id": "interest_on_drawings_flat_6"
+    },
+    {
+      "text": "Ishan's total drawings during the year were Rs. 50,000. Interest on drawings is to be charged @ 6% (the deed does NOT say per annum). Interest on Ishan's drawings is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 1,375",
+        "B) Rs. 1,625",
+        "C) Rs. 3,000",
+        "D) Rs. 1,500"
+      ],
+      "correct_answer": "C) Rs. 3,000",
+      "explanation": "rate is not p.a. -> flat % on total drawings IOD = 50000 x 6/100 = Rs. 3,000  Correct option C. Distractors: A = treated it as drawn at the end of every month; B = treated it as drawn at the beginning of every month; D = applied a 6-month time factor though the rate is not p.a..",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Drawings",
+      "family": "interest_on_drawings_flat",
+      "validation_status": "verified",
+      "id": "interest_on_drawings_flat_7"
+    },
+    {
+      "text": "During the year Gita drew Rs. 60,000 in total. The deed charges interest on drawings at a flat 5% (not per annum). The interest is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 3,000",
+        "B) Rs. 1,375",
+        "C) Rs. 1,500",
+        "D) Rs. 1,625"
+      ],
+      "correct_answer": "A) Rs. 3,000",
+      "explanation": "rate is not p.a. -> flat % on total drawings IOD = 60000 x 5/100 = Rs. 3,000  Correct option A. Distractors: B = treated it as drawn at the end of every month; C = applied a 6-month time factor though the rate is not p.a.; D = treated it as drawn at the beginning of every month.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Drawings",
+      "family": "interest_on_drawings_flat",
+      "validation_status": "verified",
+      "id": "interest_on_drawings_flat_8"
+    },
+    {
+      "text": "Esha withdrew Rs. 60,000 in all. Interest on drawings is 4% (the rate is not stated per annum). Esha's interest on drawings is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 1,200",
+        "B) Rs. 1,100",
+        "C) Rs. 1,300",
+        "D) Rs. 2,400"
+      ],
+      "correct_answer": "D) Rs. 2,400",
+      "explanation": "rate is not p.a. -> flat % on total drawings IOD = 60000 x 4/100 = Rs. 2,400  Correct option D. Distractors: A = applied a 6-month time factor though the rate is not p.a.; B = treated it as drawn at the end of every month; C = treated it as drawn at the beginning of every month.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Drawings",
+      "family": "interest_on_drawings_flat",
+      "validation_status": "verified",
+      "id": "interest_on_drawings_flat_9"
+    },
+    {
+      "text": "Arun's total drawings during the year were Rs. 70,000. Interest on drawings is to be charged @ 6% (the deed does NOT say per annum). Interest on Arun's drawings is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 2,100",
+        "B) Rs. 4,200",
+        "C) Rs. 2,275",
+        "D) Rs. 1,925"
+      ],
+      "correct_answer": "B) Rs. 4,200",
+      "explanation": "rate is not p.a. -> flat % on total drawings IOD = 70000 x 6/100 = Rs. 4,200  Correct option B. Distractors: A = applied a 6-month time factor though the rate is not p.a.; C = treated it as drawn at the beginning of every month; D = treated it as drawn at the end of every month.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Drawings",
+      "family": "interest_on_drawings_flat",
+      "validation_status": "verified",
+      "id": "interest_on_drawings_flat_10"
+    }
+  ]
+}

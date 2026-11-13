@@ -1,0 +1,200 @@
+{
+  "subject": "Accountancy",
+  "classGrade": "12",
+  "chapters": [
+    "Fundamentals of Partnership"
+  ],
+  "totalMarks": 10,
+  "questions": [
+    {
+      "text": "Esha (fluctuating capital) has a closing capital of Rs. 6,30,000. Interest on capital @ 12% p.a. was allowed on the OPENING capital, profit credited Rs. 90,000, drawings Rs. 20,000. Esha's opening capital was:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 6,30,000",
+        "B) Rs. 4,51,613",
+        "C) Rs. 5,00,000",
+        "D) Rs. 5,60,000"
+      ],
+      "correct_answer": "C) Rs. 5,00,000",
+      "explanation": "opening = 560000 / (1 + 12/100) = 500000  Correct option C. Distractors: A = took the closing balance as the opening; B = divided by (1 + 2*rate) instead of (1 + rate); D = forgot to divide by (1 + rate).",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Capital",
+      "family": "opening_capital_ioc_on_opening",
+      "validation_status": "verified",
+      "id": "opening_capital_ioc_on_opening_1"
+    },
+    {
+      "text": "Priya's closing capital is Rs. 5,80,000 after a profit of Rs. 50,000, drawings of Rs. 20,000, and interest on capital @ 10% p.a. computed on the opening balance. Priya's opening capital was:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 4,58,333",
+        "B) Rs. 5,80,000",
+        "C) Rs. 5,50,000",
+        "D) Rs. 5,00,000"
+      ],
+      "correct_answer": "D) Rs. 5,00,000",
+      "explanation": "opening = 550000 / (1 + 10/100) = 500000  Correct option D. Distractors: A = divided by (1 + 2*rate) instead of (1 + rate); B = took the closing balance as the opening; C = forgot to divide by (1 + rate).",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Capital",
+      "family": "opening_capital_ioc_on_opening",
+      "validation_status": "verified",
+      "id": "opening_capital_ioc_on_opening_2"
+    },
+    {
+      "text": "With interest on capital @ 8% p.a. charged on the opening balance, Chetan ends the year with Rs. 3,64,000, having drawn Rs. 20,000 and earned Rs. 60,000. Chetan's opening capital was:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 3,64,000",
+        "B) Rs. 2,79,310",
+        "C) Rs. 3,24,000",
+        "D) Rs. 3,00,000"
+      ],
+      "correct_answer": "D) Rs. 3,00,000",
+      "explanation": "opening = 324000 / (1 + 8/100) = 300000  Correct option D. Distractors: A = took the closing balance as the opening; B = divided by (1 + 2*rate) instead of (1 + rate); C = forgot to divide by (1 + rate).",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Capital",
+      "family": "opening_capital_ioc_on_opening",
+      "validation_status": "verified",
+      "id": "opening_capital_ioc_on_opening_3"
+    },
+    {
+      "text": "Sahil (fluctuating capital) has a closing capital of Rs. 2,74,000. Interest on capital @ 12% p.a. was allowed on the OPENING capital, profit credited Rs. 90,000, drawings Rs. 40,000. Sahil's opening capital was:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 1,80,645",
+        "B) Rs. 2,00,000",
+        "C) Rs. 2,74,000",
+        "D) Rs. 2,24,000"
+      ],
+      "correct_answer": "B) Rs. 2,00,000",
+      "explanation": "opening = 224000 / (1 + 12/100) = 200000  Correct option B. Distractors: A = divided by (1 + 2*rate) instead of (1 + rate); C = took the closing balance as the opening; D = forgot to divide by (1 + rate).",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Capital",
+      "family": "opening_capital_ioc_on_opening",
+      "validation_status": "verified",
+      "id": "opening_capital_ioc_on_opening_4"
+    },
+    {
+      "text": "Gita's closing capital is Rs. 5,64,000 after a profit of Rs. 80,000, drawings of Rs. 20,000, and interest on capital @ 12% p.a. computed on the opening balance. Gita's opening capital was:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 5,04,000",
+        "B) Rs. 5,64,000",
+        "C) Rs. 4,50,000",
+        "D) Rs. 4,06,452"
+      ],
+      "correct_answer": "C) Rs. 4,50,000",
+      "explanation": "opening = 504000 / (1 + 12/100) = 450000  Correct option C. Distractors: A = forgot to divide by (1 + rate); B = took the closing balance as the opening; D = divided by (1 + 2*rate) instead of (1 + rate).",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Capital",
+      "family": "opening_capital_ioc_on_opening",
+      "validation_status": "verified",
+      "id": "opening_capital_ioc_on_opening_5"
+    },
+    {
+      "text": "With interest on capital @ 8% p.a. charged on the opening balance, Ishan ends the year with Rs. 3,74,000, having drawn Rs. 30,000 and earned Rs. 80,000. Ishan's opening capital was:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 3,00,000",
+        "B) Rs. 3,74,000",
+        "C) Rs. 2,79,310",
+        "D) Rs. 3,24,000"
+      ],
+      "correct_answer": "A) Rs. 3,00,000",
+      "explanation": "opening = 324000 / (1 + 8/100) = 300000  Correct option A. Distractors: B = took the closing balance as the opening; C = divided by (1 + 2*rate) instead of (1 + rate); D = forgot to divide by (1 + rate).",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Capital",
+      "family": "opening_capital_ioc_on_opening",
+      "validation_status": "verified",
+      "id": "opening_capital_ioc_on_opening_6"
+    },
+    {
+      "text": "Priya (fluctuating capital) has a closing capital of Rs. 4,08,000. Interest on capital @ 8% p.a. was allowed on the OPENING capital, profit credited Rs. 60,000, drawings Rs. 30,000. Priya's opening capital was:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 3,25,862",
+        "B) Rs. 3,50,000",
+        "C) Rs. 3,78,000",
+        "D) Rs. 4,08,000"
+      ],
+      "correct_answer": "B) Rs. 3,50,000",
+      "explanation": "opening = 378000 / (1 + 8/100) = 350000  Correct option B. Distractors: A = divided by (1 + 2*rate) instead of (1 + rate); C = forgot to divide by (1 + rate); D = took the closing balance as the opening.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Capital",
+      "family": "opening_capital_ioc_on_opening",
+      "validation_status": "verified",
+      "id": "opening_capital_ioc_on_opening_7"
+    },
+    {
+      "text": "Ishan's closing capital is Rs. 5,46,000 after a profit of Rs. 80,000, drawings of Rs. 20,000, and interest on capital @ 8% p.a. computed on the opening balance. Ishan's opening capital was:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 4,50,000",
+        "B) Rs. 4,18,966",
+        "C) Rs. 4,86,000",
+        "D) Rs. 5,46,000"
+      ],
+      "correct_answer": "A) Rs. 4,50,000",
+      "explanation": "opening = 486000 / (1 + 8/100) = 450000  Correct option A. Distractors: B = divided by (1 + 2*rate) instead of (1 + rate); C = forgot to divide by (1 + rate); D = took the closing balance as the opening.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Capital",
+      "family": "opening_capital_ioc_on_opening",
+      "validation_status": "verified",
+      "id": "opening_capital_ioc_on_opening_8"
+    },
+    {
+      "text": "With interest on capital @ 8% p.a. charged on the opening balance, Ishan ends the year with Rs. 3,68,000, having drawn Rs. 60,000 and earned Rs. 50,000. Ishan's opening capital was:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 3,78,000",
+        "B) Rs. 3,50,000",
+        "C) Rs. 3,68,000",
+        "D) Rs. 3,25,862"
+      ],
+      "correct_answer": "B) Rs. 3,50,000",
+      "explanation": "opening = 378000 / (1 + 8/100) = 350000  Correct option B. Distractors: A = forgot to divide by (1 + rate); C = took the closing balance as the opening; D = divided by (1 + 2*rate) instead of (1 + rate).",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Capital",
+      "family": "opening_capital_ioc_on_opening",
+      "validation_status": "verified",
+      "id": "opening_capital_ioc_on_opening_9"
+    },
+    {
+      "text": "Ishan (fluctuating capital) has a closing capital of Rs. 4,72,000. Interest on capital @ 8% p.a. was allowed on the OPENING capital, profit credited Rs. 60,000, drawings Rs. 20,000. Ishan's opening capital was:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 4,00,000",
+        "B) Rs. 4,72,000",
+        "C) Rs. 3,72,414",
+        "D) Rs. 4,32,000"
+      ],
+      "correct_answer": "A) Rs. 4,00,000",
+      "explanation": "opening = 432000 / (1 + 8/100) = 400000  Correct option A. Distractors: B = took the closing balance as the opening; C = divided by (1 + 2*rate) instead of (1 + rate); D = forgot to divide by (1 + rate).",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Capital",
+      "family": "opening_capital_ioc_on_opening",
+      "validation_status": "verified",
+      "id": "opening_capital_ioc_on_opening_10"
+    }
+  ]
+}

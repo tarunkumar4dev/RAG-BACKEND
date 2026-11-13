@@ -1,0 +1,52 @@
+{
+  "id": "acc12_interest_on_capital_mini",
+  "description": "Three mechanically trivial interest-on-capital items the author can hand-compute. Opening capital × rate × full year. Fluctuating method.",
+  "request": {
+    "examTitle": "Interest on Capital — practice 3",
+    "board": "CBSE",
+    "classGrade": "12",
+    "subject": "Accountancy",
+    "cbsePattern": false,
+    "simpleData": [
+      {
+        "topic": "Fundamentals of Partnership",
+        "subtopic": "Interest on Capital",
+        "quantity": 3,
+        "difficulty": "easy",
+        "format": "mcq",
+        "marks": 1
+      }
+    ]
+  },
+  "expected_total_questions": 3,
+  "expected_total_marks": 3,
+  "expected_numeric_items": [
+    {
+      "qid": "ioc_1",
+      "description": "Opening capital Rs. 5,00,000; rate 10% p.a.; full year. Fluctuating.",
+      "expected_answer": 50000.0,
+      "tolerance": 1.0,
+      "unit": "INR",
+      "key_source": "author-computed"
+    },
+    {
+      "qid": "ioc_2",
+      "description": "Opening capital Rs. 2,00,000; rate 6% p.a.; full year. Fluctuating.",
+      "expected_answer": 12000.0,
+      "tolerance": 1.0,
+      "unit": "INR",
+      "key_source": "author-computed"
+    },
+    {
+      "qid": "ioc_3",
+      "description": "Opening capital Rs. 8,00,000; rate 12% p.a.; full year. Fluctuating.",
+      "expected_answer": 96000.0,
+      "tolerance": 1.0,
+      "unit": "INR",
+      "key_source": "author-computed"
+    }
+  ],
+  "golden_paper_file": "ioc_mini_golden.json",
+  "key_source": "author-computed",
+  "notes": "I = P x R x T; trivial by inspection. Flag `author-computed` so an SME sign-off on this fixture is cheap."
+}

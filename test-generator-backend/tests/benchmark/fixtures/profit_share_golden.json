@@ -1,0 +1,200 @@
+{
+  "subject": "Accountancy",
+  "classGrade": "12",
+  "chapters": [
+    "Fundamentals of Partnership"
+  ],
+  "totalMarks": 10,
+  "questions": [
+    {
+      "text": "Arun, Bela and Charu are partners sharing profits in the ratio 5:3:2. The divisible profit for the year is Rs. 2,00,000. Arun's share of profit is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 1,00,000",
+        "B) Rs. 66,667",
+        "C) Rs. 60,000",
+        "D) Rs. 40,000"
+      ],
+      "correct_answer": "A) Rs. 1,00,000",
+      "explanation": "Arun's share = 200000 x 5/10 = Rs. 1,00,000  Correct option A. Distractors: B = divided the profit equally instead of in the ratio; C = gave Arun the share belonging to Bela; D = gave Arun the share belonging to Charu.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Distribution of Profit",
+      "family": "profit_share",
+      "validation_status": "verified",
+      "id": "profit_share_1"
+    },
+    {
+      "text": "Arun, Bela and Charu share profits 5:3:2. If the profit available for distribution is Rs. 3,00,000, how much does Arun receive?",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 1,50,000",
+        "B) Rs. 90,000",
+        "C) Rs. 60,000",
+        "D) Rs. 1,00,000"
+      ],
+      "correct_answer": "A) Rs. 1,50,000",
+      "explanation": "Arun's share = 300000 x 5/10 = Rs. 1,50,000  Correct option A. Distractors: B = gave Arun the share belonging to Bela; C = gave Arun the share belonging to Charu; D = divided the profit equally instead of in the ratio.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Distribution of Profit",
+      "family": "profit_share",
+      "validation_status": "verified",
+      "id": "profit_share_2"
+    },
+    {
+      "text": "The divisible profit of a firm is Rs. 3,00,000. Jatin, Kavya and Lokesh share profits in the ratio 5:3:2. Jatin's share comes to:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 60,000",
+        "B) Rs. 90,000",
+        "C) Rs. 1,50,000",
+        "D) Rs. 1,00,000"
+      ],
+      "correct_answer": "C) Rs. 1,50,000",
+      "explanation": "Jatin's share = 300000 x 5/10 = Rs. 1,50,000  Correct option C. Distractors: A = gave Jatin the share belonging to Lokesh; B = gave Jatin the share belonging to Kavya; D = divided the profit equally instead of in the ratio.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Distribution of Profit",
+      "family": "profit_share",
+      "validation_status": "verified",
+      "id": "profit_share_3"
+    },
+    {
+      "text": "Partners Dev, Esha and Farhan divide Rs. 3,00,000 of profit in the ratio 5:3:2. The amount credited to Dev is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 60,000",
+        "B) Rs. 1,50,000",
+        "C) Rs. 90,000",
+        "D) Rs. 1,00,000"
+      ],
+      "correct_answer": "B) Rs. 1,50,000",
+      "explanation": "Dev's share = 300000 x 5/10 = Rs. 1,50,000  Correct option B. Distractors: A = gave Dev the share belonging to Farhan; C = gave Dev the share belonging to Esha; D = divided the profit equally instead of in the ratio.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Distribution of Profit",
+      "family": "profit_share",
+      "validation_status": "verified",
+      "id": "profit_share_4"
+    },
+    {
+      "text": "Gaurav, Hina and Imran are partners sharing profits in the ratio 5:3:2. The divisible profit for the year is Rs. 2,00,000. Gaurav's share of profit is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 66,667",
+        "B) Rs. 40,000",
+        "C) Rs. 60,000",
+        "D) Rs. 1,00,000"
+      ],
+      "correct_answer": "D) Rs. 1,00,000",
+      "explanation": "Gaurav's share = 200000 x 5/10 = Rs. 1,00,000  Correct option D. Distractors: A = divided the profit equally instead of in the ratio; B = gave Gaurav the share belonging to Imran; C = gave Gaurav the share belonging to Hina.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Distribution of Profit",
+      "family": "profit_share",
+      "validation_status": "verified",
+      "id": "profit_share_5"
+    },
+    {
+      "text": "Jatin, Kavya and Lokesh share profits 5:3:2. If the profit available for distribution is Rs. 2,00,000, how much does Jatin receive?",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 1,00,000",
+        "B) Rs. 66,667",
+        "C) Rs. 60,000",
+        "D) Rs. 40,000"
+      ],
+      "correct_answer": "A) Rs. 1,00,000",
+      "explanation": "Jatin's share = 200000 x 5/10 = Rs. 1,00,000  Correct option A. Distractors: B = divided the profit equally instead of in the ratio; C = gave Jatin the share belonging to Kavya; D = gave Jatin the share belonging to Lokesh.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Distribution of Profit",
+      "family": "profit_share",
+      "validation_status": "verified",
+      "id": "profit_share_6"
+    },
+    {
+      "text": "The divisible profit of a firm is Rs. 3,00,000. Dev, Esha and Farhan share profits in the ratio 5:3:2. Dev's share comes to:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 1,00,000",
+        "B) Rs. 90,000",
+        "C) Rs. 60,000",
+        "D) Rs. 1,50,000"
+      ],
+      "correct_answer": "D) Rs. 1,50,000",
+      "explanation": "Dev's share = 300000 x 5/10 = Rs. 1,50,000  Correct option D. Distractors: A = divided the profit equally instead of in the ratio; B = gave Dev the share belonging to Esha; C = gave Dev the share belonging to Farhan.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Distribution of Profit",
+      "family": "profit_share",
+      "validation_status": "verified",
+      "id": "profit_share_7"
+    },
+    {
+      "text": "Partners Arun, Bela and Charu divide Rs. 1,20,000 of profit in the ratio 5:3:2. The amount credited to Arun is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 40,000",
+        "B) Rs. 36,000",
+        "C) Rs. 60,000",
+        "D) Rs. 24,000"
+      ],
+      "correct_answer": "C) Rs. 60,000",
+      "explanation": "Arun's share = 120000 x 5/10 = Rs. 60,000  Correct option C. Distractors: A = divided the profit equally instead of in the ratio; B = gave Arun the share belonging to Bela; D = gave Arun the share belonging to Charu.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Distribution of Profit",
+      "family": "profit_share",
+      "validation_status": "verified",
+      "id": "profit_share_8"
+    },
+    {
+      "text": "Mira, Nikhil and Omkar are partners sharing profits in the ratio 5:3:2. The divisible profit for the year is Rs. 2,00,000. Mira's share of profit is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 60,000",
+        "B) Rs. 1,00,000",
+        "C) Rs. 40,000",
+        "D) Rs. 66,667"
+      ],
+      "correct_answer": "B) Rs. 1,00,000",
+      "explanation": "Mira's share = 200000 x 5/10 = Rs. 1,00,000  Correct option B. Distractors: A = gave Mira the share belonging to Nikhil; C = gave Mira the share belonging to Omkar; D = divided the profit equally instead of in the ratio.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Distribution of Profit",
+      "family": "profit_share",
+      "validation_status": "verified",
+      "id": "profit_share_9"
+    },
+    {
+      "text": "Mira, Nikhil and Omkar share profits 5:3:2. If the profit available for distribution is Rs. 1,00,000, how much does Mira receive?",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 30,000",
+        "B) Rs. 50,000",
+        "C) Rs. 33,333",
+        "D) Rs. 20,000"
+      ],
+      "correct_answer": "B) Rs. 50,000",
+      "explanation": "Mira's share = 100000 x 5/10 = Rs. 50,000  Correct option B. Distractors: A = gave Mira the share belonging to Nikhil; C = divided the profit equally instead of in the ratio; D = gave Mira the share belonging to Omkar.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Distribution of Profit",
+      "family": "profit_share",
+      "validation_status": "verified",
+      "id": "profit_share_10"
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "subject": "Accountancy",
+  "classGrade": "12",
+  "chapters": ["Fundamentals of Partnership"],
+  "totalMarks": 2,
+  "questions": [
+    {
+      "id": "ioc_1",
+      "text": "Ram's opening capital on 1 April is Rs. 5,00,000. The partnership deed allows interest on capital @ 10% p.a. The firm follows fluctuating-capital method and no further capital is introduced. What is Ram's interest on capital for the year ended 31 March?",
+      "format": "mcq",
+      "options": ["A) Rs. 25,000", "B) Rs. 40,000", "C) Rs. 50,000", "D) Rs. 60,000"],
+      "correct_answer": "C) Rs. 50,000",
+      "marks": 1
+    },
+    {
+      "id": "ioc_2",
+      "text": "Sita's opening capital is Rs. 2,00,000. Interest on capital is 6% p.a. under fluctuating-capital method. No additions or withdrawals. Interest on capital for one full year is:",
+      "format": "mcq",
+      "options": ["A) Rs. 10,000", "B) Rs. 12,000", "C) Rs. 14,000", "D) Rs. 16,000"],
+      "correct_answer": "B) Rs. 12,000",
+      "marks": 1
+    }
+  ]
+}

@@ -1,0 +1,200 @@
+{
+  "subject": "Accountancy",
+  "classGrade": "12",
+  "chapters": [
+    "Fundamentals of Partnership"
+  ],
+  "totalMarks": 10,
+  "questions": [
+    {
+      "text": "Jatin, Kavya and Lokesh share profits 3:2:1. Lokesh has guaranteed the firm a minimum profit of Rs. 1,80,000. Actual profit is Rs. 1,60,000; Lokesh meets the shortfall. Lokesh's net share is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 10,000",
+        "B) Rs. 26,667",
+        "C) Rs. 30,000",
+        "D) Rs. 20,000"
+      ],
+      "correct_answer": "A) Rs. 10,000",
+      "explanation": "base profit = max(160000,180000) = 180000 shortfall 20000 borne by Lokesh Lokesh's net share = Rs. 10,000  Correct option A. Distractors: B = shared the actual profit, not the guaranteed minimum; C = did not deduct the shortfall from the guarantor's share; D = reported only the shortfall.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Guarantee of Profit",
+      "family": "guarantee_to_firm",
+      "validation_status": "verified",
+      "id": "guarantee_to_firm_1"
+    },
+    {
+      "text": "Charu guarantees the firm a minimum profit of Rs. 1,50,000, profits being shared 2:2:1 with Arun and Bela. The firm actually earns Rs. 1,40,000. After making good the shortfall, Charu's share is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 30,000",
+        "B) Rs. 28,000",
+        "C) Rs. 20,000",
+        "D) Rs. 10,000"
+      ],
+      "correct_answer": "C) Rs. 20,000",
+      "explanation": "base profit = max(140000,150000) = 150000 shortfall 10000 borne by Charu Charu's net share = Rs. 20,000  Correct option C. Distractors: A = did not deduct the shortfall from the guarantor's share; B = shared the actual profit, not the guaranteed minimum; D = reported only the shortfall.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Guarantee of Profit",
+      "family": "guarantee_to_firm",
+      "validation_status": "verified",
+      "id": "guarantee_to_firm_2"
+    },
+    {
+      "text": "Partners Gaurav, Hina and Imran share 3:2:1. The firm's guaranteed minimum is Rs. 1,80,000 (guaranteed by Imran) but it earned only Rs. 1,70,000. Imran's net share after bearing the shortfall is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 30,000",
+        "B) Rs. 20,000",
+        "C) Rs. 28,333",
+        "D) Rs. 10,000"
+      ],
+      "correct_answer": "B) Rs. 20,000",
+      "explanation": "base profit = max(170000,180000) = 180000 shortfall 10000 borne by Imran Imran's net share = Rs. 20,000  Correct option B. Distractors: A = did not deduct the shortfall from the guarantor's share; C = shared the actual profit, not the guaranteed minimum; D = reported only the shortfall.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Guarantee of Profit",
+      "family": "guarantee_to_firm",
+      "validation_status": "verified",
+      "id": "guarantee_to_firm_3"
+    },
+    {
+      "text": "Mira, Nikhil and Omkar share profits 2:2:1. Omkar has guaranteed the firm a minimum profit of Rs. 1,50,000. Actual profit is Rs. 1,40,000; Omkar meets the shortfall. Omkar's net share is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 28,000",
+        "B) Rs. 10,000",
+        "C) Rs. 20,000",
+        "D) Rs. 30,000"
+      ],
+      "correct_answer": "C) Rs. 20,000",
+      "explanation": "base profit = max(140000,150000) = 150000 shortfall 10000 borne by Omkar Omkar's net share = Rs. 20,000  Correct option C. Distractors: A = shared the actual profit, not the guaranteed minimum; B = reported only the shortfall; D = did not deduct the shortfall from the guarantor's share.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Guarantee of Profit",
+      "family": "guarantee_to_firm",
+      "validation_status": "verified",
+      "id": "guarantee_to_firm_4"
+    },
+    {
+      "text": "Omkar guarantees the firm a minimum profit of Rs. 2,40,000, profits being shared 3:2:1 with Mira and Nikhil. The firm actually earns Rs. 2,30,000. After making good the shortfall, Omkar's share is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 40,000",
+        "B) Rs. 30,000",
+        "C) Rs. 38,333",
+        "D) Rs. 10,000"
+      ],
+      "correct_answer": "B) Rs. 30,000",
+      "explanation": "base profit = max(230000,240000) = 240000 shortfall 10000 borne by Omkar Omkar's net share = Rs. 30,000  Correct option B. Distractors: A = did not deduct the shortfall from the guarantor's share; C = shared the actual profit, not the guaranteed minimum; D = reported only the shortfall.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Guarantee of Profit",
+      "family": "guarantee_to_firm",
+      "validation_status": "verified",
+      "id": "guarantee_to_firm_5"
+    },
+    {
+      "text": "Partners Mira, Nikhil and Omkar share 3:2:1. The firm's guaranteed minimum is Rs. 2,40,000 (guaranteed by Omkar) but it earned only Rs. 2,10,000. Omkar's net share after bearing the shortfall is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 10,000",
+        "B) Rs. 40,000",
+        "C) Rs. 35,000",
+        "D) Rs. 30,000"
+      ],
+      "correct_answer": "A) Rs. 10,000",
+      "explanation": "base profit = max(210000,240000) = 240000 shortfall 30000 borne by Omkar Omkar's net share = Rs. 10,000  Correct option A. Distractors: B = did not deduct the shortfall from the guarantor's share; C = shared the actual profit, not the guaranteed minimum; D = reported only the shortfall.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Guarantee of Profit",
+      "family": "guarantee_to_firm",
+      "validation_status": "verified",
+      "id": "guarantee_to_firm_6"
+    },
+    {
+      "text": "Dev, Esha and Farhan share profits 2:2:1. Farhan has guaranteed the firm a minimum profit of Rs. 2,00,000. Actual profit is Rs. 1,90,000; Farhan meets the shortfall. Farhan's net share is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 40,000",
+        "B) Rs. 38,000",
+        "C) Rs. 10,000",
+        "D) Rs. 30,000"
+      ],
+      "correct_answer": "D) Rs. 30,000",
+      "explanation": "base profit = max(190000,200000) = 200000 shortfall 10000 borne by Farhan Farhan's net share = Rs. 30,000  Correct option D. Distractors: A = did not deduct the shortfall from the guarantor's share; B = shared the actual profit, not the guaranteed minimum; C = reported only the shortfall.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Guarantee of Profit",
+      "family": "guarantee_to_firm",
+      "validation_status": "verified",
+      "id": "guarantee_to_firm_7"
+    },
+    {
+      "text": "Farhan guarantees the firm a minimum profit of Rs. 1,80,000, profits being shared 3:2:1 with Dev and Esha. The firm actually earns Rs. 1,70,000. After making good the shortfall, Farhan's share is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 20,000",
+        "B) Rs. 10,000",
+        "C) Rs. 30,000",
+        "D) Rs. 28,333"
+      ],
+      "correct_answer": "A) Rs. 20,000",
+      "explanation": "base profit = max(170000,180000) = 180000 shortfall 10000 borne by Farhan Farhan's net share = Rs. 20,000  Correct option A. Distractors: B = reported only the shortfall; C = did not deduct the shortfall from the guarantor's share; D = shared the actual profit, not the guaranteed minimum.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Guarantee of Profit",
+      "family": "guarantee_to_firm",
+      "validation_status": "verified",
+      "id": "guarantee_to_firm_8"
+    },
+    {
+      "text": "Partners Dev, Esha and Farhan share 2:2:1. The firm's guaranteed minimum is Rs. 1,50,000 (guaranteed by Farhan) but it earned only Rs. 1,40,000. Farhan's net share after bearing the shortfall is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 30,000",
+        "B) Rs. 20,000",
+        "C) Rs. 28,000",
+        "D) Rs. 10,000"
+      ],
+      "correct_answer": "B) Rs. 20,000",
+      "explanation": "base profit = max(140000,150000) = 150000 shortfall 10000 borne by Farhan Farhan's net share = Rs. 20,000  Correct option B. Distractors: A = did not deduct the shortfall from the guarantor's share; C = shared the actual profit, not the guaranteed minimum; D = reported only the shortfall.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Guarantee of Profit",
+      "family": "guarantee_to_firm",
+      "validation_status": "verified",
+      "id": "guarantee_to_firm_9"
+    },
+    {
+      "text": "Jatin, Kavya and Lokesh share profits 1:1:1. Lokesh has guaranteed the firm a minimum profit of Rs. 90,000. Actual profit is Rs. 80,000; Lokesh meets the shortfall. Lokesh's net share is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 26,667",
+        "B) Rs. 10,000",
+        "C) Rs. 30,000",
+        "D) Rs. 20,000"
+      ],
+      "correct_answer": "D) Rs. 20,000",
+      "explanation": "base profit = max(80000,90000) = 90000 shortfall 10000 borne by Lokesh Lokesh's net share = Rs. 20,000  Correct option D. Distractors: A = shared the actual profit, not the guaranteed minimum; B = reported only the shortfall; C = did not deduct the shortfall from the guarantor's share.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Guarantee of Profit",
+      "family": "guarantee_to_firm",
+      "validation_status": "verified",
+      "id": "guarantee_to_firm_10"
+    }
+  ]
+}

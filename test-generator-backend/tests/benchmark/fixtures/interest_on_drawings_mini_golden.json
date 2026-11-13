@@ -1,0 +1,32 @@
+{
+  "subject": "Accountancy",
+  "classGrade": "12",
+  "chapters": ["Fundamentals of Partnership"],
+  "totalMarks": 3,
+  "questions": [
+    {
+      "id": "iod_1",
+      "text": "A withdrew Rs. 1,000 at the beginning of every month for 12 months. Interest on drawings is charged @ 6% p.a. Interest on A's drawings is:",
+      "format": "mcq",
+      "options": ["A) Rs. 330", "B) Rs. 390", "C) Rs. 360", "D) Rs. 420"],
+      "correct_answer": "B) Rs. 390",
+      "marks": 1
+    },
+    {
+      "id": "iod_2",
+      "text": "B withdrew Rs. 2,000 at the end of every month for 12 months. Interest on drawings is charged @ 9% p.a. Interest on B's drawings is:",
+      "format": "mcq",
+      "options": ["A) Rs. 1,080", "B) Rs. 900", "C) Rs. 990", "D) Rs. 1,320"],
+      "correct_answer": "C) Rs. 990",
+      "marks": 1
+    },
+    {
+      "id": "iod_3",
+      "text": "C withdrew Rs. 5,000 every month (dates not given) through the year. Interest on drawings is charged @ 8% p.a. Interest on C's drawings is:",
+      "format": "mcq",
+      "options": ["A) Rs. 2,400", "B) Rs. 3,600", "C) Rs. 1,200", "D) Rs. 3,000"],
+      "correct_answer": "A) Rs. 2,400",
+      "marks": 1
+    }
+  ]
+}

@@ -1,0 +1,200 @@
+{
+  "subject": "Accountancy",
+  "classGrade": "12",
+  "chapters": [
+    "Fundamentals of Partnership"
+  ],
+  "totalMarks": 10,
+  "questions": [
+    {
+      "text": "The manager of a firm is entitled to a commission of 10% of the net profit AFTER charging such commission. Net profit before commission is Rs. 16,500. The commission is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 1,500",
+        "B) Rs. 1,650",
+        "C) Rs. 1,833",
+        "D) Rs. 1,375"
+      ],
+      "correct_answer": "A) Rs. 1,500",
+      "explanation": "commission = 16500 x 10/(100+10) = Rs. 1,500  Correct option A. Distractors: B = used the before-charging formula; C = subtracted the rate in the denominator (100 - rate); D = used a wrong denominator (100 + 2*rate).",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Manager's Commission",
+      "family": "commission_after",
+      "validation_status": "verified",
+      "id": "commission_after_1"
+    },
+    {
+      "text": "A firm's works manager earns 10% commission on profit remaining after the commission itself. Profit before commission is Rs. 44,000. The commission is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 3,667",
+        "B) Rs. 4,400",
+        "C) Rs. 4,889",
+        "D) Rs. 4,000"
+      ],
+      "correct_answer": "D) Rs. 4,000",
+      "explanation": "commission = 44000 x 10/(100+10) = Rs. 4,000  Correct option D. Distractors: A = used a wrong denominator (100 + 2*rate); B = used the before-charging formula; C = subtracted the rate in the denominator (100 - rate).",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Manager's Commission",
+      "family": "commission_after",
+      "validation_status": "verified",
+      "id": "commission_after_2"
+    },
+    {
+      "text": "The general manager is paid 25% of the net profit after charging that commission. If the profit before commission is Rs. 12,500, the commission works out to:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 2,500",
+        "B) Rs. 3,125",
+        "C) Rs. 4,167",
+        "D) Rs. 2,083"
+      ],
+      "correct_answer": "A) Rs. 2,500",
+      "explanation": "commission = 12500 x 25/(100+25) = Rs. 2,500  Correct option A. Distractors: B = used the before-charging formula; C = subtracted the rate in the denominator (100 - rate); D = used a wrong denominator (100 + 2*rate).",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Manager's Commission",
+      "family": "commission_after",
+      "validation_status": "verified",
+      "id": "commission_after_3"
+    },
+    {
+      "text": "Commission to the sales manager is 25% of profit after charging it. On a pre-commission profit of Rs. 43,750, the commission is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 14,583",
+        "B) Rs. 8,750",
+        "C) Rs. 7,292",
+        "D) Rs. 10,938"
+      ],
+      "correct_answer": "B) Rs. 8,750",
+      "explanation": "commission = 43750 x 25/(100+25) = Rs. 8,750  Correct option B. Distractors: A = subtracted the rate in the denominator (100 - rate); C = used a wrong denominator (100 + 2*rate); D = used the before-charging formula.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Manager's Commission",
+      "family": "commission_after",
+      "validation_status": "verified",
+      "id": "commission_after_4"
+    },
+    {
+      "text": "The manager of a firm is entitled to a commission of 25% of the net profit AFTER charging such commission. Net profit before commission is Rs. 56,250. The commission is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 11,250",
+        "B) Rs. 14,063",
+        "C) Rs. 18,750",
+        "D) Rs. 9,375"
+      ],
+      "correct_answer": "A) Rs. 11,250",
+      "explanation": "commission = 56250 x 25/(100+25) = Rs. 11,250  Correct option A. Distractors: B = used the before-charging formula; C = subtracted the rate in the denominator (100 - rate); D = used a wrong denominator (100 + 2*rate).",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Manager's Commission",
+      "family": "commission_after",
+      "validation_status": "verified",
+      "id": "commission_after_5"
+    },
+    {
+      "text": "A firm's works manager earns 25% commission on profit remaining after the commission itself. Profit before commission is Rs. 75,000. The commission is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 25,000",
+        "B) Rs. 12,500",
+        "C) Rs. 15,000",
+        "D) Rs. 18,750"
+      ],
+      "correct_answer": "C) Rs. 15,000",
+      "explanation": "commission = 75000 x 25/(100+25) = Rs. 15,000  Correct option C. Distractors: A = subtracted the rate in the denominator (100 - rate); B = used a wrong denominator (100 + 2*rate); D = used the before-charging formula.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Manager's Commission",
+      "family": "commission_after",
+      "validation_status": "verified",
+      "id": "commission_after_6"
+    },
+    {
+      "text": "The general manager is paid 20% of the net profit after charging that commission. If the profit before commission is Rs. 48,000, the commission works out to:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 12,000",
+        "B) Rs. 6,857",
+        "C) Rs. 8,000",
+        "D) Rs. 9,600"
+      ],
+      "correct_answer": "C) Rs. 8,000",
+      "explanation": "commission = 48000 x 20/(100+20) = Rs. 8,000  Correct option C. Distractors: A = subtracted the rate in the denominator (100 - rate); B = used a wrong denominator (100 + 2*rate); D = used the before-charging formula.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Manager's Commission",
+      "family": "commission_after",
+      "validation_status": "verified",
+      "id": "commission_after_7"
+    },
+    {
+      "text": "Commission to the sales manager is 10% of profit after charging it. On a pre-commission profit of Rs. 11,000, the commission is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 1,222",
+        "B) Rs. 1,100",
+        "C) Rs. 917",
+        "D) Rs. 1,000"
+      ],
+      "correct_answer": "D) Rs. 1,000",
+      "explanation": "commission = 11000 x 10/(100+10) = Rs. 1,000  Correct option D. Distractors: A = subtracted the rate in the denominator (100 - rate); B = used the before-charging formula; C = used a wrong denominator (100 + 2*rate).",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Manager's Commission",
+      "family": "commission_after",
+      "validation_status": "verified",
+      "id": "commission_after_8"
+    },
+    {
+      "text": "The manager of a firm is entitled to a commission of 10% of the net profit AFTER charging such commission. Net profit before commission is Rs. 16,500. The commission is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 1,650",
+        "B) Rs. 1,500",
+        "C) Rs. 1,833",
+        "D) Rs. 1,375"
+      ],
+      "correct_answer": "B) Rs. 1,500",
+      "explanation": "commission = 16500 x 10/(100+10) = Rs. 1,500  Correct option B. Distractors: A = used the before-charging formula; C = subtracted the rate in the denominator (100 - rate); D = used a wrong denominator (100 + 2*rate).",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Manager's Commission",
+      "family": "commission_after",
+      "validation_status": "verified",
+      "id": "commission_after_9"
+    },
+    {
+      "text": "A firm's works manager earns 25% commission on profit remaining after the commission itself. Profit before commission is Rs. 56,250. The commission is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 18,750",
+        "B) Rs. 11,250",
+        "C) Rs. 9,375",
+        "D) Rs. 14,063"
+      ],
+      "correct_answer": "B) Rs. 11,250",
+      "explanation": "commission = 56250 x 25/(100+25) = Rs. 11,250  Correct option B. Distractors: A = subtracted the rate in the denominator (100 - rate); C = used a wrong denominator (100 + 2*rate); D = used the before-charging formula.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Manager's Commission",
+      "family": "commission_after",
+      "validation_status": "verified",
+      "id": "commission_after_10"
+    }
+  ]
+}

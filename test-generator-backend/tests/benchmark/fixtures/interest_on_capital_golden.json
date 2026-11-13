@@ -1,0 +1,200 @@
+{
+  "subject": "Accountancy",
+  "classGrade": "12",
+  "chapters": [
+    "Fundamentals of Partnership"
+  ],
+  "totalMarks": 10,
+  "questions": [
+    {
+      "text": "Karan's capital on 1 April is Rs. 6,50,000 and stays unchanged through the year. Interest on capital is allowed @ 7% p.a. Interest on Karan's capital for the year is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 45,50,000",
+        "B) Rs. 45,500",
+        "C) Rs. 58,500",
+        "D) Rs. 22,750"
+      ],
+      "correct_answer": "B) Rs. 45,500",
+      "explanation": "IOC = 650000 x 7% = Rs. 45,500  Correct option B. Distractors: A = forgot to divide the rate by 100; C = used 9% instead of 7%; D = charged interest for only half the year.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Capital",
+      "family": "interest_on_capital",
+      "validation_status": "verified",
+      "id": "interest_on_capital_1"
+    },
+    {
+      "text": "On 1 April Esha's capital was Rs. 7,50,000. Esha introduced further capital of Rs. 1,00,000 on 1 July. Interest on capital is allowed @ 11% p.a. Interest on Esha's capital for the year is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 90,750",
+        "B) Rs. 85,250",
+        "C) Rs. 82,500",
+        "D) Rs. 93,500"
+      ],
+      "correct_answer": "A) Rs. 90,750",
+      "explanation": "Rs. 7,50,000 for 3 mo + Rs. 8,50,000 for 9 mo IOC = Rs. 90,750  Correct option A. Distractors: B = counted the elapsed months, not the remaining months; C = ignored the additional capital; D = treated the addition as brought in for the whole year.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Capital",
+      "family": "interest_on_capital",
+      "validation_status": "verified",
+      "id": "interest_on_capital_2"
+    },
+    {
+      "text": "Karan's capital on 1 April was Rs. 2,50,000. Karan permanently withdrew Rs. 50,000 of capital on 1 December. Interest on capital is allowed @ 7% p.a. Interest on Karan's capital for the year is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 15,167",
+        "B) Rs. 17,500",
+        "C) Rs. 16,333",
+        "D) Rs. 14,000"
+      ],
+      "correct_answer": "C) Rs. 16,333",
+      "explanation": "Rs. 2,50,000 for 8 mo + Rs. 2,00,000 for 4 mo IOC = Rs. 16,333  Correct option C. Distractors: A = counted the elapsed months, not the remaining months; B = ignored the capital withdrawn; D = treated the reduced capital as the balance all year.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Capital",
+      "family": "interest_on_capital",
+      "validation_status": "verified",
+      "id": "interest_on_capital_3"
+    },
+    {
+      "text": "Ishan began the year with capital of Rs. 5,50,000, introduced Rs. 50,000 on 1 July and withdrew Rs. 50,000 on 1 December. Interest on capital is allowed @ 7% p.a. Interest on Ishan's capital for the year is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 37,333",
+        "B) Rs. 41,125",
+        "C) Rs. 38,500",
+        "D) Rs. 39,958"
+      ],
+      "correct_answer": "D) Rs. 39,958",
+      "explanation": "product method over three balances; IOC = Rs. 39,958  Correct option D. Distractors: A = ignored the addition; B = ignored the withdrawal; C = ignored both movements.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Capital",
+      "family": "interest_on_capital",
+      "validation_status": "verified",
+      "id": "interest_on_capital_4"
+    },
+    {
+      "text": "Karan's capital on 1 April is Rs. 6,00,000 and stays unchanged through the year. Interest on capital is allowed @ 7% p.a. Interest on Karan's capital for the year is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 21,000",
+        "B) Rs. 54,000",
+        "C) Rs. 42,00,000",
+        "D) Rs. 42,000"
+      ],
+      "correct_answer": "D) Rs. 42,000",
+      "explanation": "IOC = 600000 x 7% = Rs. 42,000  Correct option D. Distractors: A = charged interest for only half the year; B = used 9% instead of 7%; C = forgot to divide the rate by 100.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Capital",
+      "family": "interest_on_capital",
+      "validation_status": "verified",
+      "id": "interest_on_capital_5"
+    },
+    {
+      "text": "On 1 April Chetan's capital was Rs. 9,00,000. Chetan introduced further capital of Rs. 1,00,000 on 1 December. Interest on capital is allowed @ 11% p.a. Interest on Chetan's capital for the year is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 1,02,667",
+        "B) Rs. 1,10,000",
+        "C) Rs. 99,000",
+        "D) Rs. 1,06,333"
+      ],
+      "correct_answer": "A) Rs. 1,02,667",
+      "explanation": "Rs. 9,00,000 for 8 mo + Rs. 10,00,000 for 4 mo IOC = Rs. 1,02,667  Correct option A. Distractors: B = treated the addition as brought in for the whole year; C = ignored the additional capital; D = counted the elapsed months, not the remaining months.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Capital",
+      "family": "interest_on_capital",
+      "validation_status": "verified",
+      "id": "interest_on_capital_6"
+    },
+    {
+      "text": "Arun's capital on 1 April was Rs. 9,00,000. Arun permanently withdrew Rs. 50,000 of capital on 1 August. Interest on capital is allowed @ 7% p.a. Interest on Arun's capital for the year is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 59,500",
+        "B) Rs. 61,833",
+        "C) Rs. 60,667",
+        "D) Rs. 63,000"
+      ],
+      "correct_answer": "C) Rs. 60,667",
+      "explanation": "Rs. 9,00,000 for 4 mo + Rs. 8,50,000 for 8 mo IOC = Rs. 60,667  Correct option C. Distractors: A = treated the reduced capital as the balance all year; B = counted the elapsed months, not the remaining months; D = ignored the capital withdrawn.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Capital",
+      "family": "interest_on_capital",
+      "validation_status": "verified",
+      "id": "interest_on_capital_7"
+    },
+    {
+      "text": "Ishan began the year with capital of Rs. 2,50,000, introduced Rs. 50,000 on 1 August and withdrew Rs. 50,000 on 1 January. Interest on capital is allowed @ 7% p.a. Interest on Ishan's capital for the year is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 18,958",
+        "B) Rs. 19,833",
+        "C) Rs. 17,500",
+        "D) Rs. 16,625"
+      ],
+      "correct_answer": "A) Rs. 18,958",
+      "explanation": "product method over three balances; IOC = Rs. 18,958  Correct option A. Distractors: B = ignored the withdrawal; C = ignored both movements; D = ignored the addition.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Capital",
+      "family": "interest_on_capital",
+      "validation_status": "verified",
+      "id": "interest_on_capital_8"
+    },
+    {
+      "text": "Esha's capital on 1 April is Rs. 9,00,000 and stays unchanged through the year. Interest on capital is allowed @ 9% p.a. Interest on Esha's capital for the year is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 99,000",
+        "B) Rs. 81,000",
+        "C) Rs. 81,00,000",
+        "D) Rs. 40,500"
+      ],
+      "correct_answer": "B) Rs. 81,000",
+      "explanation": "IOC = 900000 x 9% = Rs. 81,000  Correct option B. Distractors: A = used 11% instead of 9%; C = forgot to divide the rate by 100; D = charged interest for only half the year.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Capital",
+      "family": "interest_on_capital",
+      "validation_status": "verified",
+      "id": "interest_on_capital_9"
+    },
+    {
+      "text": "On 1 April Karan's capital was Rs. 9,00,000. Karan introduced further capital of Rs. 1,00,000 on 1 August. Interest on capital is allowed @ 15% p.a. Interest on Karan's capital for the year is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 1,40,000",
+        "B) Rs. 1,45,000",
+        "C) Rs. 1,35,000",
+        "D) Rs. 1,50,000"
+      ],
+      "correct_answer": "B) Rs. 1,45,000",
+      "explanation": "Rs. 9,00,000 for 4 mo + Rs. 10,00,000 for 8 mo IOC = Rs. 1,45,000  Correct option B. Distractors: A = counted the elapsed months, not the remaining months; C = ignored the additional capital; D = treated the addition as brought in for the whole year.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Interest on Capital",
+      "family": "interest_on_capital",
+      "validation_status": "verified",
+      "id": "interest_on_capital_10"
+    }
+  ]
+}

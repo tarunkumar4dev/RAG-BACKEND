@@ -1,0 +1,52 @@
+{
+  "id": "acc12_interest_on_drawings_mini",
+  "description": "Three interest-on-drawings items using average-period rule. 12 equal monthly withdrawals; rate stated p.a.",
+  "request": {
+    "examTitle": "Interest on Drawings — practice 3",
+    "board": "CBSE",
+    "classGrade": "12",
+    "subject": "Accountancy",
+    "cbsePattern": false,
+    "simpleData": [
+      {
+        "topic": "Fundamentals of Partnership",
+        "subtopic": "Interest on Drawings",
+        "quantity": 3,
+        "difficulty": "medium",
+        "format": "mcq",
+        "marks": 1
+      }
+    ]
+  },
+  "expected_total_questions": 3,
+  "expected_total_marks": 3,
+  "expected_numeric_items": [
+    {
+      "qid": "iod_1",
+      "description": "Rs. 1,000 at the BEGINNING of every month for 12 months; 6% p.a. Avg period 6.5 months. I = 12000 x 6% x 6.5/12.",
+      "expected_answer": 390.0,
+      "tolerance": 1.0,
+      "unit": "INR",
+      "key_source": "author-computed"
+    },
+    {
+      "qid": "iod_2",
+      "description": "Rs. 2,000 at the END of every month for 12 months; 9% p.a. Avg period 5.5 months. I = 24000 x 9% x 5.5/12.",
+      "expected_answer": 990.0,
+      "tolerance": 1.0,
+      "unit": "INR",
+      "key_source": "author-computed"
+    },
+    {
+      "qid": "iod_3",
+      "description": "Rs. 5,000 monthly, DATES NOT GIVEN; 8% p.a. Avg period 6 months. I = 60000 x 8% x 6/12.",
+      "expected_answer": 2400.0,
+      "tolerance": 1.0,
+      "unit": "INR",
+      "key_source": "author-computed"
+    }
+  ],
+  "golden_paper_file": "interest_on_drawings_mini_golden.json",
+  "key_source": "author-computed",
+  "notes": "These three cover the three standard CBSE sub-cases. Matches the rule stated in test_generator_service.ACCOUNTANCY_CORRECTNESS_RULES L1274."
+}

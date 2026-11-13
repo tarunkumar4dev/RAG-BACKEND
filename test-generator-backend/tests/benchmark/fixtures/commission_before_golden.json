@@ -1,0 +1,200 @@
+{
+  "subject": "Accountancy",
+  "classGrade": "12",
+  "chapters": [
+    "Fundamentals of Partnership"
+  ],
+  "totalMarks": 10,
+  "questions": [
+    {
+      "text": "A firm allows its accountant 20% commission computed on net profit BEFORE the commission is charged. Net profit is Rs. 1,80,000. The commission equals:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 30,000",
+        "B) Rs. 36,000",
+        "C) Rs. 72,000",
+        "D) Rs. 3,600"
+      ],
+      "correct_answer": "B) Rs. 36,000",
+      "explanation": "commission = 180000 x 20% = Rs. 36,000  Correct option B. Distractors: A = used the after-charging formula; C = doubled the rate; D = misplaced the decimal (divided by 1000).",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Manager's Commission",
+      "family": "commission_before",
+      "validation_status": "verified",
+      "id": "commission_before_1"
+    },
+    {
+      "text": "15% of the pre-commission net profit of Rs. 3,20,000 is payable to the works manager as commission (charged before the commission). That amount is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 48,000",
+        "B) Rs. 96,000",
+        "C) Rs. 41,739",
+        "D) Rs. 4,800"
+      ],
+      "correct_answer": "A) Rs. 48,000",
+      "explanation": "commission = 320000 x 15% = Rs. 48,000  Correct option A. Distractors: B = doubled the rate; C = used the after-charging formula; D = misplaced the decimal (divided by 1000).",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Manager's Commission",
+      "family": "commission_before",
+      "validation_status": "verified",
+      "id": "commission_before_2"
+    },
+    {
+      "text": "The branch head's commission is 20% of profit, taken before charging the commission. On a net profit of Rs. 5,00,000, the commission is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 10,000",
+        "B) Rs. 1,00,000",
+        "C) Rs. 2,00,000",
+        "D) Rs. 83,333"
+      ],
+      "correct_answer": "B) Rs. 1,00,000",
+      "explanation": "commission = 500000 x 20% = Rs. 1,00,000  Correct option B. Distractors: A = misplaced the decimal (divided by 1000); C = doubled the rate; D = used the after-charging formula.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Manager's Commission",
+      "family": "commission_before",
+      "validation_status": "verified",
+      "id": "commission_before_3"
+    },
+    {
+      "text": "A firm allows its accountant 10% commission computed on net profit BEFORE the commission is charged. Net profit is Rs. 1,20,000. The commission equals:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 1,200",
+        "B) Rs. 12,000",
+        "C) Rs. 24,000",
+        "D) Rs. 10,909"
+      ],
+      "correct_answer": "B) Rs. 12,000",
+      "explanation": "commission = 120000 x 10% = Rs. 12,000  Correct option B. Distractors: A = misplaced the decimal (divided by 1000); C = doubled the rate; D = used the after-charging formula.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Manager's Commission",
+      "family": "commission_before",
+      "validation_status": "verified",
+      "id": "commission_before_4"
+    },
+    {
+      "text": "15% of the pre-commission net profit of Rs. 4,20,000 is payable to the works manager as commission (charged before the commission). That amount is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 6,300",
+        "B) Rs. 54,783",
+        "C) Rs. 1,26,000",
+        "D) Rs. 63,000"
+      ],
+      "correct_answer": "D) Rs. 63,000",
+      "explanation": "commission = 420000 x 15% = Rs. 63,000  Correct option D. Distractors: A = misplaced the decimal (divided by 1000); B = used the after-charging formula; C = doubled the rate.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Manager's Commission",
+      "family": "commission_before",
+      "validation_status": "verified",
+      "id": "commission_before_5"
+    },
+    {
+      "text": "The branch head's commission is 15% of profit, taken before charging the commission. On a net profit of Rs. 1,20,000, the commission is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 1,800",
+        "B) Rs. 36,000",
+        "C) Rs. 18,000",
+        "D) Rs. 15,652"
+      ],
+      "correct_answer": "C) Rs. 18,000",
+      "explanation": "commission = 120000 x 15% = Rs. 18,000  Correct option C. Distractors: A = misplaced the decimal (divided by 1000); B = doubled the rate; D = used the after-charging formula.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Manager's Commission",
+      "family": "commission_before",
+      "validation_status": "verified",
+      "id": "commission_before_6"
+    },
+    {
+      "text": "A firm allows its accountant 10% commission computed on net profit BEFORE the commission is charged. Net profit is Rs. 4,20,000. The commission equals:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 38,182",
+        "B) Rs. 84,000",
+        "C) Rs. 4,200",
+        "D) Rs. 42,000"
+      ],
+      "correct_answer": "D) Rs. 42,000",
+      "explanation": "commission = 420000 x 10% = Rs. 42,000  Correct option D. Distractors: A = used the after-charging formula; B = doubled the rate; C = misplaced the decimal (divided by 1000).",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Manager's Commission",
+      "family": "commission_before",
+      "validation_status": "verified",
+      "id": "commission_before_7"
+    },
+    {
+      "text": "5% of the pre-commission net profit of Rs. 2,60,000 is payable to the works manager as commission (charged before the commission). That amount is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 26,000",
+        "B) Rs. 1,300",
+        "C) Rs. 13,000",
+        "D) Rs. 12,381"
+      ],
+      "correct_answer": "C) Rs. 13,000",
+      "explanation": "commission = 260000 x 5% = Rs. 13,000  Correct option C. Distractors: A = doubled the rate; B = misplaced the decimal (divided by 1000); D = used the after-charging formula.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Manager's Commission",
+      "family": "commission_before",
+      "validation_status": "verified",
+      "id": "commission_before_8"
+    },
+    {
+      "text": "The branch head's commission is 10% of profit, taken before charging the commission. On a net profit of Rs. 1,40,000, the commission is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 14,000",
+        "B) Rs. 1,400",
+        "C) Rs. 12,727",
+        "D) Rs. 28,000"
+      ],
+      "correct_answer": "A) Rs. 14,000",
+      "explanation": "commission = 140000 x 10% = Rs. 14,000  Correct option A. Distractors: B = misplaced the decimal (divided by 1000); C = used the after-charging formula; D = doubled the rate.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Manager's Commission",
+      "family": "commission_before",
+      "validation_status": "verified",
+      "id": "commission_before_9"
+    },
+    {
+      "text": "A firm allows its accountant 20% commission computed on net profit BEFORE the commission is charged. Net profit is Rs. 3,80,000. The commission equals:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 76,000",
+        "B) Rs. 1,52,000",
+        "C) Rs. 63,333",
+        "D) Rs. 7,600"
+      ],
+      "correct_answer": "A) Rs. 76,000",
+      "explanation": "commission = 380000 x 20% = Rs. 76,000  Correct option A. Distractors: B = doubled the rate; C = used the after-charging formula; D = misplaced the decimal (divided by 1000).",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Manager's Commission",
+      "family": "commission_before",
+      "validation_status": "verified",
+      "id": "commission_before_10"
+    }
+  ]
+}

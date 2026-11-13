@@ -1,0 +1,36 @@
+{
+  "id": "acc12_opening_capital_ioc_on_opening",
+  "description": "Solve-first golden paper: 10 numeric MCQs, family=opening_capital_ioc_on_opening.",
+  "request": {
+    "examTitle": "Interest on Capital \u2014 10 MCQ",
+    "board": "CBSE",
+    "classGrade": "12",
+    "subject": "Accountancy",
+    "cbsePattern": false,
+    "simpleData": [
+      {
+        "topic": "Fundamentals of Partnership",
+        "subtopic": "Interest on Capital",
+        "quantity": 10,
+        "difficulty": "hard",
+        "format": "mcq",
+        "marks": 1
+      }
+    ]
+  },
+  "expected_total_questions": 10,
+  "expected_total_marks": 10,
+  "expected_numeric_items": [
+    {
+      "qid": "opening_capital_ioc_on_opening_1",
+      "description": "opening_capital_ioc_on_opening numeric answer \u2014 SME to hand-verify.",
+      "expected_answer": 0.0,
+      "tolerance": 1.0,
+      "unit": "INR",
+      "key_source": "pending_sme"
+    }
+  ],
+  "golden_paper_file": "opening_capital_ioc_on_opening_golden.json",
+  "key_source": "solver-structural",
+  "notes": "Numeric answers follow the solver (unit-tested independently); SME sign-off converts expected_numeric_items to sme-verified."
+}

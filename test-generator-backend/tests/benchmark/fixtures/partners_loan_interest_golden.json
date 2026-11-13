@@ -1,0 +1,200 @@
+{
+  "subject": "Accountancy",
+  "classGrade": "12",
+  "chapters": [
+    "Fundamentals of Partnership"
+  ],
+  "totalMarks": 10,
+  "questions": [
+    {
+      "text": "Priya advanced a loan of Rs. 2,40,000 to the firm 9 months before the year end. The partnership deed is silent on loan interest. Interest on Priya's loan for the year is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 10,800",
+        "B) Rs. 18,000",
+        "C) Rs. 21,600",
+        "D) Rs. 14,400"
+      ],
+      "correct_answer": "A) Rs. 10,800",
+      "explanation": "no deed -> 6% p.a. for 9 months = Rs. 10,800  Correct option A. Distractors: B = used 10% instead of the statutory 6%; C = used 12% instead of the statutory 6%; D = charged a full year's interest.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Partner's Loan",
+      "family": "partners_loan_interest",
+      "validation_status": "verified",
+      "id": "partners_loan_interest_1"
+    },
+    {
+      "text": "The firm took a loan of Rs. 2,60,000 from Chetan 9 months ago. With no agreement on the rate, the interest on Chetan's loan for the year is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 23,400",
+        "B) Rs. 15,600",
+        "C) Rs. 11,700",
+        "D) Rs. 19,500"
+      ],
+      "correct_answer": "C) Rs. 11,700",
+      "explanation": "no deed -> 6% p.a. for 9 months = Rs. 11,700  Correct option C. Distractors: A = used 12% instead of the statutory 6%; B = charged a full year's interest; D = used 10% instead of the statutory 6%.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Partner's Loan",
+      "family": "partners_loan_interest",
+      "validation_status": "verified",
+      "id": "partners_loan_interest_2"
+    },
+    {
+      "text": "Gita lent the firm Rs. 1,40,000, outstanding for 9 months. As the deed says nothing about loan interest, Gita's loan interest for the year is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 10,500",
+        "B) Rs. 8,400",
+        "C) Rs. 12,600",
+        "D) Rs. 6,300"
+      ],
+      "correct_answer": "D) Rs. 6,300",
+      "explanation": "no deed -> 6% p.a. for 9 months = Rs. 6,300  Correct option D. Distractors: A = used 10% instead of the statutory 6%; B = charged a full year's interest; C = used 12% instead of the statutory 6%.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Partner's Loan",
+      "family": "partners_loan_interest",
+      "validation_status": "verified",
+      "id": "partners_loan_interest_3"
+    },
+    {
+      "text": "Karan advanced a loan of Rs. 2,20,000 to the firm 9 months before the year end. The partnership deed is silent on loan interest. Interest on Karan's loan for the year is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 9,900",
+        "B) Rs. 19,800",
+        "C) Rs. 13,200",
+        "D) Rs. 16,500"
+      ],
+      "correct_answer": "A) Rs. 9,900",
+      "explanation": "no deed -> 6% p.a. for 9 months = Rs. 9,900  Correct option A. Distractors: B = used 12% instead of the statutory 6%; C = charged a full year's interest; D = used 10% instead of the statutory 6%.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Partner's Loan",
+      "family": "partners_loan_interest",
+      "validation_status": "verified",
+      "id": "partners_loan_interest_4"
+    },
+    {
+      "text": "The firm took a loan of Rs. 2,00,000 from Gita 9 months ago. With no agreement on the rate, the interest on Gita's loan for the year is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 18,000",
+        "B) Rs. 9,000",
+        "C) Rs. 12,000",
+        "D) Rs. 15,000"
+      ],
+      "correct_answer": "B) Rs. 9,000",
+      "explanation": "no deed -> 6% p.a. for 9 months = Rs. 9,000  Correct option B. Distractors: A = used 12% instead of the statutory 6%; C = charged a full year's interest; D = used 10% instead of the statutory 6%.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Partner's Loan",
+      "family": "partners_loan_interest",
+      "validation_status": "verified",
+      "id": "partners_loan_interest_5"
+    },
+    {
+      "text": "Mohan lent the firm Rs. 1,00,000, outstanding for 9 months. As the deed says nothing about loan interest, Mohan's loan interest for the year is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 9,000",
+        "B) Rs. 4,500",
+        "C) Rs. 6,000",
+        "D) Rs. 7,500"
+      ],
+      "correct_answer": "B) Rs. 4,500",
+      "explanation": "no deed -> 6% p.a. for 9 months = Rs. 4,500  Correct option B. Distractors: A = used 12% instead of the statutory 6%; C = charged a full year's interest; D = used 10% instead of the statutory 6%.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Partner's Loan",
+      "family": "partners_loan_interest",
+      "validation_status": "verified",
+      "id": "partners_loan_interest_6"
+    },
+    {
+      "text": "Ishan advanced a loan of Rs. 60,000 to the firm 9 months before the year end. The partnership deed is silent on loan interest. Interest on Ishan's loan for the year is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 3,600",
+        "B) Rs. 2,700",
+        "C) Rs. 5,400",
+        "D) Rs. 4,500"
+      ],
+      "correct_answer": "B) Rs. 2,700",
+      "explanation": "no deed -> 6% p.a. for 9 months = Rs. 2,700  Correct option B. Distractors: A = charged a full year's interest; C = used 12% instead of the statutory 6%; D = used 10% instead of the statutory 6%.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Partner's Loan",
+      "family": "partners_loan_interest",
+      "validation_status": "verified",
+      "id": "partners_loan_interest_7"
+    },
+    {
+      "text": "The firm took a loan of Rs. 1,80,000 from Esha 9 months ago. With no agreement on the rate, the interest on Esha's loan for the year is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 10,800",
+        "B) Rs. 16,200",
+        "C) Rs. 13,500",
+        "D) Rs. 8,100"
+      ],
+      "correct_answer": "D) Rs. 8,100",
+      "explanation": "no deed -> 6% p.a. for 9 months = Rs. 8,100  Correct option D. Distractors: A = charged a full year's interest; B = used 12% instead of the statutory 6%; C = used 10% instead of the statutory 6%.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Partner's Loan",
+      "family": "partners_loan_interest",
+      "validation_status": "verified",
+      "id": "partners_loan_interest_8"
+    },
+    {
+      "text": "Mohan lent the firm Rs. 1,80,000, outstanding for 9 months. As the deed says nothing about loan interest, Mohan's loan interest for the year is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 10,800",
+        "B) Rs. 13,500",
+        "C) Rs. 8,100",
+        "D) Rs. 16,200"
+      ],
+      "correct_answer": "C) Rs. 8,100",
+      "explanation": "no deed -> 6% p.a. for 9 months = Rs. 8,100  Correct option C. Distractors: A = charged a full year's interest; B = used 10% instead of the statutory 6%; D = used 12% instead of the statutory 6%.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Partner's Loan",
+      "family": "partners_loan_interest",
+      "validation_status": "verified",
+      "id": "partners_loan_interest_9"
+    },
+    {
+      "text": "Chetan advanced a loan of Rs. 1,80,000 to the firm 9 months before the year end. The partnership deed is silent on loan interest. Interest on Chetan's loan for the year is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 8,100",
+        "B) Rs. 13,500",
+        "C) Rs. 16,200",
+        "D) Rs. 10,800"
+      ],
+      "correct_answer": "A) Rs. 8,100",
+      "explanation": "no deed -> 6% p.a. for 9 months = Rs. 8,100  Correct option A. Distractors: B = used 10% instead of the statutory 6%; C = used 12% instead of the statutory 6%; D = charged a full year's interest.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Partner's Loan",
+      "family": "partners_loan_interest",
+      "validation_status": "verified",
+      "id": "partners_loan_interest_10"
+    }
+  ]
+}

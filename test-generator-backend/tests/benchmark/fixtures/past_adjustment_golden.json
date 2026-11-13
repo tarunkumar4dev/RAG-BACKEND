@@ -1,0 +1,200 @@
+{
+  "subject": "Accountancy",
+  "classGrade": "12",
+  "chapters": [
+    "Fundamentals of Partnership"
+  ],
+  "totalMarks": 10,
+  "questions": [
+    {
+      "text": "On a past adjustment, Sahil should have received Rs. 68,000 and Tina Rs. 30,000, but the profit of Rs. 98,000 was wrongly shared equally. In the single adjusting entry, Sahil's capital account is credited by:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 9,500",
+        "B) Rs. 19,000",
+        "C) Rs. 38,000",
+        "D) Rs. 30,000"
+      ],
+      "correct_answer": "B) Rs. 19,000",
+      "explanation": "Sahil: Cr 19000 Tina: Dr 19000 Sahil net = Rs. 19,000 (credited)  Correct option B. Distractors: A = halved the adjustment; C = doubled the adjustment; D = subtracted the correct share from the whole profit.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Past Adjustments",
+      "family": "past_adjustment",
+      "validation_status": "verified",
+      "id": "past_adjustment_1"
+    },
+    {
+      "text": "A profit of Rs. 1,04,000 was divided equally by mistake; it should have gone Rs. 62,000 to Arun and Rs. 42,000 to Bela. In the rectifying entry, Arun's capital account is credited by:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 42,000",
+        "B) Rs. 5,000",
+        "C) Rs. 20,000",
+        "D) Rs. 10,000"
+      ],
+      "correct_answer": "D) Rs. 10,000",
+      "explanation": "Arun: Cr 10000 Bela: Dr 10000 Arun net = Rs. 10,000 (credited)  Correct option D. Distractors: A = subtracted the correct share from the whole profit; B = halved the adjustment; C = doubled the adjustment.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Past Adjustments",
+      "family": "past_adjustment",
+      "validation_status": "verified",
+      "id": "past_adjustment_2"
+    },
+    {
+      "text": "Priya and Rakesh were each credited with half of Rs. 1,08,000, though their correct dues were Rs. 42,000 and Rs. 66,000. The single adjusting entry debiteds Priya's capital account by:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 6,000",
+        "B) Rs. 12,000",
+        "C) Rs. 24,000",
+        "D) Rs. 66,000"
+      ],
+      "correct_answer": "B) Rs. 12,000",
+      "explanation": "Priya: Dr 12000 Rakesh: Cr 12000 Priya net = Rs. -12,000 (debited)  Correct option B. Distractors: A = halved the adjustment; C = doubled the adjustment; D = subtracted the correct share from the whole profit.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Past Adjustments",
+      "family": "past_adjustment",
+      "validation_status": "verified",
+      "id": "past_adjustment_3"
+    },
+    {
+      "text": "On a past adjustment, Ishan should have received Rs. 60,000 and Juhi Rs. 52,000, but the profit of Rs. 1,12,000 was wrongly shared equally. In the single adjusting entry, Ishan's capital account is credited by:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 4,000",
+        "B) Rs. 2,000",
+        "C) Rs. 52,000",
+        "D) Rs. 8,000"
+      ],
+      "correct_answer": "A) Rs. 4,000",
+      "explanation": "Ishan: Cr 4000 Juhi: Dr 4000 Ishan net = Rs. 4,000 (credited)  Correct option A. Distractors: B = halved the adjustment; C = subtracted the correct share from the whole profit; D = doubled the adjustment.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Past Adjustments",
+      "family": "past_adjustment",
+      "validation_status": "verified",
+      "id": "past_adjustment_4"
+    },
+    {
+      "text": "A profit of Rs. 96,000 was divided equally by mistake; it should have gone Rs. 54,000 to Ishan and Rs. 42,000 to Juhi. In the rectifying entry, Ishan's capital account is credited by:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 12,000",
+        "B) Rs. 42,000",
+        "C) Rs. 6,000",
+        "D) Rs. 3,000"
+      ],
+      "correct_answer": "C) Rs. 6,000",
+      "explanation": "Ishan: Cr 6000 Juhi: Dr 6000 Ishan net = Rs. 6,000 (credited)  Correct option C. Distractors: A = doubled the adjustment; B = subtracted the correct share from the whole profit; D = halved the adjustment.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Past Adjustments",
+      "family": "past_adjustment",
+      "validation_status": "verified",
+      "id": "past_adjustment_5"
+    },
+    {
+      "text": "Chetan and Disha were each credited with half of Rs. 1,14,000, though their correct dues were Rs. 54,000 and Rs. 60,000. The single adjusting entry debiteds Chetan's capital account by:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 1,500",
+        "B) Rs. 6,000",
+        "C) Rs. 3,000",
+        "D) Rs. 60,000"
+      ],
+      "correct_answer": "C) Rs. 3,000",
+      "explanation": "Chetan: Dr 3000 Disha: Cr 3000 Chetan net = Rs. -3,000 (debited)  Correct option C. Distractors: A = halved the adjustment; B = doubled the adjustment; D = subtracted the correct share from the whole profit.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Past Adjustments",
+      "family": "past_adjustment",
+      "validation_status": "verified",
+      "id": "past_adjustment_6"
+    },
+    {
+      "text": "On a past adjustment, Sahil should have received Rs. 48,000 and Tina Rs. 50,000, but the profit of Rs. 98,000 was wrongly shared equally. In the single adjusting entry, Sahil's capital account is debited by:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 2,000",
+        "B) Rs. 1,000",
+        "C) Rs. 500",
+        "D) Rs. 50,000"
+      ],
+      "correct_answer": "B) Rs. 1,000",
+      "explanation": "Sahil: Dr 1000 Tina: Cr 1000 Sahil net = Rs. -1,000 (debited)  Correct option B. Distractors: A = doubled the adjustment; C = halved the adjustment; D = subtracted the correct share from the whole profit.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Past Adjustments",
+      "family": "past_adjustment",
+      "validation_status": "verified",
+      "id": "past_adjustment_7"
+    },
+    {
+      "text": "A profit of Rs. 1,34,000 was divided equally by mistake; it should have gone Rs. 72,000 to Gita and Rs. 62,000 to Harish. In the rectifying entry, Gita's capital account is credited by:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 5,000",
+        "B) Rs. 10,000",
+        "C) Rs. 2,500",
+        "D) Rs. 62,000"
+      ],
+      "correct_answer": "A) Rs. 5,000",
+      "explanation": "Gita: Cr 5000 Harish: Dr 5000 Gita net = Rs. 5,000 (credited)  Correct option A. Distractors: B = doubled the adjustment; C = halved the adjustment; D = subtracted the correct share from the whole profit.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Past Adjustments",
+      "family": "past_adjustment",
+      "validation_status": "verified",
+      "id": "past_adjustment_8"
+    },
+    {
+      "text": "Arun and Bela were each credited with half of Rs. 98,000, though their correct dues were Rs. 54,000 and Rs. 44,000. The single adjusting entry crediteds Arun's capital account by:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 2,500",
+        "B) Rs. 10,000",
+        "C) Rs. 44,000",
+        "D) Rs. 5,000"
+      ],
+      "correct_answer": "D) Rs. 5,000",
+      "explanation": "Arun: Cr 5000 Bela: Dr 5000 Arun net = Rs. 5,000 (credited)  Correct option D. Distractors: A = halved the adjustment; B = doubled the adjustment; C = subtracted the correct share from the whole profit.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Past Adjustments",
+      "family": "past_adjustment",
+      "validation_status": "verified",
+      "id": "past_adjustment_9"
+    },
+    {
+      "text": "On a past adjustment, Sahil should have received Rs. 80,000 and Tina Rs. 68,000, but the profit of Rs. 1,48,000 was wrongly shared equally. In the single adjusting entry, Sahil's capital account is credited by:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 6,000",
+        "B) Rs. 12,000",
+        "C) Rs. 68,000",
+        "D) Rs. 3,000"
+      ],
+      "correct_answer": "A) Rs. 6,000",
+      "explanation": "Sahil: Cr 6000 Tina: Dr 6000 Sahil net = Rs. 6,000 (credited)  Correct option A. Distractors: B = doubled the adjustment; C = subtracted the correct share from the whole profit; D = halved the adjustment.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Past Adjustments",
+      "family": "past_adjustment",
+      "validation_status": "verified",
+      "id": "past_adjustment_10"
+    }
+  ]
+}

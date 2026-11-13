@@ -1,0 +1,200 @@
+{
+  "subject": "Accountancy",
+  "classGrade": "12",
+  "chapters": [
+    "Fundamentals of Partnership"
+  ],
+  "totalMarks": 10,
+  "questions": [
+    {
+      "text": "A firm's net profit for the year is Rs. 3,00,000. The deed provides interest on capital Rs. 25,000, partner's salary Rs. 54,000, and interest on drawings recovered Rs. 12,000. The profit available for distribution among the partners (divisible profit) is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 2,83,000",
+        "B) Rs. 2,09,000",
+        "C) Rs. 2,33,000",
+        "D) Rs. 2,21,000"
+      ],
+      "correct_answer": "C) Rs. 2,33,000",
+      "explanation": "divisible = 300000 + IOD 12000 - IOC 25000 - salary 54000 = Rs. 2,33,000  Correct option C. Distractors: A = added interest on capital instead of subtracting it; B = subtracted interest on drawings instead of adding it; D = ignored interest on drawings.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "P&L Appropriation Account",
+      "family": "pl_appropriation",
+      "validation_status": "verified",
+      "id": "pl_appropriation_1"
+    },
+    {
+      "text": "Before appropriations a firm earned Rs. 4,00,000. After allowing interest on capital of Rs. 50,000 and a salary of Rs. 42,000, and charging Rs. 12,000 as interest on drawings, the divisible profit is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 3,20,000",
+        "B) Rs. 4,20,000",
+        "C) Rs. 2,96,000",
+        "D) Rs. 3,08,000"
+      ],
+      "correct_answer": "A) Rs. 3,20,000",
+      "explanation": "divisible = 400000 + IOD 12000 - IOC 50000 - salary 42000 = Rs. 3,20,000  Correct option A. Distractors: B = added interest on capital instead of subtracting it; C = subtracted interest on drawings instead of adding it; D = ignored interest on drawings.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "P&L Appropriation Account",
+      "family": "pl_appropriation",
+      "validation_status": "verified",
+      "id": "pl_appropriation_2"
+    },
+    {
+      "text": "A partnership's net profit is Rs. 1,80,000. Interest on capital Rs. 15,000 and salary Rs. 12,000 are to be allowed and interest on drawings Rs. 3,000 recovered. What profit is left to be divided among the partners?",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 1,86,000",
+        "B) Rs. 1,56,000",
+        "C) Rs. 1,53,000",
+        "D) Rs. 1,50,000"
+      ],
+      "correct_answer": "B) Rs. 1,56,000",
+      "explanation": "divisible = 180000 + IOD 3000 - IOC 15000 - salary 12000 = Rs. 1,56,000  Correct option B. Distractors: A = added interest on capital instead of subtracting it; C = ignored interest on drawings; D = subtracted interest on drawings instead of adding it.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "P&L Appropriation Account",
+      "family": "pl_appropriation",
+      "validation_status": "verified",
+      "id": "pl_appropriation_3"
+    },
+    {
+      "text": "From a net profit of Rs. 1,60,000, a firm allows interest on capital Rs. 50,000 and partner's salary Rs. 18,000, and recovers interest on drawings Rs. 6,000. The divisible profit works out to:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 98,000",
+        "B) Rs. 86,000",
+        "C) Rs. 1,98,000",
+        "D) Rs. 92,000"
+      ],
+      "correct_answer": "A) Rs. 98,000",
+      "explanation": "divisible = 160000 + IOD 6000 - IOC 50000 - salary 18000 = Rs. 98,000  Correct option A. Distractors: B = subtracted interest on drawings instead of adding it; C = added interest on capital instead of subtracting it; D = ignored interest on drawings.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "P&L Appropriation Account",
+      "family": "pl_appropriation",
+      "validation_status": "verified",
+      "id": "pl_appropriation_4"
+    },
+    {
+      "text": "A firm's net profit for the year is Rs. 2,40,000. The deed provides interest on capital Rs. 55,000, partner's salary Rs. 30,000, and interest on drawings recovered Rs. 11,000. The profit available for distribution among the partners (divisible profit) is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 1,44,000",
+        "B) Rs. 1,55,000",
+        "C) Rs. 1,66,000",
+        "D) Rs. 2,76,000"
+      ],
+      "correct_answer": "C) Rs. 1,66,000",
+      "explanation": "divisible = 240000 + IOD 11000 - IOC 55000 - salary 30000 = Rs. 1,66,000  Correct option C. Distractors: A = subtracted interest on drawings instead of adding it; B = ignored interest on drawings; D = added interest on capital instead of subtracting it.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "P&L Appropriation Account",
+      "family": "pl_appropriation",
+      "validation_status": "verified",
+      "id": "pl_appropriation_5"
+    },
+    {
+      "text": "Before appropriations a firm earned Rs. 2,40,000. After allowing interest on capital of Rs. 25,000 and a salary of Rs. 18,000, and charging Rs. 8,000 as interest on drawings, the divisible profit is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 1,97,000",
+        "B) Rs. 1,89,000",
+        "C) Rs. 2,55,000",
+        "D) Rs. 2,05,000"
+      ],
+      "correct_answer": "D) Rs. 2,05,000",
+      "explanation": "divisible = 240000 + IOD 8000 - IOC 25000 - salary 18000 = Rs. 2,05,000  Correct option D. Distractors: A = ignored interest on drawings; B = subtracted interest on drawings instead of adding it; C = added interest on capital instead of subtracting it.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "P&L Appropriation Account",
+      "family": "pl_appropriation",
+      "validation_status": "verified",
+      "id": "pl_appropriation_6"
+    },
+    {
+      "text": "A partnership's net profit is Rs. 1,60,000. Interest on capital Rs. 30,000 and salary Rs. 24,000 are to be allowed and interest on drawings Rs. 2,000 recovered. What profit is left to be divided among the partners?",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 1,06,000",
+        "B) Rs. 1,04,000",
+        "C) Rs. 1,68,000",
+        "D) Rs. 1,08,000"
+      ],
+      "correct_answer": "D) Rs. 1,08,000",
+      "explanation": "divisible = 160000 + IOD 2000 - IOC 30000 - salary 24000 = Rs. 1,08,000  Correct option D. Distractors: A = ignored interest on drawings; B = subtracted interest on drawings instead of adding it; C = added interest on capital instead of subtracting it.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "P&L Appropriation Account",
+      "family": "pl_appropriation",
+      "validation_status": "verified",
+      "id": "pl_appropriation_7"
+    },
+    {
+      "text": "From a net profit of Rs. 4,00,000, a firm allows interest on capital Rs. 10,000 and partner's salary Rs. 18,000, and recovers interest on drawings Rs. 9,000. The divisible profit works out to:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 3,63,000",
+        "B) Rs. 3,81,000",
+        "C) Rs. 4,01,000",
+        "D) Rs. 3,72,000"
+      ],
+      "correct_answer": "B) Rs. 3,81,000",
+      "explanation": "divisible = 400000 + IOD 9000 - IOC 10000 - salary 18000 = Rs. 3,81,000  Correct option B. Distractors: A = subtracted interest on drawings instead of adding it; C = added interest on capital instead of subtracting it; D = ignored interest on drawings.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "P&L Appropriation Account",
+      "family": "pl_appropriation",
+      "validation_status": "verified",
+      "id": "pl_appropriation_8"
+    },
+    {
+      "text": "A firm's net profit for the year is Rs. 3,80,000. The deed provides interest on capital Rs. 25,000, partner's salary Rs. 24,000, and interest on drawings recovered Rs. 6,000. The profit available for distribution among the partners (divisible profit) is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 3,37,000",
+        "B) Rs. 3,25,000",
+        "C) Rs. 3,87,000",
+        "D) Rs. 3,31,000"
+      ],
+      "correct_answer": "A) Rs. 3,37,000",
+      "explanation": "divisible = 380000 + IOD 6000 - IOC 25000 - salary 24000 = Rs. 3,37,000  Correct option A. Distractors: B = subtracted interest on drawings instead of adding it; C = added interest on capital instead of subtracting it; D = ignored interest on drawings.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "P&L Appropriation Account",
+      "family": "pl_appropriation",
+      "validation_status": "verified",
+      "id": "pl_appropriation_9"
+    },
+    {
+      "text": "Before appropriations a firm earned Rs. 1,40,000. After allowing interest on capital of Rs. 20,000 and a salary of Rs. 18,000, and charging Rs. 10,000 as interest on drawings, the divisible profit is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 1,02,000",
+        "B) Rs. 1,12,000",
+        "C) Rs. 92,000",
+        "D) Rs. 1,52,000"
+      ],
+      "correct_answer": "B) Rs. 1,12,000",
+      "explanation": "divisible = 140000 + IOD 10000 - IOC 20000 - salary 18000 = Rs. 1,12,000  Correct option B. Distractors: A = ignored interest on drawings; C = subtracted interest on drawings instead of adding it; D = added interest on capital instead of subtracting it.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "P&L Appropriation Account",
+      "family": "pl_appropriation",
+      "validation_status": "verified",
+      "id": "pl_appropriation_10"
+    }
+  ]
+}

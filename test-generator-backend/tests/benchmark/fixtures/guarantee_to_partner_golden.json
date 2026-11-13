@@ -1,0 +1,200 @@
+{
+  "subject": "Accountancy",
+  "classGrade": "12",
+  "chapters": [
+    "Fundamentals of Partnership"
+  ],
+  "totalMarks": 10,
+  "questions": [
+    {
+      "text": "Gaurav, Hina and Imran share profits 3:2:1. Imran is guaranteed a minimum profit of Rs. 65,000; any deficiency is borne by Gaurav and Hina in the ratio 3:2. Divisible profit is Rs. 1,80,000. Gaurav's final share is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 90,000",
+        "B) Rs. 72,500",
+        "C) Rs. 65,000",
+        "D) Rs. 69,000"
+      ],
+      "correct_answer": "D) Rs. 69,000",
+      "explanation": "deficiency 35000 borne by ['Gaurav', 'Hina'] in ['3', '2'] Gaurav's final share = Rs. 69,000  Correct option D. Distractors: A = ignored the guarantee; B = split the deficiency equally instead of in the given ratio; C = reported the guaranteed minimum instead.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Guarantee of Profit",
+      "family": "guarantee_to_partner",
+      "validation_status": "verified",
+      "id": "guarantee_to_partner_1"
+    },
+    {
+      "text": "Profits of Rs. 3,00,000 are shared by Mira, Nikhil and Omkar in 5:3:2, but Omkar must get at least Rs. 70,000; Mira and Nikhil meet any shortfall in 5:3. Mira's final share is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 1,50,000",
+        "B) Rs. 1,43,750",
+        "C) Rs. 1,45,000",
+        "D) Rs. 70,000"
+      ],
+      "correct_answer": "B) Rs. 1,43,750",
+      "explanation": "deficiency 10000 borne by ['Mira', 'Nikhil'] in ['5', '3'] Mira's final share = Rs. 1,43,750  Correct option B. Distractors: A = ignored the guarantee; C = split the deficiency equally instead of in the given ratio; D = reported the guaranteed minimum instead.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Guarantee of Profit",
+      "family": "guarantee_to_partner",
+      "validation_status": "verified",
+      "id": "guarantee_to_partner_2"
+    },
+    {
+      "text": "Jatin, Kavya and Lokesh divide Rs. 3,00,000 in the ratio 5:3:2. Lokesh has a guaranteed minimum of Rs. 1,00,000, the deficiency being borne by Jatin and Kavya in 5:3. What is Jatin's final share?",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 1,30,000",
+        "B) Rs. 1,25,000",
+        "C) Rs. 1,00,000",
+        "D) Rs. 1,50,000"
+      ],
+      "correct_answer": "B) Rs. 1,25,000",
+      "explanation": "deficiency 40000 borne by ['Jatin', 'Kavya'] in ['5', '3'] Jatin's final share = Rs. 1,25,000  Correct option B. Distractors: A = split the deficiency equally instead of in the given ratio; C = reported the guaranteed minimum instead; D = ignored the guarantee.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Guarantee of Profit",
+      "family": "guarantee_to_partner",
+      "validation_status": "verified",
+      "id": "guarantee_to_partner_3"
+    },
+    {
+      "text": "Jatin, Kavya and Lokesh share profits 5:3:2. Lokesh is guaranteed a minimum profit of Rs. 75,000; any deficiency is borne by Jatin and Kavya in the ratio 5:3. Divisible profit is Rs. 2,00,000. Jatin's final share is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 78,125",
+        "B) Rs. 82,500",
+        "C) Rs. 1,00,000",
+        "D) Rs. 75,000"
+      ],
+      "correct_answer": "A) Rs. 78,125",
+      "explanation": "deficiency 35000 borne by ['Jatin', 'Kavya'] in ['5', '3'] Jatin's final share = Rs. 78,125  Correct option A. Distractors: B = split the deficiency equally instead of in the given ratio; C = ignored the guarantee; D = reported the guaranteed minimum instead.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Guarantee of Profit",
+      "family": "guarantee_to_partner",
+      "validation_status": "verified",
+      "id": "guarantee_to_partner_4"
+    },
+    {
+      "text": "Profits of Rs. 3,60,000 are shared by Gaurav, Hina and Imran in 4:3:2, but Imran must get at least Rs. 95,000; Gaurav and Hina meet any shortfall in 4:3. Gaurav's final share is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 1,60,000",
+        "B) Rs. 1,51,429",
+        "C) Rs. 95,000",
+        "D) Rs. 1,52,500"
+      ],
+      "correct_answer": "B) Rs. 1,51,429",
+      "explanation": "deficiency 15000 borne by ['Gaurav', 'Hina'] in ['4', '3'] Gaurav's final share = Rs. 1,51,429  Correct option B. Distractors: A = ignored the guarantee; C = reported the guaranteed minimum instead; D = split the deficiency equally instead of in the given ratio.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Guarantee of Profit",
+      "family": "guarantee_to_partner",
+      "validation_status": "verified",
+      "id": "guarantee_to_partner_5"
+    },
+    {
+      "text": "Arun, Bela and Charu divide Rs. 1,80,000 in the ratio 3:2:1. Charu has a guaranteed minimum of Rs. 45,000, the deficiency being borne by Arun and Bela in 3:2. What is Arun's final share?",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 81,000",
+        "B) Rs. 82,500",
+        "C) Rs. 90,000",
+        "D) Rs. 45,000"
+      ],
+      "correct_answer": "A) Rs. 81,000",
+      "explanation": "deficiency 15000 borne by ['Arun', 'Bela'] in ['3', '2'] Arun's final share = Rs. 81,000  Correct option A. Distractors: B = split the deficiency equally instead of in the given ratio; C = ignored the guarantee; D = reported the guaranteed minimum instead.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Guarantee of Profit",
+      "family": "guarantee_to_partner",
+      "validation_status": "verified",
+      "id": "guarantee_to_partner_6"
+    },
+    {
+      "text": "Mira, Nikhil and Omkar share profits 3:2:1. Omkar is guaranteed a minimum profit of Rs. 45,000; any deficiency is borne by Mira and Nikhil in the ratio 3:2. Divisible profit is Rs. 1,80,000. Mira's final share is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 45,000",
+        "B) Rs. 82,500",
+        "C) Rs. 81,000",
+        "D) Rs. 90,000"
+      ],
+      "correct_answer": "C) Rs. 81,000",
+      "explanation": "deficiency 15000 borne by ['Mira', 'Nikhil'] in ['3', '2'] Mira's final share = Rs. 81,000  Correct option C. Distractors: A = reported the guaranteed minimum instead; B = split the deficiency equally instead of in the given ratio; D = ignored the guarantee.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Guarantee of Profit",
+      "family": "guarantee_to_partner",
+      "validation_status": "verified",
+      "id": "guarantee_to_partner_7"
+    },
+    {
+      "text": "Profits of Rs. 1,20,000 are shared by Arun, Bela and Charu in 3:2:1, but Charu must get at least Rs. 50,000; Arun and Bela meet any shortfall in 3:2. Arun's final share is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 50,000",
+        "B) Rs. 60,000",
+        "C) Rs. 45,000",
+        "D) Rs. 42,000"
+      ],
+      "correct_answer": "D) Rs. 42,000",
+      "explanation": "deficiency 30000 borne by ['Arun', 'Bela'] in ['3', '2'] Arun's final share = Rs. 42,000  Correct option D. Distractors: A = reported the guaranteed minimum instead; B = ignored the guarantee; C = split the deficiency equally instead of in the given ratio.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Guarantee of Profit",
+      "family": "guarantee_to_partner",
+      "validation_status": "verified",
+      "id": "guarantee_to_partner_8"
+    },
+    {
+      "text": "Arun, Bela and Charu divide Rs. 1,20,000 in the ratio 3:2:1. Charu has a guaranteed minimum of Rs. 40,000, the deficiency being borne by Arun and Bela in 3:2. What is Arun's final share?",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 48,000",
+        "B) Rs. 50,000",
+        "C) Rs. 40,000",
+        "D) Rs. 60,000"
+      ],
+      "correct_answer": "A) Rs. 48,000",
+      "explanation": "deficiency 20000 borne by ['Arun', 'Bela'] in ['3', '2'] Arun's final share = Rs. 48,000  Correct option A. Distractors: B = split the deficiency equally instead of in the given ratio; C = reported the guaranteed minimum instead; D = ignored the guarantee.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Guarantee of Profit",
+      "family": "guarantee_to_partner",
+      "validation_status": "verified",
+      "id": "guarantee_to_partner_9"
+    },
+    {
+      "text": "Gaurav, Hina and Imran share profits 3:2:1. Imran is guaranteed a minimum profit of Rs. 45,000; any deficiency is borne by Gaurav and Hina in the ratio 3:2. Divisible profit is Rs. 1,80,000. Gaurav's final share is:",
+      "format": "mcq",
+      "options": [
+        "A) Rs. 45,000",
+        "B) Rs. 90,000",
+        "C) Rs. 81,000",
+        "D) Rs. 82,500"
+      ],
+      "correct_answer": "C) Rs. 81,000",
+      "explanation": "deficiency 15000 borne by ['Gaurav', 'Hina'] in ['3', '2'] Gaurav's final share = Rs. 81,000  Correct option C. Distractors: A = reported the guaranteed minimum instead; B = ignored the guarantee; D = split the deficiency equally instead of in the given ratio.",
+      "marks": 1,
+      "difficulty": "hard",
+      "bloom_level": "apply",
+      "topic": "Guarantee of Profit",
+      "family": "guarantee_to_partner",
+      "validation_status": "verified",
+      "id": "guarantee_to_partner_10"
+    }
+  ]
+}

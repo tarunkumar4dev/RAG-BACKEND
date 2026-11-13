@@ -1,0 +1,32 @@
+{
+  "subject": "Accountancy",
+  "classGrade": "12",
+  "chapters": ["Fundamentals of Partnership"],
+  "totalMarks": 3,
+  "questions": [
+    {
+      "id": "d1",
+      "text": "Ram and Shyam are partners sharing profits in the ratio 3:2. Interest on capital is 6% p.a. on Ram's opening capital of Rs. 5,00,000. Interest on capital is:",
+      "format": "mcq",
+      "options": ["A) Rs. 25,000", "B) Rs. 30,000", "C) Rs. 35,000", "D) Rs. 40,000"],
+      "correct_answer": "B) Rs. 30,000",
+      "marks": 1
+    },
+    {
+      "id": "d2",
+      "text": "Ram and Shyam are partners sharing profits in the ratio 3:2. Interest on capital is 6% p.a. on Ram's opening capital of Rs. 5,00,000. Interest on capital is:",
+      "format": "mcq",
+      "options": ["A) Rs. 25,000", "B) Rs. 30,000", "C) Rs. 35,000", "D) Rs. 40,000"],
+      "correct_answer": "B) Rs. 30,000",
+      "marks": 1
+    },
+    {
+      "id": "d3",
+      "text": "Priya and Rakesh are partners sharing profits in the ratio 3:2. Interest on capital is 6% p.a. on Priya's opening capital of Rs. 5,00,000. Interest on capital is:",
+      "format": "mcq",
+      "options": ["A) Rs. 25,000", "B) Rs. 30,000", "C) Rs. 35,000", "D) Rs. 40,000"],
+      "correct_answer": "B) Rs. 30,000",
+      "marks": 1
+    }
+  ]
+}

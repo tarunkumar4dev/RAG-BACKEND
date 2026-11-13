@@ -1,0 +1,36 @@
+{
+  "id": "acc12_fundamentals_rotation_50",
+  "description": "Realistic 50-MCQ Fundamentals paper built via the family rotation (the shipped-paper config, solver-built).",
+  "request": {
+    "examTitle": "Fundamentals of Partnership \u2014 50 MCQ (Hard)",
+    "board": "CBSE",
+    "classGrade": "12",
+    "subject": "Accountancy",
+    "cbsePattern": false,
+    "simpleData": [
+      {
+        "topic": "Fundamentals of Partnership",
+        "subtopic": null,
+        "quantity": 50,
+        "difficulty": "hard",
+        "format": "mcq",
+        "marks": 1
+      }
+    ]
+  },
+  "expected_total_questions": 50,
+  "expected_total_marks": 50,
+  "expected_numeric_items": [
+    {
+      "qid": "rot_1",
+      "description": "rotation numeric answer \u2014 SME to hand-verify",
+      "expected_answer": 0.0,
+      "tolerance": 1.0,
+      "unit": "INR",
+      "key_source": "pending_sme"
+    }
+  ],
+  "golden_paper_file": "fundamentals_rotation_golden.json",
+  "key_source": "solver-structural",
+  "notes": "The D1-D6 target config. One-correct + balance gated now; dedup becomes a gate in Phase 2 (embeddings + blueprint rotation + stem-template variety)."
+}

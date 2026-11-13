@@ -1,0 +1,51 @@
+{
+  "id": "acc12_pl_appropriation_mini",
+  "description": "Three fixed-ratio appropriation items: distributable profit after charges split in a stated ratio. Trivial division.",
+  "request": {
+    "examTitle": "P&L Appropriation — practice 3",
+    "board": "CBSE",
+    "classGrade": "12",
+    "subject": "Accountancy",
+    "cbsePattern": false,
+    "simpleData": [
+      {
+        "topic": "Fundamentals of Partnership",
+        "subtopic": "P&L Appropriation Account",
+        "quantity": 3,
+        "difficulty": "easy",
+        "format": "mcq",
+        "marks": 1
+      }
+    ]
+  },
+  "expected_total_questions": 3,
+  "expected_total_marks": 3,
+  "expected_numeric_items": [
+    {
+      "qid": "pla_1",
+      "description": "Divisible profit Rs. 1,80,000; share in 3:2:1 ratio. Partner A's share.",
+      "expected_answer": 90000.0,
+      "tolerance": 1.0,
+      "unit": "INR",
+      "key_source": "author-computed"
+    },
+    {
+      "qid": "pla_2",
+      "description": "Divisible profit Rs. 1,80,000; share in 3:2:1 ratio. Partner B's share.",
+      "expected_answer": 60000.0,
+      "tolerance": 1.0,
+      "unit": "INR",
+      "key_source": "author-computed"
+    },
+    {
+      "qid": "pla_3",
+      "description": "Divisible profit Rs. 1,80,000; share in 3:2:1 ratio. Partner C's share.",
+      "expected_answer": 30000.0,
+      "tolerance": 1.0,
+      "unit": "INR",
+      "key_source": "author-computed"
+    }
+  ],
+  "golden_paper_file": "pl_appropriation_mini_golden.json",
+  "key_source": "author-computed"
+}
