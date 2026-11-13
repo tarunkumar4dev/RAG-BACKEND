@@ -60,48 +60,20 @@ CHUNK_OVERLAP_CHARS = 400
 SCANNED_THRESHOLD = 50        # avg chars/page below this = scanned
 
 
-def _get_gemini_api_keys():
-    """Get all configured Gemini API keys in priority order."""
-    keys = []
-    for name in ["GEMINI_API_KEY", "GEMINI_API"]:
-        k = os.getenv(name)
-        if k and k.strip() and k.strip() not in keys:
-            keys.append(k.strip())
-    for i in range(1, 10):
-        for name in [f"GEMINI_API_KEY_{i}", f"GEMINI_API_{i}"]:
-            k = os.getenv(name)
-            if k and k.strip() and k.strip() not in keys:
-                keys.append(k.strip())
-    return keys
+def _gemini_api_key() -> str:
+    """The one configured key. No rotation across GEMINI_API_KEY_1..9: rotating on 429/403 multiplied attempts and
+    worked around quota, and the old code logged key prefixes (Gate 2 fix #6)."""
+    k = (os.getenv("GEMINI_API_KEY") or "").strip()
+    if not k:
+        raise Exception("No GEMINI_API_KEY configured in environment variables")
+    return k
 
 
 def _call_gemini_with_fallback(contents, config=None, model=None):
-    """Call Gemini generate_content with automatic key fallback across all configured keys."""
+    """ONE Gemini generate_content call (the name is kept for callers). No key rotation, no retry."""
     genai = get_genai()
-    keys = _get_gemini_api_keys()
-    if not keys:
-        raise Exception("No GEMINI_API_KEY configured in environment variables")
-
-    target_model = model or GEMINI_MODEL
-    last_err = None
-    for k in keys:
-        try:
-            client = genai.Client(api_key=k)
-            response = client.models.generate_content(
-                model=target_model,
-                contents=contents,
-                config=config,
-            )
-            return response
-        except Exception as e:
-            err_msg = str(e)
-            logger.warning(f"Gemini call failed with key {k[:10]}...: {err_msg[:120]}")
-            last_err = e
-            if any(term in err_msg for term in ["403", "401", "429", "PERMISSION_DENIED", "UNAUTHENTICATED", "RESOURCE_EXHAUSTED"]):
-                continue
-            raise e
-    raise last_err
-
+    client = genai.Client(api_key=_gemini_api_key())
+    return client.models.generate_content(model=model or GEMINI_MODEL, contents=contents, config=config)
 
 
 # ═══════════════════════════════════════════════════════════
@@ -295,42 +267,26 @@ class ModuleService:
 
     @staticmethod
     def _extract_with_gemini(file_bytes):
-        """Use Gemini to OCR a scanned PDF with key fallback."""
+        """Use Gemini to OCR a scanned PDF: one upload, one call (no key rotation)."""
         genai = get_genai()
-        keys = _get_gemini_api_keys()
-        if not keys:
-            raise Exception("No GEMINI_API_KEY configured in environment variables")
-
+        client = genai.Client(api_key=_gemini_api_key())
         tmp = tempfile.mktemp(suffix=".pdf")
         with open(tmp, "wb") as f:
             f.write(file_bytes)
-
-        last_err = None
         try:
-            for k in keys:
-                try:
-                    client = genai.Client(api_key=k)
-                    uploaded = client.files.upload(file=tmp, config={"mime_type": "application/pdf"})
-                    response = client.models.generate_content(
-                        model=GEMINI_MODEL,
-                        contents=[
-                            uploaded,
-                            "Extract ALL text from this document exactly as written. "
-                            "Preserve headings, bullet points, numbering. "
-                            "If text is in Hindi/Devanagari, keep it as-is. "
-                            "Output only the extracted text, nothing else."
-                        ],
-                        config={"temperature": 0.1, "max_output_tokens": 65000},
-                    )
-                    return response.text
-                except Exception as e:
-                    err_msg = str(e)
-                    logger.warning(f"OCR with key {k[:10]}... failed: {err_msg[:120]}")
-                    last_err = e
-                    if any(term in err_msg for term in ["403", "401", "429", "PERMISSION_DENIED", "UNAUTHENTICATED", "RESOURCE_EXHAUSTED"]):
-                        continue
-                    raise e
-            raise last_err
+            uploaded = client.files.upload(file=tmp, config={"mime_type": "application/pdf"})
+            response = client.models.generate_content(
+                model=GEMINI_MODEL,
+                contents=[
+                    uploaded,
+                    "Extract ALL text from this document exactly as written. "
+                    "Preserve headings, bullet points, numbering. "
+                    "If text is in Hindi/Devanagari, keep it as-is. "
+                    "Output only the extracted text, nothing else."
+                ],
+                config={"temperature": 0.1, "max_output_tokens": 65000},
+            )
+            return response.text
         finally:
             import os as _os
             if _os.path.exists(tmp):

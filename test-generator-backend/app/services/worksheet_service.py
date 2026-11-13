@@ -276,7 +276,8 @@ class WorksheetService:
                     summary = summary_raw
 
             # Use full text for small docs, chunks for large
-            context_text = full_text if (token_count and token_count < 100000) else (full_text[:200000] if full_text else "")
+            from app.api.v1.endpoints.modules import WORKSHEET_MAX_INPUT_CHARS
+            context_text = (full_text or "")[:min(200000, WORKSHEET_MAX_INPUT_CHARS)]
 
             if question_types is None:
                 question_types = ["MCQ", "Fill in the Blanks", "True/False", "Short Answer", "Long Answer"]
@@ -358,6 +359,11 @@ Output ONLY valid JSON."""
                 contents=prompt,
                 config={"temperature": 0.3, "max_output_tokens": 16000, "response_mime_type": "application/json"},
             )
+            from app.core.usage_log import log_usage, usage_from_response
+            u = usage_from_response(GEMINI_MODEL, response)
+            log_usage("worksheet_module", teacher_id, u,
+                      est_cost_usd=(u["input_tokens"] * 0.30 + u["output_tokens"] * 2.50) / 1e6
+                      if GEMINI_MODEL == "gemini-3.5-flash-lite" else None)
 
             data = json.loads(response.text)
             questions = data.get("questions", [])

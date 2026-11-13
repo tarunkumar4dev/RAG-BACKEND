@@ -11,7 +11,7 @@ v3.3 changes (SECURITY):
   - Removed debug INSERT logs that printed full row data
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel, ConfigDict, Field
 from typing import List, Optional
@@ -32,7 +32,8 @@ from app.models.test_generator import (
     QuestionFormat,
     ManualQuestionPayload,
 )
-from app.services.test_generator_service import generate_test, handle_feedback, verify_answer_key
+from app.services.test_generator_service import generate_test, handle_feedback, paper_usage
+from app.core.usage_log import log_usage
 from app.api.v1.endpoints.chat import _SlidingWindow
 from starlette.concurrency import run_in_threadpool
 from app.services.rag_service import retrieve_context
@@ -51,96 +52,7 @@ router = APIRouter(prefix="/test-generator", tags=["Test Generator"])
 # USAGE CHECK HELPERS
 # ═══════════════════════════════════════════════════════════════════════
 
-def check_usage(user_id: str) -> dict:
-    if not user_id or user_id == "00000000-0000-0000-0000-000000000000":
-        if not settings.IS_PRODUCTION:
-            logger.info("Dev mode: Bypassing login requirement for local testing")
-            return {"allowed": True, "used": 0, "limit": 999, "remaining": 999}
-        logger.warning("Usage check blocked: no valid user_id provided")
-        raise HTTPException(
-            status_code=401,
-            detail={
-                "error": "unauthorized",
-                "message": "Login required. Please sign in to generate tests.",
-            },
-        )
-
-    # SECURITY: Validate UUID format
-    try:
-        sanitize_uuid(user_id)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid user ID format")
-
-    try:
-        supabase = get_supabase_admin()
-        result = supabase.rpc("check_usage", {
-            "p_user_id": user_id,
-        }).execute()
-
-        if not result.data:
-            logger.error(f"Usage check returned no data for user {user_id}")
-            raise HTTPException(
-                status_code=503,
-                detail={
-                    "error": "service_error",
-                    "message": "Unable to verify usage. Please try again later.",
-                },
-            )
-
-        usage = result.data
-
-        if not usage.get("allowed"):
-            logger.info(f"Usage limit reached: user={user_id}")
-            raise HTTPException(
-                status_code=403,
-                detail={
-                    "error": "limit_reached",
-                    "message": f"Monthly limit reached ({usage['used']}/{usage['limit']} tests). Upgrade your plan.",
-                    "used": usage.get("used"),
-                    "limit": usage.get("limit"),
-                    "upgrade_url": "/pricing",
-                },
-            )
-
-        return usage
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Usage check error: {e}")
-        raise HTTPException(
-            status_code=503,
-            detail={
-                "error": "service_error",
-                "message": "Unable to verify usage. Please try again later.",
-            },
-        )
-
-
-def record_usage(user_id: str) -> dict:
-    if not user_id or user_id == "00000000-0000-0000-0000-000000000000":
-        if not settings.IS_PRODUCTION:
-            return {"recorded": True}
-    try:
-        supabase = get_supabase_admin()
-        params = {"p_user_id": user_id, "p_action": "test_generated"}
-        try:
-            result = supabase.rpc("record_usage", params).execute()
-        except Exception as e:
-            # usage_records.user_id references teacher_profiles; some accounts never got a
-            # row, and without it their papers were never counted against the plan.
-            if "foreign key" not in str(e).lower():
-                raise
-            supabase.table("teacher_profiles").insert({"id": user_id}).execute()
-            result = supabase.rpc("record_usage", params).execute()
-
-        if result.data:
-            logger.info(f"Usage recorded: user={user_id}")
-        return result.data or {}
-
-    except Exception as e:
-        logger.error(f"Record usage failed (non-fatal): {e}")
-        return {"recorded": False}
+from app.core.quota import ACTION_PAPER, check_usage, consume, record_usage, release, reserve  # noqa: E402
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -545,14 +457,32 @@ def _transform_backend_to_frontend(resp, req: FrontendGenerateRequest) -> Fronte
 # ENDPOINT: Generate from Frontend (v3.3 — hardened)
 # ═══════════════════════════════════════════════════════════════════════
 
+def _log_failed_paper(stats, req, already) -> None:
+    """A failed paper still spent money: log what it used (unless the success line was already written)."""
+    if already is not None:
+        return
+    u = stats.as_usage()
+    if u["calls"]:
+        log_usage("paper_cbse" if getattr(req, "cbsePattern", False) else "paper", req.userId, u,
+                  outcome="failed", est_cost_usd=u.get("est_cost_usd"))
+
+
 @router.post("/generate-frontend", response_model=FrontendGenerateResponse)
-async def generate_from_frontend(req: FrontendGenerateRequest, user: AuthUser = Depends(require_user)):
+async def generate_from_frontend(req: FrontendGenerateRequest, user: AuthUser = Depends(require_user),
+                                 idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key", max_length=80)):
     req.userId = user.id  # usage and test owner come from the JWT; the client value is ignored
     start = time.time()
     logger.info(f"Frontend generate: {req.subject} {req.classGrade}, {len(req.simpleData)} chapters")
+    rsv = None
+    ai_usage = None
+    usage_ctx = paper_usage()
+    stats = usage_ctx.__enter__()
 
     try:
-        usage = check_usage(req.userId)
+        # Gate 2 #5: one quota unit is reserved atomically under the client's Idempotency-Key, consumed on success
+        # and released on failure (see app/core/quota.py).
+        rsv = reserve(req.userId, ACTION_PAPER, idempotency_key)
+        usage = rsv.usage
 
         backend_request = _transform_frontend_to_backend(req)
         total_q = sum(c.quantity for c in backend_request.chapters)
@@ -582,17 +512,16 @@ async def generate_from_frontend(req: FrontendGenerateRequest, user: AuthUser = 
             backend_response = generate_cbse_accountancy_paper(backend_request, context_chunks)
         else:
             backend_response = generate_test(backend_request, context_chunks, cbse_pattern=req.cbsePattern)
+        u = stats.as_usage()
+        ai_usage = log_usage("paper_cbse" if req.cbsePattern else "paper", req.userId, u,
+                             est_cost_usd=u.get("est_cost_usd"))
 
         frontend_response = _transform_backend_to_frontend(backend_response, req)
 
         elapsed = round(time.time() - start, 2)
         frontend_response.generationTime = elapsed
 
-        recorded = record_usage(req.userId)
-        usage.update(recorded)
-        # check_usage ran before this paper was counted; refresh "remaining" from the new count.
-        if isinstance(usage.get("limit"), int) and usage["limit"] >= 0 and isinstance(usage.get("used"), int):
-            usage["remaining"] = max(usage["limit"] - usage["used"], 0)
+        usage = dict(consume(rsv))
 
         # Insert test row
         try:
@@ -609,6 +538,8 @@ async def generate_from_frontend(req: FrontendGenerateRequest, user: AuthUser = 
                 "total_marks": frontend_response.totalMarks,
                 "paper_date": req.paperDate,
                 "cbse_pattern": req.cbsePattern,
+                # Gate 2 #8: tokens + cost + institute for this paper (ids only; request_payload was unused)
+                "request_payload": {"ai_usage": ai_usage} if ai_usage else None,
             }
             supabase = get_supabase_admin()
             insert_result = supabase.table("tests").insert(tests_row).execute()
@@ -627,11 +558,22 @@ async def generate_from_frontend(req: FrontendGenerateRequest, user: AuthUser = 
         return frontend_response
 
     except HTTPException:
+        if rsv is not None:
+            release(rsv)
+        _log_failed_paper(stats, req, ai_usage)
         raise
     except ValueError as e:
+        if rsv is not None:
+            release(rsv)
+        _log_failed_paper(stats, req, ai_usage)
         raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
+        if rsv is not None:
+            release(rsv)
+        _log_failed_paper(stats, req, ai_usage)
         error_str = str(e)
+        if getattr(e, "status_code", None) == 503:   # paid-call budget spent / provider down: fail fast, clear text
+            raise HTTPException(status_code=503, detail=error_str, headers={"Retry-After": "120"})
         if "No NCERT content found" in error_str:
             if 'backend_request' in locals():
                 real_names = [
@@ -648,6 +590,8 @@ async def generate_from_frontend(req: FrontendGenerateRequest, user: AuthUser = 
                 )
         logger.error(f"Frontend generate error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Generation failed. Please try again.")
+    finally:
+        usage_ctx.__exit__(None, None, None)
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -1221,54 +1165,34 @@ async def _ncert_question_stats_impl(subject: str = "Science", class_grade: str 
 # ═══════════════════════════════════════════════════════════════════════
 
 @router.post("/generate", response_model=TestGenerationResponse)
-async def generate(request: TestGenerationRequest, user: AuthUser = Depends(require_user)):
+async def generate(request: TestGenerationRequest, user: AuthUser = Depends(require_user),
+                   idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key", max_length=80)):
     # Same plan quota as /generate-frontend: one AI paper per call, owner from the JWT.
     request.teacher_id = user.id
+    rsv = None
     try:
-        check_usage(user.id)
+        rsv = reserve(user.id, ACTION_PAPER, idempotency_key)
         chapters = [ch.chapter for ch in request.chapters]
         topics = [ch.topic for ch in request.chapters if ch.topic]
         if not topics:
             topics = chapters
         context_chunks = retrieve_context(chapters, topics, request.subject, request.class_grade)
         result = generate_test(request, context_chunks)
-        record_usage(user.id)
+        consume(rsv)
         return result
     except HTTPException:
+        if rsv is not None:
+            release(rsv)
         raise
     except ValueError as e:
+        if rsv is not None:
+            release(rsv)
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        if rsv is not None:
+            release(rsv)
         logger.error(f"Generate error: {e}")
         raise HTTPException(status_code=500, detail="Generation failed.")
-
-
-class VerifyAnswersRequest(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-
-    subject: str = Field(default="Science", max_length=50)
-    classGrade: str = Field(default="Class 10", max_length=20)
-    questions: List[dict] = Field(min_length=1, max_length=80)
-
-
-# The checker is an extra LLM pass per paper; a teacher needs at most a few per minute.
-_verify_limiter = _SlidingWindow(limit=6, window_seconds=60.0)
-
-
-@router.post("/verify-answers")
-async def verify_answers(req: VerifyAnswersRequest, user: AuthUser = Depends(require_user)):
-    """Second-model check of a generated paper's answer key. Stateless: returns verdicts
-    (ok / fix with corrected key / reject = needs review) and the client applies them."""
-    if not _verify_limiter.hit(user.id):
-        raise HTTPException(status_code=429, detail="Too many answer checks. Please wait a minute.",
-                            headers={"Retry-After": "60"})
-    try:
-        return await run_in_threadpool(
-            verify_answer_key, req.questions, _resolve_subject(req.subject), _extract_class_number(req.classGrade)
-        )
-    except Exception:
-        logger.exception("Answer-key check failed")
-        raise HTTPException(status_code=503, detail="Answer check is unavailable right now.")
 
 
 @router.post("/feedback", response_model=TestGenerationResponse)

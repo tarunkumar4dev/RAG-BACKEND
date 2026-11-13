@@ -17,6 +17,7 @@ import json
 import logging
 import random
 import re
+import contextlib
 import time
 import uuid
 from typing import List, Dict, Optional
@@ -46,7 +47,14 @@ from app.models.test_generator import (
 
 logger = logging.getLogger(__name__)
 
-MAX_RETRIES = 4
+MAX_RETRIES = 2            # attempts per model per batch; the per-paper budget below is the real cap (Gate 2 #4)
+# Gate 2 #4: at most 3 provider calls IN TOTAL for any failing unit of work: a batch's first attempt plus at most
+# PAID_EXTRA_BUDGET extra attempts per paper (retries, the fallback model, billed-but-unusable replies). A paper with
+# N batches needs N first attempts for its questions; the extras on top are capped at 2 per paper. When they are spent
+# the paper fails fast with MSG_PAPER_FAILED. No top-up rounds.
+PAID_EXTRA_BUDGET = 2
+MSG_PAPER_FAILED = ("AI se poora paper nahi ban paaya. Thodi der baad dobara try karein. / "
+                    "The AI could not complete this paper. Please try again in a few minutes.")
 BASE_BACKOFF_SECONDS = 2
 MAX_BACKOFF_SECONDS = 20
 JITTER_RANGE = (0.5, 1.2)
@@ -2123,9 +2131,12 @@ def _is_retryable(error_str: str) -> bool:
 
 _LLM_SLOTS = threading.BoundedSemaphore(max(1, settings.LLM_MAX_CONCURRENCY))
 
-# USD per 1M tokens (input, output), Oct 2026 list prices; DeepSeek at peak rate (conservative).
+# USD per 1M tokens (input, output). Gemini: aistudio.google.com/docs/pricing, read 12 Nov 2026 (gemini-3.6-flash
+# is the generator's fallback; $0.75/$3.75 until 31 Dec 2026, $1.50/$7.50 from 1 Jan 2027). DeepSeek: Oct 2026 list,
+# peak rate (conservative).
 _PRICE_PER_M = {
     "gemini-3.5-flash-lite": (0.30, 2.50),
+    "gemini-3.6-flash": (0.75, 3.75) if time.strftime("%Y-%m-%d") < "2027-01-01" else (1.50, 7.50),
     "deepseek-flash": (0.30, 1.20),
 }
 
@@ -2137,6 +2148,14 @@ class _PaperStats:
         self._lock = threading.Lock()
         self.calls = {}  # model -> [calls, input tokens, output tokens]
         self.dropped = 0
+        self.extra = 0   # retries + fallbacks + unusable replies spent, out of PAID_EXTRA_BUDGET
+
+    def spend_extra(self) -> None:
+        """One more attempt beyond a batch's first. Raises when the paper's budget is gone."""
+        with self._lock:
+            if self.extra >= PAID_EXTRA_BUDGET:
+                raise GenerationError(MSG_PAPER_FAILED, 503)
+            self.extra += 1
 
     def add_call(self, model: str, tokens_in: int, tokens_out: int):
         with self._lock:
@@ -2148,6 +2167,16 @@ class _PaperStats:
     def add_drop(self):
         with self._lock:
             self.dropped += 1
+
+    def as_usage(self) -> dict:
+        """{calls, input_tokens, output_tokens, models} + est. cost — for app/core/usage_log (Gate 2 #8)."""
+        with self._lock:
+            models = {m: list(v) for m, v in self.calls.items()}
+        cost = sum((tin * _PRICE_PER_M[m][0] + tout * _PRICE_PER_M[m][1]) / 1e6
+                   for m, (n, tin, tout) in models.items() if m in _PRICE_PER_M)
+        return {"calls": sum(v[0] for v in models.values()), "input_tokens": sum(v[1] for v in models.values()),
+                "output_tokens": sum(v[2] for v in models.values()), "models": models,
+                "est_cost_usd": round(cost, 6), "extra_attempts": self.extra}
 
     def summary(self) -> str:
         parts, cost, cost_known = [], 0.0, True
@@ -2169,6 +2198,25 @@ def _record_call(model: str, tokens_in: int, tokens_out: int):
     stats = _PAPER_STATS.get()
     if stats:
         stats.add_call(model, tokens_in, tokens_out)
+
+
+def _spend_extra():
+    """Charge one extra attempt to the paper's PAID_EXTRA_BUDGET (no-op outside a paper, e.g. verify)."""
+    stats = _PAPER_STATS.get()
+    if stats:
+        stats.spend_extra()
+
+
+@contextlib.contextmanager
+def paper_usage():
+    """Collect LLM usage for one paper across every path (custom, CBSE, accountancy) — the endpoint wraps the
+    generate call in this and records the result with feature + institute (Gate 2 #8)."""
+    stats = _PaperStats()
+    token = _PAPER_STATS.set(stats)
+    try:
+        yield stats
+    finally:
+        _PAPER_STATS.reset(token)
 
 
 def _submit(pool, fn, *args, **kwargs):
@@ -2246,6 +2294,7 @@ def _call_deepseek(prompt):
             if resp.status_code not in DEEPSEEK_RETRYABLE_STATUS:
                 raise GenerationError(f"deepseek: {last_err}", 502)
         if attempt < MAX_RETRIES - 1:
+            _spend_extra()
             wait = min(BASE_BACKOFF_SECONDS ** (attempt + 1), MAX_BACKOFF_SECONDS) * random.uniform(*JITTER_RANGE)
             logger.warning(f"[deepseek] Retry {attempt + 1}: {last_err[:80]}... waiting {wait:.1f}s")
             time.sleep(wait)
@@ -2266,6 +2315,9 @@ def _call_llm(client, prompt, model):
         try:
             return _call_deepseek(prompt)
         except GenerationError as e:
+            if e.status_code == 503 and str(e) == MSG_PAPER_FAILED:
+                raise
+            _spend_extra()                      # the Gemini fallback is one more paid attempt
             logger.warning(f"DeepSeek failed, falling back to Gemini {model}: {e}")
     return _call_gemini_model(client, prompt, model)
 
@@ -2306,6 +2358,7 @@ def _call_gemini_model(client, prompt, model, temperature=None):
                 # Fail fast with actual reason
                 raise GenerationError(f"{model}: {err[:200]}", 502)
             if attempt < MAX_RETRIES - 1:
+                _spend_extra()
                 wait = min(BASE_BACKOFF_SECONDS ** (attempt + 1), MAX_BACKOFF_SECONDS) * random.uniform(*JITTER_RANGE)
                 logger.warning(f"[{model}] Retry {attempt + 1}: {err[:80]}... waiting {wait:.1f}s")
                 time.sleep(wait)
@@ -2367,14 +2420,19 @@ def _generate_for_chapter(client, chapter, request, context_chunks, models, sect
             )
 
         batch_qs = []
-        for m in models:
+        for i, m in enumerate(models):
+            if i:
+                _spend_extra()            # a fallback model is an extra paid attempt
             try:
                 raw = _call_gemini(client, prompt, m)
                 batch_qs = _parse_batch(raw, chapter, request, section_key)
                 if batch_qs:
                     logger.info(f"    Batch {batch_num}: {len(batch_qs)}/{bc} [{m}]")
                     break
+                _spend_extra()            # billed reply, nothing usable in it
             except GenerationError as e:
+                if e.status_code == 503 and str(e) == MSG_PAPER_FAILED:
+                    raise                 # budget gone: fail the whole paper fast
                 if errors is not None:
                     errors.append(f"{chapter.chapter}/{section_key or 'simple'}: {str(e)}")
                 if m != models[-1]:
@@ -2393,11 +2451,7 @@ def _generate_for_chapter(client, chapter, request, context_chunks, models, sect
         for f in futures:
             all_qs.extend(f.result())
     all_qs = _dedupe_questions(all_qs)
-
-    batch_num = len(sizes)
-    while len(all_qs) < target and batch_num < len(sizes) + 3:
-        batch_num += 1
-        all_qs = _dedupe_questions(all_qs + run_batch(min(target - len(all_qs) + settings.OVERSHOOT_PER_CHAPTER, batch_size), batch_num))
+    # No top-up rounds (Gate 2 #4): a shortfall is returned as-is rather than paid for again.
 
     if len(all_qs) > target:
         all_qs = all_qs[:target]
@@ -2625,12 +2679,17 @@ def generate_cbse_accountancy_paper(request, context_chunks, feedback=None):
         def ask(count, with_or):
             # with_or: `count` main questions, each with its OR alternative.
             prompt = make_prompt(count=count, generate_or=with_or)
-            for m in models:
+            for i, m in enumerate(models):
+                if i:
+                    _spend_extra()
                 try:
                     qs = _parse_batch(_call_gemini(client, prompt, m), chapter_section, request, section_tag)
                     if qs:
                         return qs
+                    _spend_extra()
                 except GenerationError as e:
+                    if e.status_code == 503 and str(e) == MSG_PAPER_FAILED:
+                        raise
                     errors.append(f"{error_tag}: {str(e)}")
             return []
 
@@ -2652,21 +2711,7 @@ def generate_cbse_accountancy_paper(request, context_chunks, feedback=None):
             for f in [_submit(pool, ask, c, w) for c, w in requests]:
                 add(f.result())
 
-        # Up to 3 top-up rounds for whatever the parser or the quality checks rejected
-        # (e.g. unbalanced journals); each round asks for the whole shortfall in parallel.
-        for _ in range(3):
-            need_main, need_or = main_n - len(main_qs), or_n - len(or_qs)
-            if need_main <= 0 and need_or <= 0:
-                break
-            pairs_needed = max(min(need_or, max(need_main, 0)), 0)
-            top = [(min(per_call, pairs_needed - i), True) for i in range(0, pairs_needed, per_call)]
-            singles = max(need_main - pairs_needed, 0)
-            top += [(min(per_call, singles - i), False) for i in range(0, singles, per_call)]
-            if need_or > pairs_needed:  # mains are complete but OR alternatives are missing
-                top += [(min(per_call, need_or - pairs_needed - i), True) for i in range(0, need_or - pairs_needed, per_call)]
-            with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, len(top))) as pool:
-                for f in [_submit(pool, ask, c, w) for c, w in top]:
-                    add(f.result())
+        # No top-up rounds (Gate 2 #4): the shortfall is reported, not paid for again.
 
         if len(or_qs) < or_n and len(main_qs) > main_n:
             # Not enough marked OR alternatives: use surplus main questions as the alternatives.
@@ -2764,7 +2809,7 @@ def handle_feedback(*args, **kwargs):
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# ANSWER-KEY CHECKER (runs after the paper is shown; see /verify-answers)
+# ANSWER-KEY CHECKER (offline eval only: scripts/eval_generation.py; no API route since Gate 2 #10)
 # ═══════════════════════════════════════════════════════════════════════
 
 CHECKER_BATCH_SIZE = 8

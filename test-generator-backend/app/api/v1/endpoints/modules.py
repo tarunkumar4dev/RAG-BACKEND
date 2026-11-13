@@ -14,10 +14,32 @@ from fastapi import APIRouter, HTTPException, Header, Query, Depends
 from pydantic import BaseModel, ConfigDict, Field
 from app.services.module_service import ModuleService
 from app.core.sanitize import sanitize_uuid
+from app.core.auth import AuthUser, require_user
+from app.core.quota import ACTION_PAPER, consume, release, reserve
+from app.core.usage_log import log_usage, usage_from_response
+from app.api.v1.endpoints.chat import _SlidingWindow
+import os as _os_env
 from fastapi.responses import Response
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+# Gate 2 #1: worksheet generation is a paid call -> verified login, plan quota, per-verified-user rate limit,
+# bounded input. WORKSHEET_MAX_INPUT_CHARS: the largest real input in production (modules.full_text, 35 rows,
+# 12 Nov 2026) is 311,927 chars; 320,000 (~80k tokens, ~Rs 2 of input on gemini-3.5-flash-lite) sits just above it.
+WORKSHEET_MAX_INPUT_CHARS = int(_os_env.getenv("WORKSHEET_MAX_INPUT_CHARS", "320000"))
+WORKSHEET_PER_USER_PER_MIN = 5
+_worksheet_limiter = _SlidingWindow(limit=WORKSHEET_PER_USER_PER_MIN, window_seconds=60.0)
+
+
+def _worksheet_gate(user: AuthUser, idempotency_key: Optional[str] = None):
+    """Rate limit on the VERIFIED user id (never the body's teacher_id), then reserve one plan-quota unit
+    (consumed on success, released on failure — Gate 2 #5)."""
+    if not _worksheet_limiter.hit(user.id):
+        raise HTTPException(429, {"error": "rate_limited",
+                                  "message": "Thodi der ruk kar phir try karein. / Too many worksheet requests, "
+                                             "please wait a minute."}, headers={"Retry-After": "60"})
+    return reserve(user.id, ACTION_PAPER, idempotency_key)
 
 # ── Security: Max limits ────────────────────────────────────
 MAX_FILENAME_LENGTH = 255
@@ -190,11 +212,11 @@ async def generate_test_from_module(
     
 
 @router.post("/modules/{module_id}/generate-worksheet")
-async def generate_worksheet(module_id: str, req: dict, authorization: Optional[str] = Header(None)):
-    """Generate worksheet questions from module content."""
-    teacher_id = _validate_teacher_id(req.get("teacher_id"))
-    if not teacher_id:
-        raise HTTPException(400, "teacher_id required")
+async def generate_worksheet(module_id: str, req: dict, user: AuthUser = Depends(require_user),
+                             idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key", max_length=80)):
+    """Generate worksheet questions from module content. Owner = the JWT; the body's teacher_id is ignored."""
+    teacher_id = user.id
+    rsv = _worksheet_gate(user, idempotency_key)
 
     from app.services.worksheet_service import WorksheetService
 
@@ -211,8 +233,10 @@ async def generate_worksheet(module_id: str, req: dict, authorization: Optional[
     )
 
     if error:
+        release(rsv)
         raise HTTPException(500, error)
 
+    consume(rsv)
     return {"success": True, "worksheet": worksheet_data}
 
 
@@ -281,18 +305,24 @@ async def download_worksheet(module_id: str, req: dict, authorization: Optional[
  
  
 @router.post("/worksheet/generate-direct")
-async def generate_worksheet_direct(req: dict, authorization: Optional[str] = Header(None)):
-    """Generate worksheet directly from uploaded PDF — no module needed."""
-    teacher_id = _validate_teacher_id(req.get("teacher_id"))
-    if not teacher_id:
-        raise HTTPException(400, "teacher_id required")
+async def generate_worksheet_direct(req: dict, user: AuthUser = Depends(require_user),
+                                    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key",
+                                                                            max_length=80)):
+    """Generate worksheet directly from an uploaded PDF — no module needed. Owner = the JWT (body teacher_id
+    ignored); the file must live under the caller's own folder in the Modules bucket."""
+    teacher_id = user.id
+    rsv = _worksheet_gate(user, idempotency_key)
 
     from app.services.module_service import ModuleService, get_supabase, get_genai
     import tempfile, os, json
 
-    storage_path = req.get("storage_path", "")
+    storage_path = str(req.get("storage_path") or "")
     if not storage_path:
+        release(rsv)
         raise HTTPException(400, "storage_path required")
+    if not storage_path.startswith(f"{teacher_id}/") or ".." in storage_path:
+        release(rsv)
+        raise HTTPException(403, "storage_path must be under your own folder")
 
     try:
         sb = get_supabase()
@@ -330,7 +360,7 @@ TOTAL QUESTIONS: {num_questions}
 QUESTION TYPES: {', '.join(question_types)}
 
 SOURCE CONTENT:
-{full_text[:400000]}
+{full_text[:WORKSHEET_MAX_INPUT_CHARS]}
 
 Generate EXACTLY {num_questions} questions for a student assignment.
 
@@ -418,6 +448,10 @@ Output ONLY valid JSON, no markdown, no backticks."""
             model=model_name,
             contents=prompt,
             config={"temperature": 0.3, "max_output_tokens": 16000, "response_mime_type": "application/json"})
+        u = usage_from_response(model_name, response)
+        log_usage("worksheet_direct", user.id, u,
+                  est_cost_usd=(u["input_tokens"] * 0.30 + u["output_tokens"] * 2.50) / 1e6
+                  if model_name == "gemini-3.5-flash-lite" else None)
 
         raw_text = response.text
         try:
@@ -428,7 +462,7 @@ Output ONLY valid JSON, no markdown, no backticks."""
             data = json.loads(cleaned)
         from app.services.worksheet_service import convert_worksheet_symbols
         data = convert_worksheet_symbols(data)
-        
+        consume(rsv)
 
         return {
             "success": True,
@@ -441,8 +475,10 @@ Output ONLY valid JSON, no markdown, no backticks."""
             }
         }
     except HTTPException:
+        release(rsv)
         raise
     except Exception as e:
+        release(rsv)
         raise HTTPException(500, str(e))
 
 
