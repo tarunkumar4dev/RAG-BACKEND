@@ -439,6 +439,16 @@ def _append_docx(paper: bytes, extra: bytes) -> bytes:
     return buf.getvalue()
 
 
+def _pdf_header_text(value):
+    """Title / institute / subject go into the PDF header as markup, unescaped (and some layouts upper-case them,
+    so entities cannot be used): "<Test>" would vanish and "C&B" would print as "C&B;". Angle brackets become
+    ‹ ›, and an "&" gets spaces around it."""
+    if not value:
+        return value
+    s = str(value).replace("<", "‹").replace(">", "›")
+    return " ".join(re.sub(r"\s*&\s*", " & ", s).split())
+
+
 def render_paper(questions: List[dict], *, title: str, fmt: str, template: str, include_answer_key: bool,
                  subject: str, class_grade: str, board: str, institute_name: Optional[str] = None,
                  duration: Optional[str] = None, teacher_name: Optional[str] = None,
@@ -446,8 +456,10 @@ def render_paper(questions: List[dict], *, title: str, fmt: str, template: str, 
     """The question paper through the existing exporter (never with answers marked inside it), plus — when asked —
     the existing standalone answer key appended as its own page(s)."""
     from app.services import export_service as ex
-    common = dict(exam_title=title, board=board, class_grade=class_grade, subject=subject, paper_date=paper_date,
-                  template=template, teacher_name=teacher_name, institute_name=institute_name, duration=duration)
+    head = _pdf_header_text if fmt == "pdf" else (lambda v: v)
+    common = dict(exam_title=head(title), board=head(board), class_grade=head(class_grade), subject=head(subject),
+                  paper_date=paper_date, template=template, teacher_name=head(teacher_name),
+                  institute_name=head(institute_name), duration=head(duration))
     with ex.literal_text():
         if fmt == "docx":
             paper = ex.generate_docx(questions=questions, include_answers=False, include_explanations=False, **common)

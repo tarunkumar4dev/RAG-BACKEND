@@ -753,7 +753,9 @@ def _process_latex(text: str, use_tags: bool = False) -> str:
         result = re.sub(rf'(?<![a-zA-Z\\]){cmd}\{{([^}}]*)\}}', r'\1', result)
         result = re.sub(rf'(?<![a-zA-Z\\]){cmd}(?![a-zA-Z])', replacement, result)
 
-    if use_tags:
+    if _LITERAL_TEXT.get():
+        pass                                     # "x_1", "a^2", "{…}" are printed as typed
+    elif use_tags:
         result = re.sub(r'\^\{([^}]*)\}', r'<super>\1</super>', result)
         result = re.sub(r'\^([a-zA-Z0-9°])', r'<super>\1</super>', result)
         result = re.sub(r'_\{([^}]*)\}', r'<sub>\1</sub>', result)
@@ -764,7 +766,8 @@ def _process_latex(text: str, use_tags: bool = False) -> str:
         result = re.sub(r'_\{([^}]*)\}', r'_\1', result)
         result = re.sub(r'_([a-zA-Z0-9])', r'_\1', result)
 
-    result = result.replace('{', '').replace('}', '')
+    if not _LITERAL_TEXT.get():
+        result = result.replace('{', '').replace('}', '')
     result = _fix_unicode_scripts(result, use_tags)
     result = re.sub(r'[ \t]+', ' ', result)
     result = re.sub(r' *\n *', '\n', result)
@@ -777,6 +780,9 @@ def _process_latex(text: str, use_tags: bool = False) -> str:
 
 
 def _latex_to_paragraph(text: str) -> str:
+    literal = _LITERAL_TEXT.get()
+    if literal:                                  # a typed "<b>" is text, not markup
+        text = text.replace('<', '\x00LT\x00')
     text = text.replace('\r\n', '\n').replace('\r', '\n')
     text = re.sub(r'\n\s*\n', '__PARABREAK__', text)
     text = text.replace('\n', '__LINEBREAK__')
@@ -794,6 +800,8 @@ def _latex_to_paragraph(text: str) -> str:
     result = result.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
     for ph, tag in tags.items():
         result = result.replace(ph, tag)
+    if literal:
+        result = result.replace('\x00LT\x00', '&lt;')
     return result
 
 

@@ -99,6 +99,28 @@ def test_dollar_amounts_are_printed_as_in_the_bank():
     assert ex._process_latex("H2O", use_tags=True) == "H<sub>2</sub>O"    # switched off again after the block
 
 
+def test_awkward_characters_are_printed_as_typed_and_never_break_the_file():
+    _, rows = bank("business_studies")
+    odd = "Is P&L < Balance Sheet > 5% & <b>bold</b> </para> ok? x_1 a^2 {curly}"
+    rows[0]["question_text"] = odd
+    rows[0]["options"][0]["text"] = "R&D <i>cost</i>"
+    sections = [{"qtype": "mcq", "count": 3, "marks_each": 1}]
+    questions = qb.paper_questions(qb.select_for_paper(rows, sections), sections)
+    kw = dict(title="Tom & Jerry <Test> 100%", include_answer_key=True, subject="A&B", class_grade="12",
+              board="CBSE", institute_name="Sharma&Sons <Classes>", teacher_name="A & B")
+    for template in ("modern", "classic", "compact", "colorful"):
+        text = " ".join(pdf_pages(qb.render_paper(questions, fmt="pdf", template=template, **kw)))
+        assert odd in text and "R&D <i>cost</i>" in text, template
+        assert "‹Test›" in text and ("Sharma & Sons ‹Classes›" in text or "SHARMA & SONS ‹CLASSES›" in text
+                                     or template in ("classic", "compact")), template
+        assert "&amp;" not in text and "&B;" not in text
+        word = docx_text(qb.render_paper(questions, fmt="docx", template=template, **kw))
+        assert odd in word and "Tom & Jerry <Test> 100%" in word, template
+    # everyone else: the exporter's maths handling is as before
+    assert ex._process_latex("x_1 a^2 {c}", use_tags=True) == "x<sub>1</sub> a<super>2</super> c"
+    assert ex._latex_to_paragraph("<b>bold</b> a < b") == "<b>bold</b> a &lt; b"
+
+
 # ── the answer key holds only answers that were found ────────────────────────
 
 def test_answer_key_matches_the_bank_and_marks_missing_answers():
