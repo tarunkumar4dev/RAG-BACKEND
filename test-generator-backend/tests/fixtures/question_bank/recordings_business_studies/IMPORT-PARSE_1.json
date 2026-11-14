@@ -1,0 +1,337 @@
+{
+ "header": {
+  "institute": "SUNRISE COMMERCE CLASSES",
+  "board": "",
+  "title": "Class XI — Business Studies",
+  "class_grade": "XI",
+  "subject": "Business Studies",
+  "topic": "Nature and Purpose of Business",
+  "duration_text": "1 Hour 30 Minutes",
+  "max_marks": 32
+ },
+ "questions": [
+  {
+   "number": 1,
+   "section_level": "Unknown",
+   "type": "MCQ",
+   "text": "Which of the following is an economic activity? [CBSE 2023]",
+   "options": [
+    {
+     "label": "a",
+     "text": "A mother cooking food for her family"
+    },
+    {
+     "label": "b",
+     "text": "A teacher teaching in a school for a salary"
+    },
+    {
+     "label": "c",
+     "text": "A person donating blood"
+    },
+    {
+     "label": "d",
+     "text": "A student helping a friend with homework"
+    }
+   ],
+   "marks": 1,
+   "explanation": "",
+   "ai_answer": ""
+  },
+  {
+   "number": 2,
+   "section_level": "Unknown",
+   "type": "MCQ",
+   "text": "The occupation in which people work for others and get remunerated in return is known as:",
+   "options": [
+    {
+     "label": "a",
+     "text": "Business"
+    },
+    {
+     "label": "b",
+     "text": "Profession"
+    },
+    {
+     "label": "c",
+     "text": "Employment"
+    },
+    {
+     "label": "d",
+     "text": "None of these"
+    }
+   ],
+   "marks": 1,
+   "explanation": "",
+   "ai_answer": ""
+  },
+  {
+   "number": 3,
+   "section_level": "Unknown",
+   "type": "MCQ",
+   "text": "Which of the following is NOT a characteristic of business? [CBSE 2022]",
+   "options": [
+    {
+     "label": "a",
+     "text": "Production or procurement of goods and services"
+    },
+    {
+     "label": "b",
+     "text": "Sale or exchange of goods and services"
+    },
+    {
+     "label": "c",
+     "text": "Wages or salaries"
+    },
+    {
+     "label": "d",
+     "text": "Element of risk"
+    }
+   ],
+   "marks": 1,
+   "explanation": "",
+   "ai_answer": ""
+  },
+  {
+   "number": 4,
+   "section_level": "Unknown",
+   "type": "MCQ",
+   "text": "Industries which provide support services to other industries are known as:",
+   "options": [
+    {
+     "label": "a",
+     "text": "Primary industries"
+    },
+    {
+     "label": "b",
+     "text": "Secondary industries"
+    },
+    {
+     "label": "c",
+     "text": "Tertiary industries"
+    },
+    {
+     "label": "d",
+     "text": "Commercial industries"
+    }
+   ],
+   "marks": 1,
+   "explanation": "",
+   "ai_answer": ""
+  },
+  {
+   "number": 5,
+   "section_level": "Unknown",
+   "type": "MCQ",
+   "text": "Transfer of interest exists in the case of:",
+   "options": [
+    {
+     "label": "a",
+     "text": "Profession"
+    },
+    {
+     "label": "b",
+     "text": "Employment"
+    },
+    {
+     "label": "c",
+     "text": "Business"
+    },
+    {
+     "label": "d",
+     "text": "None of these"
+    }
+   ],
+   "marks": 1,
+   "explanation": "",
+   "ai_answer": ""
+  },
+  {
+   "number": 6,
+   "section_level": "Unknown",
+   "type": "MCQ",
+   "text": "Which of the following cannot be classified as an auxiliary to trade?",
+   "options": [
+    {
+     "label": "a",
+     "text": "Mining"
+    },
+    {
+     "label": "b",
+     "text": "Insurance"
+    },
+    {
+     "label": "c",
+     "text": "Warehousing"
+    },
+    {
+     "label": "d",
+     "text": "Transport"
+    }
+   ],
+   "marks": 1,
+   "explanation": "",
+   "ai_answer": ""
+  },
+  {
+   "number": 7,
+   "section_level": "Unknown",
+   "type": "Short",
+   "text": "Business risk can be completely eliminated by taking insurance.",
+   "options": [],
+   "marks": 1,
+   "explanation": "",
+   "ai_answer": ""
+  },
+  {
+   "number": 8,
+   "section_level": "Unknown",
+   "type": "Short",
+   "text": "Earning profit is the only objective of business. [CBSE 2023]",
+   "options": [],
+   "marks": 1,
+   "explanation": "",
+   "ai_answer": ""
+  },
+  {
+   "number": 9,
+   "section_level": "Unknown",
+   "type": "Short",
+   "text": "Warehousing removes the hindrance of time.",
+   "options": [],
+   "marks": 1,
+   "explanation": "",
+   "ai_answer": ""
+  },
+  {
+   "number": 10,
+   "section_level": "Unknown",
+   "type": "Short",
+   "text": "A lawyer practising in a court is engaged in a profession.",
+   "options": [],
+   "marks": 1,
+   "explanation": "",
+   "ai_answer": ""
+  },
+  {
+   "number": 11,
+   "section_level": "Unknown",
+   "type": "Short",
+   "text": "State any three characteristics of business activities.",
+   "options": [],
+   "marks": 3,
+   "explanation": "",
+   "ai_answer": ""
+  },
+  {
+   "number": 12,
+   "section_level": "Unknown",
+   "type": "Short",
+   "text": "Distinguish between primary and secondary industries. [CBSE 2021]",
+   "options": [],
+   "marks": 3,
+   "explanation": "",
+   "ai_answer": ""
+  },
+  {
+   "number": 13,
+   "section_level": "Unknown",
+   "type": "Short",
+   "text": "What is meant by business risk? Give two causes of business risk.",
+   "options": [],
+   "marks": 3,
+   "explanation": "",
+   "ai_answer": ""
+  },
+  {
+   "number": 14,
+   "section_level": "Unknown",
+   "type": "Short",
+   "text": "व्यवसाय और पेशे में कोई दो अंतर लिखिए।",
+   "options": [],
+   "marks": 3,
+   "explanation": "",
+   "ai_answer": ""
+  },
+  {
+   "number": 15,
+   "section_level": "Unknown",
+   "type": "Long",
+   "text": "Explain any five objectives of business, other than earning profit.",
+   "options": [],
+   "marks": 5,
+   "explanation": "",
+   "ai_answer": ""
+  },
+  {
+   "number": 16,
+   "section_level": "Unknown",
+   "type": "Long",
+   "text": "Describe the various auxiliaries to trade and explain how each one removes a hindrance in the exchange of goods. [CBSE 2023]",
+   "options": [],
+   "marks": 5,
+   "explanation": "",
+   "ai_answer": ""
+  }
+ ],
+ "answer_key": {
+  "found": true,
+  "table": [],
+  "list": [
+   {
+    "number": 1,
+    "letter": "(b)",
+    "text": ""
+   },
+   {
+    "number": 2,
+    "letter": "(c)",
+    "text": ""
+   },
+   {
+    "number": 3,
+    "letter": "(c)",
+    "text": ""
+   },
+   {
+    "number": 4,
+    "letter": "(c)",
+    "text": ""
+   },
+   {
+    "number": 5,
+    "letter": "(c)",
+    "text": ""
+   },
+   {
+    "number": 7,
+    "letter": "",
+    "text": "False"
+   },
+   {
+    "number": 8,
+    "letter": "",
+    "text": "False"
+   },
+   {
+    "number": 9,
+    "letter": "",
+    "text": "True"
+   },
+   {
+    "number": 10,
+    "letter": "",
+    "text": "True"
+   },
+   {
+    "number": 11,
+    "letter": "",
+    "text": "An economic activity; production or procurement of goods and services; sale or exchange of goods and services (any three)."
+   },
+   {
+    "number": 12,
+    "letter": "",
+    "text": "Primary industries extract or produce natural resources (mining, farming); secondary industries process those materials into finished goods (manufacturing, construction)."
+   }
+  ]
+ }
+}

@@ -1,0 +1,355 @@
+{
+ "answer_key_count": 11,
+ "answer_key_found": true,
+ "board": null,
+ "class_grade": "11",
+ "duration_minutes": 90,
+ "institute": "SUNRISE COMMERCE CLASSES",
+ "questions": [
+  {
+   "answer_source": "key",
+   "chapter": "Nature and Purpose of Business",
+   "correct_answer": "B",
+   "difficulty": "Medium",
+   "explanation": null,
+   "marks": 1,
+   "options": [
+    {
+     "label": "A",
+     "text": "A mother cooking food for her family"
+    },
+    {
+     "label": "B",
+     "text": "A teacher teaching in a school for a salary"
+    },
+    {
+     "label": "C",
+     "text": "A person donating blood"
+    },
+    {
+     "label": "D",
+     "text": "A student helping a friend with homework"
+    }
+   ],
+   "question_text": "Which of the following is an economic activity? [CBSE 2023]",
+   "question_type": "MCQ",
+   "source_number": 1,
+   "usable": true
+  },
+  {
+   "answer_source": "key",
+   "chapter": "Nature and Purpose of Business",
+   "correct_answer": "C",
+   "difficulty": "Medium",
+   "explanation": null,
+   "marks": 1,
+   "options": [
+    {
+     "label": "A",
+     "text": "Business"
+    },
+    {
+     "label": "B",
+     "text": "Profession"
+    },
+    {
+     "label": "C",
+     "text": "Employment"
+    },
+    {
+     "label": "D",
+     "text": "None of these"
+    }
+   ],
+   "question_text": "The occupation in which people work for others and get remunerated in return is known as:",
+   "question_type": "MCQ",
+   "source_number": 2,
+   "usable": true
+  },
+  {
+   "answer_source": "key",
+   "chapter": "Nature and Purpose of Business",
+   "correct_answer": "C",
+   "difficulty": "Medium",
+   "explanation": null,
+   "marks": 1,
+   "options": [
+    {
+     "label": "A",
+     "text": "Production or procurement of goods and services"
+    },
+    {
+     "label": "B",
+     "text": "Sale or exchange of goods and services"
+    },
+    {
+     "label": "C",
+     "text": "Wages or salaries"
+    },
+    {
+     "label": "D",
+     "text": "Element of risk"
+    }
+   ],
+   "question_text": "Which of the following is NOT a characteristic of business? [CBSE 2022]",
+   "question_type": "MCQ",
+   "source_number": 3,
+   "usable": true
+  },
+  {
+   "answer_source": "key",
+   "chapter": "Nature and Purpose of Business",
+   "correct_answer": "C",
+   "difficulty": "Medium",
+   "explanation": null,
+   "marks": 1,
+   "options": [
+    {
+     "label": "A",
+     "text": "Primary industries"
+    },
+    {
+     "label": "B",
+     "text": "Secondary industries"
+    },
+    {
+     "label": "C",
+     "text": "Tertiary industries"
+    },
+    {
+     "label": "D",
+     "text": "Commercial industries"
+    }
+   ],
+   "question_text": "Industries which provide support services to other industries are known as:",
+   "question_type": "MCQ",
+   "source_number": 4,
+   "usable": true
+  },
+  {
+   "answer_source": "key",
+   "chapter": "Nature and Purpose of Business",
+   "correct_answer": "C",
+   "difficulty": "Medium",
+   "explanation": null,
+   "marks": 1,
+   "options": [
+    {
+     "label": "A",
+     "text": "Profession"
+    },
+    {
+     "label": "B",
+     "text": "Employment"
+    },
+    {
+     "label": "C",
+     "text": "Business"
+    },
+    {
+     "label": "D",
+     "text": "None of these"
+    }
+   ],
+   "question_text": "Transfer of interest exists in the case of:",
+   "question_type": "MCQ",
+   "source_number": 5,
+   "usable": true
+  },
+  {
+   "answer_source": "missing",
+   "chapter": "Nature and Purpose of Business",
+   "correct_answer": null,
+   "difficulty": "Medium",
+   "explanation": null,
+   "marks": 1,
+   "options": [
+    {
+     "label": "A",
+     "text": "Mining"
+    },
+    {
+     "label": "B",
+     "text": "Insurance"
+    },
+    {
+     "label": "C",
+     "text": "Warehousing"
+    },
+    {
+     "label": "D",
+     "text": "Transport"
+    }
+   ],
+   "question_text": "Which of the following cannot be classified as an auxiliary to trade?",
+   "question_type": "MCQ",
+   "source_number": 6,
+   "usable": true
+  },
+  {
+   "answer_source": "key",
+   "chapter": "Nature and Purpose of Business",
+   "correct_answer": "False",
+   "difficulty": "Medium",
+   "explanation": null,
+   "marks": 1,
+   "options": [],
+   "question_text": "Business risk can be completely eliminated by taking insurance.",
+   "question_type": "Short",
+   "source_number": 7,
+   "usable": true
+  },
+  {
+   "answer_source": "key",
+   "chapter": "Nature and Purpose of Business",
+   "correct_answer": "False",
+   "difficulty": "Medium",
+   "explanation": null,
+   "marks": 1,
+   "options": [],
+   "question_text": "Earning profit is the only objective of business. [CBSE 2023]",
+   "question_type": "Short",
+   "source_number": 8,
+   "usable": true
+  },
+  {
+   "answer_source": "key",
+   "chapter": "Nature and Purpose of Business",
+   "correct_answer": "True",
+   "difficulty": "Medium",
+   "explanation": null,
+   "marks": 1,
+   "options": [],
+   "question_text": "Warehousing removes the hindrance of time.",
+   "question_type": "Short",
+   "source_number": 9,
+   "usable": true
+  },
+  {
+   "answer_source": "key",
+   "chapter": "Nature and Purpose of Business",
+   "correct_answer": "True",
+   "difficulty": "Medium",
+   "explanation": null,
+   "marks": 1,
+   "options": [],
+   "question_text": "A lawyer practising in a court is engaged in a profession.",
+   "question_type": "Short",
+   "source_number": 10,
+   "usable": true
+  },
+  {
+   "answer_source": "key",
+   "chapter": "Nature and Purpose of Business",
+   "correct_answer": "An economic activity; production or procurement of goods and services; sale or exchange of goods and services (any three).",
+   "difficulty": "Medium",
+   "explanation": null,
+   "marks": 3,
+   "options": [],
+   "question_text": "State any three characteristics of business activities.",
+   "question_type": "Short",
+   "source_number": 11,
+   "usable": true
+  },
+  {
+   "answer_source": "key",
+   "chapter": "Nature and Purpose of Business",
+   "correct_answer": "Primary industries extract or produce natural resources (mining, farming); secondary industries process those materials into finished goods (manufacturing, construction).",
+   "difficulty": "Medium",
+   "explanation": null,
+   "marks": 3,
+   "options": [],
+   "question_text": "Distinguish between primary and secondary industries. [CBSE 2021]",
+   "question_type": "Short",
+   "source_number": 12,
+   "usable": true
+  },
+  {
+   "answer_source": "missing",
+   "chapter": "Nature and Purpose of Business",
+   "correct_answer": null,
+   "difficulty": "Medium",
+   "explanation": null,
+   "marks": 3,
+   "options": [],
+   "question_text": "What is meant by business risk? Give two causes of business risk.",
+   "question_type": "Short",
+   "source_number": 13,
+   "usable": true
+  },
+  {
+   "answer_source": "missing",
+   "chapter": "Nature and Purpose of Business",
+   "correct_answer": null,
+   "difficulty": "Medium",
+   "explanation": null,
+   "marks": 3,
+   "options": [],
+   "question_text": "व्यवसाय और पेशे में कोई दो अंतर लिखिए।",
+   "question_type": "Short",
+   "source_number": 14,
+   "usable": true
+  },
+  {
+   "answer_source": "missing",
+   "chapter": "Nature and Purpose of Business",
+   "correct_answer": null,
+   "difficulty": "Medium",
+   "explanation": null,
+   "marks": 5,
+   "options": [],
+   "question_text": "Explain any five objectives of business, other than earning profit.",
+   "question_type": "Long",
+   "source_number": 15,
+   "usable": true
+  },
+  {
+   "answer_source": "missing",
+   "chapter": "Nature and Purpose of Business",
+   "correct_answer": null,
+   "difficulty": "Medium",
+   "explanation": null,
+   "marks": 5,
+   "options": [],
+   "question_text": "Describe the various auxiliaries to trade and explain how each one removes a hindrance in the exchange of goods. [CBSE 2023]",
+   "question_type": "Long",
+   "source_number": 16,
+   "usable": true
+  }
+ ],
+ "subject": "Business Studies",
+ "title": "Class XI — Business Studies",
+ "total_marks": 32,
+ "warnings": [
+  {
+   "code": "ANSWER_MISSING",
+   "message": "Q6: the answer key has no entry for this question.",
+   "question": 6
+  },
+  {
+   "code": "ANSWER_MISSING",
+   "message": "Q13: no model answer for this written question in the PDF.",
+   "question": 13
+  },
+  {
+   "code": "ANSWER_MISSING",
+   "message": "Q14: no model answer for this written question in the PDF.",
+   "question": 14
+  },
+  {
+   "code": "ANSWER_MISSING",
+   "message": "Q15: no model answer for this written question in the PDF.",
+   "question": 15
+  },
+  {
+   "code": "ANSWER_MISSING",
+   "message": "Q16: no model answer for this written question in the PDF.",
+   "question": 16
+  },
+  {
+   "code": "KEY_COUNT_MISMATCH",
+   "message": "The answer key has 11 answers but 16 questions were found.",
+   "question": null
+  }
+ ]
+}
