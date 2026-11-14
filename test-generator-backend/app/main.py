@@ -24,6 +24,7 @@ from app.core import api_errors, rate_limit
 from app.routers.smart_assignment_router import router as smart_assignment_router
 from app.routers.copy_checker_router import router as copy_checker_router
 from app.routers.internal_jobs_router import router as internal_jobs_router
+from app.routers.question_bank_router import router as question_bank_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -60,6 +61,8 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],  # PATCH: checker marks override
     # X-Attempt-Id: contest submit sends it from the browser; without it the CORS preflight is rejected (400)
     allow_headers=["Authorization", "Content-Type", "X-Requested-With", "X-Attempt-Id"],
+    # X-Paper-Meta: what POST /question-banks/{id}/build-paper says about the file it returns
+    expose_headers=["X-Paper-Meta"],
 )
 
 app.add_middleware(GZipMiddleware, minimum_size=1000)
@@ -220,6 +223,7 @@ app.include_router(chat_router, prefix="/api/v1")
 app.include_router(whatsapp_router, prefix="/api/v1")
 app.include_router(smart_assignment_router, prefix="/api/v1")
 app.include_router(copy_checker_router, prefix="/api/v1")
+app.include_router(question_bank_router, prefix="/api/v1")
 # no prefix: the Supabase vault calls exactly /internal/jobs/run
 app.include_router(internal_jobs_router)
 

@@ -63,6 +63,14 @@ ROUTE_LIMITS = {
     # PDF → contest questions (daily limit of 10 lives in the database); the review screen polls the job
     "POST /api/v1/contests/import-pdf": 10,
     "GET /api/v1/contests/import-pdf/{job_id}": 120,
+    # question bank (no AI cost: database rows and one PDF / DOCX render)
+    "POST /api/v1/question-banks": 10,
+    "GET /api/v1/question-banks": 120,
+    "GET /api/v1/question-banks/{bank_id}/questions": 120,
+    "PATCH /api/v1/question-banks/{bank_id}/questions/{question_id}": 120,
+    "DELETE /api/v1/question-banks/{bank_id}/questions/{question_id}": 120,
+    "DELETE /api/v1/question-banks/{bank_id}": 20,
+    "POST /api/v1/question-banks/{bank_id}/build-paper": 20,
     # payments
     "POST /api/v1/payment/create-order": 10,
     "POST /api/v1/payment/verify-payment": 20,
