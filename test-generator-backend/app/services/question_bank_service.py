@@ -381,6 +381,20 @@ def paper_questions(picked: list, sections: list) -> list:
 # RENDER (existing export system)
 # ═══════════════════════════════════════════════════════════════════════
 
+_INDIC = re.compile(r"[ऀ-෿]")       # Devanagari … Sinhala
+
+
+def pdf_cannot_print(questions: List[dict], *more_texts) -> bool:
+    """The exporter's PDF fonts (Helvetica / Times) have no Indian-script glyphs: Hindi text comes out as black
+    boxes. DOCX is not affected (Word picks a font that has them)."""
+    texts = list(more_texts)
+    for q in questions:
+        texts.append(q.get("text"))
+        texts.extend(q.get("options") or [])
+        texts.append(q.get("correctAnswer"))
+    return any(_INDIC.search(str(t or "")) for t in texts)
+
+
 def allowed_templates() -> set:
     from app.services.export_service import TEMPLATE_PRESETS
     return set(TEMPLATE_PRESETS)

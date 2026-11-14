@@ -32,6 +32,8 @@ import io
 import re
 import base64
 import logging
+import contextlib
+import contextvars
 from typing import List, Optional
 from datetime import datetime
 from urllib.request import urlopen, Request
@@ -78,6 +80,35 @@ def _pair_or_questions(questions):
     return pairs, unpaired
 
 logger = logging.getLogger(__name__)
+
+
+# ── Question Bank papers (app/services/question_bank_service.py) ────────────
+# Their questions are a literal transcription of a teacher's PDF, not generator output, and they bring their own
+# section headings. Two switches, both OFF for every other caller, so all other papers render exactly as before:
+#   literal_text()      "$25 to $30" stays as it is (no $…$ maths, no H2O-style subscripts)
+#   q["section_meta"]   {"title", "subtitle", "instruction", "marks"} next to q["section"]
+
+_LITERAL_TEXT = contextvars.ContextVar("export_literal_text", default=False)
+
+
+@contextlib.contextmanager
+def literal_text():
+    token = _LITERAL_TEXT.set(True)
+    try:
+        yield
+    finally:
+        _LITERAL_TEXT.reset(token)
+
+
+def _custom_section_meta(questions):
+    """([section keys in paper order], {key: meta}) when the questions carry section_meta, else None."""
+    order, meta = [], {}
+    for q in questions or []:
+        m, sec = q.get("section_meta"), q.get("section")
+        if isinstance(m, dict) and sec and sec not in meta:
+            order.append(sec)
+            meta[sec] = m
+    return (order, meta) if order else None
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -690,8 +721,9 @@ def _process_latex(text: str, use_tags: bool = False) -> str:
     for mod, plain in MODIFIER_LETTERS.items():
         result = result.replace(mod, plain)
 
-    result = _fix_chemical_formulas(result, use_tags)
-    result = re.sub(r'\$([^$]+)\$', r'\1', result)
+    if not _LITERAL_TEXT.get():
+        result = _fix_chemical_formulas(result, use_tags)
+        result = re.sub(r'\$([^$]+)\$', r'\1', result)
 
     mathbb_map = {'R': 'ℝ', 'Z': 'ℤ', 'N': 'ℕ', 'Q': 'ℚ', 'C': 'ℂ'}
     for letter, symbol in mathbb_map.items():
@@ -1128,6 +1160,9 @@ def _has_accountancy_sections(questions: List[dict]) -> bool:
 
 
 def _get_section_order(questions: List[dict]) -> tuple:
+    custom = _custom_section_meta(questions)
+    if custom:
+        return custom
     if _has_accountancy_sections(questions):
         return ACCOUNTANCY_SECTION_ORDER, ACCOUNTANCY_SECTIONS_META
     elif _has_sections(questions):
@@ -1610,7 +1645,8 @@ def generate_pdf(
 
     # Route Accountancy to authentic CBSE Accountancy Tabular layout
     sub_lower = (subject or "").lower()
-    if sub_lower in ("accountancy", "accounts", "accounting") or _has_accountancy_sections(questions):
+    if (sub_lower in ("accountancy", "accounts", "accounting") or _has_accountancy_sections(questions)) \
+            and not _custom_section_meta(questions):
         return _generate_pdf_accountancy_exam(
             questions=questions, exam_title=exam_title, board=board,
             class_grade=class_grade, subject=subject,
@@ -1761,6 +1797,10 @@ def generate_pdf(
             "<b>Part B</b> has two options — attempt only one.",
             "Internal choice has been provided in some questions.",
         ])
+    elif has_sec and sec_meta_dict is not CBSE_SECTIONS_META:
+        base_instructions.append(f"This question paper has <b>{len(sec_order)} section{'' if len(sec_order) == 1 else 's'}</b>.")
+        base_instructions.extend(
+            f"<b>{sec_meta_dict[k].get('title', k)}</b> {sec_meta_dict[k].get('subtitle', '')}" for k in sec_order)
     elif has_sec:
         base_instructions.extend([
             f"This question paper has <b>5 Sections</b> — A, B, C, D, and E.",
@@ -2024,7 +2064,8 @@ def generate_docx(
 
     # Route Accountancy to authentic CBSE Accountancy Tabular layout
     sub_lower = (subject or "").lower()
-    if sub_lower in ("accountancy", "accounts", "accounting") or _has_accountancy_sections(questions):
+    if (sub_lower in ("accountancy", "accounts", "accounting") or _has_accountancy_sections(questions)) \
+            and not _custom_section_meta(questions):
         return _generate_docx_accountancy_exam(
             questions=questions, exam_title=exam_title, board=board,
             class_grade=class_grade, subject=subject,
@@ -2141,6 +2182,10 @@ def generate_docx(
             "Part B has two options — attempt only one.",
             "Internal choice has been provided in some questions.",
         ])
+    elif has_sec and sec_meta_dict is not CBSE_SECTIONS_META:
+        instructions.append(f"This paper has {len(sec_order)} section{'' if len(sec_order) == 1 else 's'}.")
+        instructions.extend(
+            f"{sec_meta_dict[k].get('title', k)} {sec_meta_dict[k].get('subtitle', '')}" for k in sec_order)
     elif has_sec:
         instructions.extend([
             "This paper has 5 Sections — A, B, C, D, and E.",
@@ -4351,7 +4396,8 @@ def _generate_pdf_cbse_exam(
     topic_parts = []
     if topic and str(topic).strip():
         topic_parts.append(str(topic).strip())
-    topic_parts.append(f"{board} Pattern")
+    if not _custom_section_meta(questions):      # a bank paper does not claim a board pattern
+        topic_parts.append(f"{board} Pattern")
 
     center_items = []
     if institute_name and institute_name.strip():
@@ -4454,7 +4500,8 @@ def _generate_pdf_cbse_exam(
 
     instructions = [
         f"All questions are compulsory. There are {len(_main_questions(questions))} questions in total"
-        + (", divided into 5 Sections." if has_sec else "."),
+        + ((f", divided into {len(sec_order)} section{'' if len(sec_order) == 1 else 's'}."
+            if _custom_section_meta(questions) else ", divided into 5 Sections.") if has_sec else "."),
     ]
     if has_sec and sec_meta_dict is CBSE_SECTIONS_META:
         grouped_temp = _group_by_section(questions)
@@ -4482,10 +4529,14 @@ def _generate_pdf_cbse_exam(
             else:
                 subtitle_clean = meta.get("subtitle", "").strip("() ")
                 instructions.append(f"Section {sk}: {q_range} are {subtitle_clean} ({marks_val} marks each).")
+    elif has_sec and _custom_section_meta(questions):
+        instructions.extend(
+            f"{sec_meta_dict[k].get('title', k)} {sec_meta_dict[k].get('subtitle', '')}" for k in sec_order)
     elif has_sec:
         instructions.append("This paper has multiple sections as indicated.")
 
-    instructions.append("Use of calculator is not permitted.")
+    if not _custom_section_meta(questions):      # a bank paper prints no rule its teacher did not set
+        instructions.append("Use of calculator is not permitted.")
     for inst in instructions:
         story.append(Paragraph(f"•  {inst}", styles["InstBullet"]))
     story.append(Spacer(1, 3))
@@ -4720,7 +4771,7 @@ def _generate_pdf_cbse_exam(
             q_range = f"(Q{start_q}–{end_q})" if end_q > start_q else f"(Q{start_q})"
 
             marks_desc = meta.get("marks_per_q") or meta.get("marks")
-            if sec_key == "E" or "case" in current_title.lower():
+            if (sec_key == "E" and sec_meta_dict is CBSE_SECTIONS_META) or "case" in current_title.lower():
                 tot_m = meta.get("marks", sum(q.get("marks", 4) for q in sec_qs))
                 sub_label = f"{tot_m} Marks {q_range}"
             elif marks_desc:
@@ -4834,7 +4885,8 @@ def _generate_docx_cbse_exam(
     topic_parts = []
     if topic and str(topic).strip():
         topic_parts.append(str(topic).strip())
-    topic_parts.append(f"{board} Pattern")
+    if not _custom_section_meta(questions):      # a bank paper does not claim a board pattern
+        topic_parts.append(f"{board} Pattern")
 
     has_logo_docx = False
     if logo_base64:
@@ -4942,7 +4994,8 @@ def _generate_docx_cbse_exam(
 
     instructions = [
         f"All questions are compulsory. There are {len(_main_questions(questions))} questions in total"
-        + (", divided into 5 Sections." if has_sec else "."),
+        + ((f", divided into {len(sec_order)} section{'' if len(sec_order) == 1 else 's'}."
+            if _custom_section_meta(questions) else ", divided into 5 Sections.") if has_sec else "."),
     ]
     if has_sec and sec_meta_dict is CBSE_SECTIONS_META:
         grouped_temp = _group_by_section(questions)
@@ -4970,10 +5023,14 @@ def _generate_docx_cbse_exam(
             else:
                 subtitle_clean = meta.get("subtitle", "").strip("() ")
                 instructions.append(f"Section {sk}: {q_range} are {subtitle_clean} ({marks_val} marks each).")
+    elif has_sec and _custom_section_meta(questions):
+        instructions.extend(
+            f"{sec_meta_dict[k].get('title', k)} {sec_meta_dict[k].get('subtitle', '')}" for k in sec_order)
     elif has_sec:
         instructions.append("This paper has multiple sections as indicated.")
 
-    instructions.append("Use of calculator is not permitted.")
+    if not _custom_section_meta(questions):      # a bank paper prints no rule its teacher did not set
+        instructions.append("Use of calculator is not permitted.")
     for inst in instructions:
         p = doc.add_paragraph()
         p.paragraph_format.left_indent = Pt(10)
@@ -5120,7 +5177,7 @@ def _generate_docx_cbse_exam(
             q_range = f"(Q{start_q}–{end_q})" if end_q > start_q else f"(Q{start_q})"
 
             marks_desc = meta.get("marks_per_q") or meta.get("marks")
-            if sec_key == "E" or "case" in current_title.lower():
+            if (sec_key == "E" and sec_meta_dict is CBSE_SECTIONS_META) or "case" in current_title.lower():
                 tot_m = meta.get("marks", sum(q.get("marks", 4) for q in sec_qs))
                 sub_label = f"{tot_m} Marks {q_range}"
             elif marks_desc:

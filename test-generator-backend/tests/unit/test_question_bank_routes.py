@@ -496,6 +496,18 @@ def test_build_paper_input_limits(env, change, status):
     assert r.status_code == status and env.rendered == []
 
 
+def test_build_paper_refuses_hindi_in_pdf_and_allows_docx(env):
+    bank_id = make_bank(env, [{**long(1), "question_text": "व्यवसाय और पेशे में कोई दो अंतर लिखिए।"}, long(2)])
+    one = [{"qtype": "long", "count": 2, "marks_each": 5}]
+    r = env.client.post(f"{URL}/{bank_id}/build-paper", json=paper(sections=one))
+    assert r.status_code == 422 and r.json()["detail"] == qbr.HINDI_PDF and env.rendered == []
+    assert env.store.tables["tests"] == []
+    assert env.client.post(f"{URL}/{bank_id}/build-paper", json=paper(sections=one, format="docx")).status_code == 200
+    r = env.client.post(f"{URL}/{bank_id}/build-paper", json=paper(
+        sections=[{"qtype": "long", "count": 1, "marks_each": 5}], title="इकाई परीक्षा"))
+    assert r.status_code == 422
+
+
 def test_build_paper_still_delivers_when_history_cannot_be_saved(env):
     bank_id = make_bank(env)
     env.store.raise_on[("tests", "insert")] = RuntimeError("service key missing")

@@ -51,6 +51,8 @@ NOT_FOUND = "Question bank not found."
 Q_NOT_FOUND = "Question not found."
 READ_ONLY = "You can view this question bank but not change it."
 NOT_SET_UP = "Question banks are not available on this server yet."
+HINDI_PDF = ("This paper has Hindi (or other Indian-script) text, which the PDF export cannot print yet. "
+             "Choose Word (DOCX) instead.")
 
 
 # ── helpers ─────────────────────────────────────────────────────────────────
@@ -390,11 +392,14 @@ def _build(c: _Caller, bank_id: str, body: BuildPaperRequest) -> Response:
     subject = _one_line(body.subject, 50) or bank.get("subject") or "General"
     class_grade = _class_number(body.class_grade or bank.get("class_grade")) or "-"
     board = _one_line(body.board, 30) or bank.get("board") or "CBSE"
+    institute = _one_line(body.institute_name, 200)
+    if body.format == "pdf" and svc.pdf_cannot_print(questions, title, institute, subject):
+        raise HTTPException(status_code=422, detail=HINDI_PDF)
     try:
         content = svc.render_paper(
             questions, title=title, fmt=body.format, template=template,
             include_answer_key=body.include_answer_key, subject=subject, class_grade=class_grade, board=board,
-            institute_name=_one_line(body.institute_name, 200), duration=_one_line(body.duration, 20),
+            institute_name=institute, duration=_one_line(body.duration, 20),
             teacher_name=_one_line(body.teacher_name, 100), paper_date=date.today().isoformat())
     except Exception:
         logger.error(f"[qbank] rendering a paper from bank {bank_id} failed", exc_info=True)
