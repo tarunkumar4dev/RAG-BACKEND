@@ -18,7 +18,7 @@ from pathlib import Path
 
 BACKEND = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(BACKEND))
-os.environ["GEMINI_MOCK"] = "1"
+os.environ.setdefault("GEMINI_MOCK", "1")
 os.environ.setdefault("GEMINI_MOCK_DIR", str(BACKEND / "tests" / "fixtures" / "contest_import" / "recordings"))
 os.environ.setdefault("SUPABASE_URL", "https://example.supabase.co")
 os.environ.setdefault("GEMINI_API_KEY", "mock")
