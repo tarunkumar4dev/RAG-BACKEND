@@ -283,6 +283,33 @@ class PostgresStore:
 
     # -- query history -----------------------------------------------------
 
+    # ---- voice usage (phase 3) ----------------------------------------------------------------------------------
+    def voice_usage_get(self, o: Owner, periods: list[str]) -> dict[str, int]:
+        if not periods:
+            return {}
+        with self._conn() as c:
+            rows = c.execute("SELECT period, count FROM voice_usage WHERE institute_id = %s AND user_id = %s "
+                             "AND period = ANY(%s)", (o.institute_id, o.user_id, list(periods))).fetchall()
+        out = {p: 0 for p in periods}
+        out.update({r["period"]: int(r["count"]) for r in rows})
+        return out
+
+    def voice_usage_add(self, o: Owner, periods: list[str], n: int = 1) -> None:
+        with self._tx() as c:
+            for period in periods:
+                c.execute("INSERT INTO voice_usage (institute_id, user_id, period, count, updated_at) "
+                          "VALUES (%s,%s,%s,%s,now()) ON CONFLICT (institute_id, user_id, period) DO UPDATE SET "
+                          "count = GREATEST(voice_usage.count + EXCLUDED.count, 0), updated_at = now()",
+                          (o.institute_id, o.user_id, period, n))
+
+    def voice_usage_by_institute(self, period: str) -> list[dict]:
+        with self._conn() as c:
+            rows = c.execute("SELECT institute_id, count(*) AS users, sum(count) AS queries FROM voice_usage "
+                             "WHERE period = %s AND count > 0 GROUP BY institute_id ORDER BY queries DESC",
+                             (period,)).fetchall()
+        return [{"institute_id": str(r["institute_id"]), "users": int(r["users"]), "queries": int(r["queries"])}
+                for r in rows]
+
     def record_query(self, o: Owner, text: str) -> None:
         norm = normalize_query(text)
         if not norm:

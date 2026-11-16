@@ -199,6 +199,7 @@ def test_events_validate_seq_monotonic_and_trace_has_no_pii(tmp_path, monkeypatc
     for line in text.splitlines():
         rec = json.loads(line)
         assert set(rec) <= {"ts", "request_id", "kind", "tool", "arg_keys", "latency_ms", "ok", "status", "model",
+                            "institute_id", "feature",  # phase 3: cost attribution (ids only, never a user)
                             "tokens_in", "tokens_out", "cache_read", "cache_write", "cost_usd",
                             "route", "reason",  # v3: routing trace
                             "attempt", "error", "delay_s",  # v3: retry trace

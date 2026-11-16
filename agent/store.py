@@ -75,6 +75,16 @@ create table if not exists feedback (
   created_at real not null,
   primary key (user_id, institute_id, session_id, message_seq)
 );
+-- voice usage (phase 3): the count that limits a user's voice questions, per IST day and per month.
+-- Shared by every server process; survives restarts. institute_id + user_id + period is the key.
+create table if not exists voice_usage (
+  institute_id text not null,
+  user_id text not null,
+  period text not null,                       -- 'YYYY-MM-DD' (day, IST) or 'YYYY-MM' (month)
+  count integer not null default 0,
+  updated_at real not null,
+  primary key (institute_id, user_id, period)
+);
 """
 
 
@@ -360,6 +370,31 @@ class SQLiteStore:
         return events
 
     # -- query history -----------------------------------------------------
+    # ---- voice usage (phase 3) ----------------------------------------------------------------------------------
+    def voice_usage_get(self, o: Owner, periods: list[str]) -> dict[str, int]:
+        """{period: count} for this user (missing period = 0)."""
+        if not periods:
+            return {}
+        rows = self._q(f"select period, count from voice_usage where institute_id = ? and user_id = ? "
+                       f"and period in ({','.join('?' * len(periods))})", (o.institute_id, o.user_id, *periods))
+        out = {p: 0 for p in periods}
+        out.update({r["period"]: int(r["count"]) for r in rows})
+        return out
+
+    def voice_usage_add(self, o: Owner, periods: list[str], n: int = 1) -> None:
+        """One successful voice request: +n on every period (day and month) in one statement each."""
+        for period in periods:
+            self._q("insert into voice_usage (institute_id, user_id, period, count, updated_at) values (?,?,?,?,?) "
+                    "on conflict (institute_id, user_id, period) do update set "
+                    "count = max(voice_usage.count + excluded.count, 0), updated_at = excluded.updated_at",
+                    (o.institute_id, o.user_id, period, n, self.clock()))
+
+    def voice_usage_by_institute(self, period: str) -> list[dict]:
+        """Admin view: per institute for one period, counts only (no user ids)."""
+        rows = self._q("select institute_id, count(*) as users, sum(count) as queries from voice_usage "
+                       "where period = ? and count > 0 group by institute_id order by queries desc", (period,))
+        return [{"institute_id": r["institute_id"], "users": int(r["users"]), "queries": int(r["queries"])} for r in rows]
+
     def record_query(self, o: Owner, text: str) -> None:
         norm = normalize_query(text)
         if not norm:

@@ -143,9 +143,11 @@ def test_voice_concurrent_last_unit_single_process_ok(monkeypatch):
     limits.reset()
 
 
-def test_voice_limits_are_per_process_today():
-    """Counters live in module dicts: a second worker / instance starts at zero and a restart forgets them."""
-    assert isinstance(limits._daily, dict) and isinstance(limits._recent, dict)
+def test_voice_counts_live_in_the_store_now():
+    """Phase 3: the daily + monthly counts are in the agent store (shared, restart-safe); limits.py keeps only the
+    in-process 10-minute burst guard. See tests/agent/test_voice_usage_db.py."""
+    from agent.voice import allowance
+    assert hasattr(allowance, "consume") and isinstance(limits._recent, dict)
 
 
 def test_voice_retry_same_key_after_success_not_counted_twice(api):  # noqa: F811
@@ -247,15 +249,15 @@ def _trace_rows(monkeypatch, tmp_path):
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
-def test_agent_trace_has_no_names_and_no_institute_today(monkeypatch, tmp_path):
+def test_agent_trace_has_no_names_and_carries_institute(monkeypatch, tmp_path):
     rows = _trace_rows(monkeypatch, tmp_path)
     blob = json.dumps(rows)
-    assert rows and "Riya" not in blob                        # message text / names never traced (correct)
+    assert rows and "Riya" not in blob                        # message text / names never traced
     assert any(r.get("kind") == "llm" and "cost_usd" in r for r in rows)
-    assert str(MAIN) not in blob and str(SHARMA) not in blob  # cost rows carry request_id only
+    assert str(SHARMA) not in blob                            # never a user id
+    assert all(r.get("institute_id") == str(MAIN) for r in rows if r.get("kind") in ("llm", "route"))
 
 
-@pytest.mark.xfail(strict=True, reason="AUDIT: agent/voice trace rows have no institute_id / feature field")
 def test_agent_trace_carries_institute_and_feature(monkeypatch, tmp_path):
     rows = _trace_rows(monkeypatch, tmp_path)
     llm = [r for r in rows if r.get("kind") == "llm"]

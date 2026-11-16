@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import hmac
 import os
+import re
+from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse, PlainTextResponse
@@ -47,6 +49,27 @@ def readyz():
     checks = {"store": _check_store(), "db": _check_db()}
     ok = all(checks.values())
     return JSONResponse({"status": "ready" if ok else "not_ready", "checks": checks}, status_code=200 if ok else 503)
+
+
+@router.get("/agent/admin/voice-usage")
+async def admin_voice_usage(request: Request, month: Optional[str] = None):
+    """Voice questions per institute for one month (default: the current IST month) — counts only, no user ids.
+    Who may read: an institute admin (own institute only) with a normal session token, or the ops token
+    (AGENT_METRICS_TOKEN, every institute)."""
+    from .auth import get_session
+    from .store import get_store
+    from .voice.allowance import month_period
+    period = month if month and re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])", month) else month_period()
+    token = os.getenv("AGENT_METRICS_TOKEN")
+    got = request.headers.get("authorization", "")
+    rows = get_store().voice_usage_by_institute(period)
+    if token and hmac.compare_digest(got.encode(), f"Bearer {token}".encode()):
+        return {"month": period, "institutes": rows}
+    ctx = await get_session(request)
+    if ctx.role != "admin":
+        raise HTTPException(403, "admin only")
+    mine = [r for r in rows if r["institute_id"] == str(ctx.institute_id)]
+    return {"month": period, "institutes": mine}
 
 
 @router.get("/agent/metrics", response_class=PlainTextResponse,

@@ -52,3 +52,14 @@ CREATE TABLE IF NOT EXISTS agent.feedback (
   created_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (user_id, institute_id, session_id, message_seq)
 );
+
+-- voice usage (voice upgrade phase 3): the count that limits a user's voice questions, per IST day and per month.
+-- Written by the backend only (service role / agent store role); no policies -> no client access.
+create table if not exists agent.voice_usage (
+  institute_id text not null,
+  user_id text not null,
+  period text not null,                         -- 'YYYY-MM-DD' (day, IST) or 'YYYY-MM' (month)
+  count integer not null default 0,
+  updated_at timestamptz not null default now(),
+  primary key (institute_id, user_id, period)
+);

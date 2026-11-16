@@ -211,7 +211,8 @@ class Agent:
         self.seq = 0
         self._seq_lock = threading.Lock()
         self.history = history or []
-        self.tracer = Tracer(request_id=self.request_id)
+        self.tracer = Tracer(request_id=self.request_id, institute_id=str(ctx.institute_id),
+                             feature="voice" if voice else "agent")
         self.cost = 0.0
         self.tokens = [0, 0]
         self.tool_calls = 0

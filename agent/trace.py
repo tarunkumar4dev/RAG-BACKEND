@@ -27,12 +27,21 @@ def llm_cost(model: str, tokens_in: int, tokens_out: int, cache_read: int = 0, c
 
 
 class Tracer:
-    def __init__(self, path: Optional[str] = None, request_id: str = ""):
+    def __init__(self, path: Optional[str] = None, request_id: str = "", institute_id: Optional[str] = None,
+                 feature: Optional[str] = None):
+        """institute_id + feature ("agent" | "voice") ride on every record so cost can be attributed per institute
+        and per feature (phase 3). Never a user id, never names."""
         self.path = path or config.TRACE_PATH
         self.request_id = request_id
+        self.institute_id = institute_id
+        self.feature = feature
 
     def _write(self, rec: dict) -> None:
         rec = {"ts": round(time.time(), 3), "request_id": self.request_id, **rec}
+        if self.institute_id:
+            rec["institute_id"] = self.institute_id
+        if self.feature:
+            rec["feature"] = self.feature
         try:
             with _WRITE_LOCK:
                 with open(self.path, "a", encoding="utf-8") as f:

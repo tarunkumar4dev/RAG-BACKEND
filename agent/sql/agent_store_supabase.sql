@@ -63,6 +63,18 @@ create table if not exists agent.feedback (
   foreign key (session_id, message_seq) references agent.messages(session_id, seq) on delete cascade
 );
 
+-- voice usage (voice upgrade phase 3): the count that limits a user's voice questions, per IST day and per month.
+-- Written by the backend only (service role / agent store role); no policies -> no client access.
+create table if not exists agent.voice_usage (
+  institute_id uuid not null,
+  user_id uuid not null,
+  period text not null,                         -- 'YYYY-MM-DD' (day, IST) or 'YYYY-MM' (month)
+  count integer not null default 0,
+  updated_at timestamptz not null default now(),
+  primary key (institute_id, user_id, period)
+);
+alter table agent.voice_usage enable row level security;
+
 -- RLS: a row is visible / writable only by its owner. institute_id must be an institute the user is active staff of
 -- (same rule as agent/real_identity.py), so a forged institute_id cannot be inserted.
 alter table agent.sessions enable row level security;

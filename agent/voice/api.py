@@ -129,11 +129,15 @@ def voice_gate(ctx: SessionCtx = Depends(get_session)) -> SessionCtx:
 
 
 def voice_paid_gate(ctx: SessionCtx = Depends(voice_gate)) -> SessionCtx:
-    """transcribe / speak: the plan's monthly allowance on top of the kill switch (Gate 2 #5)."""
-    blocked = allowance.check(ctx)
-    if blocked:
-        raise HTTPException(403, blocked)
-    return ctx
+    """transcribe / speak: the plan's monthly allowance and the daily cap, read from the shared store (Gate 2 #5,
+    phase 3). Plan / month exhausted -> 403; today's cap -> 429 with Retry-After (midnight IST)."""
+    st = allowance.get(ctx).status()
+    if st is None:
+        return ctx
+    kind, message = st
+    if kind == "day":
+        raise HTTPException(429, message, headers={"Retry-After": str(allowance.seconds_to_midnight_ist())})
+    raise HTTPException(403, message)
 
 
 def _config_for(ctx: SessionCtx) -> VoiceConfig:
@@ -152,7 +156,7 @@ def _config_for(ctx: SessionCtx) -> VoiceConfig:
         speakers=[Speaker(id=k, label=v["label"], gender=v["gender"]) for k, v in vc.SPEAKERS.items()],
         default_speaker=vc.DEFAULT_SPEAKER, paces=list(vc.PACES), max_seconds=vc.max_seconds(), max_bytes=vc.max_bytes(),
         formats=list(ACCEPTED_MIMES), consent_version=CONSENT_VERSION,
-        limits={"per_10min": vc.user_per_10min(), "per_day": vc.user_daily(),
+        limits={"per_10min": vc.user_per_10min(), "per_day": vc.user_daily(), "day_used": allowance.get(ctx).used_day,
                 "per_month": allowance.get(ctx).limit, "month_used": allowance.get(ctx).used})
 
 
@@ -174,7 +178,7 @@ async def _read_limited(request: Request, limit: int) -> bytes:
 
 def _transcribe_sync(ctx: SessionCtx, audio: bytes, request_id: str) -> tuple[dict, dict]:
     """Runs in a worker thread: decode -> STT chain -> entity repair. Returns (response dict, trace dict)."""
-    tracer = Tracer(request_id=request_id)
+    tracer = Tracer(request_id=request_id, institute_id=str(ctx.institute_id), feature="voice")
     stages: dict[str, float] = {}
     t = time.time()
     try:
@@ -288,7 +292,7 @@ def speak(body: SpeakRequest, ctx: SessionCtx = Depends(voice_paid_gate)):
             raise HTTPException(422, "unknown phrase")
     lc = tts_language_code(text, lang)
     request_id = uuid.uuid4().hex[:16]
-    tracer = Tracer(request_id=request_id)
+    tracer = Tracer(request_id=request_id, institute_id=str(ctx.institute_id), feature="voice")
     model = getattr(tts, "model", "")
     key = (body.phrase, lang, speaker, pace, model)
     if body.phrase:
@@ -398,7 +402,7 @@ def voice_chat(body: VoiceChatRequest, ctx: SessionCtx = Depends(voice_gate)):
     stream = _speech_stream_for(body, ctx)
 
     def on_done(events: list[dict], agent) -> None:
-        tr = Tracer(request_id=agent.request_id)
+        tr = Tracer(request_id=agent.request_id, institute_id=str(ctx.institute_id), feature="voice")
         tr.voice(
             "chat", outcome_of(events), {"turn": (time.time() - t0) * 1000}, provider="agent",
             model=getattr(agent, "route", ""), chars=sum(len(e.get("text", "")) for e in events if e.get("type") == "speech"),

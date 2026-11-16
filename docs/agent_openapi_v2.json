@@ -832,6 +832,54 @@
     }
    }
   },
+  "/agent/admin/voice-usage": {
+   "get": {
+    "tags": [
+     "ops"
+    ],
+    "summary": "Admin Voice Usage",
+    "description": "Voice questions per institute for one month (default: the current IST month) — counts only, no user ids.\nWho may read: an institute admin (own institute only) with a normal session token, or the ops token\n(AGENT_METRICS_TOKEN, every institute).",
+    "operationId": "admin_voice_usage_agent_admin_voice_usage_get",
+    "parameters": [
+     {
+      "name": "month",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Month"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/agent/metrics": {
    "get": {
     "tags": [
