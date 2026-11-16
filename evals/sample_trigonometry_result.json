@@ -1,0 +1,616 @@
+{
+ "paper": {
+  "total_marks": 40.0,
+  "questions": [
+   {
+    "id": "q1",
+    "qtype": "mcq",
+    "marks": 1,
+    "text": "The value of $\\sin 30^\\circ + \\cos 60^\\circ$ is:",
+    "options": [
+     "0",
+     "$\\frac{1}{2}$",
+     "1",
+     "$\\frac{3}{2}$"
+    ],
+    "answer": "C",
+    "check_expr": "sin(30*deg)+cos(60*deg)",
+    "solution": "$\\sin 30^\\circ=\\frac12$ and $\\cos 60^\\circ=\\frac12$, so the sum is $\\frac12+\\frac12=1$.",
+    "section": "A",
+    "chapter": "Introduction to Trigonometry",
+    "status": "verified"
+   },
+   {
+    "id": "q2",
+    "qtype": "mcq",
+    "marks": 1,
+    "text": "If $\\sin\\theta=\\dfrac{5}{13}$, where $\\theta$ is an acute angle, then $\\cos\\theta$ is:",
+    "options": [
+     "$\\frac{12}{13}$",
+     "$\\frac{5}{12}$",
+     "$\\frac{13}{12}$",
+     "$\\frac{8}{13}$"
+    ],
+    "answer": "A",
+    "check_expr": "12/13",
+    "solution": "$\\cos\\theta=\\sqrt{1-\\sin^2\\theta}=\\sqrt{1-\\frac{25}{169}}=\\sqrt{\\frac{144}{169}}=\\frac{12}{13}$.",
+    "section": "A",
+    "chapter": "Introduction to Trigonometry",
+    "status": "verified"
+   },
+   {
+    "id": "q3",
+    "qtype": "mcq",
+    "marks": 1,
+    "text": "The value of $9\\sec^2 A - 9\\tan^2 A$ is:",
+    "options": [
+     "1",
+     "9",
+     "8",
+     "0"
+    ],
+    "answer": "B",
+    "check_expr": "9",
+    "solution": "$9(\\sec^2A-\\tan^2A)=9\\times1=9$, using the identity $\\sec^2A-\\tan^2A=1$.",
+    "section": "A",
+    "chapter": "Introduction to Trigonometry",
+    "status": "verified"
+   },
+   {
+    "id": "q4",
+    "qtype": "mcq",
+    "marks": 1,
+    "text": "The value of $\\dfrac{\\tan 60^\\circ}{1+\\tan^2 60^\\circ}$ is:",
+    "options": [
+     "$\\frac{\\sqrt3}{2}$",
+     "$\\frac14$",
+     "$\\frac34$",
+     "$\\frac{\\sqrt3}{4}$"
+    ],
+    "answer": "D",
+    "check_expr": "sqrt(3)/4",
+    "solution": "$\\tan60^\\circ=\\sqrt3$, so $1+\\tan^2 60^\\circ=1+3=4$. The value is $\\frac{\\sqrt3}{4}$.",
+    "section": "A",
+    "chapter": "Introduction to Trigonometry",
+    "status": "verified"
+   },
+   {
+    "id": "q5",
+    "qtype": "mcq",
+    "marks": 1,
+    "text": "The value of $\\dfrac{2\\tan 30^\\circ}{1+\\tan^2 30^\\circ}$ is:",
+    "options": [
+     "$\\dfrac{1}{2}$",
+     "$\\dfrac{\\sqrt{3}}{2}$",
+     "$\\dfrac{1}{\\sqrt{3}}$",
+     "$\\sqrt{3}$"
+    ],
+    "answer": "B",
+    "check_expr": "2*tan(30*deg)/(1+tan(30*deg)**2)",
+    "solution": "Since $\\tan 30^\\circ=\\dfrac{1}{\\sqrt{3}}$, we have $\\tan^2 30^\\circ=\\dfrac13$. Then $\\dfrac{2\\cdot\\frac{1}{\\sqrt3}}{1+\\frac13}=\\dfrac{2/\\sqrt3}{4/3}=\\dfrac{3}{2\\sqrt3}=\\dfrac{\\sqrt3}{2}$.",
+    "marking_scheme": [],
+    "sub_questions": [],
+    "section": "A",
+    "chapter": "Introduction to Trigonometry",
+    "status": "verified"
+   },
+   {
+    "id": "q6",
+    "qtype": "mcq",
+    "marks": 1,
+    "text": "In a right triangle $ABC$, right-angled at $B$, $AB=5$ cm and $BC=12$ cm. The value of $\\sec A$ is:",
+    "options": [
+     "$\\frac{13}{5}$",
+     "$\\frac{13}{12}$",
+     "$\\frac{5}{13}$",
+     "$\\frac{12}{5}$"
+    ],
+    "answer": "A",
+    "check_expr": "13/5",
+    "solution": "$AC=\\sqrt{5^2+12^2}=13$ cm. $\\sec A=\\frac{\\text{hypotenuse}}{\\text{side adjacent to }A}=\\frac{AC}{AB}=\\frac{13}{5}$.",
+    "section": "A",
+    "chapter": "Introduction to Trigonometry",
+    "status": "verified"
+   },
+   {
+    "id": "q7",
+    "qtype": "mcq",
+    "marks": 1,
+    "text": "The value of $\\sin^2 60^\\circ+\\cos^2 45^\\circ$ is:",
+    "options": [
+     "1",
+     "$\\frac32$",
+     "$\\frac54$",
+     "$\\frac74$"
+    ],
+    "answer": "C",
+    "check_expr": "sin(60*deg)**2+cos(45*deg)**2",
+    "solution": "$\\sin^2 60^\\circ=\\frac34$ and $\\cos^2 45^\\circ=\\frac12$. The sum is $\\frac34+\\frac12=\\frac54$.",
+    "section": "A",
+    "chapter": "Introduction to Trigonometry",
+    "status": "manual_review"
+   },
+   {
+    "id": "q8",
+    "qtype": "assertion_reason",
+    "marks": 1,
+    "text": "Assertion (A): For an acute angle $\\theta$ of a right triangle, the value of $\\sin\\theta$ is never greater than 1.\nReason (R): In a right triangle, the hypotenuse is the longest side.",
+    "options": [
+     "both a and r are true and r is the correct explanation of a",
+     "both a and r are true but r is not the correct explanation of a",
+     "a is true but r is false",
+     "a is false but r is true"
+    ],
+    "answer": "A",
+    "solution": "$\\sin\\theta = \\dfrac{\\text{perpendicular}}{\\text{hypotenuse}}$. The hypotenuse is the longest side, so the ratio is at most 1. Both A and R are true, and R explains A.",
+    "section": "A",
+    "chapter": "Introduction to Trigonometry",
+    "status": "verified"
+   },
+   {
+    "id": "q9",
+    "qtype": "assertion_reason",
+    "marks": 1,
+    "text": "Assertion (A): The value of $\\cos\\theta$ increases as $\\theta$ increases from $0^\\circ$ to $90^\\circ$.\nReason (R): $\\cos 0^\\circ = 1$ and $\\cos 90^\\circ = 0$.",
+    "options": [
+     "both a and r are true and r is the correct explanation of a",
+     "both a and r are true but r is not the correct explanation of a",
+     "a is true but r is false",
+     "a is false but r is true"
+    ],
+    "answer": "D",
+    "solution": "As $\\theta$ increases from $0^\\circ$ to $90^\\circ$, $\\cos\\theta$ decreases from 1 to 0. So A is false. R states correct values, so R is true.",
+    "section": "A",
+    "chapter": "Introduction to Trigonometry",
+    "status": "verified"
+   },
+   {
+    "id": "q10",
+    "qtype": "very_short",
+    "marks": 2,
+    "text": "If $\\sin\\theta = \\dfrac{3}{5}$, where $\\theta$ is an acute angle, find the value of $\\cos\\theta$.",
+    "answer": "4/5",
+    "check_expr": "4/5",
+    "solution": "$\\cos\\theta = \\sqrt{1-\\sin^2\\theta} = \\sqrt{1-\\dfrac{9}{25}} = \\sqrt{\\dfrac{16}{25}} = \\dfrac{4}{5}$.",
+    "marking_scheme": [
+     {
+      "step": "Use $\\cos^2\\theta = 1-\\sin^2\\theta$ (or the 3-4-5 right triangle)",
+      "marks": 1
+     },
+     {
+      "step": "Obtain $\\cos\\theta = 4/5$ (positive because $\\theta$ is acute)",
+      "marks": 1
+     }
+    ],
+    "section": "B",
+    "chapter": "Introduction to Trigonometry",
+    "status": "verified"
+   },
+   {
+    "id": "q11",
+    "qtype": "very_short",
+    "marks": 2,
+    "text": "Evaluate: $2\\tan^2 45^\\circ + \\cos^2 30^\\circ - \\sin^2 60^\\circ$.",
+    "answer": "2",
+    "check_expr": "2*tan(45*deg)**2 + cos(30*deg)**2 - sin(60*deg)**2",
+    "solution": "$2(1)^2 + \\left(\\dfrac{\\sqrt3}{2}\\right)^2 - \\left(\\dfrac{\\sqrt3}{2}\\right)^2 = 2 + \\dfrac34 - \\dfrac34 = 2$.",
+    "marking_scheme": [
+     {
+      "step": "Substitute $\\tan 45^\\circ = 1$, $\\cos 30^\\circ = \\sin 60^\\circ = \\frac{\\sqrt3}{2}$",
+      "marks": 1
+     },
+     {
+      "step": "Simplify to get 2",
+      "marks": 1
+     }
+    ],
+    "section": "B",
+    "chapter": "Introduction to Trigonometry",
+    "status": "verified"
+   },
+   {
+    "id": "q12",
+    "qtype": "very_short",
+    "marks": 2,
+    "text": "If $\\sec\\theta = \\dfrac{13}{12}$, where $\\theta$ is an acute angle, find the value of $\\tan\\theta$.",
+    "answer": "5/12",
+    "check_expr": "5/12",
+    "solution": "$\\tan^2\\theta = \\sec^2\\theta - 1 = \\dfrac{169}{144} - 1 = \\dfrac{25}{144}$, so $\\tan\\theta = \\dfrac{5}{12}$.",
+    "marking_scheme": [
+     {
+      "step": "Use $\\tan^2\\theta = \\sec^2\\theta - 1$ and substitute",
+      "marks": 1
+     },
+     {
+      "step": "Obtain $\\tan\\theta = 5/12$",
+      "marks": 1
+     }
+    ],
+    "section": "B",
+    "chapter": "Introduction to Trigonometry",
+    "status": "verified"
+   },
+   {
+    "id": "q13",
+    "qtype": "very_short",
+    "marks": 2,
+    "text": "In a triangle $ABC$, right-angled at $B$, $AB = 5$ cm and $BC = 12$ cm. Find the value of $\\sin A + \\cos A$.",
+    "answer": "17/13",
+    "check_expr": "17/13",
+    "solution": "$AC = \\sqrt{5^2+12^2} = 13$ cm. $\\sin A = \\dfrac{BC}{AC} = \\dfrac{12}{13}$ and $\\cos A = \\dfrac{AB}{AC} = \\dfrac{5}{13}$. So $\\sin A + \\cos A = \\dfrac{17}{13}$.",
+    "marking_scheme": [
+     {
+      "step": "Find $AC = 13$ cm using the Pythagoras theorem",
+      "marks": 1
+     },
+     {
+      "step": "Find $\\sin A + \\cos A = 12/13 + 5/13 = 17/13$",
+      "marks": 1
+     }
+    ],
+    "section": "B",
+    "chapter": "Introduction to Trigonometry",
+    "status": "verified"
+   },
+   {
+    "id": "q14",
+    "qtype": "short_answer",
+    "marks": 3,
+    "text": "Prove that $\\dfrac{\\sin\\theta - \\cos\\theta + 1}{\\sin\\theta + \\cos\\theta - 1} = \\dfrac{1}{\\sec\\theta - \\tan\\theta}$.",
+    "solution": "Divide the numerator and denominator of the LHS by $\\cos\\theta$: LHS $= \\dfrac{\\tan\\theta - 1 + \\sec\\theta}{\\tan\\theta + 1 - \\sec\\theta}$. Write $1 = \\sec^2\\theta - \\tan^2\\theta$ in the numerator: $\\tan\\theta + \\sec\\theta - (\\sec\\theta-\\tan\\theta)(\\sec\\theta+\\tan\\theta) = (\\sec\\theta+\\tan\\theta)(1 - \\sec\\theta + \\tan\\theta)$. Cancelling the common factor $(\\tan\\theta + 1 - \\sec\\theta)$ gives LHS $= \\sec\\theta + \\tan\\theta$. Now RHS $= \\dfrac{1}{\\sec\\theta - \\tan\\theta}\\times\\dfrac{\\sec\\theta+\\tan\\theta}{\\sec\\theta+\\tan\\theta} = \\dfrac{\\sec\\theta+\\tan\\theta}{\\sec^2\\theta - \\tan^2\\theta} = \\sec\\theta + \\tan\\theta$. Hence LHS = RHS.",
+    "marking_scheme": [
+     {
+      "step": "Divide the numerator and denominator by $\\cos\\theta$ to get $\\dfrac{\\tan\\theta + \\sec\\theta - 1}{\\tan\\theta - \\sec\\theta + 1}$",
+      "marks": 1
+     },
+     {
+      "step": "Replace 1 by $\\sec^2\\theta - \\tan^2\\theta$ in the numerator, factorise and cancel to get $\\sec\\theta + \\tan\\theta$",
+      "marks": 1
+     },
+     {
+      "step": "Rationalise the RHS using $\\sec^2\\theta - \\tan^2\\theta = 1$ to get $\\sec\\theta + \\tan\\theta$, so LHS = RHS",
+      "marks": 1
+     }
+    ],
+    "section": "C",
+    "chapter": "Introduction to Trigonometry",
+    "status": "rubric_ok"
+   },
+   {
+    "id": "q15",
+    "qtype": "short_answer",
+    "marks": 3,
+    "text": "If $3\\cot A = 4$, check whether $\\dfrac{1-\\tan^2 A}{1+\\tan^2 A} = \\cos^2 A - \\sin^2 A$.",
+    "answer": "Yes, both sides equal 7/25",
+    "check_expr": "7/25",
+    "solution": "$\\cot A = \\frac{4}{3}$, so $\\tan A = \\frac{3}{4}$. LHS $= \\frac{1-\\frac{9}{16}}{1+\\frac{9}{16}} = \\frac{7/16}{25/16} = \\frac{7}{25}$. In a right triangle with perpendicular 3 and base 4, the hypotenuse is 5. So $\\sin A = \\frac{3}{5}$ and $\\cos A = \\frac{4}{5}$. RHS $= \\frac{16}{25} - \\frac{9}{25} = \\frac{7}{25}$. LHS = RHS, so the statement holds.",
+    "marking_scheme": [
+     {
+      "step": "Finds $\\tan A = 3/4$ and the hypotenuse 5 (so $\\sin A = 3/5$, $\\cos A = 4/5$)",
+      "marks": 1
+     },
+     {
+      "step": "Evaluates LHS $= 7/25$",
+      "marks": 1
+     },
+     {
+      "step": "Evaluates RHS $= 7/25$ and concludes that LHS = RHS",
+      "marks": 1
+     }
+    ],
+    "section": "C",
+    "chapter": "Introduction to Trigonometry",
+    "status": "rubric_ok"
+   },
+   {
+    "id": "q16",
+    "qtype": "short_answer",
+    "marks": 3,
+    "text": "Prove that $\\dfrac{\\sin\\theta - 2\\sin^3\\theta}{2\\cos^3\\theta - \\cos\\theta} = \\tan\\theta$.",
+    "answer": "Proved",
+    "solution": "LHS $= \\frac{\\sin\\theta(1-2\\sin^2\\theta)}{\\cos\\theta(2\\cos^2\\theta - 1)}$. Since $\\sin^2\\theta = 1-\\cos^2\\theta$, we get $1 - 2\\sin^2\\theta = 1 - 2 + 2\\cos^2\\theta = 2\\cos^2\\theta - 1$. Hence LHS $= \\frac{\\sin\\theta(2\\cos^2\\theta-1)}{\\cos\\theta(2\\cos^2\\theta-1)} = \\frac{\\sin\\theta}{\\cos\\theta} = \\tan\\theta = $ RHS.",
+    "marking_scheme": [
+     {
+      "step": "Takes out the common factors $\\sin\\theta$ and $\\cos\\theta$ from numerator and denominator",
+      "marks": 1
+     },
+     {
+      "step": "Uses $\\sin^2\\theta + \\cos^2\\theta = 1$ to show $1-2\\sin^2\\theta = 2\\cos^2\\theta - 1$",
+      "marks": 1
+     },
+     {
+      "step": "Cancels the common factor and obtains $\\tan\\theta$",
+      "marks": 1
+     }
+    ],
+    "section": "C",
+    "chapter": "Introduction to Trigonometry",
+    "status": "rubric_ok"
+   },
+   {
+    "id": "q17",
+    "qtype": "long_answer",
+    "marks": 5,
+    "text": "Prove that $(\\sin\\theta + \\operatorname{cosec}\\theta)^2 + (\\cos\\theta + \\sec\\theta)^2 = 7 + \\tan^2\\theta + \\cot^2\\theta$.",
+    "answer": "Proved",
+    "solution": "LHS $= \\sin^2\\theta + \\operatorname{cosec}^2\\theta + 2\\sin\\theta\\operatorname{cosec}\\theta + \\cos^2\\theta + \\sec^2\\theta + 2\\cos\\theta\\sec\\theta$. Since $\\sin\\theta\\operatorname{cosec}\\theta = 1$ and $\\cos\\theta\\sec\\theta = 1$, LHS $= (\\sin^2\\theta+\\cos^2\\theta) + 2 + 2 + \\operatorname{cosec}^2\\theta + \\sec^2\\theta = 1 + 4 + (1+\\cot^2\\theta) + (1+\\tan^2\\theta) = 7 + \\tan^2\\theta + \\cot^2\\theta = $ RHS.",
+    "marking_scheme": [
+     {
+      "step": "Expands both squares correctly using $(a+b)^2 = a^2 + 2ab + b^2$",
+      "marks": 1
+     },
+     {
+      "step": "Uses $\\sin\\theta\\operatorname{cosec}\\theta = 1$ and $\\cos\\theta\\sec\\theta = 1$ to get the two cross terms equal to 2 each",
+      "marks": 1
+     },
+     {
+      "step": "Uses $\\sin^2\\theta + \\cos^2\\theta = 1$",
+      "marks": 1
+     },
+     {
+      "step": "Uses $\\operatorname{cosec}^2\\theta = 1+\\cot^2\\theta$ and $\\sec^2\\theta = 1+\\tan^2\\theta$",
+      "marks": 1
+     },
+     {
+      "step": "Adds the constants to get 7 and concludes LHS = RHS",
+      "marks": 1
+     }
+    ],
+    "section": "D",
+    "chapter": "Introduction to Trigonometry",
+    "status": "rubric_ok"
+   },
+   {
+    "id": "q18",
+    "qtype": "long_answer",
+    "marks": 5,
+    "text": "If $\\sec\\theta + \\tan\\theta = p$, where $0^\\circ < \\theta < 90^\\circ$, show that $\\dfrac{p^2-1}{p^2+1} = \\sin\\theta$.",
+    "answer": "Proved",
+    "solution": "$p = \\sec\\theta + \\tan\\theta = \\frac{1+\\sin\\theta}{\\cos\\theta}$. Then $p^2 = \\frac{(1+\\sin\\theta)^2}{\\cos^2\\theta} = \\frac{(1+\\sin\\theta)^2}{1-\\sin^2\\theta} = \\frac{(1+\\sin\\theta)^2}{(1-\\sin\\theta)(1+\\sin\\theta)} = \\frac{1+\\sin\\theta}{1-\\sin\\theta}$. So $\\frac{p^2-1}{p^2+1} = \\frac{(1+\\sin\\theta)-(1-\\sin\\theta)}{(1+\\sin\\theta)+(1-\\sin\\theta)} = \\frac{2\\sin\\theta}{2} = \\sin\\theta$.",
+    "marking_scheme": [
+     {
+      "step": "Writes $p = \\frac{1+\\sin\\theta}{\\cos\\theta}$ by converting $\\sec\\theta$ and $\\tan\\theta$ to sine and cosine",
+      "marks": 1
+     },
+     {
+      "step": "Squares $p$ and replaces $\\cos^2\\theta$ by $1-\\sin^2\\theta$",
+      "marks": 1
+     },
+     {
+      "step": "Simplifies to $p^2 = \\frac{1+\\sin\\theta}{1-\\sin\\theta}$",
+      "marks": 1
+     },
+     {
+      "step": "Substitutes into $\\frac{p^2-1}{p^2+1}$ and simplifies numerator and denominator",
+      "marks": 1
+     },
+     {
+      "step": "Obtains $\\sin\\theta$ and concludes",
+      "marks": 1
+     }
+    ],
+    "section": "D",
+    "chapter": "Introduction to Trigonometry",
+    "status": "rubric_ok"
+   },
+   {
+    "id": "q19",
+    "qtype": "case_study",
+    "marks": 4,
+    "text": "A 10 m long ladder leans against a vertical wall. The foot of the ladder is on level ground 6 m away from the base of the wall. Let $\\theta$ be the angle the ladder makes with the ground.",
+    "sub_questions": [
+     {
+      "text": "Find the height on the wall that the top of the ladder reaches.",
+      "marks": 1,
+      "answer": "8 m, since $\\sqrt{10^2 - 6^2} = 8$"
+     },
+     {
+      "text": "Find $\\sin\\theta$ and $\\tan\\theta$.",
+      "marks": 1,
+      "answer": "$\\sin\\theta = 8/10 = 4/5$ and $\\tan\\theta = 8/6 = 4/3$"
+     },
+     {
+      "text": "Using the values of $\\sin\\theta$ and $\\cos\\theta$ from this triangle, verify that $\\sin^2\\theta + \\cos^2\\theta = 1$.",
+      "marks": 2,
+      "answer": "$\\cos\\theta = 6/10 = 3/5$. Then $\\sin^2\\theta + \\cos^2\\theta = 16/25 + 9/25 = 25/25 = 1$."
+     }
+    ],
+    "answer": "8 m; sin \u03b8 = 4/5, tan \u03b8 = 4/3; sin\u00b2\u03b8 + cos\u00b2\u03b8 = 1 verified",
+    "solution": "By the Pythagoras theorem, the height is $\\sqrt{100-36} = 8$ m. Then $\\sin\\theta = \\frac{8}{10} = \\frac{4}{5}$, $\\cos\\theta = \\frac{6}{10} = \\frac{3}{5}$ and $\\tan\\theta = \\frac{4}{3}$. So $\\sin^2\\theta + \\cos^2\\theta = \\frac{16}{25}+\\frac{9}{25} = 1$.",
+    "section": "E",
+    "chapter": "Introduction to Trigonometry",
+    "status": "rubric_ok"
+   }
+  ]
+ },
+ "summary": {
+  "objective_verified": 12,
+  "objective_total": 13,
+  "rubric_checked": 6,
+  "rubric_total": 6,
+  "manual_review": [
+   "q7"
+  ],
+  "failed": [],
+  "marks_sum": 40.0,
+  "marks_sum_ok": true,
+  "duplicates": [],
+  "solver_error": null,
+  "per_question": {
+   "q1": {
+    "status": "verified",
+    "reasons": [],
+    "solver_answer": "C",
+    "sympy": "1 option(s) equal check_expr",
+    "key_matches": true
+   },
+   "q2": {
+    "status": "verified",
+    "reasons": [],
+    "solver_answer": "A",
+    "sympy": "1 option(s) equal check_expr",
+    "key_matches": true
+   },
+   "q3": {
+    "status": "verified",
+    "reasons": [],
+    "solver_answer": "B",
+    "sympy": "1 option(s) equal check_expr",
+    "key_matches": true
+   },
+   "q4": {
+    "status": "verified",
+    "reasons": [],
+    "solver_answer": "D",
+    "sympy": "1 option(s) equal check_expr",
+    "key_matches": true
+   },
+   "q5": {
+    "status": "verified",
+    "reasons": [],
+    "solver_answer": "B",
+    "sympy": "1 option(s) equal check_expr",
+    "key_matches": true
+   },
+   "q6": {
+    "status": "verified",
+    "reasons": [],
+    "solver_answer": "A",
+    "sympy": "1 option(s) equal check_expr",
+    "key_matches": true
+   },
+   "q7": {
+    "status": "manual_review",
+    "reasons": [
+     "sympy could not parse options/check"
+    ],
+    "solver_answer": "C",
+    "sympy": "unparseable",
+    "key_matches": null
+   },
+   "q8": {
+    "status": "verified",
+    "reasons": [],
+    "solver_answer": "A",
+    "sympy": "n/a (assertion-reason)",
+    "key_matches": true
+   },
+   "q9": {
+    "status": "verified",
+    "reasons": [],
+    "solver_answer": "D",
+    "sympy": "n/a (assertion-reason)",
+    "key_matches": true
+   },
+   "q10": {
+    "status": "verified",
+    "reasons": [],
+    "solver_answer": "4/5",
+    "sympy": "key == check_expr",
+    "key_matches": true
+   },
+   "q11": {
+    "status": "verified",
+    "reasons": [],
+    "solver_answer": "2",
+    "sympy": "key == check_expr",
+    "key_matches": true
+   },
+   "q12": {
+    "status": "verified",
+    "reasons": [],
+    "solver_answer": "5/12",
+    "sympy": "key == check_expr",
+    "key_matches": true
+   },
+   "q13": {
+    "status": "verified",
+    "reasons": [],
+    "solver_answer": "17/13",
+    "sympy": "key == check_expr",
+    "key_matches": true
+   },
+   "q14": {
+    "status": "rubric_ok",
+    "reasons": []
+   },
+   "q15": {
+    "status": "rubric_ok",
+    "reasons": []
+   },
+   "q16": {
+    "status": "rubric_ok",
+    "reasons": []
+   },
+   "q17": {
+    "status": "rubric_ok",
+    "reasons": []
+   },
+   "q18": {
+    "status": "rubric_ok",
+    "reasons": []
+   },
+   "q19": {
+    "status": "rubric_ok",
+    "reasons": []
+   }
+  },
+  "rounds": 2
+ },
+ "rag_source": "offline_outline",
+ "usage": [
+  7485,
+  12929
+ ],
+ "blueprint": {
+  "status": "ok",
+  "class_grade": 10,
+  "subject": "Mathematics",
+  "chapters": [
+   "Introduction to Trigonometry"
+  ],
+  "total_marks": 40.0,
+  "duration_min": 90,
+  "sections": [
+   {
+    "section": "A",
+    "qtype": "mcq",
+    "count": 7,
+    "marks_each": 1
+   },
+   {
+    "section": "A",
+    "qtype": "assertion_reason",
+    "count": 2,
+    "marks_each": 1
+   },
+   {
+    "section": "B",
+    "qtype": "very_short",
+    "count": 4,
+    "marks_each": 2
+   },
+   {
+    "section": "C",
+    "qtype": "short_answer",
+    "count": 3,
+    "marks_each": 3
+   },
+   {
+    "section": "D",
+    "qtype": "long_answer",
+    "count": 2,
+    "marks_each": 5
+   },
+   {
+    "section": "E",
+    "qtype": "case_study",
+    "count": 1,
+    "marks_each": 4
+   }
+  ],
+  "sum_ok": true
+ },
+ "latency_s": 37.3,
+ "provider": "anthropic"
+}

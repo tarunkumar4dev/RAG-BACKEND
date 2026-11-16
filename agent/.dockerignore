@@ -1,0 +1,10 @@
+__pycache__
+*.pyc
+.devdata
+.pytest_cache
+tests/
+scripts/bench_agent.py
+scripts/agent_fixture_env.py
+docs/audit/
+*.md
+!requirements.txt

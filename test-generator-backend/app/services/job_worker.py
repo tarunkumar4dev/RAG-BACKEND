@@ -59,8 +59,31 @@ PARK_RECHECK_S = 600                  # a waiting long copy looks at its chunks 
 # Daily Gemini spend cap for checking (estimate from token counts × price; the Google project cap stays the
 # last line of defence). Over the cap the worker claims nothing until the next IST day.
 DAILY_BUDGET_INR = float(os.getenv("CHECKER_DAILY_BUDGET_INR", "150"))
-PRICE_IN_PER_M_INR = float(os.getenv("CHECKER_PRICE_IN_PER_M_INR", "26"))
-PRICE_OUT_PER_M_INR = float(os.getenv("CHECKER_PRICE_OUT_PER_M_INR", "213"))
+# Gemini paid-tier list prices for the checker model, USD per 1M tokens (input, output incl. thinking).
+# Source: aistudio.google.com/docs/pricing, read 12 Nov 2026 (Gate 2 #7). gemini-3.8-flash: $0.75 / $3.75
+# through 31 Dec 2026, $1.50 / $7.50 from 1 Jan 2027. The old defaults (Rs 26 / Rs 213) were gemini-2.5-flash
+# prices and undercounted the checker ~1.5x. CHECKER_PRICE_*_PER_M_INR env vars still override.
+INR_PER_USD = 84.0
+_CHECKER_PRICES_USD = (            # (first day, input $/M, output $/M)
+    ("2026-01-01", 0.75, 3.75),
+    ("2027-01-01", 1.50, 7.50),
+)
+
+
+def _price_inr(which: int, today: Optional[str] = None) -> float:
+    today = today or time.strftime("%Y-%m-%d")
+    row = [p for p in _CHECKER_PRICES_USD if p[0] <= today][-1]
+    return row[which] * INR_PER_USD
+
+
+def price_in_per_m_inr(today: Optional[str] = None) -> float:
+    env = os.getenv("CHECKER_PRICE_IN_PER_M_INR")
+    return float(env) if env else _price_inr(1, today)
+
+
+def price_out_per_m_inr(today: Optional[str] = None) -> float:
+    env = os.getenv("CHECKER_PRICE_OUT_PER_M_INR")
+    return float(env) if env else _price_inr(2, today)
 
 SUBMISSIONS_BUCKET = "submissions"
 SHEETS_BUCKET = "answer-sheets"
@@ -96,12 +119,12 @@ class JobError(Exception):
 
 # ── usage / cost ──────────────────────────────────────────────────────
 
-_COUNTERS = ("gemini_calls", "input_tokens", "output_tokens", "thinking_tokens")
+_COUNTERS = ("gemini_calls", "billed_calls", "input_tokens", "output_tokens", "thinking_tokens")
 
 
 def est_cost_inr(u: dict) -> float:
     out = (u.get("output_tokens") or 0) + (u.get("thinking_tokens") or 0)    # thinking is billed as output
-    return round(((u.get("input_tokens") or 0) * PRICE_IN_PER_M_INR + out * PRICE_OUT_PER_M_INR) / 1e6, 4)
+    return round(((u.get("input_tokens") or 0) * price_in_per_m_inr() + out * price_out_per_m_inr()) / 1e6, 4)
 
 
 def add_usage(total: dict, part: dict) -> dict:
@@ -187,6 +210,7 @@ class JobWorker:
         self._run_usage = {}
         self._stages = {}
         self._job_tag = f"job={str(job['id'])[:8]}"
+        self._job = job
         t0 = time.time()
         cp = job.get("checkpoint") or {}
         kind = ("rubric" if cp.get("stage") == "rubric" else "chunk" if cp.get("parent")
@@ -233,6 +257,8 @@ class JobWorker:
             return e.code, e.message, None
         if isinstance(e, preprocess.BadFile):
             return "BAD_FILE", upload_validation.bad_file_message(e), None
+        if isinstance(e, svc.UnreadableReply):
+            return "AI_UNREADABLE", svc.MSG_UNREADABLE, None     # final (e.final): no re-queue, no more paid calls
         if isinstance(e, svc.GeminiBusy):
             code = "GEMINI_429" if e.code == 429 else "GEMINI_5XX"
             return code, MSG[code], e.retry_after
@@ -381,9 +407,15 @@ class JobWorker:
     def _grade(self, temps: list, rubric: dict, strictness: str) -> tuple:
         """grade_copy with the grade stage's per-call timeout; logs page prep and the Gemini call separately."""
         t = time.time()
-        with svc.call_settings(timeout_s=GRADE_CALL_TIMEOUT_S):
+        prior = int(((getattr(self, "_job", None) or {}).get("usage") or {}).get("billed_calls") or 0)
+        with svc.call_settings(timeout_s=GRADE_CALL_TIMEOUT_S), \
+                svc.billed_budget(svc.MAX_BILLED_PER_COPY - prior):
             try:
                 result, ordered, gusage = copy_check.grade_copy(temps, rubric, strictness)
+            except Exception as e:
+                if getattr(e, "usage", None):
+                    self._run_usage = add_usage(self._run_usage, e.usage)
+                raise
             finally:
                 self._stages["grade_total"] = round(time.time() - t, 2)
                 logger.info(f"[jobs] {self._job_tag} stage=grade_total {self._stages['grade_total']:.1f}s")

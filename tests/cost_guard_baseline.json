@@ -1,0 +1,26 @@
+{
+  "agent_question": {
+    "calls": 2,
+    "prompt_tokens": 7180
+  },
+  "copy_check_rubric_plus_one_copy": {
+    "calls": 2,
+    "prompt_tokens": 4813
+  },
+  "test_paper_cbse_2ch": {
+    "calls": 14,
+    "prompt_tokens": 16402
+  },
+  "test_paper_custom_2ch": {
+    "calls": 4,
+    "prompt_tokens": 4454
+  },
+  "voice_query": {
+    "calls": 4,
+    "prompt_tokens": 7604
+  },
+  "worksheet_direct": {
+    "calls": 1,
+    "prompt_tokens": 1459
+  }
+}

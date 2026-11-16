@@ -1,0 +1,3 @@
+# local dev data (embedded Postgres / any SQLite file) — never commit
+.devdata/
+agent_dev.db
