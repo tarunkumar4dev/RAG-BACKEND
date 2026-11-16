@@ -171,7 +171,7 @@ Invoke-RestMethod "http://localhost:8000/agent/suggestions?q=10" -Headers @{ "X-
 $env:AGENT_DB="embedded"; agent\.devdata\venv\Scripts\python -m pytest tests/agent -q
 ```
 
-## Voice (contract 1.4) — speak a question, hear a one-line answer
+## Voice (contract 1.5) — speak a question, hear the answer as it is written
 Voice is an input/output layer only (`agent/voice/`): speech → transcript → the same agent loop → the same events →
 one short spoken sentence. Hindi, English and Roman Hinglish. Plan, data flow, latency budget and costs:
 `docs/VOICE_PLAN.md`; deploy + kill switch: `docs/VOICE_DEPLOY.md`; data note (needs legal review):
@@ -182,8 +182,21 @@ one short spoken sentence. Hindi, English and Roman Hinglish. Plan, data flow, l
 | `GET /agent/voice/config` | enabled?, speakers (female + male), paces 0.9/1.0/1.1, limits, consent version. Never 403. |
 | `POST /agent/voice/transcribe` | raw audio body (`audio/webm` Chrome Android, `audio/mp4` iOS Safari, ogg, wav), `Idempotency-Key`. Container decoded for the real duration: ≤ 30 s, ≤ 1 MB. → `{transcript (Roman), language hi\|en\|hi-en, confidence, next auto\|confirm\|repeat\|pick, clarify?}` |
 | `POST /agent/voice/speak` | `{text, language?, speaker?, pace?, phrase?}` → streamed `audio/mpeg`; 204 when `VOICE_TTS=none` |
-| `POST /agent/voice/chat` | same body / SSE as `/agent/chat`, plus a `speech` event; approve-by-voice answered without the model |
+| `POST /agent/voice/chat` | same body / SSE as `/agent/chat`, plus `speech` and — with `"tts": "stream"` (1.5) — `audio` events: the SPEECH line is spoken while the model writes it. `cancel_current: true` = barge-in (stops this user's running turn first). approve-by-voice answered without the model |
 
+- 1.5 streaming (`agent/voice/stream_tts.py`): voice turns put the `SPEECH:` line FIRST; the model's text deltas are cut
+  at sentence ends (। . ? !) or ~80 chars, each chunk goes to Sarvam TTS in parallel, and `audio` events (index,
+  base64 mp3, `ttfa_ms` on chunk 0) stream out as soon as each is ready, in order. Target: first audio < 1.5 s after
+  the LLM starts. The browser plays them gaplessly (Web Audio) and keeps the mic hot: talking over the answer, or a
+  tap, stops playback, cancels the turn (`cancel_current`) and listens. Audio is never stored in the history.
+- Usage counts (day + month) live in the agent store table `voice_usage` (institute_id + user_id + period): shared
+  by every process, restart-safe; checked before a paid request (plan/month → 403, today → 429 + Retry-After),
+  +1 after success. `GET /agent/admin/voice-usage?month=YYYY-MM` (institute admin: own; `AGENT_METRICS_TOKEN`: all).
+  The monthly plan limit: `plans.voice_monthly_limit` via `a4_voice_allowance` (product migration 32); demo
+  `VOICE_DEMO_MONTHLY_LIMIT` (100).
+- Startup: one shared keep-alive HTTP client for Sarvam; `warmup()` makes one tiny STT + TTS call so the connection
+  is open and a bad `SARVAM_API_KEY` is logged at boot (`VOICE_WARMUP=0` to skip). Every trace record carries
+  `institute_id` + `feature` (agent | voice).
 - STT: Sarvam `saaras:v3` + `mode=translit` (Roman script) → Gemini audio fallback → "Likh kar poochhiye". A breaker
   skips a provider for 60 s after 3 failures in a row. TTS: Sarvam `bulbul:v4-flash` (stream), speaker/pace allowlist.
 - Entity repair: misheard names are matched against the caller's own teachers / sections / students (cache 5 min per
@@ -195,11 +208,12 @@ one short spoken sentence. Hindi, English and Roman Hinglish. Plan, data flow, l
 - Raw audio is never stored or logged; transcript text never appears in logs or traces (the trace's `kind: voice`
   lines hold stage ms, bytes, provider, estimated ₹, outcome). A voice question is a normal chat message.
 - Switches: `VOICE_ENABLED=1` (kill switch), `VOICE_INSTITUTE_ALLOWLIST`, `SARVAM_API_KEY`, `VOICE_USER_PER_10MIN`
-  (30), `VOICE_USER_DAILY` (100).
+  (30), `VOICE_USER_DAILY` (100), `VOICE_WARMUP` (1), `VOICE_DEMO_MONTHLY_LIMIT` (100).
 
 ### Windows PowerShell (voice, dev mode)
 ```powershell
-powershell -ExecutionPolicy Bypass -File scriptsun_agent_dev.ps1 -Voice
+powershell -ExecutionPolicy Bypass -File scripts
+un_agent_dev.ps1 -Voice
 ```
 `-Voice` sets `VOICE_ENABLED=1`. `SARVAM_API_KEY` (and the model key) come from this shell, else from `<repo>\.env`
 (`scriptsgent_env.ps1`, whitelisted names only, never printed). Same switch for `run_agent_real.ps1`. The mic
@@ -213,8 +227,10 @@ Frontend (a4ai repo, second window): `npm run dev`, open `http://localhost:8080`
 localhost; a phone needs HTTPS). Tests and evals:
 ```powershell
 $env:AGENT_DB="embedded"; agent\.devdataenv\Scripts\python -m pytest tests/agent -q
-$env:AGENT_DB="embedded"; agent\.devdataenv\Scripts\python evalsun_voice_evals.py            # add --live anthropic with a key
-$env:AGENT_DB="embedded"; agent\.devdataenv\Scripts\python evalsun_voice_audio_eval.py --provider sarvam
+$env:AGENT_DB="embedded"; agent\.devdataenv\Scripts\python evals
+un_voice_evals.py            # add --live anthropic with a key
+$env:AGENT_DB="embedded"; agent\.devdataenv\Scripts\python evals
+un_voice_audio_eval.py --provider sarvam
 ```
 
 ## Security model
@@ -264,7 +280,7 @@ $env:AGENT_DB="embedded"; agent\.devdataenv\Scripts\python evalsun_voice_audio
 Failed ids (only those) are regenerated, max 3 rounds. `verification_summary` reports objective and rubric
 separately plus the manual-review list — never a flat "18/18 verified".
 
-## Events (`schemas.py`, contract 1.4 — every event has `seq` + `request_id`)
+## Events (`schemas.py`, contract 1.5 — every event has `seq` + `request_id`)
 | type | payload | notes |
 |---|---|---|
 | session | session_id, title | always first (seq 0), 1.2 |
@@ -282,6 +298,7 @@ separately plus the manual-review list — never a flat "18/18 verified".
 | error | code, message, partial | budget / provider / internal |
 | speech | text, language | voice turns only: 1–2 sentence spoken headline (1.4) |
 | ui_action | action navigate\|highlight_confirm, route_key, params, label | registry key only, never a URL (1.4) |
+| audio | index, mime, data (base64), chars, ttfa_ms? | 1.5, voice turns with `tts: stream`: one streamed TTS chunk of the SPEECH line; play in `index` order; never stored |
 
 ## Results
 Live run, 5 Nov 2026, Anthropic `claude-sonnet-5-5`, local seed (`python evals/run_evals.py anthropic`):
