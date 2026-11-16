@@ -196,6 +196,7 @@ class Agent:
                  voice: bool = False):
         self.p, self.ctx, self.session_id, self.conn = provider, ctx, session_id, conn_rw
         self.voice = voice  # spoken turn: prompt addendum + `speech` event (agent/voice); loop otherwise identical
+        self.speech_stream = None  # agent/voice/stream_tts.SpeechStream: SPEECH line -> `audio` events while streaming
         self.fast = fast_provider  # insight turns (agent/routing.py); None = one model for everything
         self.route, self.route_reason = "main", "single_model"
         self.retries = 0
@@ -376,6 +377,37 @@ class Agent:
         if self.cancel_event is not None and self.cancel_event.is_set():
             raise Cancelled()
 
+    # -- streamed speech audio (voice turns) ------------------------------
+    def _audio(self):
+        """`audio` events for the TTS chunks that are ready, in index order (generator thread only)."""
+        s = self.speech_stream
+        if s is None:
+            return
+        for p in s.ready():
+            yield self.ev("audio", **p)
+
+    def _audio_flush(self, out: deque):
+        """Before `final`: wait (bounded, cancel-aware) for the TTS chunks still being synthesized."""
+        s = self.speech_stream
+        if s is None:
+            return
+        if self.cancelled:
+            s.cancel()
+            return
+        from .voice import config as vc
+        end = time.time() + vc.TTS_DRAIN_S
+        while s.pending() and time.time() < end:
+            while out:
+                yield out.popleft()
+            yield from self._audio()
+            if self.cancel_event is not None and self.cancel_event.wait(0.03):
+                s.cancel()
+                self.cancelled = True
+                return
+            if self.cancel_event is None:
+                time.sleep(0.03)
+        yield from self._audio()
+
     def _wait(self, fut, t0: float, out: deque, deadline: Optional[float] = None):
         """Wait for a worker future; stream tool events, honour the wall-clock budget, a per-tool deadline and cancel
         meanwhile.  When there is no cancel event the fast path blocks directly on the future (no 50 ms polling)."""
@@ -397,6 +429,7 @@ class Agent:
             except FutureTimeout:
                 while out:
                     yield out.popleft()
+                yield from self._audio()
                 self._check_cancel()
                 if time.time() - t0 > config.MAX_WALL_S:
                     raise Budget("max_wall_s")
@@ -408,6 +441,7 @@ class Agent:
         while time.time() < end:
             while out:
                 yield out.popleft()
+            yield from self._audio()
             step = min(0.1, max(end - time.time(), 0))
             if self.cancel_event is not None:
                 if self.cancel_event.wait(step):
@@ -420,6 +454,8 @@ class Agent:
     def _complete(self, prov: LLMProvider, msgs: list[dict], tools: list[dict]):
         kw = {"cancel": self.cancel_event} if (self.cancel_event is not None and
                                                getattr(prov, "supports_cancel", False)) else {}
+        if self.speech_stream is not None and getattr(prov, "supports_text_stream", False):
+            kw["on_text"] = self.speech_stream.feed
         try:
             return prov.complete(system_prompt(self.ctx, self.voice), msgs, tools, max_tokens=2048, **kw)
         except LLMAborted as a:  # the stream saw the cancel and was closed: no more tokens are generated
@@ -524,7 +560,11 @@ class Agent:
                 self._check_cancel()
                 if time.time() - t0 > config.MAX_WALL_S:
                     raise Budget("max_wall_s")
+                if self.speech_stream is not None:
+                    self.speech_stream.begin_step()
                 r = yield from self._llm(prov, msgs, tools, t0, out)
+                if self.speech_stream is not None:
+                    (self.speech_stream.discard_step if r.tool_calls else self.speech_stream.end_step)()
                 msgs.append({"role": "assistant", "text": r.text,
                              "tool_calls": [{"id": c.id, "name": c.name, "args": c.args} for c in r.tool_calls]})
                 if not r.tool_calls:
@@ -535,6 +575,8 @@ class Agent:
                             yield self.ev("text_delta", text=plain_text(prose))
                         if speech and self.voice:
                             yield self.ev("speech", text=speech, language=classify(speech))
+                            if self.speech_stream is not None:
+                                self.speech_stream.ensure(speech)  # provider did not stream text: speak it now
                     break
                 if prov is self.fast and routing.escalate([c.name for c in r.tool_calls],
                                                           [n for n in self.tools if self._read_tool(n)]):
@@ -555,6 +597,8 @@ class Agent:
             while out:
                 yield out.popleft()
             self.cancelled = True
+            if self.speech_stream is not None:
+                self.speech_stream.cancel()   # pending TTS chunks are dropped, nothing more is spoken
             msgs = close_turn(msgs)
         except Budget as b:
             while out:
@@ -580,6 +624,7 @@ class Agent:
             yield self.ev("error", code="provider_error" if _is_provider_error(e) else "internal",
                           message=type(e).__name__, partial={"tools_used": self.tools_used})
         self.history = msgs
+        yield from self._audio_flush(out)
         yield self.ev("final", session_id=self.session_id, cancelled=self.cancelled,
                       usage={"tokens_in": self.tokens[0], "tokens_out": self.tokens[1],
                              "cost_usd": round(self.cost, 5), "tool_calls": self.tool_calls,
@@ -597,6 +642,9 @@ class Agent:
         yield self.ev("ui_action", action=action)
         if self.voice:
             yield self.ev("speech", text=speech, language=classify(speech))
+            if self.speech_stream is not None:
+                self.speech_stream.ensure(speech)
+                yield from self._audio_flush(deque())
         self.history = self.history + [{"role": "user", "text": message},
                                        {"role": "assistant", "text": text, "tool_calls": []}]
         yield self.ev("final", session_id=self.session_id, cancelled=False,

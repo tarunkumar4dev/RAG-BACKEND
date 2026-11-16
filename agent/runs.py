@@ -27,6 +27,14 @@ class RunRegistry:
         hit[1].set()
         return True
 
+    def cancel_owner(self, owner: Owner) -> int:
+        """Barge-in (ChatRequest.cancel_current): stop every run this user + institute still has going."""
+        with self._lock:
+            hits = [ev for o, ev in self._runs.values() if o == owner]
+        for ev in hits:
+            ev.set()
+        return len(hits)
+
     def unregister(self, request_id: str) -> None:
         with self._lock:
             self._runs.pop(request_id, None)

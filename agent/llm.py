@@ -23,7 +23,7 @@ import os
 import threading
 import uuid
 from dataclasses import dataclass, field
-from typing import Any, Optional, Protocol
+from typing import Any, Callable, Optional, Protocol
 
 from . import config
 
@@ -70,6 +70,7 @@ _CC = {"type": "ephemeral"}
 
 class AnthropicProvider:
     supports_cancel = True
+    supports_text_stream = True   # complete(on_text=...) gets text deltas as they are generated (voice TTS)
 
     def __init__(self, client: Any = None, model: Optional[str] = None, cache: Optional[bool] = None):
         self.model = model or config.AGENT_MODEL
@@ -133,10 +134,12 @@ class AnthropicProvider:
         return res
 
     def complete(self, system, messages, tools, max_tokens=2048, json_mode=False,
-                 cancel: Optional[threading.Event] = None) -> LLMResponse:
+                 cancel: Optional[threading.Event] = None,
+                 on_text: Optional[Callable[[str], None]] = None) -> LLMResponse:
         kwargs = self.request(system, messages, tools, max_tokens)
-        if cancel is None:
+        if cancel is None and on_text is None:
             return self._parse(self.client.messages.create(**kwargs))
+        cancel = cancel or threading.Event()
         chars = 0
         with self.client.messages.stream(**kwargs) as stream:  # leaving the block closes the HTTP stream
             for event in stream:
@@ -144,7 +147,10 @@ class AnthropicProvider:
                     raise LLMAborted(self.model, chars // 4, max_tokens)
                 t = getattr(event, "type", "")
                 if t == "text":
-                    chars += len(getattr(event, "text", "") or "")
+                    piece = getattr(event, "text", "") or ""
+                    chars += len(piece)
+                    if on_text is not None and piece:
+                        on_text(piece)
                 elif t == "input_json":
                     chars += len(getattr(event, "partial_json", "") or "")
             msg = stream.get_final_message()
@@ -168,6 +174,7 @@ def _gemini_schema(s: Any) -> Any:
 
 class GeminiProvider:
     supports_cancel = True
+    supports_text_stream = True
 
     def __init__(self, client: Any = None, model: Optional[str] = None):
         self.model = model or config.GEMINI_MODEL
@@ -216,18 +223,23 @@ class GeminiProvider:
                     res.text += p.text
 
     def complete(self, system, messages, tools, max_tokens=2048, json_mode=False,
-                 cancel: Optional[threading.Event] = None) -> LLMResponse:
+                 cancel: Optional[threading.Event] = None,
+                 on_text: Optional[Callable[[str], None]] = None) -> LLMResponse:
         kw = self._args(system, messages, tools, max_tokens, json_mode)
         res = LLMResponse(model=self.model)
-        if cancel is None:
+        if cancel is None and on_text is None:
             self._absorb(res, self.client.models.generate_content(**kw))
             return res
+        cancel = cancel or threading.Event()
         stream = self.client.models.generate_content_stream(**kw)
         try:
             for chunk in stream:
                 if cancel.is_set():
                     raise LLMAborted(self.model, len(res.text) // 4, max_tokens)
+                before = len(res.text)
                 self._absorb(res, chunk)
+                if on_text is not None and len(res.text) > before:
+                    on_text(res.text[before:])
         finally:
             close = getattr(stream, "close", None)
             if close is not None:

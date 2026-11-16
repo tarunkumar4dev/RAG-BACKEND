@@ -22,6 +22,7 @@ STT_MODE_DEFAULT = "translit"
 TTS_MODEL_DEFAULT = "bulbul:v4-flash"
 STT_TIMEOUT_S = 8.0
 TTS_TIMEOUT_S = 10.0
+TTS_DRAIN_S = 12.0           # streamed TTS: max wait for the last chunks before the turn's `final` event
 GEMINI_STT_TIMEOUT_S = 10.0
 BREAKER_FAILURES = 3        # consecutive failures that open the breaker
 BREAKER_OPEN_S = 60.0       # how long a provider is skipped once the breaker is open

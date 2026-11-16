@@ -129,11 +129,13 @@ def chat(body: ChatRequest, ctx: SessionCtx = Depends(get_session)):
     return run_chat(body, ctx)
 
 
-def run_chat(body: ChatRequest, ctx: SessionCtx, voice: bool = False, on_done=None, canned=None):
+def run_chat(body: ChatRequest, ctx: SessionCtx, voice: bool = False, on_done=None, canned=None, speech_stream=None):
     """One chat turn (POST /agent/chat, and POST /agent/voice/chat with voice=True). `on_done(events, agent)` runs
     when the stream ends; `canned` (agent/voice/guard.Canned) answers without the model."""
     live = ctx.data_source == "live"
     store, owner = get_store(), Owner.of(ctx)
+    if getattr(body, "cancel_current", False):
+        RUNS.cancel_owner(owner)  # barge-in: the previous answer stops generating (and speaking) now
     # Rate limits: before anything is stored
     for rl_check in (lambda: check_user_rate(str(ctx.user_id)),
                      lambda: check_institute_budget(str(ctx.institute_id))):
@@ -168,6 +170,7 @@ def run_chat(body: ChatRequest, ctx: SessionCtx, voice: bool = False, on_done=No
         if conn is not None:
             conn.close()
         raise
+    agent.speech_stream = speech_stream
 
     def stream() -> Iterator[str]:
         events: list[dict] = []
@@ -185,7 +188,8 @@ def run_chat(body: ChatRequest, ctx: SessionCtx, voice: bool = False, on_done=No
                     pass
             turn = agent.history[len(hist) + 1:] if len(agent.history) > len(hist) else []
             texts = [e["text"] for e in events if e.get("type") == "text_delta" and e.get("text")]
-            store.add_message(owner, sid, "assistant", "\n\n".join(texts) or None, events=events, llm=turn)
+            stored = [e for e in events if e.get("type") != "audio"]  # audio is played live, never stored
+            store.add_message(owner, sid, "assistant", "\n\n".join(texts) or None, events=stored, llm=turn)
             # Record token usage for per-institute daily budget
             total_tokens = agent.tokens[0] + agent.tokens[1] + agent.cache_read
             if total_tokens > 0:

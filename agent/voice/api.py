@@ -361,21 +361,54 @@ def outcome_of(events: list[dict]) -> str:
     return "answered"
 
 
-@router.post("/chat", responses={200: {"description": "SSE, as POST /agent/chat, plus a `speech` event"}})
-def voice_chat(body: ChatRequest, ctx: SessionCtx = Depends(voice_gate)):
+class VoiceChatRequest(ChatRequest):
+    """POST /agent/voice/chat body: a normal chat message plus how the answer should be spoken (1.5).
+    tts="stream": the server speaks the SPEECH line while the model writes it (`audio` events, contract 1.5);
+    tts="off" (default, the 1.4 behaviour): no server audio — the client calls /speak or speechSynthesis."""
+    tts: Literal["stream", "off"] = "off"
+    speaker: Optional[str] = None
+    pace: Optional[float] = None
+
+
+def _speech_stream_for(body: VoiceChatRequest, ctx: SessionCtx):
+    """A SpeechStream when the server can and may speak this turn, else None (the client falls back to /speak or
+    the browser's speechSynthesis, exactly as before)."""
+    from .stream_tts import SpeechStream
+    if body.tts == "off":
+        return None
+    tts = tts_provider()
+    if tts.name == "none" or allowance.check(ctx):
+        return None
+    speaker = body.speaker if body.speaker in vc.SPEAKERS else vc.DEFAULT_SPEAKER
+    pace = float(body.pace) if body.pace is not None and float(body.pace) in vc.PACES else 1.0
+    return SpeechStream(tts, speaker, pace, on_first_audio=lambda: allowance.consume(ctx))
+
+
+@router.post("/chat", responses={200: {"description": "SSE, as POST /agent/chat, plus `speech` and (1.5) `audio` events"}})
+def voice_chat(body: VoiceChatRequest, ctx: SessionCtx = Depends(voice_gate)):
     """The transcript becomes a normal chat message (same session, history, retention, clear-all). The only
-    differences: the model is told the message was spoken (untrusted, keep it short, one-line refusals) and ends its
-    answer with a `speech` event. Writes stay behind the on-screen approval gate — this endpoint never approves."""
+    differences: the model is told the message was spoken (untrusted, keep it short, one-line refusals) and starts
+    its answer with a SPEECH line; that line is spoken while it streams (`audio` events, agent/voice/stream_tts.py)
+    and is also sent as a `speech` event. Writes stay behind the on-screen approval gate — this endpoint never
+    approves."""
     from ..api import run_chat
     from .guard import guard_turn
     t0 = time.time()
     guarded = guard_turn(body.message or "")
+    stream = _speech_stream_for(body, ctx)
 
     def on_done(events: list[dict], agent) -> None:
-        Tracer(request_id=agent.request_id).voice(
+        tr = Tracer(request_id=agent.request_id)
+        tr.voice(
             "chat", outcome_of(events), {"turn": (time.time() - t0) * 1000}, provider="agent",
             model=getattr(agent, "route", ""), chars=sum(len(e.get("text", "")) for e in events if e.get("type") == "speech"),
             cost_inr=round(agent.cost * vc.INR_PER_USD, 5), speech=any(e.get("type") == "speech" for e in events),
             guarded=guarded is not None)
+        if stream is not None and stream.produced:
+            tts = tts_provider()
+            tr.voice("chat_tts", "cancelled" if stream.cancelled else "ok",
+                     {"ttfa": float(stream.ttfa_ms or 0)}, provider=tts.name, model=getattr(tts, "model", ""),
+                     chars=stream.chars, cost_inr=vc.tts_cost_inr(stream.chars, getattr(tts, "model", "")),
+                     chunks=stream.produced, errors=stream.errors, ttfa_ms=stream.ttfa_ms)
 
-    return run_chat(body, ctx, voice=True, on_done=on_done, canned=guarded)
+    return run_chat(body, ctx, voice=True, on_done=on_done, canned=guarded, speech_stream=stream)

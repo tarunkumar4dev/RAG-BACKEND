@@ -12,7 +12,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, model_validator
 
-CONTRACT_VERSION = "1.4"  # 1.1: stat_card.period/delta, thinking_status tool.<name> steps
+CONTRACT_VERSION = "1.5"  # 1.1: stat_card.period/delta, thinking_status tool.<name> steps
 # 1.4 (additive, voice): `speech` event (voice turns), `ui_action` event (navigate / highlight_confirm); new
 #     endpoints under /agent/voice/* (docs/VOICE_PLAN.md). No existing event or field changed.
 # 1.2 (additive): `session` event first in every stream, final.cancelled, clarify chip.hint (docs/AGENT_API_V2.md)
@@ -205,6 +205,19 @@ class Speech(_Base):
     language: Literal["hi", "en", "hi-en"]
 
 
+class SpeechAudio(_Base):
+    """1.5 (voice turns, server TTS): one chunk of the spoken SPEECH line, synthesized while the model is still
+    writing. `index` orders the chunks (0, 1, 2 …; a failed chunk is skipped, never re-sent); `data` is the whole
+    audio file for that chunk, base64. `ttfa_ms` (chunk 0 only): ms from the start of the answering LLM step to this
+    audio. Never stored in the chat history."""
+    type: Literal["audio"] = "audio"
+    index: int = Field(ge=0)
+    mime: str = Field(max_length=40)
+    data: str
+    chars: int = Field(ge=0)
+    ttfa_ms: Optional[int] = None
+
+
 class UiAction(_Base):
     """1.4: a UI instruction, never a data write. `navigate` opens a registry route (agent/routes/registry.json —
     the frontend executes only keys in its copy, with the typed params); `highlight_confirm` points at the on-screen
@@ -218,7 +231,7 @@ class UiAction(_Base):
 
 AgentEvent = Annotated[
     Union[SessionStarted, TextDelta, ThinkingStatus, StatCard, Chart, Table, Clarify, Blueprint, PaperPreview,
-          VerificationSummary, PendingApproval, FileReady, Final, Error, Speech, UiAction],
+          VerificationSummary, PendingApproval, FileReady, Final, Error, Speech, UiAction, SpeechAudio],
     Field(discriminator="type"),
 ]
 AgentEventAdapter: TypeAdapter = TypeAdapter(AgentEvent)
@@ -256,6 +269,8 @@ class ChatRequest(BaseModel):
     message: Optional[str] = Field(default=None, min_length=1, max_length=4000)
     regenerate_from_seq: Optional[int] = Field(default=None, ge=1)
     edit_of_seq: Optional[int] = Field(default=None, ge=1)
+    # 1.5 barge-in: stop this user's run that is still going (LLM stream closed, pending TTS dropped) before this one
+    cancel_current: bool = False
 
     @model_validator(mode="after")
     def _check(self):
