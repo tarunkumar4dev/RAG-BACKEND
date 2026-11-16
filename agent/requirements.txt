@@ -10,5 +10,7 @@ psycopg[binary]
 psycopg_pool>=3.2
 openpyxl  # Phase 5: Excel exports (defaulters, proctor reports)
 pyyaml
+# agent imports test-generator-backend/app/core (auth + database), which need the Supabase client; same pin as there
+supabase==2.9.0
 pyjwt[crypto]  # verify Supabase JWTs (HS256 + JWKS RS256/ES256) in real mode
 tzdata  # zoneinfo("Asia/Kolkata") on Windows (no system tz database)
