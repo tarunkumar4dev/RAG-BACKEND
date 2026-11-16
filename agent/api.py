@@ -299,6 +299,32 @@ def download_file(file_id: str, ctx: SessionCtx = Depends(get_session)):
 DEFAULT_CORS_ORIGINS = "http://localhost:8080,http://localhost:5173"
 
 
+# localhost, loopback (v4 / v6) and RFC 1918 LAN ranges, any port, http or https
+DEV_ORIGIN_REGEX = (r"^https?://(localhost|127\.0\.0\.1|\[::1\]|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|"
+                    r"172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?$")
+
+
+class LogRefusedPreflight:
+    """ASGI middleware: a CORS preflight answered 400 is logged with its Origin (the CORS middleware itself says
+    nothing), so a "Connecting…" panel can be traced to the origin the browser used."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope.get("type") != "http" or scope.get("method") != "OPTIONS":
+            return await self.app(scope, receive, send)
+        origin = next((v.decode("latin-1") for k, v in scope.get("headers", []) if k == b"origin"), "")
+
+        async def send_wrapped(message):
+            if message.get("type") == "http.response.start" and message.get("status") == 400 and origin:
+                logging.getLogger(__name__).warning(
+                    "CORS preflight refused for origin %s on %s (allowed: AGENT_CORS_ORIGINS=%s; dev mode allows any "
+                    "local / LAN origin)", origin, scope.get("path"), os.getenv("AGENT_CORS_ORIGINS") or DEFAULT_CORS_ORIGINS)
+            await send(message)
+        return await self.app(scope, receive, send_wrapped)
+
+
 def cors_origins(env=os.environ) -> list[str]:
     raw = env.get("AGENT_CORS_ORIGINS") or DEFAULT_CORS_ORIGINS
     origins = [o.strip().rstrip("/") for o in raw.split(",") if o.strip()]
@@ -351,9 +377,14 @@ def create_app(env=os.environ, check_real_db: bool = True) -> FastAPI:
     headers = ["Authorization", "Content-Type", "Last-Event-ID", "Idempotency-Key"]  # Idempotency-Key: voice uploads
     if dev_mode_enabled(env):
         headers.append("X-Dev-Role")  # only in dev mode, so the browser preflight allows the dev header
-    a.add_middleware(CORSMiddleware, allow_origins=cors_origins(env),
-                     allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"], allow_headers=headers,
-                     expose_headers=["X-Agent-Request-Id"], allow_credentials=False)
+    # Dev mode: the frontend may be open as localhost / 127.0.0.1 / [::1] / a LAN address on any port (Vite listens on
+    # every interface, phones test over Wi-Fi), so any private origin is allowed. Real / production: the exact list.
+    cors_kwargs: dict = {"allow_origins": cors_origins(env)}
+    if dev_mode_enabled(env):
+        cors_kwargs["allow_origin_regex"] = DEV_ORIGIN_REGEX
+    a.add_middleware(CORSMiddleware, allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"], allow_headers=headers,
+                     expose_headers=["X-Agent-Request-Id"], allow_credentials=False, **cors_kwargs)
+    a.add_middleware(LogRefusedPreflight)   # outermost: says WHICH origin a 400 preflight came from
     from . import api_v2, ops
     from .openapi import install as install_openapi
     a.include_router(router)
