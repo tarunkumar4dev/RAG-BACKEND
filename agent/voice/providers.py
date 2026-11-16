@@ -104,9 +104,33 @@ class Breaker:
 
 
 # ---- Sarvam ------------------------------------------------------------------------------------------------------
+_clients: dict[float, Any] = {}
+_clients_lock = threading.Lock()
+
+
 def _http_client(timeout: float):
+    """One shared keep-alive httpx.Client per timeout (phase 5): every Sarvam call used to open a new TLS
+    connection (~150-300 ms on 4G-era links, more from Mumbai to Sarvam's region). httpx.Client is thread-safe;
+    pooled connections are reused across requests and threads."""
     import httpx
-    return httpx.Client(timeout=httpx.Timeout(timeout, connect=3.0))
+    with _clients_lock:
+        c = _clients.get(timeout)
+        if c is None:
+            c = httpx.Client(timeout=httpx.Timeout(timeout, connect=3.0),
+                             limits=httpx.Limits(max_keepalive_connections=8, max_connections=16,
+                                                 keepalive_expiry=60.0))
+            _clients[timeout] = c
+        return c
+
+
+def close_http_clients() -> None:
+    with _clients_lock:
+        for c in _clients.values():
+            try:
+                c.close()
+            except Exception:  # noqa: BLE001
+                pass
+        _clients.clear()
 
 
 class SarvamSTT:
@@ -380,3 +404,55 @@ def set_providers(stt: Optional[list[STTProvider]] = None, tts: Optional[TTSProv
         _stt_chain = Chain(stt, breaker) if stt is not None else None
         _tts = tts
     (breaker or BREAKER).reset()
+
+
+# ---- startup warmup (phase 5) -----------------------------------------------------------------------------------
+def _silence_wav(seconds: float = 0.4, rate: int = 16000) -> bytes:
+    """A tiny silent 16-bit mono WAV: enough for one real STT round trip."""
+    import struct
+    n = int(seconds * rate)
+    data = b"\x00\x00" * n
+    hdr = b"RIFF" + struct.pack("<I", 36 + len(data)) + b"WAVEfmt " + struct.pack("<IHHIIHH", 16, 1, 1, rate, rate * 2, 2, 16)
+    return hdr + b"data" + struct.pack("<I", len(data)) + data
+
+
+def warmup(env=os.environ) -> dict:
+    """One tiny STT and one tiny TTS call at startup, so (a) the TLS connection is open before the first user and
+    (b) a missing / invalid Sarvam key is logged now, not on that user's request. Skipped when voice is off,
+    VOICE_WARMUP=0, or the providers are fakes (tests). Costs ~Rs 0.01 per boot. Returns {provider: outcome}."""
+    import logging
+    log = logging.getLogger(__name__)
+    out: dict[str, str] = {}
+    if not vc.enabled(env) or (env.get("VOICE_WARMUP") or "1") == "0":
+        return out
+    chain, tts = stt_chain(env), tts_provider(env)
+    for p in chain.providers[:1]:          # the primary STT only (Gemini is the fallback; its key is checked on use)
+        if type(p).__name__.startswith("Fake"):
+            continue
+        t0 = time.time()
+        try:
+            p.transcribe(_silence_wav(), "audio/wav")
+            out[p.name + "_stt"] = "ok"
+            log.info("voice warmup: %s STT ok in %.2fs", p.name, time.time() - t0)
+        except ProviderError as e:
+            out[p.name + "_stt"] = e.kind
+            lvl = log.error if e.kind in ("http_401", "http_403", "not_configured") else log.warning
+            lvl("voice warmup: %s STT failed (%s) — check SARVAM_API_KEY", p.name, e.kind)
+        except Exception as e:  # noqa: BLE001
+            out[p.name + "_stt"] = type(e).__name__
+            log.warning("voice warmup: %s STT failed (%s)", p.name, type(e).__name__)
+    if tts.name != "none" and not type(tts).__name__.startswith("Fake"):
+        t0 = time.time()
+        try:
+            for _ in tts.synthesize("ok", "en-IN", vc.DEFAULT_SPEAKER, 1.0):
+                pass
+            out[tts.name + "_tts"] = "ok"
+            log.info("voice warmup: %s TTS ok in %.2fs", tts.name, time.time() - t0)
+        except ProviderError as e:
+            out[tts.name + "_tts"] = e.kind
+            lvl = log.error if e.kind in ("http_401", "http_403", "not_configured") else log.warning
+            lvl("voice warmup: %s TTS failed (%s) — check SARVAM_API_KEY", tts.name, e.kind)
+        except Exception as e:  # noqa: BLE001
+            out[tts.name + "_tts"] = type(e).__name__
+            log.warning("voice warmup: %s TTS failed (%s)", tts.name, type(e).__name__)
+    return out

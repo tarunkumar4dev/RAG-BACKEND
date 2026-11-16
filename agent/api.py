@@ -333,7 +333,12 @@ async def _lifespan(app: FastAPI):
         anyio.to_thread.current_default_thread_limiter().total_tokens = int(os.getenv("AGENT_THREADPOOL", "200"))
     except (ValueError, RuntimeError):
         pass
+    # voice: open the Sarvam connections and check the key now, off the request path (agent/voice/providers.warmup)
+    from .voice.providers import close_http_clients, warmup
+    import threading
+    threading.Thread(target=warmup, name="voice-warmup", daemon=True).start()
     yield
+    close_http_clients()
 
 
 def create_app(env=os.environ, check_real_db: bool = True) -> FastAPI:
