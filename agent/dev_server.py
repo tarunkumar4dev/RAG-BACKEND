@@ -42,9 +42,41 @@ def main(argv: list[str] | None = None) -> int:
         print(f"{k}: {'set' if os.getenv(k) else 'NOT SET'}")
     print(f"a4ai Agent dev server on http://localhost:{a.port}  CORS: {os.environ['AGENT_CORS_ORIGINS']}  "
           "auth: X-Dev-Role admin|teacher", flush=True)
+    holder = port_in_use(a.port)
+    if holder is not None:
+        print(f"ERROR: port {a.port} is already in use by {holder}. Stop that process, or start with --port {a.port + 1} "
+              f"(and set VITE_AGENT_URL=http://localhost:{a.port + 1} in product/.env.local).", file=sys.stderr)
+        return 2
     import uvicorn
     uvicorn.run("agent.api:app", host="127.0.0.1", port=a.port)
     return 0
+
+
+def port_in_use(port: int) -> str | None:
+    """None when the port is free; else "PID <n> (<command>)" when that can be read, or just "another process".
+    A uvicorn that failed half-way (e.g. the old `uvicorn app.main:app`) keeps the port bound without serving, and
+    the next start then dies with WinError 10048 — this says who, before the embedded DB is even started."""
+    import socket
+    import subprocess
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        try:
+            s.bind(("127.0.0.1", port))
+        except OSError:
+            pass
+        else:
+            return None
+    if sys.platform == "win32":
+        try:
+            out = subprocess.run(["netstat", "-ano", "-p", "tcp"], capture_output=True, text=True, timeout=10).stdout
+            pids = {line.split()[-1] for line in out.splitlines() if f":{port} " in line and line.strip().startswith("TCP")}
+            for pid in sorted(pids):
+                cmd = subprocess.run(["powershell", "-NoProfile", "-Command",
+                                      f"(Get-CimInstance Win32_Process -Filter 'ProcessId={pid}').CommandLine"],
+                                     capture_output=True, text=True, timeout=10).stdout.strip()
+                return f"PID {pid} ({cmd[:120] or 'unknown command'})"
+        except Exception:  # noqa: BLE001
+            pass
+    return "another process"
 
 
 if __name__ == "__main__":
