@@ -175,7 +175,8 @@ class GeneratedQuestion(BaseModel):
     chapter: str
     topic: Optional[str] = None
     format: QuestionFormat
-    validation_status: Literal["verified", "needs_review", "manual"] = "verified"
+    # "verified" = a checker pass said ok (POST /verify-answers); a freshly generated question is "needs_review".
+    validation_status: Literal["verified", "needs_review", "manual"] = "needs_review"
     validation_notes: Optional[str] = None
     # Tabular answer for Accountancy
     answer_table: Optional[AnswerTable] = None

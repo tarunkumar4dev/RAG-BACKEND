@@ -2135,7 +2135,8 @@ def _parse_batch(raw, chapter, request, section_key=None):
                 chapter=chapter.chapter,
                 topic=q.get("topic"),
                 format=QuestionFormat(fmt),
-                validation_status="verified",
+                # Nothing has checked this key yet. Only POST /verify-answers (verdict "ok") makes it "verified".
+                validation_status="needs_review",
                 answer_table=answer_table,
                 question_table=question_table,
                 marking_scheme=marking_scheme,

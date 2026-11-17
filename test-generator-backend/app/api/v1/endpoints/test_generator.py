@@ -1298,6 +1298,15 @@ async def feedback(request: TestFeedbackRequest, user: AuthUser = Depends(requir
 # ENDPOINT: Save Test (hardened)
 # ═══════════════════════════════════════════════════════════════════════
 
+def _saved_validation_status(q: dict, is_manual: bool) -> str:
+    """The status the client holds for this question; anything unknown is "needs_review" (the column's own
+    default is 'verified', which would mark unchecked questions as checked)."""
+    if is_manual:
+        return "manual"
+    status = q.get("validationStatus") or q.get("validation_status")
+    return status if status in ("verified", "needs_review") else "needs_review"
+
+
 @router.post("/save")
 async def save_test(request: FrontendSaveRequest, user: AuthUser = Depends(require_user)):
     teacher_id = user.id
@@ -1375,6 +1384,7 @@ async def save_test(request: FrontendSaveRequest, user: AuthUser = Depends(requi
                     "bloom_level": q.get("bloomLevel") or q.get("bloom_level"),
                     "section": q.get("section"),
                     "is_manual": is_manual,
+                    "validation_status": _saved_validation_status(q, is_manual),
                     "image_url": q.get("imageUrl") or q.get("image_url"),
                     "answer_table": q.get("answerTable") or q.get("answer_table"),
                     "question_table": q.get("questionTable") or q.get("question_table"),
