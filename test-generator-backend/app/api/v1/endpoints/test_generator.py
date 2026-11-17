@@ -503,6 +503,42 @@ def _log_failed_paper(stats, req, already) -> None:
                   outcome="failed", est_cost_usd=u.get("est_cost_usd"))
 
 
+# tests.status while a paper is being made: generating -> draft (delivered) | failed. /save later sets "saved".
+STATUS_GENERATING, STATUS_DRAFT, STATUS_FAILED = "generating", "draft", "failed"
+# A function instance killed mid-generation (platform timeout) leaves its row on "generating" for ever:
+# /status reports such a row as failed once it is older than this.
+GENERATING_STALE_AFTER_S = 15 * 60
+
+
+def _start_tests_row(test_id: str, req: FrontendGenerateRequest, subject: str) -> bool:
+    """Insert the paper's row as "generating" before any LLM call. False (and the old insert-at-the-end path)
+    when the insert fails: a status row must never stop a paper."""
+    try:
+        get_supabase_admin().table("tests").insert({
+            "id": test_id,
+            "teacher_id": req.userId,
+            "exam_title": req.examTitle,
+            "board": req.board,
+            "class_grade": _extract_class_number(req.classGrade),
+            "subject": subject,
+            "status": STATUS_GENERATING,
+            "paper_date": req.paperDate,
+            "cbse_pattern": req.cbsePattern,
+        }).execute()
+        return True
+    except Exception as e:
+        logger.warning(f"tests row (generating) not written for {test_id}: {type(e).__name__}")
+        return False
+
+
+def _fail_tests_row(test_id: str, user_id: str) -> None:
+    try:
+        get_supabase_admin().table("tests").update({"status": STATUS_FAILED}) \
+            .eq("id", test_id).eq("teacher_id", user_id).execute()
+    except Exception as e:
+        logger.warning(f"tests row {test_id} not marked failed: {type(e).__name__}")
+
+
 @router.post("/generate-frontend", response_model=FrontendGenerateResponse)
 async def generate_from_frontend(req: FrontendGenerateRequest, user: AuthUser = Depends(require_user),
                                  idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key", max_length=80)):
@@ -511,6 +547,9 @@ async def generate_from_frontend(req: FrontendGenerateRequest, user: AuthUser = 
     logger.info(f"Frontend generate: {req.subject} {req.classGrade}, {len(req.simpleData)} chapters")
     rsv = None
     ai_usage = None
+    test_id = str(uuid.uuid4())
+    row_started = False     # the "generating" row exists
+    delivered = False       # the paper was generated; from here on the row must not become "failed"
     usage_ctx = paper_usage()
     stats = usage_ctx.__enter__()
 
@@ -523,6 +562,9 @@ async def generate_from_frontend(req: FrontendGenerateRequest, user: AuthUser = 
         backend_request = _transform_frontend_to_backend(req)
         total_q = sum(c.quantity for c in backend_request.chapters)
         logger.info(f"Transformed: {len(backend_request.chapters)} chapters, {total_q} questions")
+
+        # Quota reserved and the request is valid: from here the paper has a row (GET /status/{test_id}).
+        row_started = _start_tests_row(test_id, req, _resolve_subject(req.subject))
 
         real_chapters = [
             ch.chapter for ch in backend_request.chapters
@@ -553,13 +595,17 @@ async def generate_from_frontend(req: FrontendGenerateRequest, user: AuthUser = 
                              est_cost_usd=u.get("est_cost_usd"))
 
         frontend_response = _transform_backend_to_frontend(backend_response, req)
+        if row_started:
+            frontend_response.testId = test_id      # the id the "generating" row was written under
+        delivered = True
 
         elapsed = round(time.time() - start, 2)
         frontend_response.generationTime = elapsed
 
         usage = dict(consume(rsv))
 
-        # Insert test row
+        # Final test row: the "generating" row becomes the draft (or, if that row was never written, one insert
+        # as before).
         try:
             class_num_for_db = _extract_class_number(req.classGrade)
             tests_row = {
@@ -569,7 +615,7 @@ async def generate_from_frontend(req: FrontendGenerateRequest, user: AuthUser = 
                 "board": req.board,
                 "class_grade": class_num_for_db,
                 "subject": resolved_subject,
-                "status": "draft",
+                "status": STATUS_DRAFT,
                 "total_questions": frontend_response.totalQuestions,
                 "total_marks": frontend_response.totalMarks,
                 "paper_date": req.paperDate,
@@ -578,11 +624,16 @@ async def generate_from_frontend(req: FrontendGenerateRequest, user: AuthUser = 
                 "request_payload": {"ai_usage": ai_usage} if ai_usage else None,
             }
             supabase = get_supabase_admin()
-            insert_result = supabase.table("tests").insert(tests_row).execute()
+            if row_started:
+                fields = {k: v for k, v in tests_row.items() if k not in ("id", "teacher_id")}
+                insert_result = supabase.table("tests").update(fields) \
+                    .eq("id", test_id).eq("teacher_id", req.userId).execute()
+            else:
+                insert_result = supabase.table("tests").insert(tests_row).execute()
             if not insert_result.data:
-                logger.error(f"tests INSERT returned no data for test_id={frontend_response.testId}")
+                logger.error(f"tests row write returned no data for test_id={frontend_response.testId}")
         except Exception as insert_err:
-            logger.error(f"Failed to INSERT tests row: {insert_err}", exc_info=True)
+            logger.error(f"Failed to write tests row: {insert_err}", exc_info=True)
 
         frontend_response.meta["usage"] = {
             "used": usage.get("used", 0),
@@ -628,6 +679,41 @@ async def generate_from_frontend(req: FrontendGenerateRequest, user: AuthUser = 
         raise HTTPException(status_code=500, detail="Generation failed. Please try again.")
     finally:
         usage_ctx.__exit__(None, None, None)
+        if row_started and not delivered:
+            _fail_tests_row(test_id, req.userId)
+
+
+@router.get("/status/{test_id}")
+async def get_test_status(test_id: str, user: AuthUser = Depends(require_user)):
+    """{"status": generating | draft | failed | saved} for the caller's own paper; 404 for anyone else's."""
+    try:
+        sanitize_uuid(test_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid ID format")
+    try:
+        res = get_supabase_admin().table("tests").select("status, created_at") \
+            .eq("id", test_id).eq("teacher_id", user.id).limit(1).execute()
+    except Exception as e:
+        logger.error(f"Test status error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch status.")
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Test not found")
+    row = res.data[0]
+    status = row.get("status") or STATUS_DRAFT
+    if status == STATUS_GENERATING and _older_than(row.get("created_at"), GENERATING_STALE_AFTER_S):
+        status = STATUS_FAILED
+    return {"status": status}
+
+
+def _older_than(created_at, seconds: int) -> bool:
+    from datetime import datetime, timezone
+    try:
+        made = datetime.fromisoformat(str(created_at).replace("Z", "+00:00"))
+        if made.tzinfo is None:
+            made = made.replace(tzinfo=timezone.utc)
+        return (datetime.now(timezone.utc) - made).total_seconds() > seconds
+    except Exception:
+        return False
 
 
 # ═══════════════════════════════════════════════════════════════════════

@@ -38,6 +38,7 @@ ROUTE_LIMITS = {
     "POST /api/v1/test-generator/feedback": 30,
     # one checker pass per paper (cached per paper); a teacher needs at most a few per minute
     "POST /api/v1/test-generator/verify-answers": 6,
+    "GET /api/v1/test-generator/status/{test_id}": 120,   # progress polling
     "POST /api/v1/test-generator/export": 30,
     "POST /api/v1/test-generator/export-answer-key": 30,
     "POST /api/v1/modules/process": 10,
