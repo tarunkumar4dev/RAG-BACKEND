@@ -299,6 +299,22 @@ def _extract_class_number(class_grade: str) -> str:
     return match.group() if match else "10"
 
 
+# "Mixed" = about 40% easy / 40% medium / 20% hard. Ties in the rounding go to medium, then easy, then hard.
+MIXED_SPLIT = (("easy", 40), ("medium", 40), ("hard", 20))   # percent
+_MIXED_TIE_ORDER = ("medium", "easy", "hard")
+
+
+def _split_mixed(quantity: int) -> list:
+    """[(difficulty, count), ...] for a Mixed row, largest-remainder rounding, zero-count levels left out.
+    10 -> easy 4, medium 4, hard 2; 2 -> easy 1, medium 1; 1 -> medium 1."""
+    counts = {d: quantity * pct // 100 for d, pct in MIXED_SPLIT}
+    remainders = {d: quantity * pct % 100 for d, pct in MIXED_SPLIT}
+    left = quantity - sum(counts.values())
+    for d in sorted(_MIXED_TIE_ORDER, key=lambda d: (-remainders[d], _MIXED_TIE_ORDER.index(d)))[:left]:
+        counts[d] += 1
+    return [(d, counts[d]) for d, _ in MIXED_SPLIT if counts[d] > 0]
+
+
 def _transform_frontend_to_backend(req: FrontendGenerateRequest) -> TestGenerationRequest:
     class_num = _extract_class_number(req.classGrade)
     resolved_subject = _resolve_subject(req.subject)
@@ -307,20 +323,25 @@ def _transform_frontend_to_backend(req: FrontendGenerateRequest) -> TestGenerati
     for row in req.simpleData:
         if not row.topic:
             continue
-        difficulty_str = DIFFICULTY_MAP.get(row.difficulty, "medium")
         question_format = FORMAT_MAP.get(row.format, QuestionFormat.MCQ)
         marks = row.marks if row.marks and row.marks > 0 else MARKS_MAP.get(question_format, 1)
 
-        chapter = ChapterSection(
-            chapter=row.topic,
-            topic=row.subtopic if row.subtopic else None,
-            subtopics=[row.subtopic] if row.subtopic else [],
-            quantity=row.quantity,
-            difficulty=DifficultyLevel(difficulty_str),
-            format=question_format,
-            marks_per_question=marks,
-        )
-        chapters.append(chapter)
+        # CBSE mode sets the difficulty per section and distributes by chapter name: its rows are never split.
+        if row.difficulty.strip().lower() == "mixed" and not req.cbsePattern:
+            parts = _split_mixed(row.quantity)
+        else:
+            parts = [(DIFFICULTY_MAP.get(row.difficulty, "medium"), row.quantity)]
+
+        for difficulty_str, quantity in parts:
+            chapters.append(ChapterSection(
+                chapter=row.topic,
+                topic=row.subtopic if row.subtopic else None,
+                subtopics=[row.subtopic] if row.subtopic else [],
+                quantity=quantity,
+                difficulty=DifficultyLevel(difficulty_str),
+                format=question_format,
+                marks_per_question=marks,
+            ))
 
     if not chapters:
         raise ValueError("At least one chapter with a topic is required")
