@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from app.services import export_service
-from app.services.export_service import _previous_session, cbse_session
+from app.services.export_service import cbse_session
 
 
 @pytest.fixture(autouse=True)
@@ -30,11 +30,7 @@ def test_env_override(monkeypatch):
     assert cbse_session(date(2026, 11, 17)) == "2025-26"
 
 
-def test_previous_session_for_footer_note():
-    assert _previous_session("2026-27") == "2025-26"
-    assert _previous_session("custom") == ""
-
-
-def test_no_hardcoded_session_left_in_exports():
+def test_no_hardcoded_session_or_scheme_claim_left_in_exports():
     src = Path(export_service.__file__).read_text(encoding="utf-8")
     assert "2025-26" not in src and "2024-25" not in src
+    assert "assessment scheme" not in src.lower()

@@ -807,12 +807,6 @@ def cbse_session(today: Optional[date] = None) -> str:
     return _session_for(today.year if today.month >= 4 else today.year - 1)
 
 
-def _previous_session(session: str) -> str:
-    """The session before a YYYY-YY one (2030-31 -> 2029-30); an override in another shape gives an empty string."""
-    m = re.fullmatch(r"(\d{4})-\d{2}", session)
-    return _session_for(int(m.group(1)) - 1) if m else ""
-
-
 # ═══════════════════════════════════════════════════════════════════════
 # Rich Field Helpers (Marking Scheme, Sub-Parts, Model Answer)
 # ═══════════════════════════════════════════════════════════════════════
@@ -5403,9 +5397,7 @@ from reportlab.pdfgen import canvas
 
 class AccountancyNumberedCanvas(canvas.Canvas):
     """
-    Two-pass ReportLab canvas that draws:
-    - 'Page X of Y' centered at 0.9 cm
-    - Official CBSE Assessment Scheme Note centered at 0.5 cm
+    Two-pass ReportLab canvas that draws 'Page X of Y' centered at 0.9 cm.
     """
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -5428,14 +5420,6 @@ class AccountancyNumberedCanvas(canvas.Canvas):
             self.setFillColor(HexColor("#374151"))
             page_text = f"Page {self._pageNumber} of {num_pages}"
             self.drawCentredString(A4[0] / 2.0, 0.9 * cm, page_text)
-            self.setFont("Helvetica", 6.5)
-            self.setFillColor(HexColor("#6B7280"))
-            session = cbse_session()
-            previous = _previous_session(session)
-            note_text = (f"Please note that the assessment scheme of the academic session {previous} will continue "
-                         f"in the current session i.e. {session}") if previous else ""
-            if note_text:
-                self.drawCentredString(A4[0] / 2.0, 0.5 * cm, note_text)
             self.restoreState()
             canvas.Canvas.showPage(self)
         canvas.Canvas.save(self)
@@ -5717,7 +5701,7 @@ def _generate_pdf_accountancy_exam(
       - T-Shape Balance Sheets with double-line totals
       - Journal and Ledger tables with authentic financial rulings
       - Clear Part A and Part B Section Dividers
-      - Page footer: Page X of Y with CBSE assessment scheme note
+      - Page footer: Page X of Y
       - Appended Solution Key and Marking Scheme when include_answers=True
     """
     from reportlab.lib.pagesizes import A4
