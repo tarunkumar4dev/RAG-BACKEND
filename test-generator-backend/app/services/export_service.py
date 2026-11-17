@@ -29,11 +29,12 @@ v12 / v11 features retained:
 """
 
 import io
+import os
 import re
 import base64
 import logging
 from typing import List, Optional
-from datetime import datetime
+from datetime import date, datetime, timedelta, timezone
 from urllib.request import urlopen, Request
 from urllib.error import URLError, HTTPError
 
@@ -787,6 +788,29 @@ def _format_date_for_display(paper_date: Optional[str] = None) -> str:
                 return datetime.now().strftime("%d/%m/%Y")
     else:
         return datetime.now().strftime("%d/%m/%Y")
+
+
+_IST = timezone(timedelta(hours=5, minutes=30))
+
+
+def _session_for(start_year: int) -> str:
+    return f"{start_year}-{(start_year + 1) % 100:02d}"
+
+
+def cbse_session(today: Optional[date] = None) -> str:
+    """CBSE academic session, which runs April to March: Nov 2026 -> "2026-27", Feb 2027 -> "2026-27".
+    The CBSE_SESSION env var overrides it (e.g. a teacher still setting last session's papers)."""
+    override = os.getenv("CBSE_SESSION", "").strip()
+    if override:
+        return override
+    today = today or datetime.now(_IST).date()
+    return _session_for(today.year if today.month >= 4 else today.year - 1)
+
+
+def _previous_session(session: str) -> str:
+    """The session before a YYYY-YY one (2030-31 -> 2029-30); an override in another shape gives an empty string."""
+    m = re.fullmatch(r"(\d{4})-\d{2}", session)
+    return _session_for(int(m.group(1)) - 1) if m else ""
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -5406,8 +5430,12 @@ class AccountancyNumberedCanvas(canvas.Canvas):
             self.drawCentredString(A4[0] / 2.0, 0.9 * cm, page_text)
             self.setFont("Helvetica", 6.5)
             self.setFillColor(HexColor("#6B7280"))
-            note_text = "Please note that the assessment scheme of the academic session 2024-25 will continue in the current session i.e. 2025-26"
-            self.drawCentredString(A4[0] / 2.0, 0.5 * cm, note_text)
+            session = cbse_session()
+            previous = _previous_session(session)
+            note_text = (f"Please note that the assessment scheme of the academic session {previous} will continue "
+                         f"in the current session i.e. {session}") if previous else ""
+            if note_text:
+                self.drawCentredString(A4[0] / 2.0, 0.5 * cm, note_text)
             self.restoreState()
             canvas.Canvas.showPage(self)
         canvas.Canvas.save(self)
@@ -5768,7 +5796,7 @@ def _generate_pdf_accountancy_exam(
     header_block.append(Paragraph("ACCOUNTANCY (055)", styles["AccMainTitle"]))
     title_text = exam_title.strip() if exam_title else "SAMPLE QUESTION PAPER"
     header_block.append(Paragraph(title_text.upper(), styles["AccSubTitle"]))
-    header_block.append(Paragraph(f"Class {class_num} (2025-26)", styles["AccClassLine"]))
+    header_block.append(Paragraph(f"Class {class_num} ({cbse_session()})", styles["AccClassLine"]))
 
     logo_flow = _logo_flowable(logo_base64, 2.2 * cm, 2.2 * cm)
     if logo_flow:
@@ -6197,7 +6225,7 @@ def _generate_docx_accountancy_exam(
     _add_p("ACCOUNTANCY (055)", size=13, bold=True, color=primary)
     title_text = exam_title.strip() if exam_title else "SAMPLE QUESTION PAPER"
     _add_p(title_text.upper(), size=10.5, bold=True, color=secondary)
-    _add_p(f"Class {class_num} (2025-26)", size=9.5, bold=True, color=secondary, space_after=3)
+    _add_p(f"Class {class_num} ({cbse_session()})", size=9.5, bold=True, color=secondary, space_after=3)
 
     if not duration or str(duration).strip().lower() in ("none", "as per schedule", ""):
         dur_str = "3 HOURS" if total_marks >= 70 else ("2 HOURS" if total_marks >= 40 else "1 HOUR")
