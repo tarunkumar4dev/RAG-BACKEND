@@ -52,7 +52,8 @@ MAX_RETRIES = 2            # attempts per model per batch; the per-paper budget 
 # Gate 2 #4: at most 3 provider calls IN TOTAL for any failing unit of work: a batch's first attempt plus at most
 # PAID_EXTRA_BUDGET extra attempts per paper (retries, the fallback model, billed-but-unusable replies). A paper with
 # N batches needs N first attempts for its questions; the extras on top are capped at 2 per paper. When they are spent
-# the paper fails fast with MSG_PAPER_FAILED. No top-up rounds.
+# a failing batch is given up (no more paid attempts) and the paper is returned with what the other batches produced;
+# only a paper with zero questions fails, with MSG_PAPER_FAILED (503). No top-up rounds.
 PAID_EXTRA_BUDGET = 2
 MSG_PAPER_FAILED = ("AI se poora paper nahi ban paaya. Thodi der baad dobara try karein. / "
                     "The AI could not complete this paper. Please try again in a few minutes.")
@@ -915,9 +916,10 @@ def _classify_chapter_part(chapter_name: str) -> str:
 
 
 class GenerationError(Exception):
-    def __init__(self, message: str, status_code: int = 500):
+    def __init__(self, message: str, status_code: int = 500, overloaded: bool = False):
         super().__init__(message)
         self.status_code = status_code
+        self.overloaded = overloaded   # the model said it is overloaded / unavailable: switch model, do not retry it
 
 
 _client_cache: Optional[genai.Client] = None
@@ -2259,6 +2261,23 @@ def _is_retryable(error_str: str) -> bool:
     return any(kw in error_str.upper() for kw in (k.upper() for k in RETRYABLE_KEYWORDS))
 
 
+# Generation calls: an overloaded / unavailable / failing server is not fixed by calling the same model again, so
+# the batch moves to the fallback model at once. Only a rate limit (429) or a timeout is retried on the same model.
+_OVERLOAD_MARKERS = ("503", "OVERLOADED", "UNAVAILABLE", "500", "INTERNAL")
+_SAME_MODEL_RETRY_MARKERS = ("429", "RESOURCE_EXHAUSTED", "QUOTA", "RATE LIMIT", "RATE_LIMIT",
+                             "TIMEOUT", "TIMED OUT", "DEADLINE")
+
+
+def _is_overload(error_str: str) -> bool:
+    up = error_str.upper()
+    return any(m in up for m in _OVERLOAD_MARKERS)
+
+
+def _is_same_model_retryable(error_str: str) -> bool:
+    up = error_str.upper()
+    return any(m in up for m in _SAME_MODEL_RETRY_MARKERS)
+
+
 _LLM_SLOTS = threading.BoundedSemaphore(max(1, settings.LLM_MAX_CONCURRENCY))
 
 # USD per 1M tokens (input, output). Gemini: aistudio.google.com/docs/pricing, read 12 Nov 2026 (gemini-3.6-flash
@@ -2279,13 +2298,26 @@ class _PaperStats:
         self.calls = {}  # model -> [calls, input tokens, output tokens]
         self.dropped = 0
         self.extra = 0   # retries + fallbacks + unusable replies spent, out of PAID_EXTRA_BUDGET
+        self.budget_exhausted = False
+        self.upstream_failures = 0   # calls that failed because the provider was overloaded / rate-limited / timed out
+        self.rejected_calls = 0      # calls the provider refused for a reason retrying will not fix (400, bad key, ...)
+        self.primary_down = False    # the primary model said it is overloaded: later batches start on the fallback
 
     def spend_extra(self) -> None:
         """One more attempt beyond a batch's first. Raises when the paper's budget is gone."""
         with self._lock:
             if self.extra >= PAID_EXTRA_BUDGET:
+                self.budget_exhausted = True
                 raise GenerationError(MSG_PAPER_FAILED, 503)
             self.extra += 1
+
+    def note_upstream_failure(self):
+        with self._lock:
+            self.upstream_failures += 1
+
+    def note_rejected_call(self):
+        with self._lock:
+            self.rejected_calls += 1
 
     def add_call(self, model: str, tokens_in: int, tokens_out: int):
         with self._lock:
@@ -2335,6 +2367,52 @@ def _spend_extra():
     stats = _PAPER_STATS.get()
     if stats:
         stats.spend_extra()
+
+
+def _budget_gone(e: GenerationError) -> bool:
+    return e.status_code == 503 and str(e) == MSG_PAPER_FAILED
+
+
+def _note_upstream_failure():
+    stats = _PAPER_STATS.get()
+    if stats:
+        stats.note_upstream_failure()
+
+
+def _note_rejected_call():
+    stats = _PAPER_STATS.get()
+    if stats:
+        stats.note_rejected_call()
+
+
+def _paper_models(models: list) -> list:
+    """The models a batch tries, in order. Once the primary has said it is overloaded in this paper, later batches
+    start on the fallback: their first attempt goes where it can succeed, and no extra attempt is spent on the
+    primary. Applies to this paper only; the next paper tries the primary again."""
+    stats = _PAPER_STATS.get()
+    if stats and stats.primary_down and len(models) > 1:
+        return models[1:]
+    return models
+
+
+def _after_model_error(e: GenerationError, model: str, models: list):
+    if e.overloaded and model == models[0] and len(models) > 1:
+        stats = _PAPER_STATS.get()
+        if stats and not stats.primary_down:
+            stats.primary_down = True
+            logger.warning(f"{model} is overloaded: the rest of this paper starts on {models[1]}")
+
+
+def _nothing_generated(what: str, errors: list) -> GenerationError:
+    """Error for a paper with zero questions. Provider trouble -> the friendly 503 ("try again in a few minutes"):
+    an overload / rate limit / timeout, or a budget spent on unusable replies. A budget spent on calls the provider
+    refused (400, bad key, ...) is a real failure -> 500, like anything else."""
+    detail = errors[0] if errors else "unknown cause"
+    stats = _PAPER_STATS.get()
+    if stats and (stats.upstream_failures or (stats.budget_exhausted and not stats.rejected_calls)):
+        logger.error(f"{what}: no questions, provider unavailable — {detail}")
+        return GenerationError(MSG_PAPER_FAILED, 503)
+    return GenerationError(f"{what} — {detail}", 500)
 
 
 @contextlib.contextmanager
@@ -2449,10 +2527,13 @@ def _call_llm(client, prompt, model):
                 raise
             _spend_extra()                      # the Gemini fallback is one more paid attempt
             logger.warning(f"DeepSeek failed, falling back to Gemini {model}: {e}")
-    return _call_gemini_model(client, prompt, model)
+    return _call_gemini_model(client, prompt, model, switch_on_overload=True)
 
 
-def _call_gemini_model(client, prompt, model, temperature=None):
+def _call_gemini_model(client, prompt, model, temperature=None, switch_on_overload=False):
+    """switch_on_overload (generation): an overload error is raised at once (GenerationError.overloaded) for the
+    caller to move to the fallback model; only 429 / timeouts are retried here. Off (the answer checker, which has
+    no fallback model): the older rule, every retryable error gets one more try on the same model."""
     last_exc = None
     for attempt in range(MAX_RETRIES):
         try:
@@ -2484,14 +2565,21 @@ def _call_gemini_model(client, prompt, model, temperature=None):
         except Exception as e:
             last_exc = e
             err = str(e)
-            if not _is_retryable(err):
+            if switch_on_overload and _is_overload(err):
+                _note_upstream_failure()
+                logger.warning(f"[{model}] overloaded, not retrying this model: {err[:80]}")
+                raise GenerationError(f"{model}: overloaded: {err[:150]}", 503, overloaded=True)
+            retryable = _is_same_model_retryable(err) if switch_on_overload else _is_retryable(err)
+            if not retryable:
                 # Fail fast with actual reason
+                _note_rejected_call()
                 raise GenerationError(f"{model}: {err[:200]}", 502)
             if attempt < MAX_RETRIES - 1:
                 _spend_extra()
                 wait = min(BASE_BACKOFF_SECONDS ** (attempt + 1), MAX_BACKOFF_SECONDS) * random.uniform(*JITTER_RANGE)
                 logger.warning(f"[{model}] Retry {attempt + 1}: {err[:80]}... waiting {wait:.1f}s")
                 time.sleep(wait)
+    _note_upstream_failure()
     raise GenerationError(f"{model}: failed after {MAX_RETRIES} attempts: {str(last_exc)[:150]}", 503)
 
 
@@ -2550,10 +2638,11 @@ def _generate_for_chapter(client, chapter, request, context_chunks, models, sect
             )
 
         batch_qs = []
-        for i, m in enumerate(models):
-            if i:
-                _spend_extra()            # a fallback model is an extra paid attempt
+        order = _paper_models(models)
+        for i, m in enumerate(order):
             try:
+                if i:
+                    _spend_extra()        # a fallback model is an extra paid attempt
                 raw = _call_gemini(client, prompt, m)
                 batch_qs = _parse_batch(raw, chapter, request, section_key)
                 if batch_qs:
@@ -2561,11 +2650,14 @@ def _generate_for_chapter(client, chapter, request, context_chunks, models, sect
                     break
                 _spend_extra()            # billed reply, nothing usable in it
             except GenerationError as e:
-                if e.status_code == 503 and str(e) == MSG_PAPER_FAILED:
-                    raise                 # budget gone: fail the whole paper fast
                 if errors is not None:
                     errors.append(f"{chapter.chapter}/{section_key or 'simple'}: {str(e)}")
-                if m != models[-1]:
+                if _budget_gone(e):
+                    # the paper keeps what the other batches produced; the shortfall is shown to the teacher
+                    logger.warning(f"    '{chapter.chapter}' batch {batch_num}: paid-call budget spent, batch skipped")
+                    break
+                _after_model_error(e, m, models)
+                if m != order[-1]:
                     continue
                 logger.error(f"    '{chapter.chapter}' batch {batch_num} failed: {e}")
                 break
@@ -2681,8 +2773,7 @@ def generate_cbse_paper(request, context_chunks, feedback=None):
     elapsed = time.time() - t0
     logger.info(f"CBSE Paper Done: {len(all_questions)}/{total_expected} in {elapsed:.1f}s")
     if not all_questions:
-        detail = errors[0] if errors else "unknown cause"
-        raise GenerationError(f"CBSE paper generation failed — {detail}", 500)
+        raise _nothing_generated("CBSE paper generation failed", errors)
     return all_questions
 
 
@@ -2810,18 +2901,20 @@ def generate_cbse_accountancy_paper(request, context_chunks, feedback=None):
         def ask(count, with_or):
             # with_or: `count` main questions, each with its OR alternative.
             prompt = make_prompt(count=count, generate_or=with_or)
-            for i, m in enumerate(models):
-                if i:
-                    _spend_extra()
+            for i, m in enumerate(_paper_models(models)):
                 try:
+                    if i:
+                        _spend_extra()
                     qs = _parse_batch(_call_gemini(client, prompt, m), chapter_section, request, section_tag)
                     if qs:
                         return qs
                     _spend_extra()
                 except GenerationError as e:
-                    if e.status_code == 503 and str(e) == MSG_PAPER_FAILED:
-                        raise
                     errors.append(f"{error_tag}: {str(e)}")
+                    if _budget_gone(e):
+                        logger.warning(f"    {error_tag}: paid-call budget spent, call skipped")
+                        return []
+                    _after_model_error(e, m, models)
             return []
 
         # Ask for exactly what is needed: `or_n` (main + OR) pairs and the remaining mains
@@ -2862,8 +2955,7 @@ def generate_cbse_accountancy_paper(request, context_chunks, feedback=None):
     main_count = len([q for q in all_questions if not getattr(q, '_is_or', False)])
     logger.info(f"\nCBSE Accountancy: {main_count} main + {len(all_questions) - main_count} OR = {len(all_questions)} in {elapsed:.1f}s")
     if not all_questions:
-        detail = errors[0] if errors else "unknown cause"
-        raise GenerationError(f"All Accountancy generation failed — {detail}", 500)
+        raise _nothing_generated("All Accountancy generation failed", errors)
     return all_questions
 
 
@@ -2926,8 +3018,7 @@ def generate_questions(request, context_chunks, feedback=None, cbse_pattern: boo
     elapsed = time.time() - t0
     logger.info(f"Done: {len(all_questions)}/{total} in {elapsed:.1f}s")
     if not all_questions:
-        detail = errors[0] if errors else "unknown cause"
-        raise GenerationError(f"All chapters failed — {detail}", 500)
+        raise _nothing_generated("All chapters failed", errors)
     return all_questions
 
 
