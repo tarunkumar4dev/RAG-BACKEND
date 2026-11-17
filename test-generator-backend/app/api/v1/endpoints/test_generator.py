@@ -376,6 +376,17 @@ def _serialize_model_list(items):
     return out
 
 
+def _requested_questions(req: FrontendGenerateRequest) -> int:
+    """How many main questions the teacher asked for: the fixed pattern size in CBSE mode (38; Accountancy 34),
+    else the sum of the rows. OR alternatives are not counted (same rule as totalQuestions)."""
+    if req.cbsePattern:
+        from app.services.test_generator_service import ACCOUNTANCY_SUBJECTS, CBSE_ACCOUNTANCY_PATTERN, CBSE_SECTIONS
+        if _resolve_subject(req.subject).lower() in ACCOUNTANCY_SUBJECTS:
+            return CBSE_ACCOUNTANCY_PATTERN["total_questions"]
+        return sum(sec["count"] for sec in CBSE_SECTIONS.values())
+    return sum(row.quantity for row in req.simpleData if row.topic)
+
+
 def _transform_backend_to_frontend(resp, req: FrontendGenerateRequest) -> FrontendGenerateResponse:
     if isinstance(resp, list):
         questions_list = resp
@@ -450,6 +461,9 @@ def _transform_backend_to_frontend(resp, req: FrontendGenerateRequest) -> Fronte
             "subject": req.subject,
             "cbsePattern": req.cbsePattern,
             "paperDate": req.paperDate,
+            # No top-up rounds since Gate 2 #4: a short paper is delivered short. The UI shows both numbers.
+            "requestedQuestions": _requested_questions(req),
+            "deliveredQuestions": total_questions,
         },
     )
 
