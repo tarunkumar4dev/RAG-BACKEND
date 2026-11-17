@@ -32,7 +32,7 @@ from app.models.test_generator import (
     QuestionFormat,
     ManualQuestionPayload,
 )
-from app.services.test_generator_service import generate_test, handle_feedback, paper_usage
+from app.services.test_generator_service import generate_test, handle_feedback, paper_usage, verify_paper
 from app.core.usage_log import log_usage
 from app.api.v1.endpoints.chat import _SlidingWindow
 from starlette.concurrency import run_in_threadpool
@@ -43,6 +43,7 @@ from app.core.auth import AuthUser, require_user
 from app.core.database import get_supabase, get_supabase_admin
 from app.core.config import settings
 from app.core.sanitize import sanitize_like, sanitize_text, sanitize_uuid, validate_class_grade
+from app.core.cache import api_cache
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/test-generator", tags=["Test Generator"])
@@ -1195,6 +1196,58 @@ async def generate(request: TestGenerationRequest, user: AuthUser = Depends(requ
         raise HTTPException(status_code=500, detail="Generation failed.")
 
 
+class VerifyAnswersRequest(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    subject: str = Field(default="Science", max_length=50)
+    classGrade: str = Field(default="Class 10", max_length=20)
+    testId: Optional[str] = Field(default=None, max_length=80)   # the paper: one verify pass per paper
+    questions: List[dict] = Field(min_length=1, max_length=80)
+
+
+VERIFY_UNAVAILABLE = {"available": False}
+_VERIFY_OK_TTL_S = 6 * 3600   # a reload of the same paper gets the same verdicts, not a second paid pass
+_VERIFY_FAIL_TTL_S = 300      # a failed pass is not retried on every reload
+
+
+def _run_verify(req: VerifyAnswersRequest, user_id: str) -> dict:
+    """One checker pass with its own usage record. paper_usage() also puts the pass under PAID_EXTRA_BUDGET."""
+    with paper_usage() as stats:
+        out = verify_paper(req.questions, _resolve_subject(req.subject), _extract_class_number(req.classGrade))
+        u = stats.as_usage()
+    if u["calls"]:
+        log_usage("paper_verify", user_id, u, outcome="ok" if out.get("available") else "failed",
+                  est_cost_usd=u.get("est_cost_usd"))
+    for r in out.get("results") or []:
+        if "correctAnswer" in r:
+            r["correct_answer"] = r["correctAnswer"]
+    return out
+
+
+@router.post("/verify-answers")
+async def verify_answers(req: VerifyAnswersRequest, user: AuthUser = Depends(require_user),
+                         idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key", max_length=80)):
+    """Second-model check of a generated paper's answer key (app/services: verify_paper / pick_checker).
+    Stateless: returns verdicts (ok / fix with corrected key / reject = needs review); the client applies them.
+    Never an error for a checker problem: {"available": false} and the paper stays usable.
+    Per-minute limit: app/core/rate_limit.py. One paid pass per paper: answers are cached under the paper's key
+    (Idempotency-Key header or testId) per warm instance."""
+    paper_key = idempotency_key or req.testId
+    cache_key = f"verify:{user.id}:{paper_key}" if paper_key else None
+    if cache_key:
+        cached = api_cache.get(cache_key)
+        if cached is not None:
+            return cached
+    try:
+        out = await run_in_threadpool(_run_verify, req, user.id)
+    except Exception:
+        logger.exception("Answer-key check failed")
+        out = dict(VERIFY_UNAVAILABLE)
+    if cache_key:
+        api_cache.set(cache_key, out, ttl=_VERIFY_OK_TTL_S if out.get("available") else _VERIFY_FAIL_TTL_S)
+    return out
+
+
 @router.post("/feedback", response_model=TestGenerationResponse)
 async def feedback(request: TestFeedbackRequest, user: AuthUser = Depends(require_user)):
     try:
@@ -1458,8 +1511,6 @@ async def get_test(test_id: str, user: AuthUser = Depends(require_user)):
 #     keeps a pre-rollout list. Was "public, max-age=300, s-maxage=600, stale-while-revalidate=86400";
 #     put it back after G5 passes.
 # ═══════════════════════════════════════════════════════════════════════
-
-from app.core.cache import api_cache  # noqa: E402
 
 _NCERT_CACHE_CONTROL = "private, no-store"
 

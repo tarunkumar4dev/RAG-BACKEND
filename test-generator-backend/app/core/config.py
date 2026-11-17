@@ -73,7 +73,10 @@ class Settings:
     # Max LLM calls in flight per server instance (sections/batches run in parallel).
     LLM_MAX_CONCURRENCY: int = int(os.getenv("LLM_MAX_CONCURRENCY", "12"))
 
-    # ── Answer-key checker (verify_answer_key: offline eval only, scripts/eval_generation.py; the /verify-answers route was removed in Gate 2 #10) ──
+    # ── Answer-key checker ──
+    # POST /test-generator/verify-answers (pick_checker): DeepSeek whenever DEEPSEEK_API_KEY is set and the paper
+    # was written by Gemini; else GEMINI_VAL_MODEL, reported as checker_independent=false.
+    # CHECKER_PROVIDER / CHECKER_MODEL below are for the offline eval only (scripts/eval_generation.py):
     # A second model re-solves each question after the paper is shown. "gemini" uses
     # CHECKER_MODEL; "deepseek" uses DEEPSEEK_MODEL and falls back to CHECKER_MODEL.
     CHECKER_PROVIDER: str = os.getenv("CHECKER_PROVIDER", "gemini").strip().lower()

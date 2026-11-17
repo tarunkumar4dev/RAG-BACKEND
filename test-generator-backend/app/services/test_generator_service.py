@@ -2254,7 +2254,7 @@ DEEPSEEK_TIMEOUT_SECONDS = 180
 DEEPSEEK_RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 
 
-def _call_deepseek(prompt):
+def _call_deepseek(prompt, temperature=None):
     """DeepSeek chat completion in JSON mode; same contract as the Gemini call (returns raw JSON text)."""
     last_err = ""
     for attempt in range(MAX_RETRIES):
@@ -2266,7 +2266,7 @@ def _call_deepseek(prompt):
                 json={
                     "model": settings.DEEPSEEK_MODEL,
                     "messages": [{"role": "user", "content": prompt}],
-                    "temperature": settings.GENERATION_TEMPERATURE,
+                    "temperature": settings.GENERATION_TEMPERATURE if temperature is None else temperature,
                     "top_p": 0.92,
                     "max_tokens": settings.MAX_OUTPUT_TOKENS,
                     "response_format": {"type": "json_object"},
@@ -2809,7 +2809,7 @@ def handle_feedback(*args, **kwargs):
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# ANSWER-KEY CHECKER (offline eval only: scripts/eval_generation.py; no API route since Gate 2 #10)
+# ANSWER-KEY CHECKER (POST /test-generator/verify-answers via verify_paper; offline: scripts/eval_generation.py)
 # ═══════════════════════════════════════════════════════════════════════
 
 CHECKER_BATCH_SIZE = 8
@@ -2893,12 +2893,45 @@ def _match_option(answer: str, options) -> Optional[str]:
     return partial[0] if len(partial) == 1 else None
 
 
-def verify_answer_key(questions: List[dict], subject: str, class_grade: str) -> dict:
+def pick_checker():
+    """(call, model, independent) for the HTTP verify pass. The checker must not be the model family that wrote
+    the paper: a Gemini-written paper is checked by DeepSeek whenever DEEPSEEK_API_KEY is set, a DeepSeek-written
+    one by Gemini. Without a DeepSeek key the check runs on GEMINI_VAL_MODEL and is reported as NOT independent.
+    No cross-provider fallback inside a pass: a failed batch stays unchecked instead of becoming a self-check."""
+    gen_is_deepseek = settings.LLM_PROVIDER == "deepseek" and bool(settings.DEEPSEEK_API_KEY)
+    if settings.DEEPSEEK_API_KEY and not gen_is_deepseek:
+        def call(prompt):
+            with _LLM_SLOTS:
+                return _call_deepseek(prompt, temperature=0.1)
+        return call, settings.DEEPSEEK_MODEL, True
+
+    model = settings.GEMINI_VAL_MODEL
+
+    def call(prompt):
+        with _LLM_SLOTS:
+            return _call_gemini_model(_get_gemini_client(), prompt, model, temperature=0.1)
+    return call, model, gen_is_deepseek
+
+
+def verify_paper(questions: List[dict], subject: str, class_grade: str) -> dict:
+    """One verify pass for the API route: per-question verdicts (ok included) + whether the checker was independent.
+    {"available": False} when nothing could be checked."""
+    call, model, independent = pick_checker()
+    res = verify_answer_key(questions, subject, class_grade, call=call, model=model, include_ok=True)
+    if not res["checked"]:
+        return {"available": False}
+    return {"available": True, "checker_independent": independent, **res}
+
+
+def verify_answer_key(questions: List[dict], subject: str, class_grade: str,
+                      call=None, model: Optional[str] = None, include_ok: bool = False) -> dict:
     """Re-checks a generated paper's answer key with a second model.
 
     Returns {"results": [{"id", "verdict": ok|fix|reject, "issue", "correctAnswer"?, "explanation"?}],
              "checked", "fixed", "flagged", "model"}. A "fix" for an MCQ is only kept if the corrected
     answer is one of the options; otherwise it is reported as "reject" (needs review).
+    `call(prompt) -> raw` replaces the default checker call; `include_ok` also lists the "ok" verdicts
+    (off by default: scripts/eval_generation.py expects only fix/reject).
     """
     by_id = {str(q.get("id")): q for q in questions if q.get("id")}
     views = [_checker_view(q) for q in by_id.values()]
@@ -2909,7 +2942,7 @@ def verify_answer_key(questions: List[dict], subject: str, class_grade: str) -> 
         prompt = CHECKER_PROMPT.format(class_grade=class_grade, subject=subject,
                                        questions=json.dumps(batch, ensure_ascii=False))
         try:
-            data = _extract_json(_call_checker(prompt))
+            data = _extract_json((call or _call_checker)(prompt))
         except Exception as e:
             logger.warning(f"Checker batch failed: {e}")
             return [], []
@@ -2931,14 +2964,15 @@ def verify_answer_key(questions: List[dict], subject: str, class_grade: str) -> 
             raw_results.extend(res)
             checked_ids.update(ids)
 
-    results, fixed, flagged = [], 0, 0
+    results, fixed, flagged, judged = [], 0, 0, set()
     for r in raw_results:
         if not isinstance(r, dict):
             continue
         qid = str(r.get("id"))
         q = by_id.get(qid)
-        if q is None:
+        if q is None or qid in judged:      # unknown id, or the model answered the same id twice: first one wins
             continue
+        judged.add(qid)
         verdict = r.get("verdict")
         issue = str(r.get("issue") or "")[:300]
         if verdict == "fix":
@@ -2961,8 +2995,11 @@ def verify_answer_key(questions: List[dict], subject: str, class_grade: str) -> 
         elif verdict == "reject":
             results.append({"id": qid, "verdict": "reject", "issue": issue or "Please review this question."})
             flagged += 1
+        elif verdict == "ok" and include_ok:
+            results.append({"id": qid, "verdict": "ok", "issue": ""})
 
-    model = settings.DEEPSEEK_MODEL if settings.CHECKER_PROVIDER == "deepseek" and settings.DEEPSEEK_API_KEY else settings.CHECKER_MODEL
+    model = model or (settings.DEEPSEEK_MODEL if settings.CHECKER_PROVIDER == "deepseek" and settings.DEEPSEEK_API_KEY
+                      else settings.CHECKER_MODEL)
     unchecked = len(by_id) - len(checked_ids)
     logger.info(f"Answer-key check: {len(checked_ids)}/{len(by_id)} checked, {fixed} fixed, {flagged} flagged [{model}]")
     return {"results": results, "checked": len(checked_ids), "unchecked": unchecked,
