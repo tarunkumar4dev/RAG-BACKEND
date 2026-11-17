@@ -1799,29 +1799,64 @@ def _quality_issue(fmt, options, correct, explanation) -> Optional[str]:
 def _amount(cell) -> Optional[float]:
     """'Rs. 1,20,000' / '₹ 1,20,000' / '1,20,000.50' -> 120000.0; anything else -> None."""
     s = re.sub(r"(?i)rs\.?|₹|inr|\s", "", str(cell or ""))
-    s = s.replace(",", "")
+    s = s.replace(",", "").removesuffix("/-")
     return float(s) if re.fullmatch(r"\d+(\.\d+)?", s) else None
 
 
+_TOTAL_CELL = re.compile(r"^\s*(grand\s+)?total\b", re.IGNORECASE)
+
+
+def _column_sum(rows, col: int) -> float:
+    return sum(a for r in rows if len(r) > col and (a := _amount(r[col])) is not None)
+
+
+def _is_total_row(row) -> bool:
+    return any(_TOTAL_CELL.match(str(c or "")) for c in row)
+
+
+def _total_mismatch(rows, col: int, total_cell, label: str, alt_rows=None) -> Optional[str]:
+    """Issue text when the column's rows do not add up to its total (±1 for rounding). An unreadable total is skipped."""
+    total = _amount(total_cell)
+    if total is None:
+        return None
+    got = _column_sum(rows, col)
+    if abs(got - total) <= 1 or (alt_rows is not None and abs(_column_sum(alt_rows, col) - total) <= 1):
+        return None
+    return f"{label} rows add up to {got:,.0f} but the total says {total:,.0f}"
+
+
 def _answer_table_issue(table) -> Optional[str]:
-    """Accounting checks: a journal must balance, both sides of a ledger must total the same."""
+    """Accounting checks: a journal must balance; a ledger / trial balance total must equal its column sums and
+    both sides must agree (a matching Dr = Cr total alone can hide a wrong row)."""
     if table is None:
         return None
     headers = [str(h).lower() for h in (table.headers or [])]
     rows = table.rows or []
-    if table.type == "journal_entry":
+    total_row = table.total_row or []
+    if table.type in ("journal_entry", "trial_balance"):
         dr = next((i for i, h in enumerate(headers) if "debit" in h or h.startswith("dr")), None)
         cr = next((i for i, h in enumerate(headers) if "credit" in h or h.startswith("cr")), None)
         if dr is None or cr is None:
             return None
-        dr_sum = sum(a for r in rows if len(r) > dr and (a := _amount(r[dr])) is not None)
-        cr_sum = sum(a for r in rows if len(r) > cr and (a := _amount(r[cr])) is not None)
+        body = [r for r in rows if not _is_total_row(r)]
+        dr_sum, cr_sum = _column_sum(body, dr), _column_sum(body, cr)
         if dr_sum and cr_sum and abs(dr_sum - cr_sum) > 1:
-            return f"journal does not balance (Dr {dr_sum:,.0f} vs Cr {cr_sum:,.0f})"
-    elif table.type == "ledger" and table.total_row and len(headers) >= 8:
-        left, right = _amount(table.total_row[3]), _amount(table.total_row[7])
+            kind = "journal" if table.type == "journal_entry" else "trial balance"
+            return f"{kind} does not balance (Dr {dr_sum:,.0f} vs Cr {cr_sum:,.0f})"
+        if table.type == "trial_balance" and len(total_row) > max(dr, cr):
+            return (_total_mismatch(body, dr, total_row[dr], "debit")
+                    or _total_mismatch(body, cr, total_row[cr], "credit"))
+    elif table.type == "ledger" and total_row and len(headers) >= 8 and len(total_row) >= 8:
+        left, right = _amount(total_row[3]), _amount(total_row[7])
         if left and right and abs(left - right) > 1:
             return f"ledger totals differ ({left:,.0f} vs {right:,.0f})"
+        body = [r for r in rows if not _is_total_row(r)]
+        # the next period's "Balance b/d" is often written after the totals; it is not part of them
+        trimmed = list(body)
+        while trimmed and any("b/d" in str(c).lower() for c in trimmed[-1][1:2] + trimmed[-1][5:6]):
+            trimmed.pop()
+        return (_total_mismatch(body, 3, total_row[3], "Dr side", trimmed)
+                or _total_mismatch(body, 7, total_row[7], "Cr side", trimmed))
     return None
 
 
