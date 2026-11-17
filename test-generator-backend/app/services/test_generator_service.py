@@ -1824,6 +1824,36 @@ def _answer_table_issue(table) -> Optional[str]:
     return None
 
 
+_BARE_LETTER = re.compile(r"\s*(?:option\s*)?\(?([A-Da-d])\)?[\s.:]*", re.IGNORECASE)
+
+
+def _match_ar_answer(correct: str, options: list) -> Optional[str]:
+    """The assertion-reason option the model's answer names, or None. Accepts the exact option text, a letter
+    ("B", "(b)", "Option B", "B) Both ...") or the option's wording without its letter. Never guesses: an answer
+    that names no option used to become option A — a silently wrong key."""
+    if not correct or not options:
+        return None
+    if correct in options:
+        return correct
+    bare = _BARE_LETTER.fullmatch(correct)
+    lettered = _OPTION_LETTER.match(correct)
+    letter = (bare or lettered).group(1).upper() if (bare or lettered) else None
+    body = _norm_text(_OPTION_LETTER.sub("", correct, count=1)) if not bare else ""
+    by_text = [o for o in options if body and _norm_text(_OPTION_LETTER.sub("", o, count=1)) == body]
+    by_letter = None
+    if letter:
+        tagged = [o for o in options if (m := _OPTION_LETTER.match(o or "")) and m.group(1).upper() == letter]
+        idx = ord(letter) - ord("A")
+        by_letter = tagged[0] if tagged else (options[idx] if idx < len(options) else None)
+    if by_text and by_letter and by_text[0] != by_letter:
+        return None                      # "C) Both A and R are true ..." — letter and wording disagree
+    if by_text:
+        return by_text[0]
+    if by_letter and not body:
+        return by_letter
+    return None
+
+
 def _dedupe_questions(qs: list) -> list:
     """Parallel batches don't see each other, so drop repeats across batches."""
     seen, out = set(), []
@@ -1988,9 +2018,15 @@ def _parse_batch(raw, chapter, request, section_key=None):
         if fmt == "assertion_reason":
             if not options or len(options) != 4:
                 options = ASSERTION_REASON_OPTIONS.copy()
-            if not correct or correct not in options:
-                matched = [o for o in options if len(correct) >= 2 and o[:2].upper() == correct[:2].upper()]
-                correct = matched[0] if matched else options[0]
+            matched = _match_ar_answer(correct, options)
+            if not matched:
+                logger.warning(f"  AR_ANSWER_UNMATCHED ({chapter.chapter}): answer {correct[:80]!r} names no option, dropped")
+                stats = _PAPER_STATS.get()
+                if stats:
+                    stats.add_drop()
+                dropped += 1
+                continue
+            correct = matched
         elif fmt in ("short_answer", "long_answer"):
             options = None
             # Writing + Grammar: be lenient on correct_answer length
