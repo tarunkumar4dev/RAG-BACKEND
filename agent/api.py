@@ -164,7 +164,8 @@ def run_chat(body: ChatRequest, ctx: SessionCtx, voice: bool = False, on_done=No
                          "on conflict (id) do nothing", (sid, str(ctx.user_id), str(ctx.institute_id), ctx.role))
         agent = Agent(provider, ctx, sid, conn_rw=conn, history=hist, memory_store=DRAFTS if live else None,
                       request_id=request_id, session_title=title, cancel_event=cancel_event,
-                      fast_provider=fast_provider_for(provider), voice=voice)
+                      fast_provider=fast_provider_for(provider), voice=voice,
+                      language=getattr(body, "language", "hinglish"))
     except Exception:
         RUNS.unregister(request_id)
         if conn is not None:
