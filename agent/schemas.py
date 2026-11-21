@@ -261,6 +261,12 @@ TOOL_EVENT_VIEWS = (MyScopeTable, SectionComparisonTable, SectionComparisonChart
 
 
 # ---- request bodies -------------------------------------------------------
+# The reply language the user picked in the agent panel (contract 1.5, optional, backward compatible): it only adds
+# one line at the end of the system prompt (agent/core.py LANGUAGE_LINES). Test-paper content is not affected.
+AgentLang = Literal["en", "hi", "hinglish"]
+DEFAULT_AGENT_LANG: AgentLang = "hinglish"
+
+
 class ChatRequest(BaseModel):
     """message is required, except with regenerate_from_seq (the stored user message is re-run).
     regenerate_from_seq / edit_of_seq need session_id and are mutually exclusive (docs/AGENT_API_V2.md)."""
@@ -271,6 +277,7 @@ class ChatRequest(BaseModel):
     edit_of_seq: Optional[int] = Field(default=None, ge=1)
     # 1.5 barge-in: stop this user's run that is still going (LLM stream closed, pending TTS dropped) before this one
     cancel_current: bool = False
+    language: AgentLang = DEFAULT_AGENT_LANG
 
     @model_validator(mode="after")
     def _check(self):
