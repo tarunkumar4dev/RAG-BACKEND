@@ -1,10 +1,12 @@
+import os
+
 import requests
 
-API_KEY = "YOUR_GEMINI_API_KEY_HERE"  # Put your actual API key
+API_KEY = os.environ["GEMINI_API_KEY"]  # never hard-code keys (the old one is in git history: revoke it)
 
-url = f"https://generativelanguage.googleapis.com/v1/models?key={"AIzaSyDK21ykZZfXcpnZfhNj4aXQ60PPcy5-efw "}"
+url = "https://generativelanguage.googleapis.com/v1/models"
 
-response = requests.get(url)
+response = requests.get(url, headers={"x-goog-api-key": API_KEY}, timeout=30)
 
 if response.status_code == 200:
     models = response.json()

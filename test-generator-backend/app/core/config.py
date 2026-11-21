@@ -82,6 +82,14 @@ class Settings:
     CHECKER_PROVIDER: str = os.getenv("CHECKER_PROVIDER", "gemini").strip().lower()
     CHECKER_MODEL: str = os.getenv("CHECKER_MODEL", "gemini-3.5-flash-lite")
 
+    # ── Copy checker (smart_assignment_service._generate) fallbacks ──
+    # Tried in order when the primary CHECKER_GEMINI_MODEL is gone (404) or overloaded (503).
+    # 18 Nov 2026 (aistudio.google.com/docs/deprecations): gemini-3.6-flash is GA with no shutdown date and is
+    # Google's named replacement for gemini-3-flash-preview (preview, no SLA, kept as the last resort).
+    # gemini-2.5-flash was removed: 404 for this project, shutdown 1 Dec 2026, then silently routed to 3.5-flash-lite.
+    CHECKER_GEMINI_FALLBACK_MODELS: str = os.getenv("CHECKER_GEMINI_FALLBACK_MODELS",
+                                                    "gemini-3.6-flash,gemini-3-flash-preview")
+
     # ── Razorpay ────────────────────────────────────────────────────
     RAZORPAY_KEY_ID: str = os.getenv("RAZORPAY_KEY_ID", "")
     RAZORPAY_KEY_SECRET: str = os.getenv("RAZORPAY_KEY_SECRET", "")
