@@ -68,7 +68,8 @@ def port_in_use(port: int) -> str | None:
     if sys.platform == "win32":
         try:
             out = subprocess.run(["netstat", "-ano", "-p", "tcp"], capture_output=True, text=True, timeout=10).stdout
-            pids = {line.split()[-1] for line in out.splitlines() if f":{port} " in line and line.strip().startswith("TCP")}
+            pids = {line.split()[-1] for line in out.splitlines()
+                    if f":{port} " in line and "LISTENING" in line and line.strip().startswith("TCP")}
             for pid in sorted(pids):
                 cmd = subprocess.run(["powershell", "-NoProfile", "-Command",
                                       f"(Get-CimInstance Win32_Process -Filter 'ProcessId={pid}').CommandLine"],
