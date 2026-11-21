@@ -36,7 +36,7 @@ from app.services.answer_checker.copy_check import grade_copy
 from app.core.api_errors import AI_BUSY_MSG, ai_busy
 from app.services.smart_assignment_service import (
     GRADE_CALL_TIMEOUT_S, RUBRIC_CALL_TIMEOUT_S, GeminiBusy, build_rubric, call_settings, is_timeout,
-    rubric_from_test_fast, usage_meter,
+    request_deadline, rubric_from_test_fast, usage_meter,
 )
 
 logger = logging.getLogger(__name__)
@@ -103,7 +103,10 @@ def _rubric_summary(s: dict) -> dict:
     }
 
 
-def _build_session_rubric(c: _Caller, session_id: str, force: bool) -> dict:
+def _build_session_rubric(c: _Caller, session_id: str, force: bool, deadline: float | None = None) -> dict:
+    """deadline: time.monotonic() by which this request must be done (request_deadline() at its start); a copy
+    check that has to build the rubric first passes its own, so rubric + grade share one ~280 s budget."""
+    deadline = deadline or request_deadline()
     s = _get_session(c, session_id)
     if s.get("rubric_status") == "ready" and s.get("rubric") and not force:
         return s
@@ -132,7 +135,7 @@ def _build_session_rubric(c: _Caller, session_id: str, force: bool) -> dict:
             key = [_download_own(c, p, "akey_") for p in (s.get("key_paths") or [])[:MAX_PAGES]]
             paths = qp + key
             # the stage timeout, not the global 60 s: a rubric call takes ~75 s on a 30-mark paper
-            with usage_meter() as meter, call_settings(timeout_s=RUBRIC_CALL_TIMEOUT_S):
+            with usage_meter() as meter, call_settings(timeout_s=RUBRIC_CALL_TIMEOUT_S, deadline=deadline):
                 rubric = build_rubric(qp, key)
             rubric["_usage"] = meter.as_dict()
             logger.info(f"[checker] rubric usage: {meter.as_dict()}")
@@ -204,6 +207,9 @@ def _save_norm_pages(c: _Caller, session_id: str, sheet_id: str, ordered: list) 
 
 
 def _check_sheet(c: _Caller, sheet_id: str) -> dict:
+    # One budget for the whole request (Vercel kills it at 300 s): an inline rubric (≤ 180 s) + the grade (150 s)
+    # could need 330 s, more with retries. Every Gemini call checks this deadline before it starts.
+    deadline = request_deadline()
     r = with_retry(lambda: c.db.table("check_sheets").select("*").eq("id", sheet_id).limit(1).execute())
     if not r.data:
         raise HTTPException(status_code=404, detail="Student copy not found.")
@@ -216,7 +222,7 @@ def _check_sheet(c: _Caller, sheet_id: str) -> dict:
 
     session = _get_session(c, sheet["session_id"])
     if session.get("rubric_status") != "ready" or not session.get("rubric"):
-        session = _build_session_rubric(c, sheet["session_id"], False)
+        session = _build_session_rubric(c, sheet["session_id"], False, deadline)
 
     # updated_at = when checking started: the app treats a copy still "checking" after 6 min as failed
     # (the request died, e.g. the 300 s function limit) and offers Retry instead of a locked copy.
@@ -227,10 +233,14 @@ def _check_sheet(c: _Caller, sheet_id: str) -> dict:
     try:
         files = [_download_own(c, p, "ssheet_") for p in pages]
         start = time.time()
-        with call_settings(timeout_s=GRADE_CALL_TIMEOUT_S):
+        with call_settings(timeout_s=GRADE_CALL_TIMEOUT_S, deadline=deadline):
             result, ordered, usage = grade_copy(files, session["rubric"], session.get("strictness") or "medium")
         result["norm_pages"] = _save_norm_pages(c, sheet["session_id"], sheet_id, ordered)
         result["usage"] = usage
+        if usage.get("fallback_used"):        # never silent: the teacher sees which model marked the copy
+            result["sheet_flags"] = (result.get("sheet_flags") or []) + [{
+                "code": "FALLBACK_MODEL", "page": None,
+                "message": f"Checked with a backup AI model ({usage.get('model')}). Please check the marks."}]
         result["_meta"] = {"strictness": session.get("strictness") or "medium",
                            "grade_time_s": round(time.time() - start, 2), "pages": usage["pages"]}
         logger.info(f"[checker] sheet usage: {usage}")

@@ -31,7 +31,9 @@ from app.core.auth import AuthUser, require_user
 from app.core.config import settings
 from app.core.database import get_supabase_admin, get_supabase_for_user
 from app.core.api_errors import AI_BUSY_MSG, ai_busy
-from app.services.smart_assignment_service import GeminiBusy, build_rubric, check_assignment, grade_sheet
+from app.services.smart_assignment_service import (
+    GeminiBusy, build_rubric, call_settings, check_assignment, grade_sheet, request_deadline,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/smart-assignment-checker", tags=["Smart Assignment Checker"])
@@ -373,7 +375,8 @@ def _ensure_rubric(c: _Caller, assignment_id: str, force: bool = False) -> tuple
     try:
         qp_path = _download_to_temp("assignments", _storage_path(asg["file_url"], "assignments"), "qpaper_")
         ak_path = _download_to_temp("answer-keys", key["answer_key_path"], "akey_")
-        rubric = build_rubric(qp_path, ak_path)
+        with call_settings(deadline=request_deadline()):    # one budget per request, under Vercel's 300 s
+            rubric = build_rubric(qp_path, ak_path)
     finally:
         _cleanup(qp_path, ak_path)
 
@@ -467,7 +470,9 @@ def _check_submission(c: _Caller, assignment_id: str, submission_id: str) -> dic
             sheet_path = tmp.name
 
         start = time.time()
-        result = grade_sheet(sheet_path, key["rubric"], key.get("strictness") or "medium", require_identity=False)
+        with call_settings(deadline=request_deadline()):    # one budget per request, under Vercel's 300 s
+            result = grade_sheet(sheet_path, key["rubric"], key.get("strictness") or "medium",
+                                 require_identity=False)
         result["_meta"] = {"strictness": key.get("strictness") or "medium",
                            "grade_time_s": result.pop("_grade_time_s", round(time.time() - start, 2))}
     except Exception as e:

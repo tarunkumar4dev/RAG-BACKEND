@@ -24,3 +24,5 @@ test-generator-backend/tests/fixtures/real/*
 !test-generator-backend/tests/fixtures/real/README.md
 
 .venv/
+# audit exports with student names (docs/audit/*.md stay tracked)
+docs/audit/*.csv

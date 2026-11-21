@@ -25,7 +25,8 @@ def get_genai():
 
 from app.core.db_pool import get_db_connection
 
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
+from app.core.config import settings
+GEMINI_MODEL = settings.GEMINI_MODEL
 # ─── Register DejaVu Fonts + LaTeX Converter ─────────────────
 def _register_fonts():
     try:

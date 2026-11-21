@@ -13,6 +13,7 @@ from typing import Optional, List
 from fastapi import APIRouter, HTTPException, Header, Query, Depends
 from pydantic import BaseModel, ConfigDict, Field
 from app.services.module_service import ModuleService
+from app.core.config import settings
 from app.core.sanitize import sanitize_uuid
 from app.core.auth import AuthUser, require_user
 from app.core.quota import ACTION_PAPER, consume, release, reserve
@@ -443,7 +444,7 @@ Output as JSON:
 ]}}
 Output ONLY valid JSON, no markdown, no backticks."""
 
-        model_name = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
+        model_name = settings.GEMINI_MODEL
         response = client.models.generate_content(
             model=model_name,
             contents=prompt,

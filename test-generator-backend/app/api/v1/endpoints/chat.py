@@ -38,14 +38,15 @@ from pydantic import BaseModel, ConfigDict, Field
 from starlette.concurrency import run_in_threadpool
 
 from app.core.auth import AuthUser, require_user
+from app.core.config import settings
 from app.core.database import get_supabase_admin
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-DEFAULT_MODEL = "deepseek/deepseek-chat"
-DEFAULT_FALLBACK_MODELS = "google/gemini-2.5-flash"
+DEFAULT_MODEL = settings.OPENROUTER_MODEL                 # env is still re-read per request in _models()
+DEFAULT_FALLBACK_MODELS = settings.OPENROUTER_FALLBACK_MODELS
 
 MAX_MESSAGES = 20            # accepted per request (older clients); only the tail is forwarded
 MAX_PAYLOAD_LENGTH = 8000    # per message, request validation only

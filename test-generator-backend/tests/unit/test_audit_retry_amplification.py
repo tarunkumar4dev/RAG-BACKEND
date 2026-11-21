@@ -174,12 +174,13 @@ def checker(monkeypatch, no_network):  # noqa: F811
     return make
 
 
-def test_checker_429_then_500_is_two_unbilled_calls_per_run(checker):
+def test_checker_429_then_500_is_three_unbilled_calls_per_run(checker):
+    """p0 (merged 21 Nov 2026): the primary gets CHECKER_PRIMARY_ATTEMPTS (3) tries per run; none of them billed."""
     client, calls = checker([429, 500])
     with svc.usage_meter() as meter:
         with pytest.raises(svc.GeminiBusy):
             svc._generate_json(client, ["x"], "GRADE")
-    assert calls == ["primary", "primary"] and meter.calls == 2
+    assert calls == ["primary"] * 3 and meter.calls == 3 and meter.billed_calls == 0
 
 
 def test_checker_attempts_per_run_capped_at_3(checker):

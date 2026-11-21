@@ -82,13 +82,26 @@ class Settings:
     CHECKER_PROVIDER: str = os.getenv("CHECKER_PROVIDER", "gemini").strip().lower()
     CHECKER_MODEL: str = os.getenv("CHECKER_MODEL", "gemini-3.5-flash-lite")
 
-    # ── Copy checker (smart_assignment_service._generate) fallbacks ──
-    # Tried in order when the primary CHECKER_GEMINI_MODEL is gone (404) or overloaded (503).
+    # ── Copy checker (smart_assignment_service._generate): primary + fallbacks ──
+    # Production sets CHECKER_GEMINI_MODEL explicitly.
+    CHECKER_GEMINI_MODEL: str = os.getenv("CHECKER_GEMINI_MODEL", "gemini-3.8-flash")
+    # Fallbacks: only with CHECKER_ALLOW_FALLBACK=true, tried in order when the primary is gone (404) or
+    # overloaded (503) after its own attempts; a copy marked by one is flagged for review (fallback_model).
     # 18 Nov 2026 (aistudio.google.com/docs/deprecations): gemini-3.6-flash is GA with no shutdown date and is
     # Google's named replacement for gemini-3-flash-preview (preview, no SLA, kept as the last resort).
     # gemini-2.5-flash was removed: 404 for this project, shutdown 1 Dec 2026, then silently routed to 3.5-flash-lite.
     CHECKER_GEMINI_FALLBACK_MODELS: str = os.getenv("CHECKER_GEMINI_FALLBACK_MODELS",
                                                     "gemini-3.6-flash,gemini-3-flash-preview")
+
+    # ── Other features' models (ids live here only; read once at start-up) ──
+    # Contest import from a PDF (contest_import_service), in order (404/503 → next). 3.8-flash wrote the 50-MCQ
+    # paper's JSON in 192 s, gemini-3-flash-preview in 41 s (thinking capped, 24 Oct 2026).
+    CONTEST_IMPORT_MODELS: str = os.getenv("CONTEST_IMPORT_MODELS", "gemini-3-flash-preview,gemini-3.8-flash")
+    # Community quiz generator (legacy google-generativeai SDK)
+    COMMUNITY_QUIZ_MODEL: str = os.getenv("COMMUNITY_QUIZ_MODEL", "gemini-flash-latest")
+    # Chat (/chat) through OpenRouter. google/gemini-2.5-flash shuts down 1 Dec 2026 at Google (see COST_MAP R1).
+    OPENROUTER_MODEL: str = os.getenv("OPENROUTER_MODEL", "deepseek/deepseek-chat")
+    OPENROUTER_FALLBACK_MODELS: str = os.getenv("OPENROUTER_FALLBACK_MODELS", "google/gemini-2.5-flash")
 
     # ── Razorpay ────────────────────────────────────────────────────
     RAZORPAY_KEY_ID: str = os.getenv("RAZORPAY_KEY_ID", "")

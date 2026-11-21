@@ -162,7 +162,7 @@ def _seconds_until(db, job_id):
     return db.one("select extract(epoch from next_run_at - now()) from check_jobs where id = %s", (job_id,))
 
 
-def test_gemini_429_backs_off_then_fails_after_3_runs(db, storage, monkeypatch):
+def test_gemini_429_backs_off_then_waits_for_a_later_round_after_3_runs(db, storage, monkeypatch):
     sub, job = make_attempt(db, storage, [(SHEET, "pdf", "application/pdf")])
     _busy(monkeypatch)
     w = worker(db, storage)
@@ -181,11 +181,12 @@ def test_gemini_429_backs_off_then_fails_after_3_runs(db, storage, monkeypatch):
     db.due_now(job)
     w.run()
     j = db.job(job)
-    assert j["state"] == "failed" and j["retries"] == 3 and j["last_error_code"] == "GEMINI_429"
-    assert j["error"] == "Not checked after 3 tries (AI busy). Use Retry to check again."
-    assert db.sub(sub)["status"] == "failed"
-    sh = db.sheet(sub)
-    assert sh["status"] == "failed" and sh["error"] == j["error"]          # the teacher sees why
+    # 26_checker_p0: an AI failure is never final by itself — the sweep tries again in 30 min
+    assert j["state"] == "failed_retryable" and j["retries"] == 3 and j["last_error_code"] == "GEMINI_429"
+    assert j["error"] == "AI not available after 3 tries (AI busy). It will be checked again automatically."
+    assert 1790 < _seconds_until(db, job) <= 1800
+    assert db.sub(sub)["status"] == "queued"                              # nothing published, student waits
+    assert db.sheet(sub)["status"] != "failed"
 
 
 def test_retry_after_from_gemini_is_respected(db, storage, monkeypatch):
