@@ -7,6 +7,7 @@ the provider stream (agent/llm.py) so tokens stop being generated.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import random
 import re
@@ -115,6 +116,9 @@ class DataUnavailable(Exception):
     def __init__(self, code: str):
         super().__init__(code)
         self.code = code
+
+
+_plog = logging.getLogger("agent.provider")
 
 
 class ProviderFailed(Exception):
@@ -635,6 +639,7 @@ class Agent:
                           message=MSG_DB_DOWN if d.code == "db_unavailable" else MSG_TOOL_TIMEOUT,
                           partial={"tools_used": self.tools_used})
         except ProviderFailed as pf:
+            _plog.warning("LLM provider failed (retryable=%s): %s: %s", pf.retryable, type(pf.cause).__name__, str(pf.cause)[:600])
             while out:
                 yield out.popleft()
             yield self.ev("error", code="provider_error", retryable=pf.retryable,
