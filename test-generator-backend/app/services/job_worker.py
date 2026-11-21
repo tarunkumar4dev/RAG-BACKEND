@@ -48,10 +48,9 @@ logger.addFilter(PIIMaskFilter())
 # claim at >= MIN_LEFT_TO_CLAIM_S left, and no single Gemini call waits longer than its stage timeout below.
 WORK_BUDGET_S = float(os.getenv("CHECKER_WORK_BUDGET_S", "270"))
 MIN_LEFT_TO_CLAIM_S = float(os.getenv("CHECKER_MIN_LEFT_TO_CLAIM_S", "200"))
-# Per-call Gemini timeouts per stage. 23 Oct (prod, Class XII Economics, 30 marks): the grade call of a 1-page
-# copy needed more than the global 60 s and timed out 3 times; a rubric call takes ~75 s on a 30-mark paper.
-RUBRIC_CALL_TIMEOUT_S = float(os.getenv("CHECKER_RUBRIC_TIMEOUT_S", "180"))
-GRADE_CALL_TIMEOUT_S = float(os.getenv("CHECKER_GRADE_TIMEOUT_S", "150"))
+# Per-call Gemini timeouts per stage (defined next to the call code; the direct copy-checker routes use them too)
+RUBRIC_CALL_TIMEOUT_S = svc.RUBRIC_CALL_TIMEOUT_S
+GRADE_CALL_TIMEOUT_S = svc.GRADE_CALL_TIMEOUT_S
 RUBRIC_WAIT_S = 60                    # a copy waiting for its rubric looks again at least this often
 MAX_RUNNING_JOBS = int(os.getenv("MAX_RUNNING_JOBS", "5"))
 CHUNK_MAX_PAGES = 12                  # > 12 pages → chunks of 10-12 pages
@@ -264,7 +263,7 @@ class JobWorker:
             return code, MSG[code], e.retry_after
         if isinstance(e, svc.CallCapExceeded):
             return "CALL_CAP", MSG["CALL_CAP"], None
-        if isinstance(e, TimeoutError) or "timeout" in type(e).__name__.lower():
+        if svc.is_timeout(e):
             return "TIMEOUT", MSG["TIMEOUT"], None
         if isinstance(e, svc.genai_errors.APIError) and (e.code or 0) >= 500:
             return "GEMINI_5XX", MSG["GEMINI_5XX"], None

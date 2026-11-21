@@ -9,6 +9,7 @@ What the job worker adds on top of grade_copy's result for an assignment-link co
 import os
 
 from app.routers.copy_checker_router import _apply_overrides
+from app.services.answer_checker import crosscheck
 
 CONFIDENCE_VALUE = {"low": 0.4, "medium": 0.75, "high": 0.95}
 # A question whose confidence is below this needs review. A rubric question may set its own
@@ -44,7 +45,8 @@ def review(result: dict, rubric: dict) -> tuple:
                 mine.add("empty_answer")
             if leaf.get("legibility_issue"):
                 mine.add("illegible")
-            if conf < threshold or "spans" in notes:
+            # a code cross-check disagreed with the AI's verdict (crosscheck.py) → the teacher looks
+            if conf < threshold or "spans" in notes or crosscheck.PREFIX in notes:
                 mine.add("low_confidence")
             if _ESTIMATED in notes:
                 mine.add("key_missing")

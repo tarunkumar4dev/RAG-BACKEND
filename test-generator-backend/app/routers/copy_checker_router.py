@@ -34,7 +34,10 @@ from app.routers.smart_assignment_router import (
 from app.services.answer_checker import preprocess
 from app.services.answer_checker.copy_check import grade_copy
 from app.core.api_errors import AI_BUSY_MSG, ai_busy
-from app.services.smart_assignment_service import GeminiBusy, build_rubric, rubric_from_test_fast, usage_meter
+from app.services.smart_assignment_service import (
+    GRADE_CALL_TIMEOUT_S, RUBRIC_CALL_TIMEOUT_S, GeminiBusy, build_rubric, call_settings, is_timeout,
+    rubric_from_test_fast, usage_meter,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/copy-checker", tags=["Copy Checker"])
@@ -128,7 +131,8 @@ def _build_session_rubric(c: _Caller, session_id: str, force: bool) -> dict:
             qp = [_download_own(c, p, "qpaper_") for p in s["qp_paths"][:MAX_PAGES]]
             key = [_download_own(c, p, "akey_") for p in (s.get("key_paths") or [])[:MAX_PAGES]]
             paths = qp + key
-            with usage_meter() as meter:
+            # the stage timeout, not the global 60 s: a rubric call takes ~75 s on a 30-mark paper
+            with usage_meter() as meter, call_settings(timeout_s=RUBRIC_CALL_TIMEOUT_S):
                 rubric = build_rubric(qp, key)
             rubric["_usage"] = meter.as_dict()
             logger.info(f"[checker] rubric usage: {meter.as_dict()}")
@@ -137,7 +141,7 @@ def _build_session_rubric(c: _Caller, session_id: str, force: bool) -> dict:
         raise
     except Exception as e:
         logger.warning(f"Rubric failed for session {session_id}: {type(e).__name__}")
-        msg = (BUSY_MSG if isinstance(e, GeminiBusy) else
+        msg = (BUSY_MSG if isinstance(e, GeminiBusy) or is_timeout(e) else
                PAPER_UNREADABLE_MSG if isinstance(e, ValueError) else RUBRIC_FAILED_MSG)
         _update_session(c, session_id, {"rubric_status": "failed", "rubric_error": msg})
         raise
@@ -169,6 +173,8 @@ async def session_rubric(session_id: str, body: RubricRequest = RubricRequest(),
         raise HTTPException(status_code=422, detail=PAPER_UNREADABLE_MSG)
     except Exception as e:
         logger.error(f"Copy-check rubric failed: {type(e).__name__}", exc_info=True)
+        if is_timeout(e):
+            raise ai_busy()
         raise HTTPException(status_code=500, detail=RUBRIC_FAILED_MSG)
     return {"ok": True, "rubric": _rubric_summary(s), "full_rubric": s.get("rubric")}
 
@@ -221,7 +227,8 @@ def _check_sheet(c: _Caller, sheet_id: str) -> dict:
     try:
         files = [_download_own(c, p, "ssheet_") for p in pages]
         start = time.time()
-        result, ordered, usage = grade_copy(files, session["rubric"], session.get("strictness") or "medium")
+        with call_settings(timeout_s=GRADE_CALL_TIMEOUT_S):
+            result, ordered, usage = grade_copy(files, session["rubric"], session.get("strictness") or "medium")
         result["norm_pages"] = _save_norm_pages(c, sheet["session_id"], sheet_id, ordered)
         result["usage"] = usage
         result["_meta"] = {"strictness": session.get("strictness") or "medium",
@@ -232,7 +239,7 @@ def _check_sheet(c: _Caller, sheet_id: str) -> dict:
             msg = e.detail
         elif isinstance(e, preprocess.BadFile):
             msg = str(e)
-        elif isinstance(e, GeminiBusy):
+        elif isinstance(e, GeminiBusy) or is_timeout(e):
             msg = BUSY_MSG
         else:
             logger.warning(f"Copy check failed for sheet {sheet_id}: {type(e).__name__}")
@@ -282,6 +289,8 @@ async def check_sheet(sheet_id: str, c: _Caller = Depends(require_caller)):
         raise HTTPException(status_code=422, detail=COPY_UNREADABLE_MSG)
     except Exception as e:
         logger.error(f"Copy check failed: {type(e).__name__}", exc_info=True)
+        if is_timeout(e):
+            raise ai_busy()
         raise HTTPException(status_code=500, detail=CHECK_FAILED_MSG)
     return {"ok": True, "sheet": sheet}
 
