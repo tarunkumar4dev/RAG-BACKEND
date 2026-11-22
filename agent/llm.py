@@ -180,7 +180,11 @@ class GeminiProvider:
         self.model = model or config.GEMINI_MODEL
         if client is None:
             from google import genai
-            client = genai.Client(api_key=os.environ[config.GEMINI_KEY_ENV])
+            from google.genai import types as _gt
+            # Function calling (the agent's tools) only exists on v1beta; some SDK versions default to v1 (400
+            # INVALID_ARGUMENT "Function calling is not enabled for api version v1"), so ask for it explicitly.
+            client = genai.Client(api_key=os.environ[config.GEMINI_KEY_ENV].strip(),
+                                  http_options=_gt.HttpOptions(api_version="v1beta"))
         self.client = client
 
     def _args(self, system, messages, tools, max_tokens, json_mode):
