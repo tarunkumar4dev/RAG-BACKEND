@@ -24,6 +24,7 @@ from checker_runs import connect, copies, dump, rows
 
 from app.services import job_worker, smart_assignment_service as svc  # noqa: E402
 from app.services.answer_checker import copy_check, portal_result, preprocess, upload_validation  # noqa: E402
+from app.services.answer_checker.usage_cost import without_build  # noqa: E402
 
 PRIMARY = svc.CHECKER_MODEL
 
@@ -160,7 +161,8 @@ def main():
 
         from app.core.database import get_supabase_admin
         storage = job_worker.SupabaseStorage(get_supabase_admin)
-        rubric_sha = hashlib.sha256(dump(rubric).encode("utf-8")).hexdigest()
+        # rubric.build (what it cost) grows with every rebuild and says nothing about marking: not in the hash
+        rubric_sha = hashlib.sha256(dump(without_build(rubric)).encode("utf-8")).hexdigest()
         spent = 0.0
         for i, c in enumerate(todo, 1):
             t0 = time.time()

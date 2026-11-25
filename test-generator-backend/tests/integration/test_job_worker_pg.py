@@ -624,3 +624,202 @@ def test_duplicate_flag_compares_owners_including_guests(db, storage):
     assert store.other_students_with(A1, None, key2, [sha]) == [sha]          # first guest has it
     db.q("delete from submissions where guest_name = 'First Guest'")
     assert store.other_students_with(A1, None, key2, [sha]) == []
+
+
+# ── what the checker spent is written down (answer_checker/usage_cost.py) ─────────────────────────
+
+def _bill(inp: int, out: int, tag: str = "RUBRIC") -> None:
+    """One billed reply on the active usage meter, the way _generate counts it."""
+    from types import SimpleNamespace
+    svc._count_call(tag)
+    svc._log_usage(tag, "gemini-3.8-flash", SimpleNamespace(candidates=[], usage_metadata=SimpleNamespace(
+        prompt_token_count=inp, candidates_token_count=out, total_token_count=inp + out, thoughts_token_count=0)), 1.0)
+
+
+def test_rubric_carries_what_it_cost(db, storage, monkeypatch):
+    real = svc.build_rubric
+
+    def billing(*a, **kw):
+        rubric = real(*a, **kw)
+        _bill(10_000, 2_000)
+        return rubric
+
+    monkeypatch.setattr(svc, "build_rubric", billing)
+    make_attempt(db, storage, [(SHEET, "pdf", "application/pdf")])
+    worker(db, storage).run()
+    ju = db.one("select usage from check_jobs where idempotency_key like 'rubric:%%'")
+    b = db.one("""select rubric -> 'build' from check_sessions
+                   where id = (select session_id from check_jobs where idempotency_key like 'rubric:%%')""")
+    assert b["source"] == "job" and b["input_tokens"] >= 10_000 and "stages" not in b
+    for k in ("gemini_calls", "billed_calls", "input_tokens", "output_tokens", "thinking_tokens", "est_cost_inr", "model"):
+        assert b[k] == ju[k], k                                 # the session says what the rubric job's row says
+
+
+def test_failed_rubric_run_keeps_its_billed_usage(db, storage, monkeypatch):
+    import httpx
+
+    def reply_then_timeout(*a, **kw):
+        _bill(8_000, 1_000)
+        raise httpx.ReadTimeout("the next call did not answer")
+
+    monkeypatch.setattr(svc, "build_rubric", reply_then_timeout)
+    make_attempt(db, storage, [(SHEET, "pdf", "application/pdf")])
+    worker(db, storage).run()
+    rj = db.one("select row_to_json(j) from check_jobs j where idempotency_key like 'rubric:%%'")
+    assert rj["state"] == "queued" and rj["last_error_code"] == "TIMEOUT"
+    u = rj["usage"]
+    assert (u["input_tokens"], u["output_tokens"], u["billed_calls"]) == (8_000, 1_000, 1) and u["est_cost_inr"] > 0
+
+
+def test_failed_grade_run_keeps_its_billed_usage(db, storage, monkeypatch):
+    def over_the_cap(*a, **kw):
+        e = svc.CallCapExceeded("cap")
+        e.usage = {"gemini_calls": 2, "billed_calls": 2, "input_tokens": 9_000, "output_tokens": 600,
+                   "thinking_tokens": 0, "model": "gemini-3.8-flash"}
+        raise e
+
+    monkeypatch.setattr(copy_check, "grade_copy", over_the_cap)
+    _, job = make_attempt(db, storage, [(SHEET, "pdf", "application/pdf")])
+    worker(db, storage).run()
+    j = db.job(job)
+    assert j["state"] == "failed" and j["last_error_code"] == "CALL_CAP"
+    u = j["usage"]
+    assert (u["billed_calls"], u["input_tokens"], u["output_tokens"]) == (2, 9_000, 600)
+    assert u["est_cost_inr"] == job_worker.est_cost_inr(u) > 0 and u["model"] == "gemini-3.8-flash"
+
+
+def test_unreadable_replies_keep_their_usage(db, storage, monkeypatch):
+    """Two billed replies, neither JSON: what they cost must be on the row. (Whether the job then ends or is
+    retried depends on migration 35 making AI_UNREADABLE final; until then the queue SQL re-queues it, and the
+    billed-call cap of 3 per copy bounds that. Not asserted here.)"""
+    def unreadable(*a, **kw):
+        e = svc.UnreadableReply("not json")
+        e.usage = {"gemini_calls": 2, "billed_calls": 2, "input_tokens": 9_000, "output_tokens": 600,
+                   "thinking_tokens": 0, "model": "gemini-3.8-flash"}
+        raise e
+
+    monkeypatch.setattr(copy_check, "grade_copy", unreadable)
+    _, job = make_attempt(db, storage, [(SHEET, "pdf", "application/pdf")])
+    worker(db, storage).run()
+    j = db.job(job)
+    assert (j["usage"]["billed_calls"], j["usage"]["input_tokens"]) == (2, 9_000)
+    assert j["usage"]["est_cost_inr"] > 0
+
+
+def test_usage_of_a_failed_run_and_the_run_that_succeeds_add_up(db, storage, monkeypatch):
+    real = copy_check.grade_copy
+    seen = {"n": 0}
+
+    def flaky(paths, rubric, strictness="medium"):
+        seen["n"] += 1
+        if seen["n"] == 1:
+            e = TimeoutError("timed out after a billed reply")
+            e.usage = {"gemini_calls": 1, "billed_calls": 1, "input_tokens": 7_000, "output_tokens": 500,
+                       "thinking_tokens": 0, "model": "gemini-3.8-flash"}
+            raise e
+        out = real(paths, rubric, strictness)
+        seen["second"] = dict(out[2])
+        return out
+
+    monkeypatch.setattr(copy_check, "grade_copy", flaky)
+    _, job = make_attempt(db, storage, [(SHEET, "pdf", "application/pdf")])
+    w = worker(db, storage)
+    w.run()
+    j = db.job(job)
+    assert j["state"] == "queued" and j["usage"]["input_tokens"] == 7_000 and j["usage"]["billed_calls"] == 1
+    db.due_now(job)
+    w.run()
+    j = db.job(job)
+    assert j["state"] == "done"
+    second = seen["second"]
+    assert j["usage"]["input_tokens"] == 7_000 + second["input_tokens"]
+    assert j["usage"]["gemini_calls"] == 1 + second["gemini_calls"]
+    assert j["usage"]["est_cost_inr"] == job_worker.est_cost_inr(j["usage"])
+
+
+# ── a failed rebuild writes only rubric.build (JobStore.record_rubric_build, jsonb_set under a row lock) ──
+
+def _built_session(db, storage) -> str:
+    """A session whose rubric was built by the rubric job on the mock Gemini."""
+    make_attempt(db, storage, [(SHEET, "pdf", "application/pdf")])
+    worker(db, storage).run()
+    sid = db.one("select session_id from check_jobs where idempotency_key like 'rubric:%%'")
+    assert db.one("select jsonb_array_length(rubric -> 'questions') from check_sessions where id = %s", (sid,)) > 0
+    return sid
+
+
+def _rubric_of(db, sid) -> dict:
+    return db.one("select rubric from check_sessions where id = %s", (sid,))
+
+
+def test_failed_rebuild_writes_only_rubric_build_and_a_concurrent_edit_survives(db, storage, monkeypatch):
+    from psycopg2.extras import Json
+    from app.routers import copy_checker_router as ccr
+    sid = _built_session(db, storage)
+    before = _rubric_of(db, sid)
+
+    def read_session(c, session_id):
+        row = db.one("select row_to_json(s) from check_sessions s where id = %s", (session_id,))
+        return {**row, "source": "upload", "qp_paths": ["x/q.pdf"]}
+
+    def write_session(c, session_id, fields):          # applies every field it is given, rubric included
+        for k, v in fields.items():
+            db.q(f"update check_sessions set {k} = %s where id = %s",
+                 (Json(v) if isinstance(v, (dict, list)) else v, session_id))
+        return fields
+
+    def reply_then_fail(qp, key):
+        _bill(8_000, 1_000)
+        # a teacher edits a question's marks while the rebuild is still running
+        db.q("update check_sessions set rubric = jsonb_set(rubric, '{questions,0,marks}', '99'::jsonb) where id = %s",
+             (sid,))
+        raise ValueError("the reply was not a rubric")
+
+    monkeypatch.setattr(ccr, "_get_session", read_session)
+    monkeypatch.setattr(ccr, "_update_session", write_session)
+    monkeypatch.setattr(ccr, "_download_own", lambda c, p, prefix: "/tmp/x.pdf")
+    monkeypatch.setattr(ccr, "_cleanup", lambda *p: None)
+    monkeypatch.setattr(ccr, "build_rubric", reply_then_fail)
+    monkeypatch.setattr(ccr, "_rubric_store", lambda: JobStore(db.connect))
+    with pytest.raises(ValueError):
+        ccr._build_session_rubric(None, sid, True)
+
+    after = _rubric_of(db, sid)
+    assert after["questions"][0]["marks"] == 99                                   # the edit survived
+    assert after["build"]["input_tokens"] == before["build"]["input_tokens"] + 8_000
+    assert after["build"]["gemini_calls"] == before["build"]["gemini_calls"] + 1
+    expected = {k: v for k, v in before.items() if k != "build"}
+    expected["questions"][0]["marks"] = 99
+    assert {k: v for k, v in after.items() if k != "build"} == expected          # nothing else in the rubric moved
+    assert db.one("select rubric_status from check_sessions where id = %s", (sid,)) == "failed"
+
+
+def test_record_rubric_build_holds_the_row_so_a_concurrent_edit_waits_and_both_survive(db, storage):
+    sid = _built_session(db, storage)
+    store = JobStore(db.connect)
+    locked = threading.Event()
+
+    def slow_merge(build):
+        locked.set()
+        time.sleep(0.6)                                  # the row is locked while an edit arrives
+        return {**(build or {}), "input_tokens": 12_345}
+
+    writer = threading.Thread(target=lambda: store.record_rubric_build(sid, slow_merge))
+    writer.start()
+    assert locked.wait(10)
+    t0 = time.time()
+    db.q("update check_sessions set rubric = jsonb_set(rubric, '{questions,0,marks}', '77'::jsonb) where id = %s",
+         (sid,))
+    waited = time.time() - t0
+    writer.join()
+    after = _rubric_of(db, sid)
+    assert waited > 0.3                                  # the edit queued behind the lock, so the writes were ordered
+    assert after["questions"][0]["marks"] == 77 and after["build"]["input_tokens"] == 12_345
+
+
+def test_record_rubric_build_does_nothing_without_a_rubric(db, storage):
+    sid = _built_session(db, storage)
+    db.q("update check_sessions set rubric = null where id = %s", (sid,))
+    assert JobStore(db.connect).record_rubric_build(sid, lambda b: {"x": 1}) is False
+    assert db.one("select rubric is null from check_sessions where id = %s", (sid,)) is True
+

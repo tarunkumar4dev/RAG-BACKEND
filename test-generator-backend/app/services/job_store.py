@@ -212,6 +212,22 @@ class JobStore:
                             where id = %s""",
                         (Json(rubric), rubric.get("total_marks"), rubric.get("strictness"), session_id))
 
+    def record_rubric_build(self, session_id: str, merge: Callable[[Optional[dict]], dict]) -> bool:
+        """Add one build attempt to check_sessions.rubric -> 'build' and change NOTHING else in the rubric.
+        The row is locked, the current build is read, `merge` makes the new one, and only that key is written with
+        jsonb_set, all in one transaction: a teacher's or another job's edit to rubric.questions made meanwhile
+        survives (writing the whole rubric back would undo it), and two attempts adding up cannot lose one.
+        False when the session has no rubric (rubric is null): there is nothing to attach the usage to."""
+        with self._cur(tx=True) as cur:
+            cur.execute("select rubric -> 'build' from public.check_sessions where id = %s and rubric is not null"
+                        " for update", (session_id,))
+            row = cur.fetchone()
+            if row is None:
+                return False
+            cur.execute("""update public.check_sessions set rubric = jsonb_set(rubric, '{build}', %s::jsonb, true)
+                            where id = %s and rubric is not null""", (Json(merge(row[0])), session_id))
+            return True
+
     def rubric_failed(self, session_id: str, message: str) -> None:
         with self._cur() as cur:
             cur.execute("update public.check_sessions set rubric_status = 'failed', rubric_error = %s, updated_at = now()"
