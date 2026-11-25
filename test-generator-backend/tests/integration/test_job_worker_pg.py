@@ -823,3 +823,95 @@ def test_record_rubric_build_does_nothing_without_a_rubric(db, storage):
     assert JobStore(db.connect).record_rubric_build(sid, lambda b: {"x": 1}) is False
     assert db.one("select rubric is null from check_sessions where id = %s", (sid,)) is True
 
+
+# ═══════════════════════════════════════════════════════════════════════
+# Usage events (migration 36 — the table is created on the fly in the
+# test database, since the scratch DB only carries migrations up to 26)
+# ═══════════════════════════════════════════════════════════════════════
+
+from app.services.answer_checker.usage_cost import emit_usage_event
+
+_EVENTS_DDL = """\
+create table if not exists public.checker_usage_events (
+  id              uuid primary key default gen_random_uuid(),
+  created_at      timestamptz not null default now(),
+  kind            text not null check (kind in ('rubric', 'copy', 'chunk', 'shadow')),
+  route           text not null check (route in ('job', 'sync')),
+  session_id      uuid,
+  sheet_id        uuid,
+  job_id          uuid,
+  model           text,
+  input_tokens    bigint not null default 0,
+  output_tokens   bigint not null default 0,
+  thinking_tokens bigint not null default 0,
+  gemini_calls    int not null default 0,
+  billed_calls    int not null default 0,
+  est_cost_inr    numeric(10,4) not null default 0,
+  ok              boolean not null,
+  error_code      text
+);
+"""
+
+
+@pytest.fixture
+def events_table(db):
+    db.q(_EVENTS_DDL)
+    db.q("delete from checker_usage_events")
+    yield db
+    db.q("drop table if exists checker_usage_events")
+
+
+def test_emit_usage_event_inserts_a_row(events_table):
+    db = events_table
+    ok = emit_usage_event(
+        db.connect, kind="rubric", route="sync", ok=True,
+        usage={"input_tokens": 5000, "output_tokens": 1000, "thinking_tokens": 200,
+               "gemini_calls": 2, "billed_calls": 2, "model": "gemini-3.8-flash"},
+        session_id=str(S1),
+    )
+    assert ok is True
+    row = db.q("select kind, route, session_id, model, input_tokens, output_tokens, ok, error_code "
+               "from checker_usage_events limit 1")
+    assert row and len(row) == 1
+    r = row[0]
+    assert r[0] == "rubric" and r[1] == "sync" and str(r[2]) == str(S1)
+    assert r[3] == "gemini-3.8-flash" and r[4] == 5000 and r[5] == 1000 and r[6] is True and r[7] is None
+
+
+def test_emit_usage_event_records_a_failed_copy(events_table):
+    db = events_table
+    ok = emit_usage_event(
+        db.connect, kind="copy", route="job", ok=False,
+        usage={"input_tokens": 9000, "output_tokens": 3000, "thinking_tokens": 500,
+               "gemini_calls": 1, "billed_calls": 1, "model": "gemini-3.8-flash"},
+        session_id=str(S1), sheet_id=str(uuid.uuid4()), job_id=str(uuid.uuid4()),
+        error_code="GEMINI_429",
+    )
+    assert ok is True
+    r = db.q("select ok, error_code, est_cost_inr from checker_usage_events limit 1")[0]
+    assert r[0] is False and r[1] == "GEMINI_429" and r[2] > 0
+
+
+def test_emit_returns_false_without_the_table(db):
+    db.q("drop table if exists checker_usage_events")
+    ok = emit_usage_event(
+        db.connect, kind="rubric", route="sync", ok=True,
+        usage={"input_tokens": 100},
+    )
+    assert ok is False
+
+
+def test_job_worker_run_emits_usage_event(events_table, storage):
+    db = events_table
+    sub, asg_id, sid, sheet_id = make_attempt(db, storage, SHEET)
+    w = worker(db, storage)
+    w.run()
+    rows = db.q("select kind, route, ok, session_id, sheet_id, job_id from checker_usage_events "
+                "where kind in ('rubric', 'copy') order by created_at")
+    kinds = [r[0] for r in rows]
+    assert "rubric" in kinds and "copy" in kinds
+    for r in rows:
+        assert r[2] is True             # ok
+        assert r[3] is not None          # session_id
+        assert r[5] is not None          # job_id
+

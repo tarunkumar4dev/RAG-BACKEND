@@ -35,7 +35,7 @@ from app.services.answer_checker import preprocess
 from app.services.answer_checker.copy_check import grade_copy
 from app.core.api_errors import AI_BUSY_MSG, ai_busy
 from app.services.answer_checker.usage_cost import (
-    add_usage, answering_model, has_tokens, rubric_build_record, without_build,
+    add_usage, answering_model, emit_usage_event, has_tokens, rubric_build_record, without_build,
 )
 from app.services.smart_assignment_service import (
     CHECKER_MODEL, GRADE_CALL_TIMEOUT_S, RUBRIC_CALL_TIMEOUT_S, GeminiBusy, build_rubric, call_settings, is_timeout,
@@ -106,6 +106,12 @@ def _rubric_summary(s: dict) -> dict:
     }
 
 
+def _db_connect():
+    """Direct Postgres connection factory, for writes PostgREST can't do. Replaced in tests."""
+    from app.core.db_pool import get_db_connection
+    return get_db_connection
+
+
 def _rubric_store():
     """Direct Postgres for the one write PostgREST cannot do (jsonb_set on a single key). Replaced in tests."""
     from app.core.db_pool import get_db_connection
@@ -167,12 +173,14 @@ def _build_session_rubric(c: _Caller, session_id: str, force: bool, deadline: fl
         _update_session(c, session_id, {"rubric_status": "failed", "rubric_error": str(e.detail)[:300]})
         raise
     except Exception as e:
-        logger.warning(f"Rubric failed for session {session_id}: {type(e).__name__}")
+        logger.warning(f"Rubric failed for session {session_id}: {type(e).__name__}: {str(e)[:600]}")
         msg = (BUSY_MSG if isinstance(e, GeminiBusy) or is_timeout(e) else
                PAPER_UNREADABLE_MSG if isinstance(e, ValueError) else RUBRIC_FAILED_MSG)
         spent = meter.as_dict() if meter is not None else None
         if has_tokens(spent):                  # replies came back (billed) but the build still failed
             _record_failed_build(session_id, spent)
+        emit_usage_event(_db_connect(), kind="rubric", route="sync", ok=False, usage=spent,
+                         session_id=session_id, error_code=type(e).__name__)
         _update_session(c, session_id, {"rubric_status": "failed", "rubric_error": msg})
         raise
     finally:
@@ -181,6 +189,8 @@ def _build_session_rubric(c: _Caller, session_id: str, force: bool, deadline: fl
     rubric = {k: v for k, v in rubric.items() if not k.startswith("_")}
     if meter is not None:                      # what building it cost, all attempts of this session so far
         rubric["build"] = rubric_build_record(meter.as_dict(), prior.get("build"), "sync")
+        emit_usage_event(_db_connect(), kind="rubric", route="sync", ok=True,
+                         usage=meter.as_dict(), session_id=session_id)
     elif prior.get("build"):                   # rebuilt from the saved test (no Gemini call): keep the history
         rubric["build"] = prior["build"]
     return _update_session(c, session_id, {
@@ -206,7 +216,7 @@ async def session_rubric(session_id: str, body: RubricRequest = RubricRequest(),
     except ValueError as e:
         raise HTTPException(status_code=422, detail=PAPER_UNREADABLE_MSG)
     except Exception as e:
-        logger.error(f"Copy-check rubric failed: {type(e).__name__}", exc_info=True)
+        logger.error(f"Copy-check rubric failed: {type(e).__name__}: {str(e)[:600]}")
         if is_timeout(e):
             raise ai_busy()
         raise HTTPException(status_code=500, detail=RUBRIC_FAILED_MSG)
@@ -289,6 +299,9 @@ def _check_sheet(c: _Caller, sheet_id: str) -> dict:
         spent = getattr(e, "usage", None) or usage          # grade_copy attaches the failed run's counts
         if has_tokens(spent):    # billed replies, no result: nowhere to store it without a usage column
             logger.warning(f"[checker] failed attempt on sheet {str(sheet_id)[:8]} still cost: {add_usage({}, spent)}")
+        emit_usage_event(_db_connect(), kind="copy", route="sync", ok=False, usage=spent,
+                         session_id=sheet["session_id"], sheet_id=sheet_id,
+                         error_code=type(e).__name__)
         with_retry(lambda: c.db.table("check_sheets").update({"status": "failed", "error": str(msg)[:300],
                                                              "updated_at": datetime.now(timezone.utc).isoformat()})
                    .eq("id", sheet_id).execute())
@@ -303,6 +316,8 @@ def _check_sheet(c: _Caller, sheet_id: str) -> dict:
         "ai_marks": result.get("total_marks_awarded", 0), "max_marks": result.get("max_marks", 0),
         "error": None, "checked_at": now, "updated_at": now,
     }).eq("id", sheet_id).execute())
+    emit_usage_event(_db_connect(), kind="copy", route="sync", ok=True, usage=usage,
+                     session_id=sheet["session_id"], sheet_id=sheet_id)
 
     result["student_info"] = {"name": sheet.get("student_name") or "", "class": session.get("class_grade") or "",
                               "roll_no": sheet.get("roll_no") or "", "missing_fields": []}
