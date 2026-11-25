@@ -1,6 +1,6 @@
 """What the checker spent: token counters, the ₹ estimate and the records that go to the database.
 
-No Gemini calls, no database, no imports from the routers or the job worker, so both of them (and the scripts)
+No Gemini calls, no imports from the routers or the job worker, so both of them (and the scripts)
 can use it. job_worker re-exports everything here under its old names.
 
 Where usage is stored (see docs/audit/phase1a.md):
@@ -8,10 +8,14 @@ Where usage is stored (see docs/audit/phase1a.md):
   check_sheets.ai_result['usage']   the final successful run of a copy (both routes)
   check_sheets.model_version        the model that marked the copy (both routes since 21 Nov 2026)
   check_sessions.rubric['build']    what building the rubric cost, all attempts (rubric_build_record)
+  checker_usage_events              append-only log of every unit's cost (migration 36, best-effort)
 """
+import logging
 import os
 import time
-from typing import Optional
+from typing import Callable, Optional
+
+_uc_logger = logging.getLogger(__name__)
 
 # Gemini paid-tier list prices for the checker model, USD per 1M tokens (input, output incl. thinking).
 # Source: aistudio.google.com/docs/pricing, read 12 Nov 2026 (Gate 2 #7). gemini-3.8-flash: $0.75 / $3.75
@@ -100,3 +104,78 @@ def without_build(rubric: Optional[dict]) -> Optional[dict]:
     if not isinstance(rubric, dict):
         return rubric
     return {k: v for k, v in rubric.items() if k != "build"}
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# Usage event log — checker_usage_events (migration 36)
+# ═══════════════════════════════════════════════════════════════════════
+
+_INSERT_EVENT = """\
+insert into public.checker_usage_events
+  (kind, route, session_id, sheet_id, job_id,
+   model, input_tokens, output_tokens, thinking_tokens,
+   gemini_calls, billed_calls, est_cost_inr, ok, error_code)
+values (%s,%s,%s,%s,%s, %s,%s,%s,%s, %s,%s,%s,%s,%s)
+"""
+
+_TABLE_MISSING_CODE = "42P01"
+
+
+def emit_usage_event(
+    connect: Callable,
+    *,
+    kind: str,
+    route: str,
+    ok: bool,
+    usage: Optional[dict] = None,
+    session_id: Optional[str] = None,
+    sheet_id: Optional[str] = None,
+    job_id: Optional[str] = None,
+    error_code: Optional[str] = None,
+) -> bool:
+    """Best-effort append to checker_usage_events. Returns True on success.
+    Never raises: a missing table (migration 36 not yet applied) is silently ignored, any other
+    error is logged at WARNING. Callers must not let a recording failure affect grading."""
+    u = usage or {}
+    if not has_tokens(u) and not ok:
+        return False
+    try:
+        conn = connect()
+        if conn is None:
+            _uc_logger.warning("[checker] usage event not recorded: no database connection")
+            return False
+        try:
+            raw = getattr(conn, "_conn", conn)
+            cur = raw.cursor()
+            try:
+                cur.execute("SET statement_timeout = '2500'")
+                cur.execute(_INSERT_EVENT, (
+                    kind, route, session_id, sheet_id, job_id,
+                    u.get("model"),
+                    int(u.get("input_tokens") or 0),
+                    int(u.get("output_tokens") or 0),
+                    int(u.get("thinking_tokens") or 0),
+                    int(u.get("gemini_calls") or 0),
+                    int(u.get("billed_calls") or 0),
+                    est_cost_inr(u),
+                    ok,
+                    error_code,
+                ))
+                return True
+            except Exception as exc:
+                pgcode = getattr(exc, "pgcode", None)
+                if pgcode == _TABLE_MISSING_CODE:
+                    return False
+                _uc_logger.warning(f"[checker] usage event insert failed: {type(exc).__name__}: {exc}")
+                return False
+            finally:
+                try:
+                    cur.execute("RESET statement_timeout")
+                except Exception:
+                    pass
+                cur.close()
+        finally:
+            conn.close()
+    except Exception as exc:
+        _uc_logger.warning(f"[checker] usage event not recorded: {type(exc).__name__}: {exc}")
+        return False

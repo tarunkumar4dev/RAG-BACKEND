@@ -41,14 +41,15 @@ from app.routers.smart_assignment_router import DAILY_LIMIT, _storage_path, day_
 from app.services import smart_assignment_service as svc
 from app.services.answer_checker import copy_check, portal_result, preprocess, upload_validation
 from app.services.answer_checker.usage_cost import (
-    _COUNTERS, _CHECKER_PRICES_USD, INR_PER_USD, _price_inr, add_usage, est_cost_inr, price_in_per_m_inr,
-    price_out_per_m_inr, rubric_build_record,
+    _COUNTERS, _CHECKER_PRICES_USD, INR_PER_USD, _price_inr, add_usage, emit_usage_event, est_cost_inr,
+    price_in_per_m_inr, price_out_per_m_inr, rubric_build_record,
 )
 
 # The pricing / usage helpers moved to answer_checker/usage_cost.py (the router needs them and job_worker imports
 # the router). Tests and scripts still reach them here, e.g. job_worker.est_cost_inr.
-__all__ = ["_COUNTERS", "_CHECKER_PRICES_USD", "INR_PER_USD", "_price_inr", "add_usage", "est_cost_inr",
-           "price_in_per_m_inr", "price_out_per_m_inr", "rubric_build_record", "JobWorker", "JobError"]
+__all__ = ["_COUNTERS", "_CHECKER_PRICES_USD", "INR_PER_USD", "_price_inr", "add_usage", "emit_usage_event",
+           "est_cost_inr", "price_in_per_m_inr", "price_out_per_m_inr", "rubric_build_record",
+           "JobWorker", "JobError"]
 
 logger = logging.getLogger(__name__)
 logger.addFilter(PIIMaskFilter())
@@ -195,6 +196,27 @@ class JobWorker:
                          f"{j.get('age_min')} min (state {j.get('state')}, runs {j.get('retries')}, rounds "
                          f"{j.get('retry_rounds')}, last error {j.get('last_error_code')})")
 
+    @staticmethod
+    def _job_kind(job: dict) -> str:
+        cp = job.get("checkpoint") or {}
+        return ("rubric" if cp.get("stage") == "rubric" else "chunk" if cp.get("parent")
+                else "copy" if job.get("submission_id") else job.get("kind") or "unknown")
+
+    def _emit(self, job: dict, ok: bool, usage: Optional[dict] = None, error_code: Optional[str] = None) -> None:
+        kind = self._job_kind(job)
+        if kind == "retention":
+            return
+        connect = getattr(self.store, "_connect", None)
+        if connect is None:
+            return
+        emit_usage_event(
+            connect, kind=kind, route="job", ok=ok, usage=usage,
+            session_id=str(job.get("session_id") or "")[:36] or None,
+            sheet_id=str(job.get("sheet_id") or "")[:36] or None,
+            job_id=str(job.get("id") or "")[:36] or None,
+            error_code=error_code,
+        )
+
     def handle(self, job: dict) -> None:
         self._run_usage = {}
         self._stages = {}
@@ -202,8 +224,7 @@ class JobWorker:
         self._job = job
         t0 = time.time()
         cp = job.get("checkpoint") or {}
-        kind = ("rubric" if cp.get("stage") == "rubric" else "chunk" if cp.get("parent")
-                else "copy" if job.get("submission_id") else job["kind"])
+        kind = self._job_kind(job)
         logger.info(f"[jobs] {self._job_tag} {kind} run {job.get('retries')} started")
         try:
             with svc.call_settings(log_tag=self._job_tag, deadline=self._deadline):
@@ -281,6 +302,7 @@ class JobWorker:
                          exc_info=True)
             return
         logger.info(f"[jobs] job {str(job['id'])[:8]} → {row.get('state')} ({code})")
+        self._emit(job, ok=False, usage=usage, error_code=code)
         if row.get("state") == "queued" and retry_after:
             self.store.not_before(job["id"], retry_after)
         if row.get("state") == "failed" and job.get("sheet_id") and job.get("submission_id"):
@@ -489,7 +511,9 @@ class JobWorker:
         # only in check_jobs.usage, so a test's total can be read from the session
         rubric["build"] = rubric_build_record(self._usage_with_stages(job), None, "job")
         self.store.save_rubric(session["id"], rubric)
-        self.store.finish(job["id"], True, usage=self._usage_with_stages(job))
+        usage = self._usage_with_stages(job)
+        self.store.finish(job["id"], True, usage=usage)
+        self._emit(job, ok=True, usage=usage)
         woken = self.store.wake_copies(session["id"])
         requeued = self.store.requeue_waiting_key(asg["id"])
         logger.info(f"[jobs] {self._job_tag} rubric ready: {rubric.get('total_questions')} questions, "
@@ -543,6 +567,7 @@ class JobWorker:
         usage = self._usage_with_stages(job)
         self.store.save_result(job["id"], sheet["id"], fields, audit, {**(job.get("checkpoint") or {}), "graded": True})
         self.store.finish(job["id"], True, usage=usage)
+        self._emit(job, ok=True, usage=usage)
         logger.info(f"[jobs] copy {str(sheet['id'])[:8]} ({mask_name(sheet.get('student_name'))}) checked: "
                     f"{total:g}/{max_marks:g}, review={reasons or 'none'}, model={model}, "
                     f"est ₹{usage.get('est_cost_inr', 0):.2f}")
@@ -619,7 +644,9 @@ class JobWorker:
               "norm_pages": self._save_pages(job, ordered, f"c{cp['chunk']}_p", cp["start"]),
               "grade_time_s": round(time.time() - t0, 2)}
         self.store.set_checkpoint(job["id"], cp)
-        self.store.finish(job["id"], True, usage=self._usage_with_stages(job))
+        chunk_usage = self._usage_with_stages(job)
+        self.store.finish(job["id"], True, usage=chunk_usage)
+        self._emit(job, ok=True, usage=chunk_usage)
         self._wake_parent(cp["parent"])
 
     def _wake_parent(self, parent_id: str) -> None:
