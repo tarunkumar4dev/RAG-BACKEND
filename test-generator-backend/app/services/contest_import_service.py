@@ -32,6 +32,7 @@ from typing import Callable, Optional
 
 import pymupdf
 
+from app.core.config import settings
 from app.services import contest_import_gemini as gemini
 from app.services import smart_assignment_service as svc
 from app.services.answer_checker.upload_validation import sniff
@@ -49,8 +50,7 @@ CALL_CAP = 24          # 2 chunks × (2 models × 2 tries) + key-check batches �
 DURATION_MIN, DURATION_MAX = 5, 180   # CreateContestRequest.duration_minutes
 # Model order for the import only (404/503 → next). 3.8-flash wrote the 50-MCQ paper's JSON in 192 s,
 # gemini-3-flash-preview in 41 s (thinking capped, 24 Oct 2026).
-IMPORT_MODELS = [m.strip() for m in os.getenv("CONTEST_IMPORT_MODELS", "gemini-3-flash-preview,gemini-3.8-flash")
-                 .split(",") if m.strip()]
+IMPORT_MODELS = [m.strip() for m in settings.CONTEST_IMPORT_MODELS.split(",") if m.strip()]
 PARSE_THINKING_BUDGET = 2048
 SOLVE_THINKING_BUDGET = 1024
 PARSE_MAX_OUTPUT_TOKENS = 65536   # thinking counts here too; ~11k tokens of JSON for 50 MCQs
