@@ -32,6 +32,7 @@ from google import genai
 from google.genai import types as genai_types
 
 from app.core.config import settings
+from app.services import dedup_gate
 from app.models.test_generator import (
     TestGenerationRequest,
     GeneratedQuestion,
@@ -51,7 +52,8 @@ MAX_RETRIES = 2            # attempts per model per batch; the per-paper budget 
 # Gate 2 #4: at most 3 provider calls IN TOTAL for any failing unit of work: a batch's first attempt plus at most
 # PAID_EXTRA_BUDGET extra attempts per paper (retries, the fallback model, billed-but-unusable replies). A paper with
 # N batches needs N first attempts for its questions; the extras on top are capped at 2 per paper. When they are spent
-# the paper fails fast with MSG_PAPER_FAILED. No top-up rounds.
+# a failing batch is given up (no more paid attempts) and the paper is returned with what the other batches produced;
+# only a paper with zero questions fails, with MSG_PAPER_FAILED (503). No top-up rounds.
 PAID_EXTRA_BUDGET = 2
 MSG_PAPER_FAILED = ("AI se poora paper nahi ban paaya. Thodi der baad dobara try karein. / "
                     "The AI could not complete this paper. Please try again in a few minutes.")
@@ -914,9 +916,10 @@ def _classify_chapter_part(chapter_name: str) -> str:
 
 
 class GenerationError(Exception):
-    def __init__(self, message: str, status_code: int = 500):
+    def __init__(self, message: str, status_code: int = 500, overloaded: bool = False):
         super().__init__(message)
         self.status_code = status_code
+        self.overloaded = overloaded   # the model said it is overloaded / unavailable: switch model, do not retry it
 
 
 _client_cache: Optional[genai.Client] = None
@@ -1798,29 +1801,94 @@ def _quality_issue(fmt, options, correct, explanation) -> Optional[str]:
 def _amount(cell) -> Optional[float]:
     """'Rs. 1,20,000' / '₹ 1,20,000' / '1,20,000.50' -> 120000.0; anything else -> None."""
     s = re.sub(r"(?i)rs\.?|₹|inr|\s", "", str(cell or ""))
-    s = s.replace(",", "")
+    s = s.replace(",", "").removesuffix("/-")
     return float(s) if re.fullmatch(r"\d+(\.\d+)?", s) else None
 
 
+_TOTAL_CELL = re.compile(r"^\s*(grand\s+)?total\b", re.IGNORECASE)
+
+
+def _column_sum(rows, col: int) -> float:
+    return sum(a for r in rows if len(r) > col and (a := _amount(r[col])) is not None)
+
+
+def _is_total_row(row) -> bool:
+    return any(_TOTAL_CELL.match(str(c or "")) for c in row)
+
+
+def _total_mismatch(rows, col: int, total_cell, label: str, alt_rows=None) -> Optional[str]:
+    """Issue text when the column's rows do not add up to its total (±1 for rounding). An unreadable total is skipped."""
+    total = _amount(total_cell)
+    if total is None:
+        return None
+    got = _column_sum(rows, col)
+    if abs(got - total) <= 1 or (alt_rows is not None and abs(_column_sum(alt_rows, col) - total) <= 1):
+        return None
+    return f"{label} rows add up to {got:,.0f} but the total says {total:,.0f}"
+
+
 def _answer_table_issue(table) -> Optional[str]:
-    """Accounting checks: a journal must balance, both sides of a ledger must total the same."""
+    """Accounting checks: a journal must balance; a ledger / trial balance total must equal its column sums and
+    both sides must agree (a matching Dr = Cr total alone can hide a wrong row)."""
     if table is None:
         return None
     headers = [str(h).lower() for h in (table.headers or [])]
     rows = table.rows or []
-    if table.type == "journal_entry":
+    total_row = table.total_row or []
+    if table.type in ("journal_entry", "trial_balance"):
         dr = next((i for i, h in enumerate(headers) if "debit" in h or h.startswith("dr")), None)
         cr = next((i for i, h in enumerate(headers) if "credit" in h or h.startswith("cr")), None)
         if dr is None or cr is None:
             return None
-        dr_sum = sum(a for r in rows if len(r) > dr and (a := _amount(r[dr])) is not None)
-        cr_sum = sum(a for r in rows if len(r) > cr and (a := _amount(r[cr])) is not None)
+        body = [r for r in rows if not _is_total_row(r)]
+        dr_sum, cr_sum = _column_sum(body, dr), _column_sum(body, cr)
         if dr_sum and cr_sum and abs(dr_sum - cr_sum) > 1:
-            return f"journal does not balance (Dr {dr_sum:,.0f} vs Cr {cr_sum:,.0f})"
-    elif table.type == "ledger" and table.total_row and len(headers) >= 8:
-        left, right = _amount(table.total_row[3]), _amount(table.total_row[7])
+            kind = "journal" if table.type == "journal_entry" else "trial balance"
+            return f"{kind} does not balance (Dr {dr_sum:,.0f} vs Cr {cr_sum:,.0f})"
+        if table.type == "trial_balance" and len(total_row) > max(dr, cr):
+            return (_total_mismatch(body, dr, total_row[dr], "debit")
+                    or _total_mismatch(body, cr, total_row[cr], "credit"))
+    elif table.type == "ledger" and total_row and len(headers) >= 8 and len(total_row) >= 8:
+        left, right = _amount(total_row[3]), _amount(total_row[7])
         if left and right and abs(left - right) > 1:
             return f"ledger totals differ ({left:,.0f} vs {right:,.0f})"
+        body = [r for r in rows if not _is_total_row(r)]
+        # the next period's "Balance b/d" is often written after the totals; it is not part of them
+        trimmed = list(body)
+        while trimmed and any("b/d" in str(c).lower() for c in trimmed[-1][1:2] + trimmed[-1][5:6]):
+            trimmed.pop()
+        return (_total_mismatch(body, 3, total_row[3], "Dr side", trimmed)
+                or _total_mismatch(body, 7, total_row[7], "Cr side", trimmed))
+    return None
+
+
+_BARE_LETTER = re.compile(r"\s*(?:option\s*)?\(?([A-Da-d])\)?[\s.:]*", re.IGNORECASE)
+
+
+def _match_ar_answer(correct: str, options: list) -> Optional[str]:
+    """The assertion-reason option the model's answer names, or None. Accepts the exact option text, a letter
+    ("B", "(b)", "Option B", "B) Both ...") or the option's wording without its letter. Never guesses: an answer
+    that names no option used to become option A — a silently wrong key."""
+    if not correct or not options:
+        return None
+    if correct in options:
+        return correct
+    bare = _BARE_LETTER.fullmatch(correct)
+    lettered = _OPTION_LETTER.match(correct)
+    letter = (bare or lettered).group(1).upper() if (bare or lettered) else None
+    body = _norm_text(_OPTION_LETTER.sub("", correct, count=1)) if not bare else ""
+    by_text = [o for o in options if body and _norm_text(_OPTION_LETTER.sub("", o, count=1)) == body]
+    by_letter = None
+    if letter:
+        tagged = [o for o in options if (m := _OPTION_LETTER.match(o or "")) and m.group(1).upper() == letter]
+        idx = ord(letter) - ord("A")
+        by_letter = tagged[0] if tagged else (options[idx] if idx < len(options) else None)
+    if by_text and by_letter and by_text[0] != by_letter:
+        return None                      # "C) Both A and R are true ..." — letter and wording disagree
+    if by_text:
+        return by_text[0]
+    if by_letter and not body:
+        return by_letter
     return None
 
 
@@ -1834,6 +1902,63 @@ def _dedupe_questions(qs: list) -> list:
         seen.add(key)
         out.append(q)
     return out
+
+
+# Paper-wide duplicate gate (app/services/dedup_gate.py). Sections, chapters and the easy/medium/hard sub-rows of
+# a Mixed row are generated by separate calls that never see each other, so the same question can come back twice.
+# A later question is dropped when, against any earlier kept one:
+#   - it has the same dedup_gate.exact_key (same wording and numbers, names ignored) and is >= 80% similar, or
+#   - it uses the same numbers (or neither has any) and is >= 95% similar (dedup_gate.lexical_similarity).
+# Stricter than dedup_gate.dedup()'s defaults on purpose: those also drop "Define Photosynthesis." vs "Define
+# Respiration." (both exact_key "n n") and the same sum with other numbers, and a dropped question is not topped up.
+PAPER_DEDUP_EXACT_MIN_SIMILARITY = 0.80
+PAPER_DEDUP_LEXICAL_THRESHOLD = 0.95
+_DEDUP_NUMBER = re.compile(r"\d+(?:\.\d+)?")
+
+
+def _dedup_text(q) -> str:
+    """What makes a question the same question: its text, plus the options of an MCQ (same stem with other
+    options is another question; assertion-reason options are the same four everywhere)."""
+    text = getattr(q, "text", "") or ""
+    fmt = getattr(getattr(q, "format", None), "value", getattr(q, "format", None))
+    options = getattr(q, "options", None)
+    if fmt == "mcq" and options:
+        text += " | " + " | ".join(str(o) for o in options)
+    return text
+
+
+def _dedupe_paper(questions: list) -> list:
+    """Keeps the first of each duplicate group across the whole paper, in order. An OR alternative whose main
+    question was dropped goes with it."""
+    kept, seen, dropped_ids = [], [], set()
+    for q in questions:
+        if getattr(q, "_is_or", False) and getattr(q, "_or_of", None) in dropped_ids:
+            dropped_ids.add(q.id)
+            continue
+        text = _dedup_text(q)
+        ek, nums, n = dedup_gate.exact_key(text), sorted(_DEDUP_NUMBER.findall(text)), len(text)
+        dup_of = None
+        for k, k_text, k_ek, k_nums, k_n in seen:
+            same_exact = bool(ek) and ek == k_ek
+            if not same_exact and nums != k_nums:
+                continue
+            if min(n, k_n) < 0.66 * max(n, k_n):        # too different in length to be >= 80% similar
+                continue
+            threshold = PAPER_DEDUP_EXACT_MIN_SIMILARITY if same_exact else PAPER_DEDUP_LEXICAL_THRESHOLD
+            if dedup_gate.lexical_similarity(text, k_text) >= threshold:
+                dup_of = k
+                break
+        if dup_of is not None:
+            logger.warning(f"  PAPER_DUPLICATE dropped ({getattr(q, 'chapter', '')}/{getattr(q, '_section', None) or '-'}): "
+                           f"repeats a question from {getattr(dup_of, '_section', None) or getattr(dup_of, 'chapter', '')}")
+            stats = _PAPER_STATS.get()
+            if stats:
+                stats.add_drop()
+            dropped_ids.add(q.id)
+            continue
+        kept.append(q)
+        seen.append((q, text, ek, nums, n))
+    return kept
 
 
 def _parse_batch(raw, chapter, request, section_key=None):
@@ -1988,9 +2113,15 @@ def _parse_batch(raw, chapter, request, section_key=None):
         if fmt == "assertion_reason":
             if not options or len(options) != 4:
                 options = ASSERTION_REASON_OPTIONS.copy()
-            if not correct or correct not in options:
-                matched = [o for o in options if len(correct) >= 2 and o[:2].upper() == correct[:2].upper()]
-                correct = matched[0] if matched else options[0]
+            matched = _match_ar_answer(correct, options)
+            if not matched:
+                logger.warning(f"  AR_ANSWER_UNMATCHED ({chapter.chapter}): answer {correct[:80]!r} names no option, dropped")
+                stats = _PAPER_STATS.get()
+                if stats:
+                    stats.add_drop()
+                dropped += 1
+                continue
+            correct = matched
         elif fmt in ("short_answer", "long_answer"):
             options = None
             # Writing + Grammar: be lenient on correct_answer length
@@ -2099,7 +2230,8 @@ def _parse_batch(raw, chapter, request, section_key=None):
                 chapter=chapter.chapter,
                 topic=q.get("topic"),
                 format=QuestionFormat(fmt),
-                validation_status="verified",
+                # Nothing has checked this key yet. Only POST /verify-answers (verdict "ok") makes it "verified".
+                validation_status="needs_review",
                 answer_table=answer_table,
                 question_table=question_table,
                 marking_scheme=marking_scheme,
@@ -2129,6 +2261,23 @@ def _is_retryable(error_str: str) -> bool:
     return any(kw in error_str.upper() for kw in (k.upper() for k in RETRYABLE_KEYWORDS))
 
 
+# Generation calls: an overloaded / unavailable / failing server is not fixed by calling the same model again, so
+# the batch moves to the fallback model at once. Only a rate limit (429) or a timeout is retried on the same model.
+_OVERLOAD_MARKERS = ("503", "OVERLOADED", "UNAVAILABLE", "500", "INTERNAL")
+_SAME_MODEL_RETRY_MARKERS = ("429", "RESOURCE_EXHAUSTED", "QUOTA", "RATE LIMIT", "RATE_LIMIT",
+                             "TIMEOUT", "TIMED OUT", "DEADLINE")
+
+
+def _is_overload(error_str: str) -> bool:
+    up = error_str.upper()
+    return any(m in up for m in _OVERLOAD_MARKERS)
+
+
+def _is_same_model_retryable(error_str: str) -> bool:
+    up = error_str.upper()
+    return any(m in up for m in _SAME_MODEL_RETRY_MARKERS)
+
+
 _LLM_SLOTS = threading.BoundedSemaphore(max(1, settings.LLM_MAX_CONCURRENCY))
 
 # USD per 1M tokens (input, output). Gemini: aistudio.google.com/docs/pricing, read 12 Nov 2026 (gemini-3.6-flash
@@ -2149,13 +2298,26 @@ class _PaperStats:
         self.calls = {}  # model -> [calls, input tokens, output tokens]
         self.dropped = 0
         self.extra = 0   # retries + fallbacks + unusable replies spent, out of PAID_EXTRA_BUDGET
+        self.budget_exhausted = False
+        self.upstream_failures = 0   # calls that failed because the provider was overloaded / rate-limited / timed out
+        self.rejected_calls = 0      # calls the provider refused for a reason retrying will not fix (400, bad key, ...)
+        self.primary_down = False    # the primary model said it is overloaded: later batches start on the fallback
 
     def spend_extra(self) -> None:
         """One more attempt beyond a batch's first. Raises when the paper's budget is gone."""
         with self._lock:
             if self.extra >= PAID_EXTRA_BUDGET:
+                self.budget_exhausted = True
                 raise GenerationError(MSG_PAPER_FAILED, 503)
             self.extra += 1
+
+    def note_upstream_failure(self):
+        with self._lock:
+            self.upstream_failures += 1
+
+    def note_rejected_call(self):
+        with self._lock:
+            self.rejected_calls += 1
 
     def add_call(self, model: str, tokens_in: int, tokens_out: int):
         with self._lock:
@@ -2207,6 +2369,52 @@ def _spend_extra():
         stats.spend_extra()
 
 
+def _budget_gone(e: GenerationError) -> bool:
+    return e.status_code == 503 and str(e) == MSG_PAPER_FAILED
+
+
+def _note_upstream_failure():
+    stats = _PAPER_STATS.get()
+    if stats:
+        stats.note_upstream_failure()
+
+
+def _note_rejected_call():
+    stats = _PAPER_STATS.get()
+    if stats:
+        stats.note_rejected_call()
+
+
+def _paper_models(models: list) -> list:
+    """The models a batch tries, in order. Once the primary has said it is overloaded in this paper, later batches
+    start on the fallback: their first attempt goes where it can succeed, and no extra attempt is spent on the
+    primary. Applies to this paper only; the next paper tries the primary again."""
+    stats = _PAPER_STATS.get()
+    if stats and stats.primary_down and len(models) > 1:
+        return models[1:]
+    return models
+
+
+def _after_model_error(e: GenerationError, model: str, models: list):
+    if e.overloaded and model == models[0] and len(models) > 1:
+        stats = _PAPER_STATS.get()
+        if stats and not stats.primary_down:
+            stats.primary_down = True
+            logger.warning(f"{model} is overloaded: the rest of this paper starts on {models[1]}")
+
+
+def _nothing_generated(what: str, errors: list) -> GenerationError:
+    """Error for a paper with zero questions. Provider trouble -> the friendly 503 ("try again in a few minutes"):
+    an overload / rate limit / timeout, or a budget spent on unusable replies. A budget spent on calls the provider
+    refused (400, bad key, ...) is a real failure -> 500, like anything else."""
+    detail = errors[0] if errors else "unknown cause"
+    stats = _PAPER_STATS.get()
+    if stats and (stats.upstream_failures or (stats.budget_exhausted and not stats.rejected_calls)):
+        logger.error(f"{what}: no questions, provider unavailable — {detail}")
+        return GenerationError(MSG_PAPER_FAILED, 503)
+    return GenerationError(f"{what} — {detail}", 500)
+
+
 @contextlib.contextmanager
 def paper_usage():
     """Collect LLM usage for one paper across every path (custom, CBSE, accountancy) — the endpoint wraps the
@@ -2254,7 +2462,7 @@ DEEPSEEK_TIMEOUT_SECONDS = 180
 DEEPSEEK_RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 
 
-def _call_deepseek(prompt):
+def _call_deepseek(prompt, temperature=None):
     """DeepSeek chat completion in JSON mode; same contract as the Gemini call (returns raw JSON text)."""
     last_err = ""
     for attempt in range(MAX_RETRIES):
@@ -2266,7 +2474,7 @@ def _call_deepseek(prompt):
                 json={
                     "model": settings.DEEPSEEK_MODEL,
                     "messages": [{"role": "user", "content": prompt}],
-                    "temperature": settings.GENERATION_TEMPERATURE,
+                    "temperature": settings.GENERATION_TEMPERATURE if temperature is None else temperature,
                     "top_p": 0.92,
                     "max_tokens": settings.MAX_OUTPUT_TOKENS,
                     "response_format": {"type": "json_object"},
@@ -2319,10 +2527,13 @@ def _call_llm(client, prompt, model):
                 raise
             _spend_extra()                      # the Gemini fallback is one more paid attempt
             logger.warning(f"DeepSeek failed, falling back to Gemini {model}: {e}")
-    return _call_gemini_model(client, prompt, model)
+    return _call_gemini_model(client, prompt, model, switch_on_overload=True)
 
 
-def _call_gemini_model(client, prompt, model, temperature=None):
+def _call_gemini_model(client, prompt, model, temperature=None, switch_on_overload=False):
+    """switch_on_overload (generation): an overload error is raised at once (GenerationError.overloaded) for the
+    caller to move to the fallback model; only 429 / timeouts are retried here. Off (the answer checker, which has
+    no fallback model): the older rule, every retryable error gets one more try on the same model."""
     last_exc = None
     for attempt in range(MAX_RETRIES):
         try:
@@ -2354,14 +2565,21 @@ def _call_gemini_model(client, prompt, model, temperature=None):
         except Exception as e:
             last_exc = e
             err = str(e)
-            if not _is_retryable(err):
+            if switch_on_overload and _is_overload(err):
+                _note_upstream_failure()
+                logger.warning(f"[{model}] overloaded, not retrying this model: {err[:80]}")
+                raise GenerationError(f"{model}: overloaded: {err[:150]}", 503, overloaded=True)
+            retryable = _is_same_model_retryable(err) if switch_on_overload else _is_retryable(err)
+            if not retryable:
                 # Fail fast with actual reason
+                _note_rejected_call()
                 raise GenerationError(f"{model}: {err[:200]}", 502)
             if attempt < MAX_RETRIES - 1:
                 _spend_extra()
                 wait = min(BASE_BACKOFF_SECONDS ** (attempt + 1), MAX_BACKOFF_SECONDS) * random.uniform(*JITTER_RANGE)
                 logger.warning(f"[{model}] Retry {attempt + 1}: {err[:80]}... waiting {wait:.1f}s")
                 time.sleep(wait)
+    _note_upstream_failure()
     raise GenerationError(f"{model}: failed after {MAX_RETRIES} attempts: {str(last_exc)[:150]}", 503)
 
 
@@ -2420,10 +2638,11 @@ def _generate_for_chapter(client, chapter, request, context_chunks, models, sect
             )
 
         batch_qs = []
-        for i, m in enumerate(models):
-            if i:
-                _spend_extra()            # a fallback model is an extra paid attempt
+        order = _paper_models(models)
+        for i, m in enumerate(order):
             try:
+                if i:
+                    _spend_extra()        # a fallback model is an extra paid attempt
                 raw = _call_gemini(client, prompt, m)
                 batch_qs = _parse_batch(raw, chapter, request, section_key)
                 if batch_qs:
@@ -2431,11 +2650,14 @@ def _generate_for_chapter(client, chapter, request, context_chunks, models, sect
                     break
                 _spend_extra()            # billed reply, nothing usable in it
             except GenerationError as e:
-                if e.status_code == 503 and str(e) == MSG_PAPER_FAILED:
-                    raise                 # budget gone: fail the whole paper fast
                 if errors is not None:
                     errors.append(f"{chapter.chapter}/{section_key or 'simple'}: {str(e)}")
-                if m != models[-1]:
+                if _budget_gone(e):
+                    # the paper keeps what the other batches produced; the shortfall is shown to the teacher
+                    logger.warning(f"    '{chapter.chapter}' batch {batch_num}: paid-call budget spent, batch skipped")
+                    break
+                _after_model_error(e, m, models)
+                if m != order[-1]:
                     continue
                 logger.error(f"    '{chapter.chapter}' batch {batch_num} failed: {e}")
                 break
@@ -2547,11 +2769,11 @@ def generate_cbse_paper(request, context_chunks, feedback=None):
         for f in futures:
             all_questions.extend(f.result())
 
+    all_questions = _dedupe_paper(all_questions)     # across sections and chapters
     elapsed = time.time() - t0
     logger.info(f"CBSE Paper Done: {len(all_questions)}/{total_expected} in {elapsed:.1f}s")
     if not all_questions:
-        detail = errors[0] if errors else "unknown cause"
-        raise GenerationError(f"CBSE paper generation failed — {detail}", 500)
+        raise _nothing_generated("CBSE paper generation failed", errors)
     return all_questions
 
 
@@ -2679,18 +2901,20 @@ def generate_cbse_accountancy_paper(request, context_chunks, feedback=None):
         def ask(count, with_or):
             # with_or: `count` main questions, each with its OR alternative.
             prompt = make_prompt(count=count, generate_or=with_or)
-            for i, m in enumerate(models):
-                if i:
-                    _spend_extra()
+            for i, m in enumerate(_paper_models(models)):
                 try:
+                    if i:
+                        _spend_extra()
                     qs = _parse_batch(_call_gemini(client, prompt, m), chapter_section, request, section_tag)
                     if qs:
                         return qs
                     _spend_extra()
                 except GenerationError as e:
-                    if e.status_code == 503 and str(e) == MSG_PAPER_FAILED:
-                        raise
                     errors.append(f"{error_tag}: {str(e)}")
+                    if _budget_gone(e):
+                        logger.warning(f"    {error_tag}: paid-call budget spent, call skipped")
+                        return []
+                    _after_model_error(e, m, models)
             return []
 
         # Ask for exactly what is needed: `or_n` (main + OR) pairs and the remaining mains
@@ -2726,12 +2950,12 @@ def generate_cbse_accountancy_paper(request, context_chunks, feedback=None):
         for f in futures:
             all_questions.extend(f.result())
 
+    all_questions = _dedupe_paper(all_questions)     # across parts, groups and chapters
     elapsed = time.time() - t0
     main_count = len([q for q in all_questions if not getattr(q, '_is_or', False)])
     logger.info(f"\nCBSE Accountancy: {main_count} main + {len(all_questions) - main_count} OR = {len(all_questions)} in {elapsed:.1f}s")
     if not all_questions:
-        detail = errors[0] if errors else "unknown cause"
-        raise GenerationError(f"All Accountancy generation failed — {detail}", 500)
+        raise _nothing_generated("All Accountancy generation failed", errors)
     return all_questions
 
 
@@ -2790,11 +3014,11 @@ def generate_questions(request, context_chunks, feedback=None, cbse_pattern: boo
                 if qs:
                     all_questions.extend(qs)
 
+    all_questions = _dedupe_paper(all_questions)     # across rows (incl. the sub-rows of a Mixed row)
     elapsed = time.time() - t0
     logger.info(f"Done: {len(all_questions)}/{total} in {elapsed:.1f}s")
     if not all_questions:
-        detail = errors[0] if errors else "unknown cause"
-        raise GenerationError(f"All chapters failed — {detail}", 500)
+        raise _nothing_generated("All chapters failed", errors)
     return all_questions
 
 
@@ -2809,7 +3033,7 @@ def handle_feedback(*args, **kwargs):
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# ANSWER-KEY CHECKER (offline eval only: scripts/eval_generation.py; no API route since Gate 2 #10)
+# ANSWER-KEY CHECKER (POST /test-generator/verify-answers via verify_paper; offline: scripts/eval_generation.py)
 # ═══════════════════════════════════════════════════════════════════════
 
 CHECKER_BATCH_SIZE = 8
@@ -2893,12 +3117,45 @@ def _match_option(answer: str, options) -> Optional[str]:
     return partial[0] if len(partial) == 1 else None
 
 
-def verify_answer_key(questions: List[dict], subject: str, class_grade: str) -> dict:
+def pick_checker():
+    """(call, model, independent) for the HTTP verify pass. The checker must not be the model family that wrote
+    the paper: a Gemini-written paper is checked by DeepSeek whenever DEEPSEEK_API_KEY is set, a DeepSeek-written
+    one by Gemini. Without a DeepSeek key the check runs on GEMINI_VAL_MODEL and is reported as NOT independent.
+    No cross-provider fallback inside a pass: a failed batch stays unchecked instead of becoming a self-check."""
+    gen_is_deepseek = settings.LLM_PROVIDER == "deepseek" and bool(settings.DEEPSEEK_API_KEY)
+    if settings.DEEPSEEK_API_KEY and not gen_is_deepseek:
+        def call(prompt):
+            with _LLM_SLOTS:
+                return _call_deepseek(prompt, temperature=0.1)
+        return call, settings.DEEPSEEK_MODEL, True
+
+    model = settings.GEMINI_VAL_MODEL
+
+    def call(prompt):
+        with _LLM_SLOTS:
+            return _call_gemini_model(_get_gemini_client(), prompt, model, temperature=0.1)
+    return call, model, gen_is_deepseek
+
+
+def verify_paper(questions: List[dict], subject: str, class_grade: str) -> dict:
+    """One verify pass for the API route: per-question verdicts (ok included) + whether the checker was independent.
+    {"available": False} when nothing could be checked."""
+    call, model, independent = pick_checker()
+    res = verify_answer_key(questions, subject, class_grade, call=call, model=model, include_ok=True)
+    if not res["checked"]:
+        return {"available": False}
+    return {"available": True, "checker_independent": independent, **res}
+
+
+def verify_answer_key(questions: List[dict], subject: str, class_grade: str,
+                      call=None, model: Optional[str] = None, include_ok: bool = False) -> dict:
     """Re-checks a generated paper's answer key with a second model.
 
     Returns {"results": [{"id", "verdict": ok|fix|reject, "issue", "correctAnswer"?, "explanation"?}],
              "checked", "fixed", "flagged", "model"}. A "fix" for an MCQ is only kept if the corrected
     answer is one of the options; otherwise it is reported as "reject" (needs review).
+    `call(prompt) -> raw` replaces the default checker call; `include_ok` also lists the "ok" verdicts
+    (off by default: scripts/eval_generation.py expects only fix/reject).
     """
     by_id = {str(q.get("id")): q for q in questions if q.get("id")}
     views = [_checker_view(q) for q in by_id.values()]
@@ -2909,7 +3166,7 @@ def verify_answer_key(questions: List[dict], subject: str, class_grade: str) -> 
         prompt = CHECKER_PROMPT.format(class_grade=class_grade, subject=subject,
                                        questions=json.dumps(batch, ensure_ascii=False))
         try:
-            data = _extract_json(_call_checker(prompt))
+            data = _extract_json((call or _call_checker)(prompt))
         except Exception as e:
             logger.warning(f"Checker batch failed: {e}")
             return [], []
@@ -2931,14 +3188,15 @@ def verify_answer_key(questions: List[dict], subject: str, class_grade: str) -> 
             raw_results.extend(res)
             checked_ids.update(ids)
 
-    results, fixed, flagged = [], 0, 0
+    results, fixed, flagged, judged = [], 0, 0, set()
     for r in raw_results:
         if not isinstance(r, dict):
             continue
         qid = str(r.get("id"))
         q = by_id.get(qid)
-        if q is None:
+        if q is None or qid in judged:      # unknown id, or the model answered the same id twice: first one wins
             continue
+        judged.add(qid)
         verdict = r.get("verdict")
         issue = str(r.get("issue") or "")[:300]
         if verdict == "fix":
@@ -2961,8 +3219,11 @@ def verify_answer_key(questions: List[dict], subject: str, class_grade: str) -> 
         elif verdict == "reject":
             results.append({"id": qid, "verdict": "reject", "issue": issue or "Please review this question."})
             flagged += 1
+        elif verdict == "ok" and include_ok:
+            results.append({"id": qid, "verdict": "ok", "issue": ""})
 
-    model = settings.DEEPSEEK_MODEL if settings.CHECKER_PROVIDER == "deepseek" and settings.DEEPSEEK_API_KEY else settings.CHECKER_MODEL
+    model = model or (settings.DEEPSEEK_MODEL if settings.CHECKER_PROVIDER == "deepseek" and settings.DEEPSEEK_API_KEY
+                      else settings.CHECKER_MODEL)
     unchecked = len(by_id) - len(checked_ids)
     logger.info(f"Answer-key check: {len(checked_ids)}/{len(by_id)} checked, {fixed} fixed, {flagged} flagged [{model}]")
     return {"results": results, "checked": len(checked_ids), "unchecked": unchecked,

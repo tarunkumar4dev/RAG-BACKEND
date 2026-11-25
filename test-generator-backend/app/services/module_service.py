@@ -54,7 +54,8 @@ from app.core.db_pool import get_db_connection
 
 
 # ─── Config ────────────────────────────────────────────────
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
+from app.core.config import settings
+GEMINI_MODEL = settings.GEMINI_MODEL
 CHUNK_SIZE_CHARS = 3000       # ~750 tokens per chunk
 CHUNK_OVERLAP_CHARS = 400
 SCANNED_THRESHOLD = 50        # avg chars/page below this = scanned

@@ -7,6 +7,7 @@ the provider stream (agent/llm.py) so tokens stop being generated.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import random
 import re
@@ -46,11 +47,31 @@ MSG_PROVIDER_BUSY = "AI model abhi busy hai. Thodi der baad dobara poochhiye."
 MSG_PROVIDER_FAILED = "AI model se jawab nahi mil paaya."
 
 
-def system_prompt(ctx: SessionCtx, voice: bool = False) -> str:
-    today = datetime.now(IST).date().isoformat()
+# One line per reply language (ChatRequest.language), appended LAST so the cached prefix (tools + the rest of the
+# system text) stays the same for every language. The user's own clearly different language still wins.
+LANGUAGE_LINES = {
+    "en": (" Reply language: English. If the user clearly writes in Hindi (Devanagari) or Roman Hinglish, reply in "
+           "that instead."),
+    "hi": (" Reply language: Hindi in Devanagari script, with the English loanwords teachers actually use "
+           "(अटेंडेंस, टेस्ट, बैच, क्लास, मार्क्स, स्टूडेंट्स), no formal Sanskritised words, always 'aap'. If the user "
+           "clearly writes in English or Roman Hinglish, reply in that instead."),
+    "hinglish": (" Reply language: Hinglish = Hindi in Roman (Latin) script with English nouns, never Devanagari, "
+                 "always 'aap'. If the user clearly writes in English or Devanagari Hindi, reply in that instead."),
+}
+LANGUAGE_TAIL = (" Names of students, batches, subjects, chapters and institutes stay exactly as in the data. The "
+                 "reply language never changes the language of generated test-paper questions.")
+
+
+def system_prompt(ctx: SessionCtx, voice: bool = False, language: str = "hinglish") -> str:
+    p = _base_prompt(ctx)
     if voice:  # voice turns: short answers, one-line refusals, a final SPEECH line (agent/voice/speech.py)
         from .voice.speech import VOICE_PROMPT_ADDENDUM
-        return system_prompt(ctx) + VOICE_PROMPT_ADDENDUM
+        p += VOICE_PROMPT_ADDENDUM
+    return p + LANGUAGE_LINES.get(language, LANGUAGE_LINES["hinglish"]) + LANGUAGE_TAIL
+
+
+def _base_prompt(ctx: SessionCtx) -> str:
+    today = datetime.now(IST).date().isoformat()
     return (
         f"You are a4ai Agent for an Indian school. Today is {today} (Asia/Kolkata). Caller role: {ctx.role}. "
         "Answer attendance/marks questions ONLY with numbers returned by tools — never invent or estimate a number; "
@@ -95,6 +116,9 @@ class DataUnavailable(Exception):
     def __init__(self, code: str):
         super().__init__(code)
         self.code = code
+
+
+_plog = logging.getLogger("agent.provider")
 
 
 class ProviderFailed(Exception):
@@ -193,8 +217,9 @@ class Agent:
                  request_id: Optional[str] = None, history: Optional[list[dict]] = None, memory_store=None,
                  tools: Optional[dict] = None, session_title: Optional[str] = None,
                  cancel_event: Optional[threading.Event] = None, fast_provider: Optional[LLMProvider] = None,
-                 voice: bool = False):
+                 voice: bool = False, language: str = "hinglish"):
         self.p, self.ctx, self.session_id, self.conn = provider, ctx, session_id, conn_rw
+        self.language = language  # reply language picked in the panel (ChatRequest.language)
         self.voice = voice  # spoken turn: prompt addendum + `speech` event (agent/voice); loop otherwise identical
         self.speech_stream = None  # agent/voice/stream_tts.SpeechStream: SPEECH line -> `audio` events while streaming
         self.fast = fast_provider  # insight turns (agent/routing.py); None = one model for everything
@@ -458,7 +483,7 @@ class Agent:
         if self.speech_stream is not None and getattr(prov, "supports_text_stream", False):
             kw["on_text"] = self.speech_stream.feed
         try:
-            return prov.complete(system_prompt(self.ctx, self.voice), msgs, tools, max_tokens=2048, **kw)
+            return prov.complete(system_prompt(self.ctx, self.voice, self.language), msgs, tools, max_tokens=2048, **kw)
         except LLMAborted as a:  # the stream saw the cancel and was closed: no more tokens are generated
             self.tracer.llm_abort(a.model, a.tokens_out_est, a.max_tokens)
             raise
@@ -614,6 +639,7 @@ class Agent:
                           message=MSG_DB_DOWN if d.code == "db_unavailable" else MSG_TOOL_TIMEOUT,
                           partial={"tools_used": self.tools_used})
         except ProviderFailed as pf:
+            _plog.warning("LLM provider failed (retryable=%s): %s: %s", pf.retryable, type(pf.cause).__name__, str(pf.cause)[:600])
             while out:
                 yield out.popleft()
             yield self.ev("error", code="provider_error", retryable=pf.retryable,

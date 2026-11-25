@@ -79,6 +79,18 @@ class FakeDB:
             def insert(self, row):
                 db.tests_rows.append(row)
                 return SimpleNamespace(execute=lambda: SimpleNamespace(data=[row]))
+
+            def update(self, fields):
+                # "generating" row -> draft / failed (fix/p0-quality task 7); the filters are not modelled
+                class U:
+                    def eq(self, *a):
+                        return self
+
+                    def execute(self):
+                        for row in db.tests_rows:
+                            row.update(fields)
+                        return SimpleNamespace(data=list(db.tests_rows))
+                return U()
         return T()
 
 

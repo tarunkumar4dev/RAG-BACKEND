@@ -108,6 +108,20 @@ def test_tool_is_registered_in_both_modes_and_in_the_schema():
     assert set(s["parameters"]["properties"]) == {"route_key", "params"} and "SessionCtx" not in json.dumps(s)
 
 
+def test_analytics_page_key_is_retired():
+    # analytics.page opened /dashboard/analytics, a sample-data page; the real analytics is dashboard.analytics
+    reg = routes.load()["routes"]
+    assert "analytics.page" not in reg
+    assert {"full report", "detailed analytics", "analytics page"} <= set(reg["dashboard.analytics"]["aliases"])
+    assert reg["dashboard.analytics"]["aliases"][:4] == ["analytics", "reports", "report", "performance"]
+    for a in ("full report", "detailed analytics", "analytics page", "analytics", "reports", "report"):
+        owners = [k for k, r in reg.items() if a in r["aliases"]]
+        assert owners == ["dashboard.analytics"], (a, owners)
+    r = routes.open_feature(TEACHER_CTX, routes.OpenFeatureArgs(route_key="analytics.page"))
+    assert r["status"] == "not_found" and "dashboard.analytics" in r["known_keys"]
+    assert "analytics.page" not in routes.TOOL_DESCRIPTION
+
+
 def test_agent_emits_ui_action_navigate_and_never_for_forbidden(admin_ctx, sharma_ctx):
     prov = Scripted([LLMResponse(tool_calls=[ToolCall("t1", "open_feature", {"route_key": "test_generator.check", "params": {"test_id": UUID}})]),
                      LLMResponse(text="Checker khol diya.")])

@@ -212,6 +212,22 @@ class JobStore:
                             where id = %s""",
                         (Json(rubric), rubric.get("total_marks"), rubric.get("strictness"), session_id))
 
+    def record_rubric_build(self, session_id: str, merge: Callable[[Optional[dict]], dict]) -> bool:
+        """Add one build attempt to check_sessions.rubric -> 'build' and change NOTHING else in the rubric.
+        The row is locked, the current build is read, `merge` makes the new one, and only that key is written with
+        jsonb_set, all in one transaction: a teacher's or another job's edit to rubric.questions made meanwhile
+        survives (writing the whole rubric back would undo it), and two attempts adding up cannot lose one.
+        False when the session has no rubric (rubric is null): there is nothing to attach the usage to."""
+        with self._cur(tx=True) as cur:
+            cur.execute("select rubric -> 'build' from public.check_sessions where id = %s and rubric is not null"
+                        " for update", (session_id,))
+            row = cur.fetchone()
+            if row is None:
+                return False
+            cur.execute("""update public.check_sessions set rubric = jsonb_set(rubric, '{build}', %s::jsonb, true)
+                            where id = %s and rubric is not null""", (Json(merge(row[0])), session_id))
+            return True
+
     def rubric_failed(self, session_id: str, message: str) -> None:
         with self._cur() as cur:
             cur.execute("update public.check_sessions set rubric_status = 'failed', rubric_error = %s, updated_at = now()"
@@ -278,6 +294,13 @@ class JobStore:
         """Estimated Gemini spend (₹) of every job touched since `since` (usage.est_cost_inr, all runs)."""
         return float(self._one("""select coalesce(sum((usage ->> 'est_cost_inr')::numeric), 0) from public.check_jobs
                                    where updated_at >= %s and usage ? 'est_cost_inr'""", (since,)) or 0)
+
+    # ── health ────────────────────────────────────────────────────────
+    def stale_jobs(self, minutes: int, limit: int = 20) -> list:
+        """Unfinished check jobs older than `minutes` (view checker_job_health, 26_checker_p0.sql)."""
+        return self._all("""select row_to_json(h) from public.checker_job_health h
+                             where h.age_min >= %s and h.state <> 'blocked_quota'
+                             order by h.age_min desc limit %s""", (minutes, limit))
 
     # ── retention / regrade ──────────────────────────────────────────
     def orphan_files(self, limit: int) -> list:

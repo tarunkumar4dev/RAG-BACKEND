@@ -40,7 +40,8 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 if GEMINI_API_KEY and GEMINI_AVAILABLE:
     genai.configure(api_key=GEMINI_API_KEY)
 
-MODEL_NAME = "gemini-flash-latest"  # cost-optimized per current preference
+from app.core.config import settings
+MODEL_NAME = settings.COMMUNITY_QUIZ_MODEL  # cost-optimized per current preference
 
 
 # ---------------------------------------------------------------------------

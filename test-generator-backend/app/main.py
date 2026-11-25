@@ -58,7 +58,8 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],  # PATCH: checker marks override
     # X-Attempt-Id: contest submit sends it from the browser; without it the CORS preflight is rejected (400)
-    allow_headers=["Authorization", "Content-Type", "X-Requested-With", "X-Attempt-Id"],
+    # Idempotency-Key: /generate-frontend sends it so a resent attempt never charges a second paper (Gate 2 #5)
+    allow_headers=["Authorization", "Content-Type", "X-Requested-With", "X-Attempt-Id", "Idempotency-Key"],
 )
 
 app.add_middleware(GZipMiddleware, minimum_size=1000)

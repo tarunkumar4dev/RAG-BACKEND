@@ -1468,6 +1468,16 @@
       "type": "boolean",
       "title": "Cancel Current",
       "default": false
+     },
+     "language": {
+      "type": "string",
+      "enum": [
+       "en",
+       "hi",
+       "hinglish"
+      ],
+      "title": "Language",
+      "default": "hinglish"
      }
     },
     "additionalProperties": false,
@@ -3594,13 +3604,6 @@
      "type": {
       "type": "string",
       "title": "Error Type"
-     },
-     "input": {
-      "title": "Input"
-     },
-     "ctx": {
-      "type": "object",
-      "title": "Context"
      }
     },
     "type": "object",
@@ -3738,6 +3741,16 @@
       "type": "boolean",
       "title": "Cancel Current",
       "default": false
+     },
+     "language": {
+      "type": "string",
+      "enum": [
+       "en",
+       "hi",
+       "hinglish"
+      ],
+      "title": "Language",
+      "default": "hinglish"
      },
      "tts": {
       "type": "string",

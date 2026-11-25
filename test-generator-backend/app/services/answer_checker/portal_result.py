@@ -9,12 +9,13 @@ What the job worker adds on top of grade_copy's result for an assignment-link co
 import os
 
 from app.routers.copy_checker_router import _apply_overrides
+from app.services.answer_checker import crosscheck
 
 CONFIDENCE_VALUE = {"low": 0.4, "medium": 0.75, "high": 0.95}
 # A question whose confidence is below this needs review. A rubric question may set its own
 # ("review_min_confidence": "high" for a 10-mark derivation, say); this is the default for the rest.
 DEFAULT_MIN_CONFIDENCE = os.getenv("CHECKER_REVIEW_MIN_CONFIDENCE", "medium")
-REASON_ORDER = ("empty_answer", "illegible", "low_confidence", "key_missing", "blank_pages", "bad_scan")
+REASON_ORDER = ("empty_answer", "illegible", "low_confidence", "key_missing", "blank_pages", "bad_scan", "fallback_model")
 
 _NOT_FOUND = "Answer not found"
 _ESTIMATED = "estimated"
@@ -44,7 +45,8 @@ def review(result: dict, rubric: dict) -> tuple:
                 mine.add("empty_answer")
             if leaf.get("legibility_issue"):
                 mine.add("illegible")
-            if conf < threshold or "spans" in notes:
+            # a code cross-check disagreed with the AI's verdict (crosscheck.py) → the teacher looks
+            if conf < threshold or "spans" in notes or crosscheck.PREFIX in notes:
                 mine.add("low_confidence")
             if _ESTIMATED in notes:
                 mine.add("key_missing")
@@ -53,6 +55,8 @@ def review(result: dict, rubric: dict) -> tuple:
             reasons |= mine
     if any(f.get("code") == "BLANK_PAGE" for f in result.get("sheet_flags") or []):
         reasons.add("blank_pages")
+    if any(f.get("code") == "FALLBACK_MODEL" for f in result.get("sheet_flags") or []):
+        reasons.add("fallback_model")          # a backup model marked it: never auto-published (25_review_reason)
     if str(result.get("readability_score") or "").lower() == "poor":
         reasons.add("bad_scan")
     confidence = round(sum(values) / len(values), 3) if values else None

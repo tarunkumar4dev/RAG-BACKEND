@@ -24,26 +24,17 @@ PAT = re.compile(r"(gemini-(?:[0-9][\w.\-]*|flash-latest)|claude-(?:sonnet|haiku
 
 CONFIG_FILES = {"test-generator-backend/app/core/config.py", "agent/config.py", "agent/voice/config.py"}
 
-# file -> ids hardcoded there on 12 Nov 2026 (Gate-1 inventory). Shrink this, never grow it.
+# file -> ids hardcoded there (Gate-1 inventory 12 Nov 2026; 21 Nov 2026: every model *selection* moved to
+# config.py, what is left is price data keyed by model id). Shrink this, never grow it.
 KNOWN = {
-    "test-generator-backend/app/core/config.py": {"deepseek-flash", "gemini-3.5-flash-lite", "gemini-3.6-flash"},
-    "test-generator-backend/app/api/v1/endpoints/chat.py": {"deepseek/deepseek-chat", "gemini-2.5-flash"},
+    # est_cost_usd: the flash-lite list price is only applied when that model answered
     "test-generator-backend/app/api/v1/endpoints/modules.py": {"gemini-3.5-flash-lite"},
-    "test-generator-backend/app/services/community_quiz_generator.py": {"gemini-flash-latest"},
-    "test-generator-backend/app/services/contest_import_gemini.py": {"gemini-3-flash-preview", "gemini-3.8-flash"},
-    "test-generator-backend/app/services/contest_import_service.py": {"gemini-3-flash-preview", "gemini-3.8-flash"},
-    "test-generator-backend/app/services/module_service.py": {"gemini-3.5-flash-lite"},
-    "test-generator-backend/app/services/smart_assignment_service.py": {"gemini-2.5-flash", "gemini-3-flash-preview",
-                                                                       "gemini-3.8-flash"},
-    # gemini-3.6-flash here is a key of the cost table _PRICE_PER_M (Gate 2 #7), not a model selection
+    # keys of the cost table _PRICE_PER_M (Gate 2 #7), not a model selection
     "test-generator-backend/app/services/test_generator_service.py": {"deepseek-flash", "gemini-3.5-flash-lite",
                                                                       "gemini-3.6-flash"},
     "test-generator-backend/app/services/worksheet_service.py": {"gemini-3.5-flash-lite"},
-    "agent/config.py": {"claude-haiku-5-5", "claude-sonnet-5-5", "gemini-2.5-flash"},
-    "agent/voice/config.py": {"bulbul:v2", "bulbul:v3", "bulbul:v4-flash", "saaras:v3", "saaras:v4"},
     "agent/voice/api.py": {"saaras:v4"},
-    "agent/voice/providers.py": {"saaras:v3", "saaras:v4"},
-    "agent/voice/repair.py": {"saaras:v4"},
+    "agent/voice/providers.py": {"saaras:v4"},
 }
 
 # Provider shutdown dates (checked 12 Nov 2026):
@@ -81,8 +72,23 @@ def test_no_new_hardcoded_model_ids():
     assert not new, f"model ids hardcoded outside config (move them to config): {new}"
 
 
-@pytest.mark.xfail(strict=True, reason="AUDIT: ids are hardcoded in 12 non-config files; GEMINI_MODEL is read "
-                                       "with its own default in 4 places")
+def test_inventory_has_no_stale_entries():
+    """KNOWN is exact: an id removed from a file must be removed here too, so the list only ever shrinks."""
+    found = _ids_by_file()
+    stale = {f: ids - found.get(f, set()) for f, ids in KNOWN.items() if ids - found.get(f, set())}
+    assert not stale, f"no longer hardcoded there, remove from KNOWN: {stale}"
+
+
+def test_checker_model_ids_only_in_config():
+    """The copy checker's primary and fallbacks come from config.py (settings.CHECKER_GEMINI_*), nowhere else."""
+    checker_ids = {"gemini-3.8-flash", "gemini-3.6-flash", "gemini-3-flash-preview"}
+    hits = {f: ids & checker_ids for f, ids in _ids_by_file().items()
+            if f not in CONFIG_FILES and ids & checker_ids and f not in KNOWN}
+    assert not hits, hits
+
+
+@pytest.mark.xfail(strict=True, reason="AUDIT: price tables keyed by model id still sit in 3 non-config files "
+                                       "(and 2 agent/voice files)")
 def test_all_model_ids_come_from_one_config():
     found = _ids_by_file()
     assert set(found) <= CONFIG_FILES, sorted(set(found) - CONFIG_FILES)
@@ -95,12 +101,11 @@ def test_deprecated_and_preview_ids_in_use():
 
 
 def test_gemini_model_env_read_with_own_default_in_several_places():
-    """GEMINI_MODEL is read in four modules, each with its own default — changing config.py alone does not move
-    worksheets / modules. Pinned so the count only goes down."""
+    """GEMINI_MODEL is read only in config.py since 21 Nov 2026 (was four modules, each with its own default)."""
     hits = []
     for p in (REPO / "test-generator-backend/app").rglob("*.py"):
         if "_archived" in p.name:
             continue
         if re.search(r"getenv\(\s*[\"']GEMINI_MODEL[\"']", p.read_text(encoding="utf-8")):
             hits.append(p.relative_to(REPO).as_posix())
-    assert len(hits) <= 4, hits
+    assert hits == ["test-generator-backend/app/core/config.py"], hits

@@ -34,7 +34,13 @@ from app.routers.smart_assignment_router import (
 from app.services.answer_checker import preprocess
 from app.services.answer_checker.copy_check import grade_copy
 from app.core.api_errors import AI_BUSY_MSG, ai_busy
-from app.services.smart_assignment_service import GeminiBusy, build_rubric, rubric_from_test_fast, usage_meter
+from app.services.answer_checker.usage_cost import (
+    add_usage, answering_model, has_tokens, rubric_build_record, without_build,
+)
+from app.services.smart_assignment_service import (
+    CHECKER_MODEL, GRADE_CALL_TIMEOUT_S, RUBRIC_CALL_TIMEOUT_S, GeminiBusy, build_rubric, call_settings, is_timeout,
+    request_deadline, rubric_from_test_fast, usage_meter,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/copy-checker", tags=["Copy Checker"])
@@ -100,13 +106,38 @@ def _rubric_summary(s: dict) -> dict:
     }
 
 
-def _build_session_rubric(c: _Caller, session_id: str, force: bool) -> dict:
+def _rubric_store():
+    """Direct Postgres for the one write PostgREST cannot do (jsonb_set on a single key). Replaced in tests."""
+    from app.core.db_pool import get_db_connection
+    from app.services.job_store import JobStore
+    return JobStore(get_db_connection)
+
+
+def _record_failed_build(session_id: str, spent: dict) -> None:
+    """A rebuild failed after billed replies: add that attempt to rubric.build, touching nothing else of the
+    rubric (see JobStore.record_rubric_build). Never raises: the build's own error is what the caller must see.
+    Without a rubric to attach it to (a first build) or without a database, the cost goes to the log only."""
+    try:
+        if _rubric_store().record_rubric_build(session_id, lambda b: rubric_build_record(spent, b, "sync")):
+            return
+        why = "the session has no rubric to attach it to"
+    except Exception as e:
+        why = f"recording it failed ({type(e).__name__})"
+    logger.warning(f"[checker] rubric build failed after billed calls, usage not stored: {why}: {add_usage({}, spent)}")
+
+
+def _build_session_rubric(c: _Caller, session_id: str, force: bool, deadline: float | None = None) -> dict:
+    """deadline: time.monotonic() by which this request must be done (request_deadline() at its start); a copy
+    check that has to build the rubric first passes its own, so rubric + grade share one ~280 s budget."""
+    deadline = deadline or request_deadline()
     s = _get_session(c, session_id)
     if s.get("rubric_status") == "ready" and s.get("rubric") and not force:
         return s
 
     _update_session(c, session_id, {"rubric_status": "building", "rubric_error": None})
     paths = []
+    meter = None          # set when Gemini was asked; its counts are kept even if the build then fails
+    prior = s.get("rubric") or {}
     try:
         if s["source"] == "test":
             if not s.get("test_id"):
@@ -128,23 +159,30 @@ def _build_session_rubric(c: _Caller, session_id: str, force: bool) -> dict:
             qp = [_download_own(c, p, "qpaper_") for p in s["qp_paths"][:MAX_PAGES]]
             key = [_download_own(c, p, "akey_") for p in (s.get("key_paths") or [])[:MAX_PAGES]]
             paths = qp + key
-            with usage_meter() as meter:
+            # the stage timeout, not the global 60 s: a rubric call takes ~75 s on a 30-mark paper
+            with usage_meter() as meter, call_settings(timeout_s=RUBRIC_CALL_TIMEOUT_S, deadline=deadline):
                 rubric = build_rubric(qp, key)
-            rubric["_usage"] = meter.as_dict()
             logger.info(f"[checker] rubric usage: {meter.as_dict()}")
     except HTTPException as e:
         _update_session(c, session_id, {"rubric_status": "failed", "rubric_error": str(e.detail)[:300]})
         raise
     except Exception as e:
         logger.warning(f"Rubric failed for session {session_id}: {type(e).__name__}")
-        msg = (BUSY_MSG if isinstance(e, GeminiBusy) else
+        msg = (BUSY_MSG if isinstance(e, GeminiBusy) or is_timeout(e) else
                PAPER_UNREADABLE_MSG if isinstance(e, ValueError) else RUBRIC_FAILED_MSG)
+        spent = meter.as_dict() if meter is not None else None
+        if has_tokens(spent):                  # replies came back (billed) but the build still failed
+            _record_failed_build(session_id, spent)
         _update_session(c, session_id, {"rubric_status": "failed", "rubric_error": msg})
         raise
     finally:
         _cleanup(*paths)
 
     rubric = {k: v for k, v in rubric.items() if not k.startswith("_")}
+    if meter is not None:                      # what building it cost, all attempts of this session so far
+        rubric["build"] = rubric_build_record(meter.as_dict(), prior.get("build"), "sync")
+    elif prior.get("build"):                   # rebuilt from the saved test (no Gemini call): keep the history
+        rubric["build"] = prior["build"]
     return _update_session(c, session_id, {
         "rubric": rubric, "rubric_status": "ready", "rubric_error": None,
         "total_marks": rubric.get("total_marks"),
@@ -169,8 +207,10 @@ async def session_rubric(session_id: str, body: RubricRequest = RubricRequest(),
         raise HTTPException(status_code=422, detail=PAPER_UNREADABLE_MSG)
     except Exception as e:
         logger.error(f"Copy-check rubric failed: {type(e).__name__}", exc_info=True)
+        if is_timeout(e):
+            raise ai_busy()
         raise HTTPException(status_code=500, detail=RUBRIC_FAILED_MSG)
-    return {"ok": True, "rubric": _rubric_summary(s), "full_rubric": s.get("rubric")}
+    return {"ok": True, "rubric": _rubric_summary(s), "full_rubric": without_build(s.get("rubric"))}   # no cost data
 
 
 def _compact(result: dict) -> dict:
@@ -198,6 +238,9 @@ def _save_norm_pages(c: _Caller, session_id: str, sheet_id: str, ordered: list) 
 
 
 def _check_sheet(c: _Caller, sheet_id: str) -> dict:
+    # One budget for the whole request (Vercel kills it at 300 s): an inline rubric (≤ 180 s) + the grade (150 s)
+    # could need 330 s, more with retries. Every Gemini call checks this deadline before it starts.
+    deadline = request_deadline()
     r = with_retry(lambda: c.db.table("check_sheets").select("*").eq("id", sheet_id).limit(1).execute())
     if not r.data:
         raise HTTPException(status_code=404, detail="Student copy not found.")
@@ -210,7 +253,7 @@ def _check_sheet(c: _Caller, sheet_id: str) -> dict:
 
     session = _get_session(c, sheet["session_id"])
     if session.get("rubric_status") != "ready" or not session.get("rubric"):
-        session = _build_session_rubric(c, sheet["session_id"], False)
+        session = _build_session_rubric(c, sheet["session_id"], False, deadline)
 
     # updated_at = when checking started: the app treats a copy still "checking" after 6 min as failed
     # (the request died, e.g. the 300 s function limit) and offers Retry instead of a locked copy.
@@ -218,12 +261,18 @@ def _check_sheet(c: _Caller, sheet_id: str) -> dict:
     with_retry(lambda: c.db.table("check_sheets").update({"status": "checking", "error": None, "updated_at": started})
                .eq("id", sheet_id).execute())
     files = []
+    usage = None
     try:
         files = [_download_own(c, p, "ssheet_") for p in pages]
         start = time.time()
-        result, ordered, usage = grade_copy(files, session["rubric"], session.get("strictness") or "medium")
+        with call_settings(timeout_s=GRADE_CALL_TIMEOUT_S, deadline=deadline):
+            result, ordered, usage = grade_copy(files, session["rubric"], session.get("strictness") or "medium")
         result["norm_pages"] = _save_norm_pages(c, sheet["session_id"], sheet_id, ordered)
         result["usage"] = usage
+        if usage.get("fallback_used"):        # never silent: the teacher sees which model marked the copy
+            result["sheet_flags"] = (result.get("sheet_flags") or []) + [{
+                "code": "FALLBACK_MODEL", "page": None,
+                "message": f"Checked with a backup AI model ({usage.get('model')}). Please check the marks."}]
         result["_meta"] = {"strictness": session.get("strictness") or "medium",
                            "grade_time_s": round(time.time() - start, 2), "pages": usage["pages"]}
         logger.info(f"[checker] sheet usage: {usage}")
@@ -232,11 +281,14 @@ def _check_sheet(c: _Caller, sheet_id: str) -> dict:
             msg = e.detail
         elif isinstance(e, preprocess.BadFile):
             msg = str(e)
-        elif isinstance(e, GeminiBusy):
+        elif isinstance(e, GeminiBusy) or is_timeout(e):
             msg = BUSY_MSG
         else:
             logger.warning(f"Copy check failed for sheet {sheet_id}: {type(e).__name__}")
             msg = COPY_UNREADABLE_MSG if isinstance(e, ValueError) else CHECK_FAILED_MSG
+        spent = getattr(e, "usage", None) or usage          # grade_copy attaches the failed run's counts
+        if has_tokens(spent):    # billed replies, no result: nowhere to store it without a usage column
+            logger.warning(f"[checker] failed attempt on sheet {str(sheet_id)[:8]} still cost: {add_usage({}, spent)}")
         with_retry(lambda: c.db.table("check_sheets").update({"status": "failed", "error": str(msg)[:300],
                                                              "updated_at": datetime.now(timezone.utc).isoformat()})
                    .eq("id", sheet_id).execute())
@@ -247,7 +299,7 @@ def _check_sheet(c: _Caller, sheet_id: str) -> dict:
     compact = _compact(result)
     now = datetime.now(timezone.utc).isoformat()
     upd = with_retry(lambda: c.db.table("check_sheets").update({
-        "status": "checked", "ai_result": compact,
+        "status": "checked", "ai_result": compact, "model_version": answering_model(usage, CHECKER_MODEL),
         "ai_marks": result.get("total_marks_awarded", 0), "max_marks": result.get("max_marks", 0),
         "error": None, "checked_at": now, "updated_at": now,
     }).eq("id", sheet_id).execute())
@@ -282,6 +334,8 @@ async def check_sheet(sheet_id: str, c: _Caller = Depends(require_caller)):
         raise HTTPException(status_code=422, detail=COPY_UNREADABLE_MSG)
     except Exception as e:
         logger.error(f"Copy check failed: {type(e).__name__}", exc_info=True)
+        if is_timeout(e):
+            raise ai_busy()
         raise HTTPException(status_code=500, detail=CHECK_FAILED_MSG)
     return {"ok": True, "sheet": sheet}
 

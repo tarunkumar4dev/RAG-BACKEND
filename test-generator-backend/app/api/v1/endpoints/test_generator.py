@@ -32,7 +32,7 @@ from app.models.test_generator import (
     QuestionFormat,
     ManualQuestionPayload,
 )
-from app.services.test_generator_service import generate_test, handle_feedback, paper_usage
+from app.services.test_generator_service import generate_test, handle_feedback, paper_usage, verify_paper
 from app.core.usage_log import log_usage
 from app.api.v1.endpoints.chat import _SlidingWindow
 from starlette.concurrency import run_in_threadpool
@@ -43,6 +43,7 @@ from app.core.auth import AuthUser, require_user
 from app.core.database import get_supabase, get_supabase_admin
 from app.core.config import settings
 from app.core.sanitize import sanitize_like, sanitize_text, sanitize_uuid, validate_class_grade
+from app.core.cache import api_cache
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/test-generator", tags=["Test Generator"])
@@ -298,6 +299,22 @@ def _extract_class_number(class_grade: str) -> str:
     return match.group() if match else "10"
 
 
+# "Mixed" = about 40% easy / 40% medium / 20% hard. Ties in the rounding go to medium, then easy, then hard.
+MIXED_SPLIT = (("easy", 40), ("medium", 40), ("hard", 20))   # percent
+_MIXED_TIE_ORDER = ("medium", "easy", "hard")
+
+
+def _split_mixed(quantity: int) -> list:
+    """[(difficulty, count), ...] for a Mixed row, largest-remainder rounding, zero-count levels left out.
+    10 -> easy 4, medium 4, hard 2; 2 -> easy 1, medium 1; 1 -> medium 1."""
+    counts = {d: quantity * pct // 100 for d, pct in MIXED_SPLIT}
+    remainders = {d: quantity * pct % 100 for d, pct in MIXED_SPLIT}
+    left = quantity - sum(counts.values())
+    for d in sorted(_MIXED_TIE_ORDER, key=lambda d: (-remainders[d], _MIXED_TIE_ORDER.index(d)))[:left]:
+        counts[d] += 1
+    return [(d, counts[d]) for d, _ in MIXED_SPLIT if counts[d] > 0]
+
+
 def _transform_frontend_to_backend(req: FrontendGenerateRequest) -> TestGenerationRequest:
     class_num = _extract_class_number(req.classGrade)
     resolved_subject = _resolve_subject(req.subject)
@@ -306,20 +323,25 @@ def _transform_frontend_to_backend(req: FrontendGenerateRequest) -> TestGenerati
     for row in req.simpleData:
         if not row.topic:
             continue
-        difficulty_str = DIFFICULTY_MAP.get(row.difficulty, "medium")
         question_format = FORMAT_MAP.get(row.format, QuestionFormat.MCQ)
         marks = row.marks if row.marks and row.marks > 0 else MARKS_MAP.get(question_format, 1)
 
-        chapter = ChapterSection(
-            chapter=row.topic,
-            topic=row.subtopic if row.subtopic else None,
-            subtopics=[row.subtopic] if row.subtopic else [],
-            quantity=row.quantity,
-            difficulty=DifficultyLevel(difficulty_str),
-            format=question_format,
-            marks_per_question=marks,
-        )
-        chapters.append(chapter)
+        # CBSE mode sets the difficulty per section and distributes by chapter name: its rows are never split.
+        if row.difficulty.strip().lower() == "mixed" and not req.cbsePattern:
+            parts = _split_mixed(row.quantity)
+        else:
+            parts = [(DIFFICULTY_MAP.get(row.difficulty, "medium"), row.quantity)]
+
+        for difficulty_str, quantity in parts:
+            chapters.append(ChapterSection(
+                chapter=row.topic,
+                topic=row.subtopic if row.subtopic else None,
+                subtopics=[row.subtopic] if row.subtopic else [],
+                quantity=quantity,
+                difficulty=DifficultyLevel(difficulty_str),
+                format=question_format,
+                marks_per_question=marks,
+            ))
 
     if not chapters:
         raise ValueError("At least one chapter with a topic is required")
@@ -373,6 +395,17 @@ def _serialize_model_list(items):
         except Exception:
             out.append(str(item))
     return out
+
+
+def _requested_questions(req: FrontendGenerateRequest) -> int:
+    """How many main questions the teacher asked for: the fixed pattern size in CBSE mode (38; Accountancy 34),
+    else the sum of the rows. OR alternatives are not counted (same rule as totalQuestions)."""
+    if req.cbsePattern:
+        from app.services.test_generator_service import ACCOUNTANCY_SUBJECTS, CBSE_ACCOUNTANCY_PATTERN, CBSE_SECTIONS
+        if _resolve_subject(req.subject).lower() in ACCOUNTANCY_SUBJECTS:
+            return CBSE_ACCOUNTANCY_PATTERN["total_questions"]
+        return sum(sec["count"] for sec in CBSE_SECTIONS.values())
+    return sum(row.quantity for row in req.simpleData if row.topic)
 
 
 def _transform_backend_to_frontend(resp, req: FrontendGenerateRequest) -> FrontendGenerateResponse:
@@ -449,6 +482,9 @@ def _transform_backend_to_frontend(resp, req: FrontendGenerateRequest) -> Fronte
             "subject": req.subject,
             "cbsePattern": req.cbsePattern,
             "paperDate": req.paperDate,
+            # No top-up rounds since Gate 2 #4: a short paper is delivered short. The UI shows both numbers.
+            "requestedQuestions": _requested_questions(req),
+            "deliveredQuestions": total_questions,
         },
     )
 
@@ -467,6 +503,42 @@ def _log_failed_paper(stats, req, already) -> None:
                   outcome="failed", est_cost_usd=u.get("est_cost_usd"))
 
 
+# tests.status while a paper is being made: generating -> draft (delivered) | failed. /save later sets "saved".
+STATUS_GENERATING, STATUS_DRAFT, STATUS_FAILED = "generating", "draft", "failed"
+# A function instance killed mid-generation (platform timeout) leaves its row on "generating" for ever:
+# /status reports such a row as failed once it is older than this.
+GENERATING_STALE_AFTER_S = 15 * 60
+
+
+def _start_tests_row(test_id: str, req: FrontendGenerateRequest, subject: str) -> bool:
+    """Insert the paper's row as "generating" before any LLM call. False (and the old insert-at-the-end path)
+    when the insert fails: a status row must never stop a paper."""
+    try:
+        get_supabase_admin().table("tests").insert({
+            "id": test_id,
+            "teacher_id": req.userId,
+            "exam_title": req.examTitle,
+            "board": req.board,
+            "class_grade": _extract_class_number(req.classGrade),
+            "subject": subject,
+            "status": STATUS_GENERATING,
+            "paper_date": req.paperDate,
+            "cbse_pattern": req.cbsePattern,
+        }).execute()
+        return True
+    except Exception as e:
+        logger.warning(f"tests row (generating) not written for {test_id}: {type(e).__name__}")
+        return False
+
+
+def _fail_tests_row(test_id: str, user_id: str) -> None:
+    try:
+        get_supabase_admin().table("tests").update({"status": STATUS_FAILED}) \
+            .eq("id", test_id).eq("teacher_id", user_id).execute()
+    except Exception as e:
+        logger.warning(f"tests row {test_id} not marked failed: {type(e).__name__}")
+
+
 @router.post("/generate-frontend", response_model=FrontendGenerateResponse)
 async def generate_from_frontend(req: FrontendGenerateRequest, user: AuthUser = Depends(require_user),
                                  idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key", max_length=80)):
@@ -475,6 +547,9 @@ async def generate_from_frontend(req: FrontendGenerateRequest, user: AuthUser = 
     logger.info(f"Frontend generate: {req.subject} {req.classGrade}, {len(req.simpleData)} chapters")
     rsv = None
     ai_usage = None
+    test_id = str(uuid.uuid4())
+    row_started = False     # the "generating" row exists
+    delivered = False       # the paper was generated; from here on the row must not become "failed"
     usage_ctx = paper_usage()
     stats = usage_ctx.__enter__()
 
@@ -487,6 +562,9 @@ async def generate_from_frontend(req: FrontendGenerateRequest, user: AuthUser = 
         backend_request = _transform_frontend_to_backend(req)
         total_q = sum(c.quantity for c in backend_request.chapters)
         logger.info(f"Transformed: {len(backend_request.chapters)} chapters, {total_q} questions")
+
+        # Quota reserved and the request is valid: from here the paper has a row (GET /status/{test_id}).
+        row_started = _start_tests_row(test_id, req, _resolve_subject(req.subject))
 
         real_chapters = [
             ch.chapter for ch in backend_request.chapters
@@ -517,13 +595,17 @@ async def generate_from_frontend(req: FrontendGenerateRequest, user: AuthUser = 
                              est_cost_usd=u.get("est_cost_usd"))
 
         frontend_response = _transform_backend_to_frontend(backend_response, req)
+        if row_started:
+            frontend_response.testId = test_id      # the id the "generating" row was written under
+        delivered = True
 
         elapsed = round(time.time() - start, 2)
         frontend_response.generationTime = elapsed
 
         usage = dict(consume(rsv))
 
-        # Insert test row
+        # Final test row: the "generating" row becomes the draft (or, if that row was never written, one insert
+        # as before).
         try:
             class_num_for_db = _extract_class_number(req.classGrade)
             tests_row = {
@@ -533,7 +615,7 @@ async def generate_from_frontend(req: FrontendGenerateRequest, user: AuthUser = 
                 "board": req.board,
                 "class_grade": class_num_for_db,
                 "subject": resolved_subject,
-                "status": "draft",
+                "status": STATUS_DRAFT,
                 "total_questions": frontend_response.totalQuestions,
                 "total_marks": frontend_response.totalMarks,
                 "paper_date": req.paperDate,
@@ -542,11 +624,16 @@ async def generate_from_frontend(req: FrontendGenerateRequest, user: AuthUser = 
                 "request_payload": {"ai_usage": ai_usage} if ai_usage else None,
             }
             supabase = get_supabase_admin()
-            insert_result = supabase.table("tests").insert(tests_row).execute()
+            if row_started:
+                fields = {k: v for k, v in tests_row.items() if k not in ("id", "teacher_id")}
+                insert_result = supabase.table("tests").update(fields) \
+                    .eq("id", test_id).eq("teacher_id", req.userId).execute()
+            else:
+                insert_result = supabase.table("tests").insert(tests_row).execute()
             if not insert_result.data:
-                logger.error(f"tests INSERT returned no data for test_id={frontend_response.testId}")
+                logger.error(f"tests row write returned no data for test_id={frontend_response.testId}")
         except Exception as insert_err:
-            logger.error(f"Failed to INSERT tests row: {insert_err}", exc_info=True)
+            logger.error(f"Failed to write tests row: {insert_err}", exc_info=True)
 
         frontend_response.meta["usage"] = {
             "used": usage.get("used", 0),
@@ -592,6 +679,41 @@ async def generate_from_frontend(req: FrontendGenerateRequest, user: AuthUser = 
         raise HTTPException(status_code=500, detail="Generation failed. Please try again.")
     finally:
         usage_ctx.__exit__(None, None, None)
+        if row_started and not delivered:
+            _fail_tests_row(test_id, req.userId)
+
+
+@router.get("/status/{test_id}")
+async def get_test_status(test_id: str, user: AuthUser = Depends(require_user)):
+    """{"status": generating | draft | failed | saved} for the caller's own paper; 404 for anyone else's."""
+    try:
+        sanitize_uuid(test_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid ID format")
+    try:
+        res = get_supabase_admin().table("tests").select("status, created_at") \
+            .eq("id", test_id).eq("teacher_id", user.id).limit(1).execute()
+    except Exception as e:
+        logger.error(f"Test status error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch status.")
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Test not found")
+    row = res.data[0]
+    status = row.get("status") or STATUS_DRAFT
+    if status == STATUS_GENERATING and _older_than(row.get("created_at"), GENERATING_STALE_AFTER_S):
+        status = STATUS_FAILED
+    return {"status": status}
+
+
+def _older_than(created_at, seconds: int) -> bool:
+    from datetime import datetime, timezone
+    try:
+        made = datetime.fromisoformat(str(created_at).replace("Z", "+00:00"))
+        if made.tzinfo is None:
+            made = made.replace(tzinfo=timezone.utc)
+        return (datetime.now(timezone.utc) - made).total_seconds() > seconds
+    except Exception:
+        return False
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -1195,6 +1317,58 @@ async def generate(request: TestGenerationRequest, user: AuthUser = Depends(requ
         raise HTTPException(status_code=500, detail="Generation failed.")
 
 
+class VerifyAnswersRequest(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    subject: str = Field(default="Science", max_length=50)
+    classGrade: str = Field(default="Class 10", max_length=20)
+    testId: Optional[str] = Field(default=None, max_length=80)   # the paper: one verify pass per paper
+    questions: List[dict] = Field(min_length=1, max_length=80)
+
+
+VERIFY_UNAVAILABLE = {"available": False}
+_VERIFY_OK_TTL_S = 6 * 3600   # a reload of the same paper gets the same verdicts, not a second paid pass
+_VERIFY_FAIL_TTL_S = 300      # a failed pass is not retried on every reload
+
+
+def _run_verify(req: VerifyAnswersRequest, user_id: str) -> dict:
+    """One checker pass with its own usage record. paper_usage() also puts the pass under PAID_EXTRA_BUDGET."""
+    with paper_usage() as stats:
+        out = verify_paper(req.questions, _resolve_subject(req.subject), _extract_class_number(req.classGrade))
+        u = stats.as_usage()
+    if u["calls"]:
+        log_usage("paper_verify", user_id, u, outcome="ok" if out.get("available") else "failed",
+                  est_cost_usd=u.get("est_cost_usd"))
+    for r in out.get("results") or []:
+        if "correctAnswer" in r:
+            r["correct_answer"] = r["correctAnswer"]
+    return out
+
+
+@router.post("/verify-answers")
+async def verify_answers(req: VerifyAnswersRequest, user: AuthUser = Depends(require_user),
+                         idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key", max_length=80)):
+    """Second-model check of a generated paper's answer key (app/services: verify_paper / pick_checker).
+    Stateless: returns verdicts (ok / fix with corrected key / reject = needs review); the client applies them.
+    Never an error for a checker problem: {"available": false} and the paper stays usable.
+    Per-minute limit: app/core/rate_limit.py. One paid pass per paper: answers are cached under the paper's key
+    (Idempotency-Key header or testId) per warm instance."""
+    paper_key = idempotency_key or req.testId
+    cache_key = f"verify:{user.id}:{paper_key}" if paper_key else None
+    if cache_key:
+        cached = api_cache.get(cache_key)
+        if cached is not None:
+            return cached
+    try:
+        out = await run_in_threadpool(_run_verify, req, user.id)
+    except Exception:
+        logger.exception("Answer-key check failed")
+        out = dict(VERIFY_UNAVAILABLE)
+    if cache_key:
+        api_cache.set(cache_key, out, ttl=_VERIFY_OK_TTL_S if out.get("available") else _VERIFY_FAIL_TTL_S)
+    return out
+
+
 @router.post("/feedback", response_model=TestGenerationResponse)
 async def feedback(request: TestFeedbackRequest, user: AuthUser = Depends(require_user)):
     try:
@@ -1209,6 +1383,15 @@ async def feedback(request: TestFeedbackRequest, user: AuthUser = Depends(requir
 # ═══════════════════════════════════════════════════════════════════════
 # ENDPOINT: Save Test (hardened)
 # ═══════════════════════════════════════════════════════════════════════
+
+def _saved_validation_status(q: dict, is_manual: bool) -> str:
+    """The status the client holds for this question; anything unknown is "needs_review" (the column's own
+    default is 'verified', which would mark unchecked questions as checked)."""
+    if is_manual:
+        return "manual"
+    status = q.get("validationStatus") or q.get("validation_status")
+    return status if status in ("verified", "needs_review") else "needs_review"
+
 
 @router.post("/save")
 async def save_test(request: FrontendSaveRequest, user: AuthUser = Depends(require_user)):
@@ -1287,6 +1470,7 @@ async def save_test(request: FrontendSaveRequest, user: AuthUser = Depends(requi
                     "bloom_level": q.get("bloomLevel") or q.get("bloom_level"),
                     "section": q.get("section"),
                     "is_manual": is_manual,
+                    "validation_status": _saved_validation_status(q, is_manual),
                     "image_url": q.get("imageUrl") or q.get("image_url"),
                     "answer_table": q.get("answerTable") or q.get("answer_table"),
                     "question_table": q.get("questionTable") or q.get("question_table"),
@@ -1458,8 +1642,6 @@ async def get_test(test_id: str, user: AuthUser = Depends(require_user)):
 #     keeps a pre-rollout list. Was "public, max-age=300, s-maxage=600, stale-while-revalidate=86400";
 #     put it back after G5 passes.
 # ═══════════════════════════════════════════════════════════════════════
-
-from app.core.cache import api_cache  # noqa: E402
 
 _NCERT_CACHE_CONTROL = "private, no-store"
 
