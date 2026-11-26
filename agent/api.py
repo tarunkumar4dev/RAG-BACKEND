@@ -397,6 +397,8 @@ def create_app(env=os.environ, check_real_db: bool = True) -> FastAPI:
     install_log_redaction()
     from .logging_config import configure as configure_logging
     configure_logging()
+    from .middleware.log_scrub import install as install_log_scrub
+    install_log_scrub()
     try:
         get_store().purge()  # retention: sessions / queries unused for 90 days
     except Exception as e:  # noqa: BLE001  never block startup on the purge; message has no user content
