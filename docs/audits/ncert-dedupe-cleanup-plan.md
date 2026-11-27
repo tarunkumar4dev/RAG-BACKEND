@@ -1,107 +1,138 @@
-# Exact-duplicate cleanup of `ncert_questions` — revised plan (NOT executed)
+# Exact-duplicate cleanup of `ncert_questions` — revised plan v2 (NOT executed)
 
 Supersedes §9 steps 2–4 of `docs/audits/ncert-ingestion-audit.md` (branch `audit/ncert-ingestion`).
-SQL lives in `scripts/cleanup/ncert_dedupe_exact/`; nothing there has been run against Supabase. Every step was
-tested end to end (backup → map → apply → unique index → rollback) on a throwaway local Postgres with a fixture
-covering a practice-mark collision, a remap, a G4.5 pointer to a doomed row, fix-log rows and an all-hidden group.
+SQL lives in `scripts/cleanup/ncert_dedupe_exact/`; nothing there has been run against Supabase.
 
-## Dry run — live DB, 27 Nov 2026 (`scripts/audit/16d_dedupe_dryrun.sql`, read-only)
+v2 (28 Nov) adds:
+- step **1b**, which normalises chapter and subject names before the dedup key is computed;
+- the **English poem rule** in step 2;
+- the JSON/array reference check.
 
-| Metric | Value |
-|---|---|
-| duplicate groups (exact, same class + subject + chapter) | 17,385 |
-| rows that would be deleted | **53,378** (45,178 visible + 8,200 already hidden by G4.5) |
-| rows kept | 38,528 |
-| `ncert_practice_marks` rows / students | **0 / 0** |
-| marks to remap / students affected / marks lost to collisions | **0 / 0 / 0** |
-| groups whose canonical is chosen because of marks | 0 |
-| groups where a hidden copy would be kept over a visible one | 0 |
-| `ncert_question_fixes` rows on doomed rows (would cascade) | 2,206 of 2,775 |
-| kept rows whose `duplicate_of` points at a doomed row | 0 |
-| kept rows that stay hidden (G4.5 near-duplicates / all-hidden groups) | 936 / 425 groups |
+Every step was tested end to end on a throwaway local Postgres: backup → normalise → map → apply → unique index →
+rollback. The fixture covers:
+- a practice-mark collision and a remap;
+- a G4.5 pointer to a doomed row;
+- fix-log rows and an all-hidden group;
+- Physics vs Physics-I copies, an explicit chapter alias, a History section-title rename;
+- an English prose/poem pair with a student mark on the prose copy.
 
-**Student records today: none affected.** Verified it is not RLS: the session role (`supabase_read_only_user`)
-bypasses RLS, the table has had 0 inserts since stats reset, and no frontend code on `main` calls
-`record_practice_mark` yet (feature added in migrations on 2 Nov). The remap step stays in the plan because the
-count will not be 0 once practice ships — **re-run `16d` the same day as step 3.**
+A full-row rollback (subject/chapter included) is byte-identical.
 
-Other dependents (checked): FKs only from `ncert_practice_marks` (CASCADE), `ncert_question_fixes` (CASCADE) and
-`ncert_questions.duplicate_of` (SET NULL); one function, `record_practice_mark`; no views. Saved tests (`questions`)
-copy the text and hold no id → unaffected. Papers saved in teachers' browsers hold ids → handled by redirects.
+## Dry run — live DB, 28 Nov 2026 (read-only)
+
+| Metric | v1 raw key (`16d`) | **v2 normalised key (`16g`)** |
+|---|---|---|
+| rows that would be deleted | 53,378 | **54,902** |
+| … extra from subject/chapter normalisation | — | 1,459 |
+| … extra from the English poem rule | — | 65 |
+| rows kept | 38,528 | 37,004 |
+| chapter strings | 504 | 425 after normalisation |
+| rows whose subject/chapter string is rewritten (step 1b) | — | 4,967 |
+| `ncert_practice_marks` rows / students | 0 / 0 | **0 / 0** |
+| marks to remap / chapter copies rewritten | 0 | **0 / 0** |
+| groups keeping a hidden copy over a visible one | 0 | 0 |
+| `ncert_question_fixes` rows on doomed rows | 2,206 | 2,206 |
+| unique-key collisions left after cleanup | — | 0 |
+
+**Student records: none affected today.** The session role bypasses RLS, the table has had 0 inserts since
+stats were reset, and no frontend code on `main` calls `record_practice_mark` yet. The remap logic stays in, so
+**re-run `16g` the same day as step 3.**
+
+### Does "fix pointers" cover ids inside JSON/JSONB/arrays? (`scripts/audit/20_json_question_id_refs.sql`, `20b`)
+
+**Checked:** 60 columns in 31 tables, i.e. every json/jsonb column and every integer/text array column in schemas
+`public` and `practice`. Among them:
+- `tests.request_payload` (223 rows) and the saved-paper `questions.*` columns (1,786 rows);
+- `contest_attempts.answers/progress/warning_log`, `contest_questions.options`, `contest_import_jobs.result`;
+- `bank_questions.options`, `community_quiz*`, `check_*`, `submissions.*`, `assignments.allowed_mimes`,
+  `assignment_ai_keys.rubric`, `smart_assignment_checks.result_json`;
+- `modules.*`, `payments.metadata`, `practice*.questions.*`.
+
+**Result: 0 references to `ncert_questions` ids.** Details:
+- The only id-like keys are `questionId` in `contest_attempts.answers` (1,399 values) and `.progress` (1,200).
+  Every value is a `contest_questions` **UUID**, verified by matching them back to `contest_questions.id`.
+- The 6 integer hits in `practice_questions.options` are numeric answer options, not ids (no id key).
+- No drafts table exists.
+
+So the id references to fix are the FKs (`ncert_practice_marks`, `ncert_question_fixes`, `duplicate_of`) plus
+browser localStorage (covered by redirects).
+
+## Normalisation (step 1b) — what changes
+
+| Rule | Detail | Evidence |
+|---|---|---|
+| Subject family | `Physics-I/II` → Physics, `Chemistry-I/II` → Chemistry, `Political_Science` → Political Science | |
+| Same chapter, different spelling | Case- and punctuation-insensitive match inside class + family, e.g. "ELECTRIC CHARGES AND FIELDS" = "Electric Charges and Fields" | 69 chapters |
+| Explicit renames, Class 12 | "ALTERNATING CURRENT", "CURRENT AND ELECTRICITY", "ELECTROMAGNETIC INDUCTION", "ELECTROMAGNETIC WAVE", "ELECTROSTATIC POTENTIAL", "RAY OPTICS", "SEMICONDUCTORS" → the full Physics names; "Chemical Coordination" → Coordination Compounds | 41–71% shared exact texts (`19a`); Semiconductors by name |
+| Explicit renames, Class 10 History | "LIVELIHOODS, ECONOMIES AND SOCIETIES" → **The Making of a Global World**; "EVERYDAY LIFE, CULTURE AND POLITICS" → **Print Culture and the Modern World** | Content check (`19b`): 448 global-economy hits / 0 industrialisation; 37 of 43 rows about print |
+| English poem rule (step 2) | A text in both a prose chapter and its paired poem keeps only the poem copy | 9 pairs; 83–100% of each poem's texts also sit in its prose chapter (`19a`). The prose PDFs include the poem that follows them in First Flight |
+
+Kept spelling: the explicit name, else the most-used raw spelling of the target. The real same-name clash Class 11
+"Thermodynamics" (Physics vs Chemistry) stays separate because the families differ.
+
+Side effects:
+- `ncert_chunks` is **not** renamed. RAG and `/chapters` keep their own names until a chapters table exists.
+- The builder shows the new names. Saved papers hold ids, so they are unaffected.
 
 ## Canonical row per group (priority order)
-1. Most student practice marks: students' records stay where they are; nothing to remap in the common case.
-2. Visible today (not G4.5 `duplicate`/`junk`): never resurrects a copy the quality pass hid.
-3. Lowest `quality_rank` (G4.5 clean/fixed first).
-4. Has `image_url`, then 5. has an answer, 6. has options, 7. has `question_table`.
+1. Most student practice marks.
+2. Visible today (not G4.5 `duplicate`/`junk`).
+3. Lowest `quality_rank`.
+4. Has `image_url`, then 5. answer, 6. options, 7. `question_table`.
 8. Lowest id.
 
-Ties in marks (two copies both marked) fall through to rules 2–8. Every student's marks are moved to the canonical,
-and if a student marked several copies of one question, the **newest** mark wins (`record_practice_mark` upserts
-with `updated_at`, so the newest is the student's latest answer).
+On collisions the newest mark wins. Marks that move to another chapter (poem rule) take that chapter's names.
 
 ## Steps — each needs GO (Tarun + Nitin)
 
 **0. Preconditions.**
-- Migration 41 applied.
-- No extraction/ingest script running.
-- Practice-marks feature status known: re-run `16d`.
-- Before practice ships, add an index on `ncert_practice_marks(question_id)`: FK cascade lookups use it, and today
-  only the `(user_id, question_id)` PK exists.
+- Migrations 41 and 42 applied.
+- No extraction/ingest running.
+- Re-run `16g`.
+- Before practice ships, add an index on `ncert_practice_marks(question_id)`.
 
 **1. Backup** (`01_backup.sql`).
-- Creates schema `a4_backup_ncert_dedupe` with copies of `ncert_questions`, `ncert_practice_marks` and
-  `ncert_question_fixes`, plus fingerprints.
-- Fails if the schema already exists, and checks row counts.
-- Also take an offline dump of the same three tables, e.g.
-  `pg_dump "$DATABASE_URL" -t public.ncert_questions -t public.ncert_practice_marks -t public.ncert_question_fixes -Fc`,
-  stored encrypted, outside the repo.
+- Copies `ncert_questions`, `ncert_practice_marks` and `ncert_question_fixes`, plus fingerprints.
+- Fails if the backup schema already exists.
+- Also take an offline `pg_dump` of the same three tables.
+
+**1b. Normalise names** (`01b_normalize_chapters.sql`).
+- Persists `a4_backup_ncert_dedupe.chapter_alias`.
+- Rewrites subject/chapter on 4,967 rows, plus the copies in `ncert_practice_marks`.
+- Asserts the row count is unchanged and no subject variants remain.
+- Check the builder's chapter list per class+subject afterwards.
 
 **2. Map** (`02_build_map.sql`).
-- Writes `a4_backup_ncert_dedupe.dedupe_map (dup_id → canonical_id)`, only into the backup schema.
-- Checks that no canonical row is itself a duplicate.
-- Export to CSV and spot-check about 50 groups across subjects before GO.
+- Same-chapter groups on the normalised names, then the English poem rule.
+- Copies that pointed at a prose row are re-pointed to the poem row.
+- Export the map to CSV and spot-check before GO.
 
-**3. Apply** (`03_apply.sql`). One transaction; any failed check rolls everything back.
-1. Stale-map guard: every mapped row must still exist, and the marks count must be unchanged since the backup.
-2. **Marks:** collapse collisions (newest wins), then remap to the canonical.
-3. **G4.5 pointers:** point any `duplicate_of` at the canonical.
-4. **Fix log:** rows of doomed copies are deleted explicitly (copies kept in the backup), not silently by
-   CASCADE.
-5. **Redirects:** new `public.ncert_question_redirects(old_id → new_id)`, SELECT-only for `anon`/`authenticated`.
-   Default privileges would otherwise grant them ALL.
-6. **Delete** the 53,378 copies.
-7. Asserts: exact row count; the delete cascaded into zero practice marks; no exact duplicate left.
+**3. Apply** (`03_apply.sql`). One transaction:
+- stale-map guard;
+- marks: collapse collisions, remap, refresh chapter copies;
+- `duplicate_of` repoint;
+- explicit fix-log removal;
+- `ncert_question_redirects` (SELECT-only);
+- delete;
+- asserts (row count, zero cascade into marks, no exact duplicate left).
 
-Lock: `SHARE ROW EXCLUSIVE` on the three tables (blocks writes for the few seconds it runs, not reads).
+**4. Unique index** (`04_unique_index.sql`, alone, after step 3 is verified):
+`(class_grade, subject, chapter, md5(lower(btrim(regexp_replace(question_text, '\s+', ' ', 'g')))))`.
+All four functions are IMMUTABLE (`16f`).
 
-Verify after commit:
-- `/ncert-question-stats` totals per class+subject vs a snapshot taken before step 3. Expected equal, because the
-  read-time dedupe already hides exact copies. It may be slightly lower where copies differed only in options.
-- `/ncert-questions/by-ids` for a few deleted ids returns nothing until the backend follows redirects (see
-  follow-ups).
-
-**4. Unique constraint** (`04_unique_index.sql`, only after step 3 is verified).
-`CREATE UNIQUE INDEX CONCURRENTLY ncert_questions_chapter_text_uniq ON ncert_questions (class_grade, subject,
-chapter, md5(lower(btrim(regexp_replace(question_text, '\s+', ' ', 'g')))))`.
-- All four functions are IMMUTABLE (checked live, `16f`).
-- Run the file alone: it cannot run in a transaction.
-- From then on a duplicate insert or text edit fails loudly (tested).
-
-**Rollback** (tested; fingerprint identical to the backup afterwards):
-- Before step 3 commits: `ROLLBACK`.
-- After it: `99a_rollback_drop_unique_index.sql` (run alone, only if step 4 ran), then `99b_rollback_restore.sql`.
-  This re-inserts deleted rows with their original ids and restores marks, fix log and `duplicate_of`, then drops
-  the redirects.
-- Marks recorded *after* step 1 must be merged by hand; the script says so.
+**Rollback** (tested):
+- Run `99a` (alone, if step 4 ran), then `99b`.
+- 99b re-inserts deleted rows with their original ids and restores subject/chapter (undoes 1b), marks, fix log
+  and `duplicate_of`. It also drops the redirects.
 
 ## Not covered (next passes, separate GO)
 - **Near-duplicates:** spacing/punctuation-only pairs can be auto-merged by the same mechanism. Digit/word
   differences need review.
-- **Subject-variant copies:** 69 chapters, 3,053 rows under Physics-I/II, Chemistry-I/II and Political_Science.
-  These are different subject strings, so they are outside these groups and the unique key; that needs the
-  chapters table first.
+  - Most subject-variant books were extracted from different PDFs, so normalisation mostly renames them rather
+    than exposing exact copies (only 1,459 extra exact copies). The rest are near-duplicates.
+- **Non-chapters:** "Answers" / "Index" (303 rows) → `junk`, a separate step.
 - **Code follow-ups:**
   - `/ncert-questions/by-ids` follows `ncert_question_redirects`.
-  - Any future ingest uses `INSERT … ON CONFLICT DO NOTHING` against the new index.
-  - The G4.5 script must expect unique violations when it rewrites text.
+  - Ingest uses `ON CONFLICT DO NOTHING`.
+  - G4.5 must expect unique violations.
+  - Remove `_apply_ncert_subject_filter`'s variant lists once 1b is live.

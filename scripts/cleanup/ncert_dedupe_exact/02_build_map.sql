@@ -31,6 +31,35 @@ r as (
   from q window g as (partition by class_grade, subject, chapter, h))
 select id, canonical_id, group_size, class_grade, subject, chapter, marks from r where id <> canonical_id;
 
+-- Cross-chapter rule (Class 10 English): a poem is printed inside the preceding prose chapter's PDF, so its questions
+-- were extracted twice. A text present in both the prose chapter and its paired poem keeps only the poem copy.
+-- Pairs from scripts/audit/19a_chapter_alias_overlap.sql (83-100% of each poem's texts also sit in the prose chapter).
+create temp table _poem(cls text, prose text, poem text) on commit drop;
+insert into _poem values
+  ('10', 'A Letter to God', 'Fire and Ice'), ('10', 'Nelson Mandela - Long Walk to Freedom', 'A Tiger in the Zoo'),
+  ('10', 'Stories About Flying', 'How to Tell Wild Animals'), ('10', 'Stories About Flying', 'The Ball Poem'),
+  ('10', 'From the Diary of Anne Frank', 'Amanda'), ('10', 'Glimpses of India', 'The Trees'),
+  ('10', 'Mijbil the Otter', 'Fog'), ('10', 'Madam Rides the Bus', 'The Tale of Custard Dragon'),
+  ('10', 'The Sermon at Benares', 'For Anne Gregory');
+
+create temp table _cross on commit drop as
+with k as (
+  select n.id, n.class_grade, n.subject, n.chapter, md5(lower(btrim(regexp_replace(n.question_text, '\s+', ' ', 'g')))) as h
+  from public.ncert_questions n
+  where n.class_grade = '10' and n.subject = 'English'
+    and not exists (select 1 from a4_backup_ncert_dedupe.dedupe_map d where d.dup_id = n.id))   -- canonical rows only
+select distinct on (pr.id) pr.id as prose_id, po.id as poem_id
+from k pr join _poem p on p.cls = pr.class_grade and p.prose = pr.chapter
+join k po on po.class_grade = pr.class_grade and po.chapter = p.poem and po.h = pr.h
+order by pr.id, po.id;
+
+-- copies that pointed at a prose row now point at the poem row, then the prose row itself becomes a duplicate
+update a4_backup_ncert_dedupe.dedupe_map d set canonical_id = c.poem_id from _cross c where d.canonical_id = c.prose_id;
+insert into a4_backup_ncert_dedupe.dedupe_map (dup_id, canonical_id, group_size, class_grade, subject, chapter, dup_marks)
+select c.prose_id, c.poem_id, 0, n.class_grade, n.subject, n.chapter,
+       (select count(*) from public.ncert_practice_marks m where m.question_id = c.prose_id)
+from _cross c join public.ncert_questions n on n.id = c.prose_id;
+
 do $$
 begin
   if exists (select 1 from a4_backup_ncert_dedupe.dedupe_map m join a4_backup_ncert_dedupe.dedupe_map c on c.dup_id = m.canonical_id) then

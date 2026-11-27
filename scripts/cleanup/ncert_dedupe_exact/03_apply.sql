@@ -31,6 +31,11 @@ using ranked r where r.rn > 1 and m.user_id = r.user_id and m.question_id = r.qu
 update public.ncert_practice_marks m set question_id = d.canonical_id
 from a4_backup_ncert_dedupe.dedupe_map d where m.question_id = d.dup_id;
 
+-- a mark moved to a canonical in another chapter (English poem rule) carries that chapter's names
+update public.ncert_practice_marks m set class_grade = q.class_grade, subject = q.subject, chapter = q.chapter
+from public.ncert_questions q
+where q.id = m.question_id and (m.class_grade, m.subject, m.chapter) is distinct from (q.class_grade, q.subject, q.chapter);
+
 -- 2. G4.5 pointers: anything pointing at a row about to go points at its canonical instead.
 update public.ncert_questions q set duplicate_of = d.canonical_id
 from a4_backup_ncert_dedupe.dedupe_map d

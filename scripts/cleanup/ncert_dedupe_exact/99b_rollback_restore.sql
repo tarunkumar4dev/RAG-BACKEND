@@ -1,13 +1,15 @@
--- ROLLBACK part 2 of steps 3-4 from the step-1 backup (run 99a first if step 4 ran). ids are preserved.
--- Before step 3 commits: just ROLLBACK the transaction instead.
+-- ROLLBACK part 2 of steps 1b-4 from the step-1 backup (run 99a first if step 4 ran). ids are preserved.
+-- Before step 3 commits: just ROLLBACK the transaction instead (step 1b alone is undone by the update below).
 
 begin;
 insert into public.ncert_questions
 select b.* from a4_backup_ncert_dedupe.ncert_questions b
 where not exists (select 1 from public.ncert_questions q where q.id = b.id);
 
-update public.ncert_questions q set duplicate_of = b.duplicate_of          -- undo step 3.2
-from a4_backup_ncert_dedupe.ncert_questions b where b.id = q.id and q.duplicate_of is distinct from b.duplicate_of;
+update public.ncert_questions q                                              -- undo step 3.2 and step 1b
+set duplicate_of = b.duplicate_of, subject = b.subject, chapter = b.chapter
+from a4_backup_ncert_dedupe.ncert_questions b
+where b.id = q.id and (q.duplicate_of, q.subject, q.chapter) is distinct from (b.duplicate_of, b.subject, b.chapter);
 
 delete from public.ncert_practice_marks;                                     -- undo step 3.1 (exact copy)
 insert into public.ncert_practice_marks select * from a4_backup_ncert_dedupe.ncert_practice_marks;
