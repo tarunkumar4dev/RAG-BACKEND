@@ -1,13 +1,19 @@
+"""One-off check that the public tables (and ncert_chunks) exist.
+
+Credentials come only from the environment, never from this file:
+    DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/postgres?sslmode=require python check_table.py
+"""
+import os
+import sys
+
 import psycopg2
 
-conn = psycopg2.connect(
-    host="db.dcmnzvjftmdbywrjkust.supabase.co",
-    database="postgres",
-    user="postgres",
-    password="YOUR_NEW_PASSWORD",
-    port="5432",
-    sslmode="require"
-)
+dsn = os.environ.get("DATABASE_URL", "").strip()
+if not dsn:
+    sys.exit("DATABASE_URL is not set (see the docstring).")
+
+conn = psycopg2.connect(dsn, sslmode="require")
+conn.set_session(readonly=True)
 
 cursor = conn.cursor()
 
