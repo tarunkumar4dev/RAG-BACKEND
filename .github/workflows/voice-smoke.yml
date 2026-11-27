@@ -1,0 +1,52 @@
+name: voice-smoke
+
+# Nightly Sarvam STT + TTS smoke test. Runs at 02:00 IST = 20:30 UTC the previous day.
+# Also runnable on demand from the Actions tab (workflow_dispatch).
+#
+# Skip-on-missing-secret is deliberate: on a fork, a PR branch, or any repo that doesn't carry
+# SARVAM_API_KEY, the job prints a short "skipped" line and exits 0 so the scheduled run doesn't
+# flood the Actions tab with red.
+#
+# Cost per successful run: well under the $0.05 budget cap enforced inside the script.
+
+on:
+  schedule:
+    - cron: '30 20 * * *'    # 20:30 UTC daily = 02:00 IST next day
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: voice-smoke
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      SARVAM_API_KEY: ${{ secrets.SARVAM_API_KEY }}
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Skip gracefully when SARVAM_API_KEY is not set
+        if: ${{ env.SARVAM_API_KEY == '' }}
+        run: |
+          echo "::notice::SARVAM_API_KEY not configured for this environment; skipping voice smoke."
+          exit 0
+
+      - name: Set up Python
+        if: ${{ env.SARVAM_API_KEY != '' }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install minimal deps
+        if: ${{ env.SARVAM_API_KEY != '' }}
+        run: pip install --no-cache-dir 'requests>=2.31,<3'
+
+      - name: Run voice smoke
+        if: ${{ env.SARVAM_API_KEY != '' }}
+        run: python agent/tests/smoke/voice_smoke.py --budget-usd 0.05
