@@ -26,7 +26,6 @@ from app.models.test_generator import (
     TestGenerationResponse,
     TestFeedbackRequest,
     SaveTestRequest,
-    QuizSettings,
     ChapterSection,
     DifficultyLevel,
     QuestionFormat,
@@ -1587,30 +1586,6 @@ async def add_manual_question(test_id: str, req: AddManualQuestionRequest, user:
     except Exception as e:
         logger.error(f"Add manual question error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to add question.")
-
-
-@router.post("/quiz/create")
-async def create_quiz(settings_req: QuizSettings):
-    supabase = get_supabase()
-    try:
-        quiz_id = str(uuid.uuid4())
-        supabase.table("quizzes").insert({
-            "id": quiz_id,
-            "test_id": settings_req.test_id,
-            "teacher_id": settings_req.teacher_id,
-            "duration_minutes": settings_req.duration_minutes,
-            "max_marks": settings_req.max_marks,
-            "passing_marks": settings_req.passing_marks,
-            "shuffle_questions": settings_req.shuffle_questions,
-            "shuffle_options": settings_req.shuffle_options,
-            "camera_required": settings_req.camera_required,
-            "tab_switch_limit": settings_req.tab_switch_limit,
-            "status": "active",
-        }).execute()
-        return {"success": True, "quiz_id": quiz_id, "quiz_link": f"/quiz/{quiz_id}"}
-    except Exception as e:
-        logger.error(f"Quiz create error: {e}")
-        raise HTTPException(status_code=500, detail="Quiz creation failed.")
 
 
 @router.get("/test/{test_id}")

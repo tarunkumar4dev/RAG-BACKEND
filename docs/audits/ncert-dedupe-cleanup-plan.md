@@ -67,6 +67,20 @@ browser localStorage (covered by redirects).
 | Explicit renames, Class 10 History | "LIVELIHOODS, ECONOMIES AND SOCIETIES" → **The Making of a Global World**; "EVERYDAY LIFE, CULTURE AND POLITICS" → **Print Culture and the Modern World** | Content check (`19b`): 448 global-economy hits / 0 industrialisation; 37 of 43 rows about print |
 | English poem rule (step 2) | A text in both a prose chapter and its paired poem keeps only the poem copy | 9 pairs; 83–100% of each poem's texts also sit in its prose chapter (`19a`). The prose PDFs include the poem that follows them in First Flight |
 
+**Full mapping for review:** `docs/audits/samples/chapter_merge_map.csv`, from `scripts/audit/21_chapter_merge_map.sql`.
+It has 513 rows: every old (class, subject, chapter) → new, plus the 9 prose → poem pairs with the rows that move.
+Rules: `unchanged` 421, `subject_family` 60, `spelling` 9, `explicit_merge` 8, `explicit_rename` 2, `non_chapter` 4,
+`english_poem_pair` 9.
+
+**Why 425 and not the audit's 431 (`21b_chapter_count_reconcile.sql`):** 431 − 8 + 2 = 425.
+- **−8 merges:** the audit's 431 only merged spelling variants. Step 1b additionally merges 8 differently-named
+  Class 12 chapters into an existing chapter: Physics ALTERNATING CURRENT, CURRENT AND ELECTRICITY,
+  ELECTROMAGNETIC INDUCTION, ELECTROMAGNETIC WAVE, ELECTROSTATIC POTENTIAL, RAY OPTICS, SEMICONDUCTORS, and
+  Chemistry "Chemical Coordination".
+- **+2 non-chapters:** the audit's 431 excluded the non-chapters, but 1b keeps Class 11 Physics "Answers" and
+  "Index" as chapter strings.
+- **0 from the History renames:** they get new names but merge nothing.
+
 Kept spelling: the explicit name, else the most-used raw spelling of the target. The real same-name clash Class 11
 "Thermodynamics" (Physics vs Chemistry) stays separate because the families differ.
 
