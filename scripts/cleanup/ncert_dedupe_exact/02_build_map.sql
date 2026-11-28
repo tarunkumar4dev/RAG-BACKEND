@@ -3,7 +3,14 @@
 -- Group: same class_grade + subject + chapter + md5(lower(trim(collapse-whitespace(question_text)))).
 -- Canonical: 1 most student practice marks, 2 visible (not G4.5 duplicate/junk), 3 lowest quality_rank,
 --            4 has image_url, 5 has answer, 6 has options, 7 has question_table, 8 lowest id.
+-- Back-matter hidden by step 1c (quality_flags.hidden_reason = 'back_matter') is left out: never mapped, never deleted.
 begin;
+do $$
+begin
+  if to_regclass('a4_backup_ncert_dedupe.back_matter') is null then
+    raise exception 'run step 1c first';
+  end if;
+end $$;
 create table a4_backup_ncert_dedupe.dedupe_map (
   dup_id       bigint primary key,
   canonical_id bigint not null,
@@ -22,7 +29,8 @@ with q as (
          coalesce(n.options #>> '{}', '[]') not in ('[]', '') as has_opts, n.question_table is not null as has_tbl,
          md5(lower(btrim(regexp_replace(n.question_text, '\s+', ' ', 'g')))) as h,
          (select count(*) from public.ncert_practice_marks m where m.question_id = n.id) as marks
-  from public.ncert_questions n),
+  from public.ncert_questions n
+  where (n.quality_flags->>'hidden_reason') is distinct from 'back_matter'),
 r as (
   select q.*, count(*) over g as group_size,
          first_value(id) over (g order by marks desc,
@@ -64,6 +72,10 @@ do $$
 begin
   if exists (select 1 from a4_backup_ncert_dedupe.dedupe_map m join a4_backup_ncert_dedupe.dedupe_map c on c.dup_id = m.canonical_id) then
     raise exception 'a canonical row is itself marked as a duplicate';
+  end if;
+  if exists (select 1 from a4_backup_ncert_dedupe.dedupe_map m join a4_backup_ncert_dedupe.back_matter b
+             on b.id in (m.dup_id, m.canonical_id)) then
+    raise exception 'a back-matter row is in the map';
   end if;
 end $$;
 commit;

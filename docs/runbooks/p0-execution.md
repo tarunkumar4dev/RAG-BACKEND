@@ -14,7 +14,7 @@ Details for each credential: `docs/security/credential-inventory-2026-11-27.md`.
 | 1c | Revoke the 2 leaked Gemini keys. If either is still `GEMINI_API_KEY` / `CHECKER_GEMINI_API_KEY`, create a new key, update Vercel, redeploy **first** | Google AI Studio / Cloud Console → Credentials | One AI paper + one copy check succeed | New key (an old key can't be un-revoked) |
 | 1d | Regenerate the Razorpay **test** keys | Razorpay Dashboard (Test mode) | Test checkout locally | n/a |
 | 1e | If Vercel `WHATSAPP_VERIFY_TOKEN` equals the old hardcoded fallback: change it in Vercel **and** in Meta App → WhatsApp → Webhook at the same time | Vercel + Meta | Meta "Verify and save" succeeds | Set both back |
-| 1f | Rotate `agent_ro`: run `ALTER ROLE agent_ro PASSWORD '<SCRAM verifier>';` (given in chat, never saved to a file), **then** `select extensions.pg_stat_statements_reset();` | SQL editor | *(RO)* `scripts/audit/18l_secret_literals_in_stats.sql` returns no `agent_ro` rows; the agent connects with the new password | Re-run with a new verifier |
+| 1f | Rotate `agent_ro`. The new plain password is in `C:\Users\login\secrets\agent_ro_2026-11-28.txt` (second line), outside every repo. Run the `ALTER ROLE agent_ro PASSWORD 'SCRAM-SHA-256$4096:TWOf…';` statement from chat (salt `TWOf3FFvAlmeVHhucdc7lA==`), **then** `select extensions.pg_stat_statements_reset();`. **Do not use the earlier verifier** (salt `OzVyF6vy…`): its password is burned. Then put the new password where the agent reads it: the `scripts/run_agent_real.ps1` / `.bat` prompt, any local `AGENT_REAL_DB_URL`, and later `AGENT_DB_URL` (Docker). Nothing on Vercel. Move it into your password manager and delete the file | SQL editor | *(RO)* `scripts/audit/18l_secret_literals_in_stats.sql` returns no `agent_ro` rows; `scripts/run_agent_real.ps1` connects with the new password | Generate a new verifier and re-run the ALTER |
 | 1g | Delete `LOADTEST_BYPASS_TOKEN` (Preview) | Vercel env | Gone from the list | n/a |
 
 ## 2. Migration 41: NCERT tables SELECT-only for anon/authenticated (you, SQL editor)
@@ -63,12 +63,17 @@ the logs. Undo as in step 4.
 
 | Step | Run (`scripts/cleanup/ncert_dedupe_exact/`) | Expected | Verify *(RO)* | Undo |
 |---|---|---|---|---|
-| 0 | `scripts/audit/16g_dedupe_dryrun_normalised.sql` the same day | ≈54,902 deleted, 0 practice marks, 0 collisions | Numbers close to the plan; investigate any marks > 0 | n/a |
+| 0 | `scripts/audit/16g_dedupe_dryrun_normalised.sql` the same day | ≈54,882 deleted, 303 back-matter hidden, 423 pickable chapters, 0 practice marks, 0 collisions | Numbers close to the plan; investigate any marks > 0 | n/a |
 | 1 | `01_backup.sql`, plus an offline `pg_dump` of the 3 tables | Fingerprint rows printed | `select count(*) from a4_backup_ncert_dedupe.ncert_questions` = live count | `drop schema a4_backup_ncert_dedupe cascade` (only before 1b) |
-| 1b | `01b_normalize_chapters.sql` | 4,967 rows rewritten, 425 chapters | `select count(distinct (class_grade, subject, chapter)) from ncert_questions` = 425; no `-I`/`_` subjects; builder chapter lists look right | `99b_rollback_restore.sql` |
-| 2 | `02_build_map.sql`, then export the map to CSV and spot-check about 50 groups | ≈54,902 map rows | Map count ≈ dry run; no canonical is itself a duplicate (the script checks) | `drop table a4_backup_ncert_dedupe.dedupe_map` |
-| 3 | `03_apply.sql` (one transaction, seconds) | `COMMIT`; any failed check = full rollback | `ncert_questions` count = backup − map; `scripts/audit/04a_exact_dupes_summary.sql` → 0 extra rows; `ncert_question_redirects` count = map count; stats endpoint totals ≈ pre-run snapshot | `99b_rollback_restore.sql` |
-| 4 | `04_unique_index.sql`: the `CREATE UNIQUE INDEX CONCURRENTLY` line **alone** (not in a transaction), then its check query | `valid = true` | Inserting a copy fails with a unique violation | `99a_rollback_drop_unique_index.sql` (alone), then `99b` if needed |
+| 1b | `01b_normalize_chapters.sql` | 4,967 rows rewritten, 425 chapter strings | `select count(distinct (class_grade, subject, chapter)) from ncert_questions` = 425; no `-I`/`_` subjects; "Chemical Coordination" is now Class 12 Chemistry "Coordination Compounds" | `99b_rollback_restore.sql` |
+| 1c | `01c_hide_back_matter.sql` | 303 rows hidden (Answers 262, Index 41), 0 practice marks on them | `select count(*) from ncert_questions where quality_flags->>'hidden_reason' = 'back_matter' and quality_status = 'junk'` = 303; `/ncert-question-stats?subject=Physics&class_grade=11` shows no "Answers"/"Index" (the cache lasts 30 min, so check after expiry or a redeploy); 423 visible chapters | `99b_rollback_restore.sql` |
+| 2 | `02_build_map.sql` (refuses to run before 1c), then export the map to CSV and spot-check about 50 groups | ≈54,882 map rows, none from the back-matter | Map count ≈ dry run; no canonical is itself a duplicate and no back-matter row is mapped (the script checks both) | `drop table a4_backup_ncert_dedupe.dedupe_map` |
+| 3 | `03_apply.sql` (one transaction, seconds) | `COMMIT`; any failed check = full rollback | `ncert_questions` count = backup − map (≈37,024); `scripts/audit/04a_exact_dupes_summary.sql` → 0 extra rows outside the back-matter (its 20 hidden "Index" copies are expected); `ncert_question_redirects` count = map count; the 303 back-matter rows are still present; stats endpoint totals ≈ pre-run snapshot | `99b_rollback_restore.sql` |
+| 4 | `04_unique_index.sql`: the `CREATE UNIQUE INDEX CONCURRENTLY … WHERE …` statement **alone** (not in a transaction), then its check query | `valid = true`, predicate `hidden_reason IS DISTINCT FROM 'back_matter'` | Inserting a visible copy fails with a unique violation | `99a_rollback_drop_unique_index.sql` (alone), then `99b` if needed |
 
-Rollback order after step 4: `99a` (alone), then `99b`. `99b` restores the rows, the subject/chapter names, marks,
-fix log and `duplicate_of`, and drops the redirects. Marks recorded after step 1 need a manual merge.
+Rollback order after step 4: `99a` (alone), then `99b`. `99b` restores the rows, the subject/chapter names, the
+back-matter's `quality_status`/`quality_flags`, marks, fix log and `duplicate_of`, and drops the redirects. Marks
+recorded after step 1 need a manual merge.
+
+After 1c: don't run `ncert_quality_pass.py` on Class 11 Physics until it preserves `hidden_reason = back_matter`.
+It rewrites `quality_status`/`quality_flags` wholesale and would un-hide those rows (see the plan's follow-ups).

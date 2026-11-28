@@ -6,10 +6,12 @@ insert into public.ncert_questions
 select b.* from a4_backup_ncert_dedupe.ncert_questions b
 where not exists (select 1 from public.ncert_questions q where q.id = b.id);
 
-update public.ncert_questions q                                              -- undo step 3.2 and step 1b
-set duplicate_of = b.duplicate_of, subject = b.subject, chapter = b.chapter
+update public.ncert_questions q                                              -- undo step 3.2, 1c and 1b
+set duplicate_of = b.duplicate_of, subject = b.subject, chapter = b.chapter,
+    quality_status = b.quality_status, quality_flags = b.quality_flags
 from a4_backup_ncert_dedupe.ncert_questions b
-where b.id = q.id and (q.duplicate_of, q.subject, q.chapter) is distinct from (b.duplicate_of, b.subject, b.chapter);
+where b.id = q.id and (q.duplicate_of, q.subject, q.chapter, q.quality_status, q.quality_flags)
+                      is distinct from (b.duplicate_of, b.subject, b.chapter, b.quality_status, b.quality_flags);
 
 delete from public.ncert_practice_marks;                                     -- undo step 3.1 (exact copy)
 insert into public.ncert_practice_marks select * from a4_backup_ncert_dedupe.ncert_practice_marks;

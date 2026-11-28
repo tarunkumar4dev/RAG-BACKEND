@@ -1,4 +1,6 @@
--- Read-only DRY RUN v2: the exact-duplicate cleanup AFTER chapter-name normalisation (nothing is changed).
+-- Read-only DRY RUN v3: the exact-duplicate cleanup AFTER chapter-name normalisation (nothing is changed).
+-- v3: Class 11 Physics back-matter ("Answers"/"ANSWERS"/"Index") is hidden by step 1c, never deleted, and left
+--     out of the duplicate map and the unique index. Predicted here by name (the live rows are not flagged yet).
 -- Normalisation (same rules as scripts/cleanup/ncert_dedupe_exact/01b_normalize_chapters.sql):
 --   subject family: Physics-I/II -> Physics, Chemistry-I/II -> Chemistry, Political_Science -> Political Science
 --   chapter: compared case/punctuation-insensitive inside class + family, plus the explicit renames in `ov`
@@ -29,7 +31,8 @@ b as (
          n.image_url is not null as has_img, coalesce(btrim(n.answer), '') <> '' as has_ans,
          coalesce(n.options #>> '{}', '[]') not in ('[]', '') as has_opts, n.question_table is not null as has_tbl,
          md5(lower(btrim(regexp_replace(n.question_text, '\s+', ' ', 'g')))) as h,
-         (select count(*) from ncert_practice_marks m where m.question_id = n.id) as marks
+         (select count(*) from ncert_practice_marks m where m.question_id = n.id) as marks,
+         (n.class_grade = '11' and n.subject ~ '^Physics' and lower(n.chapter) in ('answers', 'index')) as bm
   from ncert_questions n),
 q as (select b.*, coalesce(ov.to_norm, b.norm) as norm2, ov.to_name
       from b left join ov on ov.cls = b.class_grade and ov.fam = b.fam and ov.from_norm = b.norm),
@@ -41,7 +44,7 @@ k as (select q.*, nm.new_chapter from q join names nm using (class_grade, fam, n
 r as (select k.*, count(*) over g as group_size,
              first_value(id) over (g order by marks desc, (quality_status is not null and quality_status in ('duplicate', 'junk')),
                                        coalesce(quality_rank, 0), not has_img, not has_ans, not has_opts, not has_tbl, id) as canonical_id
-      from k window g as (partition by class_grade, fam, new_chapter, h)),
+      from k where not bm window g as (partition by class_grade, fam, new_chapter, h)),
 -- English: canonical rows of a prose chapter whose text also exists in its paired poem chapter
 cross_ch as (select pr.id as prose_canonical, po.canonical_id as poem_canonical
              from r pr join poem p on p.cls = pr.class_grade and p.prose = pr.new_chapter
@@ -50,20 +53,26 @@ cross_ch as (select pr.id as prose_canonical, po.canonical_id as poem_canonical
 final as (select r.id, coalesce(c.poem_canonical, r.canonical_id) as canonical_id
           from r left join cross_ch c on c.prose_canonical = r.canonical_id),
 base as (select count(*) as n from (
-           select id, first_value(id) over (partition by class_grade, subject, chapter, h order by id) f from b) x where id <> f)
-select 1 as ord, 'rows deleted, raw chapter key (previous plan)' as metric, (select n from base)::text as value
-union all select 2, 'rows deleted, normalised key + English poem rule', count(*)::text from final where id <> canonical_id
-union all select 3, '  of which: extra from subject/chapter normalisation', ((select count(*) from r where id <> canonical_id) - (select n from base))::text
+           select id, first_value(id) over (partition by class_grade, subject, chapter, h order by id) f from b) x where id <> f),
+bmk as (select * from k where bm)
+select 1 as ord, 'rows deleted, raw chapter key (v1 plan)' as metric, (select n from base)::text as value
+union all select 2, 'rows deleted, v3 (normalised key + English poem rule, back-matter excluded)', count(*)::text from final where id <> canonical_id
+union all select 3, '  of which: same-chapter exact copies (normalised key)', (select count(*) from r where id <> canonical_id)::text
 union all select 4, '  of which: extra from the English poem rule', (select count(*) from cross_ch)::text
-union all select 5, 'rows kept', count(*) filter (where id = canonical_id)::text from final
-union all select 6, 'chapter strings before -> after normalisation', (select count(distinct (class_grade, subject, chapter)) from b)::text || ' -> ' || (select count(distinct (class_grade, fam, new_chapter)) from k)::text
-union all select 7, 'rows whose subject and/or chapter string is rewritten', count(*) filter (where subject <> fam or chapter <> new_chapter)::text from k
-union all select 8, 'practice marks on deleted rows (remap) / students', (select count(*) || ' / ' || count(distinct m.user_id) from ncert_practice_marks m join final f on f.id = m.question_id where f.id <> f.canonical_id)
-union all select 9, 'practice marks whose class/subject/chapter copy is rewritten', (select count(*) from ncert_practice_marks m join k on k.id = m.question_id where k.subject <> k.fam or k.chapter <> k.new_chapter)::text
-union all select 10, 'groups keeping a hidden row although a visible copy exists (must be 0)', count(*)::text from (
+union all select 5, 'back-matter rows hidden by 1c (not deleted)', (select count(*) || ' (Answers ' || count(*) filter (where lower(chapter) = 'answers')
+                                                     || ', Index ' || count(*) filter (where lower(chapter) = 'index') || ')' from bmk)
+union all select 6, '  of which: exact copies kept hidden (v2 would have deleted them)', (select (count(*) - count(distinct (new_chapter, h)))::text from bmk)
+union all select 7, 'rows kept: visible / hidden back-matter', (count(*) filter (where id = canonical_id))::text || ' / ' || (select count(*) from bmk) from final
+union all select 8, 'chapter strings before -> after 1b', (select count(distinct (class_grade, subject, chapter)) from b)::text || ' -> ' || (select count(distinct (class_grade, fam, new_chapter)) from k)::text
+union all select 9, 'chapters teachers can pick after 1b + 1c (back-matter hidden)', (select count(distinct (class_grade, fam, new_chapter)) from k where not bm)::text
+union all select 10, 'rows whose subject and/or chapter string is rewritten (1b)', count(*) filter (where subject <> fam or chapter <> new_chapter)::text from k
+union all select 11, 'practice marks on deleted rows (remap) / students', (select count(*) || ' / ' || count(distinct m.user_id) from ncert_practice_marks m join final f on f.id = m.question_id where f.id <> f.canonical_id)
+union all select 12, 'practice marks on back-matter rows (would become hidden)', (select count(*) from ncert_practice_marks m join bmk on bmk.id = m.question_id)::text
+union all select 13, 'practice marks whose class/subject/chapter copy is rewritten', (select count(*) from ncert_practice_marks m join k on k.id = m.question_id where k.subject <> k.fam or k.chapter <> k.new_chapter)::text
+union all select 14, 'groups keeping a hidden row although a visible copy exists (must be 0)', count(*)::text from (
     select 1 from r where group_size > 1 group by class_grade, fam, new_chapter, h
     having bool_or(id = canonical_id and quality_status in ('duplicate', 'junk')) and bool_or(quality_status is null or quality_status not in ('duplicate', 'junk'))) x
-union all select 11, 'ncert_question_fixes rows on deleted rows', (select count(*) from ncert_question_fixes fx join final f on f.id = fx.question_id where f.id <> f.canonical_id)::text
-union all select 12, 'unique key collisions left after cleanup (must be 0)', count(*)::text from (
+union all select 15, 'ncert_question_fixes rows on deleted rows', (select count(*) from ncert_question_fixes fx join final f on f.id = fx.question_id where f.id <> f.canonical_id)::text
+union all select 16, 'unique key collisions left inside the partial index (must be 0)', count(*)::text from (
     select 1 from k join final f on f.id = k.id where f.id = f.canonical_id group by k.class_grade, k.fam, k.new_chapter, k.h having count(*) > 1) x
 order by ord;

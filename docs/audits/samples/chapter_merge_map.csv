@@ -1,514 +1,514 @@
-class_grade,old_subject,old_chapter,rows,new_subject,new_chapter,rule,rows_moved_to_poem
-10,Economics,CONSUMER RIGHTS,63,Economics,CONSUMER RIGHTS,unchanged,NULL
-10,Economics,DEVELOPMENT,44,Economics,DEVELOPMENT,unchanged,NULL
-10,Economics,GLOBALISATION AND THE INDIAN ECONOMY,55,Economics,GLOBALISATION AND THE INDIAN ECONOMY,unchanged,NULL
-10,Economics,MONEY AND CREDIT,52,Economics,MONEY AND CREDIT,unchanged,NULL
-10,Economics,SECTORS OF THE INDIAN ECONOMY,75,Economics,SECTORS OF THE INDIAN ECONOMY,unchanged,NULL
-10,English,A Letter to God,39,English,A Letter to God,unchanged,NULL
-10,English,From the Diary of Anne Frank,43,English,Amanda,english_poem_pair,11
-10,English,Amanda,11,English,Amanda,unchanged,NULL
-10,English,A Question of Trust,11,English,A Question of Trust,unchanged,NULL
-10,English,Nelson Mandela - Long Walk to Freedom,37,English,A Tiger in the Zoo,english_poem_pair,5
-10,English,A Tiger in the Zoo,5,English,A Tiger in the Zoo,unchanged,NULL
-10,English,A Triumph of Surgery,16,English,A Triumph of Surgery,unchanged,NULL
-10,English,Bholi,16,English,Bholi,unchanged,NULL
-10,English,Dust of Snow,5,English,Dust of Snow,unchanged,NULL
-10,English,A Letter to God,39,English,Fire and Ice,english_poem_pair,3
-10,English,Fire and Ice,3,English,Fire and Ice,unchanged,NULL
-10,English,Mijbil the Otter,46,English,Fog,english_poem_pair,7
-10,English,Fog,7,English,Fog,unchanged,NULL
-10,English,Footprints Without Feet,12,English,Footprints Without Feet,unchanged,NULL
-10,English,The Sermon at Benares,20,English,For Anne Gregory,english_poem_pair,5
-10,English,For Anne Gregory,6,English,For Anne Gregory,unchanged,NULL
-10,English,From the Diary of Anne Frank,43,English,From the Diary of Anne Frank,unchanged,NULL
-10,English,Glimpses of India,47,English,Glimpses of India,unchanged,NULL
-10,English,Stories About Flying,33,English,How to Tell Wild Animals,english_poem_pair,7
-10,English,How to Tell Wild Animals,7,English,How to Tell Wild Animals,unchanged,NULL
-10,English,Madam Rides the Bus,39,English,Madam Rides the Bus,unchanged,NULL
-10,English,Mijbil the Otter,46,English,Mijbil the Otter,unchanged,NULL
-10,English,Nelson Mandela - Long Walk to Freedom,37,English,Nelson Mandela - Long Walk to Freedom,unchanged,NULL
-10,English,Stories About Flying,33,English,Stories About Flying,unchanged,NULL
-10,English,Stories About Flying,33,English,The Ball Poem,english_poem_pair,6
-10,English,The Ball Poem,7,English,The Ball Poem,unchanged,NULL
-10,English,The Book that Saved the Earth,10,English,The Book that Saved the Earth,unchanged,NULL
-10,English,The Making of a Scientist,10,English,The Making of a Scientist,unchanged,NULL
-10,English,The Midnight Visitor,10,English,The Midnight Visitor,unchanged,NULL
-10,English,The Necklace,13,English,The Necklace,unchanged,NULL
-10,English,The Proposal (Play),19,English,The Proposal (Play),unchanged,NULL
-10,English,The Sermon at Benares,20,English,The Sermon at Benares,unchanged,NULL
-10,English,Madam Rides the Bus,39,English,The Tale of Custard Dragon,english_poem_pair,10
-10,English,The Tale of Custard Dragon,10,English,The Tale of Custard Dragon,unchanged,NULL
-10,English,The Thief's Story,13,English,The Thief's Story,unchanged,NULL
-10,English,Glimpses of India,47,English,The Trees,english_poem_pair,11
-10,English,The Trees,13,English,The Trees,unchanged,NULL
-10,Geography,Agriculture,22,Geography,Agriculture,unchanged,NULL
-10,Geography,Forest and Wildlife Resources,12,Geography,Forest and Wildlife Resources,unchanged,NULL
-10,Geography,Lifelines of National Economy,30,Geography,Lifelines of National Economy,unchanged,NULL
-10,Geography,Manufacturing Industries,47,Geography,Manufacturing Industries,unchanged,NULL
-10,Geography,Minerals and Energy Resources,35,Geography,Minerals and Energy Resources,unchanged,NULL
-10,Geography,Resources and Development,22,Geography,Resources and Development,unchanged,NULL
-10,Geography,Water Resources,25,Geography,Water Resources,unchanged,NULL
-10,History,Nationalism in India,1394,History,Nationalism in India,unchanged,NULL
-10,History,"EVERYDAY LIFE, CULTURE AND POLITICS",43,History,Print Culture and the Modern World,explicit_rename,NULL
-10,History,The Age of Industrialisation,1405,History,The Age of Industrialisation,unchanged,NULL
-10,History,"LIVELIHOODS, ECONOMIES AND SOCIETIES",1382,History,The Making of a Global World,explicit_rename,NULL
-10,History,The Rise of Nationalism in Europe,1396,History,The Rise of Nationalism in Europe,unchanged,NULL
-10,Mathematics,Areas Related to Circles,676,Mathematics,Areas Related to Circles,unchanged,NULL
-10,Mathematics,Arithmetic Progressions,2068,Mathematics,Arithmetic Progressions,unchanged,NULL
-10,Mathematics,Circles,866,Mathematics,Circles,unchanged,NULL
-10,Mathematics,Coordinate Geometry,918,Mathematics,Coordinate Geometry,unchanged,NULL
-10,Mathematics,Introduction to Trigonometry,1381,Mathematics,Introduction to Trigonometry,unchanged,NULL
-10,Mathematics,Pair of Linear Equations in Two Variables,895,Mathematics,Pair of Linear Equations in Two Variables,unchanged,NULL
-10,Mathematics,Polynomials,271,Mathematics,Polynomials,unchanged,NULL
-10,Mathematics,Probability,733,Mathematics,Probability,unchanged,NULL
-10,Mathematics,Quadratic Equations,639,Mathematics,Quadratic Equations,unchanged,NULL
-10,Mathematics,Real Numbers,373,Mathematics,Real Numbers,unchanged,NULL
-10,Mathematics,Some Applications of Trigonometry,428,Mathematics,Some Applications of Trigonometry,unchanged,NULL
-10,Mathematics,Statistics,593,Mathematics,Statistics,unchanged,NULL
-10,Mathematics,Surface Areas and Volumes,359,Mathematics,Surface Areas and Volumes,unchanged,NULL
-10,Mathematics,Triangles,593,Mathematics,Triangles,unchanged,NULL
-10,Political Science,Federalism,523,Political Science,Federalism,unchanged,NULL
-10,Political Science,"Gender, Religion and Caste",389,Political Science,"Gender, Religion and Caste",unchanged,NULL
-10,Political Science,Outcomes of Democracy,464,Political Science,Outcomes of Democracy,unchanged,NULL
-10,Political Science,Political Parties,490,Political Science,Political Parties,unchanged,NULL
-10,Political Science,Power Sharing,279,Political Science,Power Sharing,unchanged,NULL
-10,Science,"Acids, Bases and Salts",795,Science,"Acids, Bases and Salts",unchanged,NULL
-10,Science,Chemical Reactions and Equations,572,Science,Chemical Reactions and Equations,unchanged,NULL
-10,Science,Control and Coordination,528,Science,Control and Coordination,unchanged,NULL
-10,Science,Electricity,758,Science,Electricity,unchanged,NULL
-10,Science,Heredity,194,Science,Heredity,unchanged,NULL
-10,Science,How do Organisms Reproduce,520,Science,How do Organisms Reproduce,unchanged,NULL
-10,Science,Life Processes,718,Science,Life Processes,unchanged,NULL
-10,Science,Light Reflection and Refraction,529,Science,Light Reflection and Refraction,unchanged,NULL
-10,Science,Magnetic Effects of Electric Current,355,Science,Magnetic Effects of Electric Current,unchanged,NULL
-10,Science,Metals and Non-metals,762,Science,Metals and Non-metals,unchanged,NULL
-10,Science,Our Environment,424,Science,Our Environment,unchanged,NULL
-10,Science,The Human Eye and Colorful World,260,Science,The Human Eye and Colorful World,unchanged,NULL
-11,Accountancy,Bank Reconciliation Statement (BRS),539,Accountancy,Bank Reconciliation Statement (BRS),unchanged,NULL
-11,Accountancy,Conceptual Framework of Accounting,260,Accountancy,Conceptual Framework of Accounting,unchanged,NULL
-11,Accountancy,"Depreciation, Provisions and Reserves",688,Accountancy,"Depreciation, Provisions and Reserves",unchanged,NULL
-11,Accountancy,Financial Statements - I (Covers Financial Statements of Sole Proprietorship without adjustments),349,Accountancy,Financial Statements - I (Covers Financial Statements of Sole Proprietorship without adjustments),unchanged,NULL
-11,Accountancy,Financial Statements - II (Covers Financial Statements with adjustments),373,Accountancy,Financial Statements - II (Covers Financial Statements with adjustments),unchanged,NULL
-11,Accountancy,Introduction to Accounting,442,Accountancy,Introduction to Accounting,unchanged,NULL
-11,Accountancy,"Recording of Transactions - I (Covers Accounting Equation, Journal, and Ledger)",622,Accountancy,"Recording of Transactions - I (Covers Accounting Equation, Journal, and Ledger)",unchanged,NULL
-11,Accountancy,Recording of Transactions - II (Covers Cash Book and other Special Purpose Subsidiary Books),528,Accountancy,Recording of Transactions - II (Covers Cash Book and other Special Purpose Subsidiary Books),unchanged,NULL
-11,Accountancy,Trial Balance and Rectification of Errors,487,Accountancy,Trial Balance and Rectification of Errors,unchanged,NULL
-11,Biology,Anatomy of Flowering Plants,62,Biology,Anatomy of Flowering Plants,unchanged,NULL
-11,Biology,Animal Kingdom,120,Biology,Animal Kingdom,unchanged,NULL
-11,Biology,Biological Classification,113,Biology,Biological Classification,unchanged,NULL
-11,Biology,Biomolecules,162,Biology,Biomolecules,unchanged,NULL
-11,Biology,Breathing and Exchange of Gases,120,Biology,Breathing and Exchange of Gases,unchanged,NULL
-11,Biology,Cell Cycle and Cell Division,204,Biology,Cell Cycle and Cell Division,unchanged,NULL
-11,Biology,Cell The Unit of Life,158,Biology,Cell The Unit of Life,unchanged,NULL
-11,Biology,Chemical Coordination and Integration,72,Biology,Chemical Coordination and Integration,unchanged,NULL
-11,Biology,Excretory Products and their Elimination,109,Biology,Excretory Products and their Elimination,unchanged,NULL
-11,Biology,Morphology of Flowering Plants,18,Biology,Morphology of Flowering Plants,unchanged,NULL
-11,Biology,Neural Control and Coordination,111,Biology,Neural Control and Coordination,unchanged,NULL
-11,Biology,Photosynthesis in Higher Plants,229,Biology,Photosynthesis in Higher Plants,unchanged,NULL
-11,Biology,Plant Growth and Development,226,Biology,Plant Growth and Development,unchanged,NULL
-11,Biology,Plant Kingdom,88,Biology,Plant Kingdom,unchanged,NULL
-11,Biology,Respiration in Plants,251,Biology,Respiration in Plants,unchanged,NULL
-11,Biology,Structural Organisation in Animals,4,Biology,Structural Organisation in Animals,unchanged,NULL
-11,Biology,The Living World,120,Biology,The Living World,unchanged,NULL
-11,Chemistry-I,Chemical Bonding and Molecular Structure,13,Chemistry,Chemical Bonding and Molecular Structure,subject_family,NULL
-11,Chemistry,Chemical Bonding and Molecular Structure,329,Chemistry,Chemical Bonding and Molecular Structure,unchanged,NULL
-11,Chemistry-I,Classification of Elements and Periodicity in Properties,49,Chemistry,Classification of Elements and Periodicity in Properties,subject_family,NULL
-11,Chemistry,Classification of Elements and Periodicity in Properties,380,Chemistry,Classification of Elements and Periodicity in Properties,unchanged,NULL
-11,Chemistry-I,Equilibrium,161,Chemistry,Equilibrium,subject_family,NULL
-11,Chemistry,Equilibrium,732,Chemistry,Equilibrium,unchanged,NULL
-11,Chemistry,Hydrocarbons,369,Chemistry,Hydrocarbons,unchanged,NULL
-11,Chemistry,Organic Chemistry – Some Basic Principles and Techniques,461,Chemistry,Organic Chemistry – Some Basic Principles and Techniques,unchanged,NULL
-11,Chemistry,Redox Reactions,283,Chemistry,Redox Reactions,unchanged,NULL
-11,Chemistry-I,Some Basic Concepts of Chemistry,26,Chemistry,Some Basic Concepts of Chemistry,subject_family,NULL
-11,Chemistry,Some Basic Concepts of Chemistry,353,Chemistry,Some Basic Concepts of Chemistry,unchanged,NULL
-11,Chemistry-I,Structure of Atom,52,Chemistry,Structure of Atom,subject_family,NULL
-11,Chemistry,Structure of Atom,636,Chemistry,Structure of Atom,unchanged,NULL
-11,Chemistry-I,Thermodynamics,52,Chemistry,Thermodynamics,subject_family,NULL
-11,Chemistry,Thermodynamics,291,Chemistry,Thermodynamics,unchanged,NULL
-11,Economics,Collection of Data,172,Economics,Collection of Data,unchanged,NULL
-11,Economics,Comparative Development Experiences of India and its Neighbours,213,Economics,Comparative Development Experiences of India and its Neighbours,unchanged,NULL
-11,Economics,Correlation,196,Economics,Correlation,unchanged,NULL
-11,Economics,"Employment Growth, Informalisation and Other Issues",366,Economics,"Employment Growth, Informalisation and Other Issues",unchanged,NULL
-11,Economics,Environment and Sustainable Development,220,Economics,Environment and Sustainable Development,unchanged,NULL
-11,Economics,Human Capital Formation in India,271,Economics,Human Capital Formation in India,unchanged,NULL
-11,Economics,Index Numbers,237,Economics,Index Numbers,unchanged,NULL
-11,Economics,Indian Economy (1950–1990),216,Economics,Indian Economy (1950–1990),unchanged,NULL
-11,Economics,Indian Economy on the Eve of Independence,182,Economics,Indian Economy on the Eve of Independence,unchanged,NULL
-11,Economics,Introduction,129,Economics,Introduction,unchanged,NULL
-11,Economics,"Liberalisation, Privatisation and Globalisation An Appraisal",253,Economics,"Liberalisation, Privatisation and Globalisation An Appraisal",unchanged,NULL
-11,Economics,Measures of Central Tendency,231,Economics,Measures of Central Tendency,unchanged,NULL
-11,Economics,Organisation of Data,203,Economics,Organisation of Data,unchanged,NULL
-11,Economics,Presentation of Data,182,Economics,Presentation of Data,unchanged,NULL
-11,Economics,Rural Development,271,Economics,Rural Development,unchanged,NULL
-11,Economics,Use of Statistical Tools,99,Economics,Use of Statistical Tools,unchanged,NULL
-11,History,An Empire Across Three Continents,170,History,An Empire Across Three Continents,unchanged,NULL
-11,History,Changing Cultural Traditions,75,History,Changing Cultural Traditions,unchanged,NULL
-11,History,Displacing Indigenous Peoples,92,History,Displacing Indigenous Peoples,unchanged,NULL
-11,History,Nomadic Empires,6,History,Nomadic Empires,unchanged,NULL
-11,History,Paths to Modernisation,76,History,Paths to Modernisation,unchanged,NULL
-11,History,The Three Orders,63,History,The Three Orders,unchanged,NULL
-11,History,Writing and City Life,102,History,Writing and City Life,unchanged,NULL
-11,Mathematics,BINOMIALTHEOREM,127,Mathematics,BINOMIALTHEOREM,unchanged,NULL
-11,Mathematics,COMPLEX NUMBERS AND QUADRATIC EQUATIONS,218,Mathematics,COMPLEX NUMBERS AND QUADRATIC EQUATIONS,unchanged,NULL
-11,Mathematics,CONIC SECTIONS,534,Mathematics,CONIC SECTIONS,unchanged,NULL
-11,Mathematics,INTRODUCTION TO THREE DIMENSIONAL GEOMETRY,167,Mathematics,INTRODUCTION TO THREE DIMENSIONAL GEOMETRY,unchanged,NULL
-11,Mathematics,LIMITS AND DERIVATIVES,607,Mathematics,LIMITS AND DERIVATIVES,unchanged,NULL
-11,Mathematics,LINEAR INEQUALITIES,324,Mathematics,LINEAR INEQUALITIES,unchanged,NULL
-11,Mathematics,PERMUTATIONS AND COMBINATIONS,415,Mathematics,PERMUTATIONS AND COMBINATIONS,unchanged,NULL
-11,Mathematics,PROBABILITY,306,Mathematics,PROBABILITY,unchanged,NULL
-11,Mathematics,RELATIONS AND FUNCTIONS,362,Mathematics,RELATIONS AND FUNCTIONS,unchanged,NULL
-11,Mathematics,SEQUENCES AND SERIES,492,Mathematics,SEQUENCES AND SERIES,unchanged,NULL
-11,Mathematics,SETS,531,Mathematics,SETS,unchanged,NULL
-11,Mathematics,STATISTICS,256,Mathematics,STATISTICS,unchanged,NULL
-11,Mathematics,STRAIGHT LINES,519,Mathematics,STRAIGHT LINES,unchanged,NULL
-11,Mathematics,TRIGONOMETRIC FUNCTIONS,468,Mathematics,TRIGONOMETRIC FUNCTIONS,unchanged,NULL
-11,Physics-I,Answers,215,Physics,Answers,non_chapter,NULL
-11,Physics-II,ANSWERS,47,Physics,Answers,non_chapter,NULL
-11,Physics-I,GRAVITATION,63,Physics,GRAVITATION,subject_family,NULL
-11,Physics,GRAVITATION,196,Physics,GRAVITATION,unchanged,NULL
-11,Physics-I,Index,30,Physics,Index,non_chapter,NULL
-11,Physics-II,Index,11,Physics,Index,non_chapter,NULL
-11,Physics-II,KINETIC THEORY,40,Physics,KINETIC THEORY,subject_family,NULL
-11,Physics,KINETIC THEORY,132,Physics,KINETIC THEORY,unchanged,NULL
-11,Physics-I,LAWS OF MOTION,45,Physics,LAWS OF MOTION,subject_family,NULL
-11,Physics,LAWS OF MOTION,244,Physics,LAWS OF MOTION,unchanged,NULL
-11,Physics-II,MECHANICAL PROPERTIES OF FLUIDS,51,Physics,MECHANICAL PROPERTIES OF FLUIDS,subject_family,NULL
-11,Physics,MECHANICAL PROPERTIES OF FLUIDS,213,Physics,MECHANICAL PROPERTIES OF FLUIDS,unchanged,NULL
-11,Physics-II,MECHANICAL PROPERTIES OF SOLIDS,49,Physics,MECHANICAL PROPERTIES OF SOLIDS,subject_family,NULL
-11,Physics,MECHANICAL PROPERTIES OF SOLIDS,170,Physics,MECHANICAL PROPERTIES OF SOLIDS,unchanged,NULL
-11,Physics-I,MOTION IN A PLANE,37,Physics,MOTION IN A PLANE,subject_family,NULL
-11,Physics,MOTION IN A PLANE,227,Physics,MOTION IN A PLANE,unchanged,NULL
-11,Physics-I,MOTION IN A STRAIGHT LINE,41,Physics,MOTION IN A STRAIGHT LINE,subject_family,NULL
-11,Physics,MOTION IN A STRAIGHT LINE,165,Physics,MOTION IN A STRAIGHT LINE,unchanged,NULL
-11,Physics-II,OSCILLATIONS,25,Physics,OSCILLATIONS,subject_family,NULL
-11,Physics,OSCILLATIONS,158,Physics,OSCILLATIONS,unchanged,NULL
-11,Physics-I,SYSTEMS OF PARTICLES AND ROTATIONAL MOTION,89,Physics,SYSTEMS OF PARTICLES AND ROTATIONAL MOTION,subject_family,NULL
-11,Physics,SYSTEMS OF PARTICLES AND ROTATIONAL MOTION,231,Physics,SYSTEMS OF PARTICLES AND ROTATIONAL MOTION,unchanged,NULL
-11,Physics-II,THERMAL PROPERTIES OF MATTER,73,Physics,THERMAL PROPERTIES OF MATTER,subject_family,NULL
-11,Physics,THERMAL PROPERTIES OF MATTER,210,Physics,THERMAL PROPERTIES OF MATTER,unchanged,NULL
-11,Physics-II,THERMODYNAMICS,31,Physics,THERMODYNAMICS,subject_family,NULL
-11,Physics,THERMODYNAMICS,92,Physics,THERMODYNAMICS,unchanged,NULL
-11,Physics-I,UNITS AND MEASUREMENT,34,Physics,UNITS AND MEASUREMENT,subject_family,NULL
-11,Physics,UNITS AND MEASUREMENT,132,Physics,UNITS AND MEASUREMENT,unchanged,NULL
-11,Physics-II,WAVES,14,Physics,WAVES,subject_family,NULL
-11,Physics,WAVES,171,Physics,WAVES,unchanged,NULL
-11,Physics-I,"WORK, ENERGY AND POWER",54,Physics,"WORK, ENERGY AND POWER",subject_family,NULL
-11,Physics,"WORK, ENERGY AND POWER",209,Physics,"WORK, ENERGY AND POWER",unchanged,NULL
-11,Political_Science,Citizenship,64,Political Science,Citizenship,subject_family,NULL
-11,Political Science,Citizenship,206,Political Science,Citizenship,unchanged,NULL
-11,Political_Science,Consitution As A Living Document,84,Political Science,Consitution As A Living Document,subject_family,NULL
-11,Political Science,Consitution As A Living Document,220,Political Science,Consitution As A Living Document,unchanged,NULL
-11,Political_Science,Constitution Why and How,104,Political Science,Constitution Why and How,subject_family,NULL
-11,Political Science,Constitution Why and How,381,Political Science,Constitution Why and How,unchanged,NULL
-11,Political_Science,Election and Representation,99,Political Science,Election and Representation,subject_family,NULL
-11,Political Science,Election and Representation,270,Political Science,Election and Representation,unchanged,NULL
-11,Political_Science,Equality,120,Political Science,Equality,subject_family,NULL
-11,Political Science,Equality,215,Political Science,Equality,unchanged,NULL
-11,Political_Science,Executive,33,Political Science,Executive,subject_family,NULL
-11,Political Science,Executive,207,Political Science,Executive,unchanged,NULL
-11,Political_Science,Federalism,31,Political Science,Federalism,subject_family,NULL
-11,Political Science,Federalism,157,Political Science,Federalism,unchanged,NULL
-11,Political_Science,Freedom,57,Political Science,Freedom,subject_family,NULL
-11,Political Science,Freedom,107,Political Science,Freedom,unchanged,NULL
-11,Political_Science,Judiciary,91,Political Science,Judiciary,subject_family,NULL
-11,Political Science,Judiciary,262,Political Science,Judiciary,unchanged,NULL
-11,Political_Science,Legislature,57,Political Science,Legislature,subject_family,NULL
-11,Political Science,Legislature,204,Political Science,Legislature,unchanged,NULL
-11,Political_Science,Local Governments,25,Political Science,Local Governments,subject_family,NULL
-11,Political Science,Local Governments,187,Political Science,Local Governments,unchanged,NULL
-11,Political_Science,Nationalism,52,Political Science,Nationalism,subject_family,NULL
-11,Political Science,Nationalism,131,Political Science,Nationalism,unchanged,NULL
-11,Political_Science,Political Theory An Introduction,29,Political Science,Political Theory An Introduction,subject_family,NULL
-11,Political Science,Political Theory An Introduction,178,Political Science,Political Theory An Introduction,unchanged,NULL
-11,Political_Science,Rights,56,Political Science,Rights,subject_family,NULL
-11,Political Science,Rights,100,Political Science,Rights,unchanged,NULL
-11,Political_Science,Rights in the Indian Constitution,63,Political Science,Rights in the Indian Constitution,subject_family,NULL
-11,Political Science,Rights in the Indian Constitution,189,Political Science,Rights in the Indian Constitution,unchanged,NULL
-11,Political_Science,Secularism,81,Political Science,Secularism,subject_family,NULL
-11,Political Science,Secularism,224,Political Science,Secularism,unchanged,NULL
-11,Political_Science,Social Justice,30,Political Science,Social Justice,subject_family,NULL
-11,Political Science,Social Justice,84,Political Science,Social Justice,unchanged,NULL
-11,Political_Science,The Philosophy Of The Constitution,64,Political Science,The Philosophy Of The Constitution,subject_family,NULL
-11,Political Science,The Philosophy Of The Constitution,271,Political Science,The Philosophy Of The Constitution,unchanged,NULL
-12,Accountancy,Accounting for Partnership Basic Concepts,460,Accountancy,Accounting for Partnership Basic Concepts,unchanged,NULL
-12,Accountancy,Accounting for Share Capital,516,Accountancy,Accounting for Share Capital,unchanged,NULL
-12,Accountancy,Accounting Ratios,451,Accountancy,Accounting Ratios,unchanged,NULL
-12,Accountancy,Analysis of Financial Statements,235,Accountancy,Analysis of Financial Statements,unchanged,NULL
-12,Accountancy,Cash Flow Statement,224,Accountancy,Cash Flow Statement,unchanged,NULL
-12,Accountancy,Dissolution of a Partnership Firm,341,Accountancy,Dissolution of a Partnership Firm,unchanged,NULL
-12,Accountancy,Financial Statements of a Company,140,Accountancy,Financial Statements of a Company,unchanged,NULL
-12,Accountancy,Issue and Redemption of Debentures,662,Accountancy,Issue and Redemption of Debentures,unchanged,NULL
-12,Accountancy,Reconstitution of a Partnership Firm – Admission of a Partner,490,Accountancy,Reconstitution of a Partnership Firm – Admission of a Partner,unchanged,NULL
-12,Accountancy,Reconstitution of a Partnership Firm – RetirementDeath of a Partner,304,Accountancy,Reconstitution of a Partnership Firm – RetirementDeath of a Partner,unchanged,NULL
-12,Biology,Biodiversity and Conservation,156,Biology,Biodiversity and Conservation,unchanged,NULL
-12,Biology,Biotechnology and its Applications,119,Biology,Biotechnology and its Applications,unchanged,NULL
-12,Biology,Biotechnology Principles and Processes,85,Biology,Biotechnology Principles and Processes,unchanged,NULL
-12,Biology,Evolution,89,Biology,Evolution,unchanged,NULL
-12,Biology,Human Health and Disease,119,Biology,Human Health and Disease,unchanged,NULL
-12,Biology,Microbes in Human Welfare,125,Biology,Microbes in Human Welfare,unchanged,NULL
-12,Biology,Molecular Basis of Inheritance,161,Biology,Molecular Basis of Inheritance,unchanged,NULL
-12,Biology,Organisms and Populations,133,Biology,Organisms and Populations,unchanged,NULL
-12,Biology,Principles of Inheritance and Variation,194,Biology,Principles of Inheritance and Variation,unchanged,NULL
-12,Biology,Reproductive Health,110,Biology,Reproductive Health,unchanged,NULL
-12,Biology,Sexual Reproduction in Flowering Plants,264,Biology,Sexual Reproduction in Flowering Plants,unchanged,NULL
-12,Chemistry-II,"Alcohols, Phenols and Ethers",79,Chemistry,"Alcohols, Phenols and Ethers",subject_family,NULL
-12,Chemistry,"Alcohols, Phenols and Ethers",262,Chemistry,"Alcohols, Phenols and Ethers",unchanged,NULL
-12,Chemistry-II,"Aldehydes, Ketones and Carboxylic acids",57,Chemistry,"Aldehydes, Ketones and Carboxylic Acids",spelling,NULL
-12,Chemistry,"Aldehydes, Ketones and Carboxylic Acids",165,Chemistry,"Aldehydes, Ketones and Carboxylic Acids",unchanged,NULL
-12,Chemistry-II,Amines,62,Chemistry,Amines,subject_family,NULL
-12,Chemistry,Amines,198,Chemistry,Amines,unchanged,NULL
-12,Chemistry-II,Biomolecules,3,Chemistry,Biomolecules,subject_family,NULL
-12,Chemistry,Biomolecules,166,Chemistry,Biomolecules,unchanged,NULL
-12,Chemistry-I,Chemical Kinetics,94,Chemistry,Chemical Kinetics,subject_family,NULL
-12,Chemistry,Chemical Kinetics,234,Chemistry,Chemical Kinetics,unchanged,NULL
-12,Chemistry-I,Chemical Coordination,46,Chemistry,Coordination Compounds,explicit_merge,NULL
-12,Chemistry,Coordination Compounds,241,Chemistry,Coordination Compounds,unchanged,NULL
-12,Chemistry-I,Electrochemistry,59,Chemistry,Electrochemistry,subject_family,NULL
-12,Chemistry,Electrochemistry,199,Chemistry,Electrochemistry,unchanged,NULL
-12,Chemistry-II,Haloalkanes and Haloarenes,18,Chemistry,Haloalkanes and Haloarenes,subject_family,NULL
-12,Chemistry,Haloalkanes and Haloarenes,208,Chemistry,Haloalkanes and Haloarenes,unchanged,NULL
-12,Chemistry-I,Solutions,108,Chemistry,Solutions,subject_family,NULL
-12,Chemistry,Solutions,269,Chemistry,Solutions,unchanged,NULL
-12,Chemistry-I,The d and f block elements,78,Chemistry,The d- and f-Block Elements,spelling,NULL
-12,Chemistry,The d- and f-Block Elements,267,Chemistry,The d- and f-Block Elements,unchanged,NULL
-12,Economics,Determination of Income and Employment,30,Economics,Determination of Income and Employment,unchanged,NULL
-12,Economics,Government Budget and the Economy,57,Economics,Government Budget and the Economy,unchanged,NULL
-12,Economics,Introduction,60,Economics,Introduction,unchanged,NULL
-12,Economics,Introduction_2,33,Economics,Introduction_2,unchanged,NULL
-12,Economics,Market Equilibrium,95,Economics,Market Equilibrium,unchanged,NULL
-12,Economics,Money and Banking,51,Economics,Money and Banking,unchanged,NULL
-12,Economics,National Income Accounting,75,Economics,National Income Accounting,unchanged,NULL
-12,Economics,Open Economy Macroeconomics,40,Economics,Open Economy Macroeconomics,unchanged,NULL
-12,Economics,Production and Costs,69,Economics,Production and Costs,unchanged,NULL
-12,Economics,Theory of Consumer Behaviour,67,Economics,Theory of Consumer Behaviour,unchanged,NULL
-12,Economics,The Theory of the Firm under Perfect Competition,74,Economics,The Theory of the Firm under Perfect Competition,unchanged,NULL
-12,English,A Roadside Stand,28,English,A Roadside Stand,unchanged,NULL
-12,English,A Thing of Beauty,18,English,A Thing of Beauty,unchanged,NULL
-12,English,Aunt Jennifer’s Tigers,20,English,Aunt Jennifer’s Tigers,unchanged,NULL
-12,English,Deep Water,30,English,Deep Water,unchanged,NULL
-12,English,Going Places,39,English,Going Places,unchanged,NULL
-12,English,Indigo,43,English,Indigo,unchanged,NULL
-12,English,Journey to the end of the Earth,18,English,Journey to the end of the Earth,unchanged,NULL
-12,English,Keeping Quiet,12,English,Keeping Quiet,unchanged,NULL
-12,English,Lost Spring,39,English,Lost Spring,unchanged,NULL
-12,English,Memories of Childhood,6,English,Memories of Childhood,unchanged,NULL
-12,English,My Mother at Sixty-six,12,English,My Mother at Sixty-six,unchanged,NULL
-12,English,On The Face Of It,71,English,On The Face Of It,unchanged,NULL
-12,English,Poets and Pancakes,57,English,Poets and Pancakes,unchanged,NULL
-12,English,The Enemy,62,English,The Enemy,unchanged,NULL
-12,English,The Interview,32,English,The Interview,unchanged,NULL
-12,English,The Last Lesson,42,English,The Last Lesson,unchanged,NULL
-12,English,The Rattrap,62,English,The Rattrap,unchanged,NULL
-12,English,The Third Level,23,English,The Third Level,unchanged,NULL
-12,English,The Tiger King,30,English,The Tiger King,unchanged,NULL
-12,History,An Imperial Capital Vijayanagara,87,History,An Imperial Capital Vijayanagara,unchanged,NULL
-12,History,Bhakti-Sufi Traditions,64,History,Bhakti-Sufi Traditions,unchanged,NULL
-12,History,"Bricks, Beads and Bones",78,History,"Bricks, Beads and Bones",unchanged,NULL
-12,History,Colonialism and the Countryside,86,History,Colonialism and the Countryside,unchanged,NULL
-12,History,Framing the Constitution,68,History,Framing the Constitution,unchanged,NULL
-12,History,"Kings, Farmers and Towns",78,History,"Kings, Farmers and Towns",unchanged,NULL
-12,History,"Kinship, Caste and Class",74,History,"Kinship, Caste and Class",unchanged,NULL
-12,History,Mahatma Gandhi and the Nationalist Movement,55,History,Mahatma Gandhi and the Nationalist Movement,unchanged,NULL
-12,History,"Peasants, Zamindars and the State",66,History,"Peasants, Zamindars and the State",unchanged,NULL
-12,History,Rebels and the Raj,56,History,Rebels and the Raj,unchanged,NULL
-12,History,"Thinkers, Beliefs and Buildings",89,History,"Thinkers, Beliefs and Buildings",unchanged,NULL
-12,History,Through the Eyes of Travellers,72,History,Through the Eyes of Travellers,unchanged,NULL
-12,Mathematics,APPLICATION OF DERIVATIVES,383,Mathematics,APPLICATION OF DERIVATIVES,unchanged,NULL
-12,Mathematics,APPLICATION OF INTEGRALS,40,Mathematics,APPLICATION OF INTEGRALS,unchanged,NULL
-12,Mathematics,CONTINUITY AND DIFFERENTIBILITY,405,Mathematics,CONTINUITY AND DIFFERENTIBILITY,unchanged,NULL
-12,Mathematics,DETERMINANTS,223,Mathematics,DETERMINANTS,unchanged,NULL
-12,Mathematics,DIFFERENTIAL EQUATIONS,372,Mathematics,DIFFERENTIAL EQUATIONS,unchanged,NULL
-12,Mathematics,INTEGRALS,757,Mathematics,INTEGRALS,unchanged,NULL
-12,Mathematics,INVERSE TRIGONOMETRIC FUNCTIONS,146,Mathematics,INVERSE TRIGONOMETRIC FUNCTIONS,unchanged,NULL
-12,Mathematics,LINEAR PROGRAMMING,51,Mathematics,LINEAR PROGRAMMING,unchanged,NULL
-12,Mathematics,MATRICES,208,Mathematics,MATRICES,unchanged,NULL
-12,Mathematics,PROBABILITY,260,Mathematics,PROBABILITY,unchanged,NULL
-12,Mathematics,RELATIONS AND FUNCTIONS,153,Mathematics,RELATIONS AND FUNCTIONS,unchanged,NULL
-12,Mathematics,THREE DIMENSIONAL GEOMETRY,109,Mathematics,THREE DIMENSIONAL GEOMETRY,unchanged,NULL
-12,Mathematics,VECTOR ALGEBRA,265,Mathematics,VECTOR ALGEBRA,unchanged,NULL
-12,Physics-I,ALTERNATING CURRENT,24,Physics,Alternating Current (AC),explicit_merge,NULL
-12,Physics,Alternating Current (AC),57,Physics,Alternating Current (AC),unchanged,NULL
-12,Physics-II,ATOMS,22,Physics,Atoms,spelling,NULL
-12,Physics,Atoms,59,Physics,Atoms,unchanged,NULL
-12,Physics-I,CURRENT AND ELECTRICITY,17,Physics,Current Electricity,explicit_merge,NULL
-12,Physics,Current Electricity,48,Physics,Current Electricity,unchanged,NULL
-12,Physics-II,DUAL NATURE OF RADIATION AND MATTER,15,Physics,Dual Nature of Radiation and Matter,spelling,NULL
-12,Physics,Dual Nature of Radiation and Matter,47,Physics,Dual Nature of Radiation and Matter,unchanged,NULL
-12,Physics-I,ELECTRIC CHARGES AND FIELDS,34,Physics,Electric Charges and Fields,spelling,NULL
-12,Physics,Electric Charges and Fields,137,Physics,Electric Charges and Fields,unchanged,NULL
-12,Physics-I,ELECTROMAGNETIC INDUCTION,18,Physics,Electromagnetic Induction (EMI),explicit_merge,NULL
-12,Physics,Electromagnetic Induction (EMI),65,Physics,Electromagnetic Induction (EMI),unchanged,NULL
-12,Physics-I,ELECTROMAGNETIC WAVE,12,Physics,Electromagnetic Waves (EM Waves),explicit_merge,NULL
-12,Physics,Electromagnetic Waves (EM Waves),49,Physics,Electromagnetic Waves (EM Waves),unchanged,NULL
-12,Physics-I,ELECTROSTATIC POTENTIAL,17,Physics,Electrostatic Potential and Capacitance,explicit_merge,NULL
-12,Physics,Electrostatic Potential and Capacitance,74,Physics,Electrostatic Potential and Capacitance,unchanged,NULL
-12,Physics-I,MAGNETISM AND MATTER,7,Physics,Magnetism and Matter,spelling,NULL
-12,Physics,Magnetism and Matter,44,Physics,Magnetism and Matter,unchanged,NULL
-12,Physics-I,MOVING CHARGES AND MAGNETISM,9,Physics,Moving Charges and Magnetism,spelling,NULL
-12,Physics,Moving Charges and Magnetism,96,Physics,Moving Charges and Magnetism,unchanged,NULL
-12,Physics-II,NUCLEI,8,Physics,Nuclei,spelling,NULL
-12,Physics,Nuclei,52,Physics,Nuclei,unchanged,NULL
-12,Physics-II,RAY OPTICS,49,Physics,Ray Optics and Optical Instruments,explicit_merge,NULL
-12,Physics,Ray Optics and Optical Instruments,150,Physics,Ray Optics and Optical Instruments,unchanged,NULL
-12,Physics-II,SEMICONDUCTORS,3,Physics,"Semiconductor Electronics Materials, Devices and Simple Circuits",explicit_merge,NULL
-12,Physics,"Semiconductor Electronics Materials, Devices and Simple Circuits",33,Physics,"Semiconductor Electronics Materials, Devices and Simple Circuits",unchanged,NULL
-12,Physics-II,WAVE OPTICS,7,Physics,Wave Optics,spelling,NULL
-12,Physics,Wave Optics,24,Physics,Wave Optics,unchanged,NULL
-12,Political_Science,Challenges of Nation-Building,16,Political Science,Challenges of Nation-Building,subject_family,NULL
-12,Political Science,Challenges of Nation-Building,105,Political Science,Challenges of Nation-Building,unchanged,NULL
-12,Political_Science,Challenges to and Restoration of the Congress System,19,Political Science,Challenges to and Restoration of the Congress System,subject_family,NULL
-12,Political Science,Challenges to and Restoration of the Congress System,71,Political Science,Challenges to and Restoration of the Congress System,unchanged,NULL
-12,Political_Science,Contemporary Centres of Power,7,Political Science,Contemporary Centres of Power,subject_family,NULL
-12,Political Science,Contemporary Centres of Power,98,Political Science,Contemporary Centres of Power,unchanged,NULL
-12,Political_Science,Contemporary South Asia,7,Political Science,Contemporary South Asia,subject_family,NULL
-12,Political Science,Contemporary South Asia,97,Political Science,Contemporary South Asia,unchanged,NULL
-12,Political_Science,Environment and Natural Resources,26,Political Science,Environment and Natural Resources,subject_family,NULL
-12,Political Science,Environment and Natural Resources,87,Political Science,Environment and Natural Resources,unchanged,NULL
-12,Political_Science,Era of One-Party Dominance,21,Political Science,Era of One-Party Dominance,subject_family,NULL
-12,Political Science,Era of One-Party Dominance,69,Political Science,Era of One-Party Dominance,unchanged,NULL
-12,Political_Science,Globalisation,15,Political Science,Globalisation,subject_family,NULL
-12,Political Science,Globalisation,56,Political Science,Globalisation,unchanged,NULL
-12,Political_Science,India’s External Relations,31,Political Science,India’s External Relations,subject_family,NULL
-12,Political Science,India’s External Relations,81,Political Science,India’s External Relations,unchanged,NULL
-12,Political_Science,International Organisations,13,Political Science,International Organisations,subject_family,NULL
-12,Political Science,International Organisations,115,Political Science,International Organisations,unchanged,NULL
-12,Political_Science,Politics of Planned Development,17,Political Science,Politics of Planned Development,subject_family,NULL
-12,Political Science,Politics of Planned Development,78,Political Science,Politics of Planned Development,unchanged,NULL
-12,Political_Science,Recent Developments in Indian Politics,19,Political Science,Recent Developments in Indian Politics,subject_family,NULL
-12,Political Science,Recent Developments in Indian Politics,88,Political Science,Recent Developments in Indian Politics,unchanged,NULL
-12,Political_Science,Regional Aspirations,2,Political Science,Regional Aspirations,subject_family,NULL
-12,Political Science,Regional Aspirations,57,Political Science,Regional Aspirations,unchanged,NULL
-12,Political_Science,Security in the Contemporary World,21,Political Science,Security in the Contemporary World,subject_family,NULL
-12,Political Science,Security in the Contemporary World,123,Political Science,Security in the Contemporary World,unchanged,NULL
-12,Political_Science,The Crisis of Democratic Order,20,Political Science,The Crisis of Democratic Order,subject_family,NULL
-12,Political Science,The Crisis of Democratic Order,101,Political Science,The Crisis of Democratic Order,unchanged,NULL
-12,Political_Science,The End of Bipolarity,20,Political Science,The End of Bipolarity,subject_family,NULL
-12,Political Science,The End of Bipolarity,71,Political Science,The End of Bipolarity,unchanged,NULL
-6,Mathematics,DATA HANDLING AND PRESENTATION,240,Mathematics,DATA HANDLING AND PRESENTATION,unchanged,NULL
-6,Mathematics,Fractions,259,Mathematics,Fractions,unchanged,NULL
-6,Mathematics,Lines and angLes,270,Mathematics,Lines and angLes,unchanged,NULL
-6,Mathematics,NUMBER PLAY,288,Mathematics,NUMBER PLAY,unchanged,NULL
-6,Mathematics,PATTERNS IN MATHEMATICS,88,Mathematics,PATTERNS IN MATHEMATICS,unchanged,NULL
-6,Mathematics,PERIMETER AND AREA,249,Mathematics,PERIMETER AND AREA,unchanged,NULL
-6,Mathematics,PLAYING WITH CONSTRUCTIONS,153,Mathematics,PLAYING WITH CONSTRUCTIONS,unchanged,NULL
-6,Mathematics,PRIME TIME,429,Mathematics,PRIME TIME,unchanged,NULL
-6,Mathematics,SYMMETRY,166,Mathematics,SYMMETRY,unchanged,NULL
-6,Mathematics,THE OTHER SIDE OF ZERO,446,Mathematics,THE OTHER SIDE OF ZERO,unchanged,NULL
-6,Science,A Journey through States of Water,255,Science,A Journey through States of Water,unchanged,NULL
-6,Science,Beyond Earth,102,Science,Beyond Earth,unchanged,NULL
-6,Science,Diversity in the Living World,183,Science,Diversity in the Living World,unchanged,NULL
-6,Science,Exploring Magnets,147,Science,Exploring Magnets,unchanged,NULL
-6,Science,Living Creatures Exploring their Characteristics,258,Science,Living Creatures Exploring their Characteristics,unchanged,NULL
-6,Science,Materials Around Us,181,Science,Materials Around Us,unchanged,NULL
-6,Science,Measurement of Length and Motion,145,Science,Measurement of Length and Motion,unchanged,NULL
-6,Science,Methods of Separation in Everyday Life,134,Science,Methods of Separation in Everyday Life,unchanged,NULL
-6,Science,Mindful Eating A Path to a Healthy Body,238,Science,Mindful Eating A Path to a Healthy Body,unchanged,NULL
-6,Science,Nature’s Treasures,205,Science,Nature’s Treasures,unchanged,NULL
-6,Science,Temperature and its Measurement,150,Science,Temperature and its Measurement,unchanged,NULL
-6,Science,The Wonderful World of Science,93,Science,The Wonderful World of Science,unchanged,NULL
-7,Mathematics,ANOTHER PEEK BEYOND THE POINT,244,Mathematics,ANOTHER PEEK BEYOND THE POINT,unchanged,NULL
-7,Mathematics,A PEEK BEYOND THE POINT,449,Mathematics,A PEEK BEYOND THE POINT,unchanged,NULL
-7,Mathematics,ARITHMETIC EXPRESSIONS,262,Mathematics,ARITHMETIC EXPRESSIONS,unchanged,NULL
-7,Mathematics,A TALE OF THREE INTERSECTING LINES,262,Mathematics,A TALE OF THREE INTERSECTING LINES,unchanged,NULL
-7,Mathematics,CONNECTING THE DOTS...,291,Mathematics,CONNECTING THE DOTS...,unchanged,NULL
-7,Mathematics,CONSTRUCTIONS AND TILINGS,174,Mathematics,CONSTRUCTIONS AND TILINGS,unchanged,NULL
-7,Mathematics,EXPRESSIONS USING LETTER NUMBERS,325,Mathematics,EXPRESSIONS USING LETTER NUMBERS,unchanged,NULL
-7,Mathematics,FINDING COMMON GROUND,262,Mathematics,FINDING COMMON GROUND,unchanged,NULL
-7,Mathematics,FINDING THE UNKNOWN,241,Mathematics,FINDING THE UNKNOWN,unchanged,NULL
-7,Mathematics,GEOMETRIC TWINS,148,Mathematics,GEOMETRIC TWINS,unchanged,NULL
-7,Mathematics,LARGE NUMBERS AROUND US,372,Mathematics,LARGE NUMBERS AROUND US,unchanged,NULL
-7,Mathematics,NUMBER PLAY,184,Mathematics,NUMBER PLAY,unchanged,NULL
-7,Mathematics,OPERATIONS WITH INTEGERS,243,Mathematics,OPERATIONS WITH INTEGERS,unchanged,NULL
-7,Mathematics,PARALLEL AND INTERSECTING LINES,129,Mathematics,PARALLEL AND INTERSECTING LINES,unchanged,NULL
-7,Mathematics,WORKING WITH FRACTIONS,238,Mathematics,WORKING WITH FRACTIONS,unchanged,NULL
-9,Economics,Food Security in India,148,Economics,Food Security in India,unchanged,NULL
-9,Economics,People as Resource,140,Economics,People as Resource,unchanged,NULL
-9,Economics,Poverty as a Challenge,88,Economics,Poverty as a Challenge,unchanged,NULL
-9,Economics,The Story of Village Palampur,158,Economics,The Story of Village Palampur,unchanged,NULL
-9,English,A House Is Not a Home,28,English,A House Is Not a Home,unchanged,NULL
-9,English,A TRULY BEAUTIFUL MIND,87,English,A TRULY BEAUTIFUL MIND,unchanged,NULL
-9,English,Carrier of Words,236,English,Carrier of Words,unchanged,NULL
-9,English,Follow That Dream,340,English,Follow That Dream,unchanged,NULL
-9,English,How I Taught My Grandmother to Read,283,English,How I Taught My Grandmother to Read,unchanged,NULL
-9,English,If I Were You,75,English,If I Were You,unchanged,NULL
-9,English,In the Kingdom of Fools,24,English,In the Kingdom of Fools,unchanged,NULL
-9,English,Iswaran the Storyteller,27,English,Iswaran the Storyteller,unchanged,NULL
-9,English,Kathmandu,101,English,Kathmandu,unchanged,NULL
-9,English,My Childhood,115,English,My Childhood,unchanged,NULL
-9,English,REACH FOR THE TOP,126,English,REACH FOR THE TOP,unchanged,NULL
-9,English,The Adventures of Toto,21,English,The Adventures of Toto,unchanged,NULL
-9,English,The Beggar,39,English,The Beggar,unchanged,NULL
-9,English,The Fun They Had,141,English,The Fun They Had,unchanged,NULL
-9,English,The Happy Prince,36,English,The Happy Prince,unchanged,NULL
-9,English,The Last Leaf,26,English,The Last Leaf,unchanged,NULL
-9,English,The Little Girl,115,English,The Little Girl,unchanged,NULL
-9,English,The Lost Child,18,English,The Lost Child,unchanged,NULL
-9,English,The Pot Maker,284,English,The Pot Maker,unchanged,NULL
-9,English,The Snake and the Mirror,135,English,The Snake and the Mirror,unchanged,NULL
-9,English,The Sound of Music,147,English,The Sound of Music,unchanged,NULL
-9,English,The World of Limitless Possibilities,293,English,The World of Limitless Possibilities,unchanged,NULL
-9,English,Twin Melodies,335,English,Twin Melodies,unchanged,NULL
-9,English,Vitamin-M,319,English,Vitamin-M,unchanged,NULL
-9,English,Weathering the Storm in Ersama,22,English,Weathering the Storm in Ersama,unchanged,NULL
-9,English,Winds of Change,225,English,Winds of Change,unchanged,NULL
-9,Geography,CLIMATE,165,Geography,CLIMATE,unchanged,NULL
-9,Geography,DRAINAGE,140,Geography,DRAINAGE,unchanged,NULL
-9,Geography,INDIA – SIZE AND LOCATION,89,Geography,INDIA – SIZE AND LOCATION,unchanged,NULL
-9,Geography,NATURAL VEGETATION AND WILDLIFE,99,Geography,NATURAL VEGETATION AND WILDLIFE,unchanged,NULL
-9,Geography,PHYSICAL FEATURES OF INDIA,84,Geography,PHYSICAL FEATURES OF INDIA,unchanged,NULL
-9,Geography,POPULATION,72,Geography,POPULATION,unchanged,NULL
-9,History,Forest Society and Colonialism,40,History,Forest Society and Colonialism,unchanged,NULL
-9,History,Nazism and the Rise of Hitler,69,History,Nazism and the Rise of Hitler,unchanged,NULL
-9,History,Pastoralists in the Modern World,46,History,Pastoralists in the Modern World,unchanged,NULL
-9,History,Socialism in Europe and the Russian Revolution,61,History,Socialism in Europe and the Russian Revolution,unchanged,NULL
-9,History,The French Revolution,118,History,The French Revolution,unchanged,NULL
-9,Mathematics,Circles,116,Mathematics,Circles,unchanged,NULL
-9,Mathematics,Coodinate Geometry,60,Mathematics,Coodinate Geometry,unchanged,NULL
-9,Mathematics,Exploring Algebraic Identities,337,Mathematics,Exploring Algebraic Identities,unchanged,NULL
-9,Mathematics,Heron's Formula,37,Mathematics,Heron's Formula,unchanged,NULL
-9,Mathematics,"I’m Up and Down, and Round and Round",204,Mathematics,"I’m Up and Down, and Round and Round",unchanged,NULL
-9,Mathematics,Introduction to Euclid's Geometry,42,Mathematics,Introduction to Euclid's Geometry,unchanged,NULL
-9,Mathematics,Introduction to Polynomials,214,Mathematics,Introduction to Polynomials,unchanged,NULL
-9,Mathematics,Linear Equations in Two Variables,53,Mathematics,Linear Equations in Two Variables,unchanged,NULL
-9,Mathematics,Lines and Angles,77,Mathematics,Lines and Angles,unchanged,NULL
-9,Mathematics,Measuring Space Perimeter and Area,321,Mathematics,Measuring Space Perimeter and Area,unchanged,NULL
-9,Mathematics,Number Systems,201,Mathematics,Number Systems,unchanged,NULL
-9,Mathematics,Orienting Yourself The Use of Coordinates,124,Mathematics,Orienting Yourself The Use of Coordinates,unchanged,NULL
-9,Mathematics,Polynomials,192,Mathematics,Polynomials,unchanged,NULL
-9,Mathematics,Predicting What Comes Next Exploring Sequences and Progressions,221,Mathematics,Predicting What Comes Next Exploring Sequences and Progressions,unchanged,NULL
-9,Mathematics,Quadilaterals,84,Mathematics,Quadilaterals,unchanged,NULL
-9,Mathematics,Statistics,57,Mathematics,Statistics,unchanged,NULL
-9,Mathematics,Surface Areas and Volumes,162,Mathematics,Surface Areas and Volumes,unchanged,NULL
-9,Mathematics,The Mathematics of Maybe Introduction to Probability,106,Mathematics,The Mathematics of Maybe Introduction to Probability,unchanged,NULL
-9,Mathematics,The World of Numbers,192,Mathematics,The World of Numbers,unchanged,NULL
-9,Mathematics,Triangles,137,Mathematics,Triangles,unchanged,NULL
-9,Political Science,CONSTITUTIONAL DESIGN,126,Political Science,CONSTITUTIONAL DESIGN,unchanged,NULL
-9,Political Science,DEMOCRATIC RIGHTS,132,Political Science,DEMOCRATIC RIGHTS,unchanged,NULL
-9,Political Science,ELECTORAL POLITICS,192,Political Science,ELECTORAL POLITICS,unchanged,NULL
-9,Political Science,What is Democracy Why Democracy,188,Political Science,What is Democracy Why Democracy,unchanged,NULL
-9,Political Science,Working of Institutions,166,Political Science,Working of Institutions,unchanged,NULL
-9,Science,Atomic Foundations of Matter,192,Science,Atomic Foundations of Matter,unchanged,NULL
-9,Science,Atoms and Molecules,94,Science,Atoms and Molecules,unchanged,NULL
-9,Science,Cell The Building Block of Life,183,Science,Cell The Building Block of Life,unchanged,NULL
-9,Science,Describing Motion Around Us,185,Science,Describing Motion Around Us,unchanged,NULL
-9,Science,Earth as a System,120,Science,Earth as a System,unchanged,NULL
-9,Science,Exploration Entering the World of Science,42,Science,Exploration Entering the World of Science,unchanged,NULL
-9,Science,Exploring Mixtures and their Separation,267,Science,Exploring Mixtures and their Separation,unchanged,NULL
-9,Science,Force and Laws of Motion,107,Science,Force and Laws of Motion,unchanged,NULL
-9,Science,Gravitation,134,Science,Gravitation,unchanged,NULL
-9,Science,How Forces Affect Motion,178,Science,How Forces Affect Motion,unchanged,NULL
-9,Science,Improvement In Food Resources,95,Science,Improvement In Food Resources,unchanged,NULL
-9,Science,Is Matter Around Us Pure,102,Science,Is Matter Around Us Pure,unchanged,NULL
-9,Science,Journey Inside the Atom,185,Science,Journey Inside the Atom,unchanged,NULL
-9,Science,Matter In Our Surroundings,164,Science,Matter In Our Surroundings,unchanged,NULL
-9,Science,Motion,173,Science,Motion,unchanged,NULL
-9,Science,Patterns in Life Diversity and Classification,212,Science,Patterns in Life Diversity and Classification,unchanged,NULL
-9,Science,Reproduction How Life Continues,185,Science,Reproduction How Life Continues,unchanged,NULL
-9,Science,Sound,136,Science,Sound,unchanged,NULL
-9,Science,Sound Waves,191,Science,Sound Waves,unchanged,NULL
-9,Science,Structure Of The Atom,120,Science,Structure Of The Atom,unchanged,NULL
-9,Science,The Fundamental Unit Of Life,112,Science,The Fundamental Unit Of Life,unchanged,NULL
-9,Science,Tissues,145,Science,Tissues,unchanged,NULL
-9,Science,Tissues in Action,221,Science,Tissues in Action,unchanged,NULL
-9,Science,Work Energy and Power,199,Science,Work Energy and Power,unchanged,NULL
-9,Science,"Work, Energy, and Simple Machines",158,Science,"Work, Energy, and Simple Machines",unchanged,NULL
+class_grade,old_subject,old_chapter,rows,new_subject,new_chapter,rule,rows_moved_to_poem,note
+10,Economics,CONSUMER RIGHTS,63,Economics,CONSUMER RIGHTS,unchanged,NULL,NULL
+10,Economics,DEVELOPMENT,44,Economics,DEVELOPMENT,unchanged,NULL,NULL
+10,Economics,GLOBALISATION AND THE INDIAN ECONOMY,55,Economics,GLOBALISATION AND THE INDIAN ECONOMY,unchanged,NULL,NULL
+10,Economics,MONEY AND CREDIT,52,Economics,MONEY AND CREDIT,unchanged,NULL,NULL
+10,Economics,SECTORS OF THE INDIAN ECONOMY,75,Economics,SECTORS OF THE INDIAN ECONOMY,unchanged,NULL,NULL
+10,English,A Letter to God,39,English,A Letter to God,unchanged,NULL,NULL
+10,English,From the Diary of Anne Frank,43,English,Amanda,english_poem_pair,11,poem printed inside the prose chapter PDF; shared texts keep only the poem copy
+10,English,Amanda,11,English,Amanda,unchanged,NULL,NULL
+10,English,A Question of Trust,11,English,A Question of Trust,unchanged,NULL,NULL
+10,English,Nelson Mandela - Long Walk to Freedom,37,English,A Tiger in the Zoo,english_poem_pair,5,poem printed inside the prose chapter PDF; shared texts keep only the poem copy
+10,English,A Tiger in the Zoo,5,English,A Tiger in the Zoo,unchanged,NULL,NULL
+10,English,A Triumph of Surgery,16,English,A Triumph of Surgery,unchanged,NULL,NULL
+10,English,Bholi,16,English,Bholi,unchanged,NULL,NULL
+10,English,Dust of Snow,5,English,Dust of Snow,unchanged,NULL,NULL
+10,English,A Letter to God,39,English,Fire and Ice,english_poem_pair,3,poem printed inside the prose chapter PDF; shared texts keep only the poem copy
+10,English,Fire and Ice,3,English,Fire and Ice,unchanged,NULL,NULL
+10,English,Mijbil the Otter,46,English,Fog,english_poem_pair,7,poem printed inside the prose chapter PDF; shared texts keep only the poem copy
+10,English,Fog,7,English,Fog,unchanged,NULL,NULL
+10,English,Footprints Without Feet,12,English,Footprints Without Feet,unchanged,NULL,NULL
+10,English,The Sermon at Benares,20,English,For Anne Gregory,english_poem_pair,5,poem printed inside the prose chapter PDF; shared texts keep only the poem copy
+10,English,For Anne Gregory,6,English,For Anne Gregory,unchanged,NULL,NULL
+10,English,From the Diary of Anne Frank,43,English,From the Diary of Anne Frank,unchanged,NULL,NULL
+10,English,Glimpses of India,47,English,Glimpses of India,unchanged,NULL,NULL
+10,English,Stories About Flying,33,English,How to Tell Wild Animals,english_poem_pair,7,poem printed inside the prose chapter PDF; shared texts keep only the poem copy
+10,English,How to Tell Wild Animals,7,English,How to Tell Wild Animals,unchanged,NULL,NULL
+10,English,Madam Rides the Bus,39,English,Madam Rides the Bus,unchanged,NULL,NULL
+10,English,Mijbil the Otter,46,English,Mijbil the Otter,unchanged,NULL,NULL
+10,English,Nelson Mandela - Long Walk to Freedom,37,English,Nelson Mandela - Long Walk to Freedom,unchanged,NULL,NULL
+10,English,Stories About Flying,33,English,Stories About Flying,unchanged,NULL,NULL
+10,English,Stories About Flying,33,English,The Ball Poem,english_poem_pair,6,poem printed inside the prose chapter PDF; shared texts keep only the poem copy
+10,English,The Ball Poem,7,English,The Ball Poem,unchanged,NULL,NULL
+10,English,The Book that Saved the Earth,10,English,The Book that Saved the Earth,unchanged,NULL,NULL
+10,English,The Making of a Scientist,10,English,The Making of a Scientist,unchanged,NULL,NULL
+10,English,The Midnight Visitor,10,English,The Midnight Visitor,unchanged,NULL,NULL
+10,English,The Necklace,13,English,The Necklace,unchanged,NULL,NULL
+10,English,The Proposal (Play),19,English,The Proposal (Play),unchanged,NULL,NULL
+10,English,The Sermon at Benares,20,English,The Sermon at Benares,unchanged,NULL,NULL
+10,English,Madam Rides the Bus,39,English,The Tale of Custard Dragon,english_poem_pair,10,poem printed inside the prose chapter PDF; shared texts keep only the poem copy
+10,English,The Tale of Custard Dragon,10,English,The Tale of Custard Dragon,unchanged,NULL,NULL
+10,English,The Thief's Story,13,English,The Thief's Story,unchanged,NULL,NULL
+10,English,Glimpses of India,47,English,The Trees,english_poem_pair,11,poem printed inside the prose chapter PDF; shared texts keep only the poem copy
+10,English,The Trees,13,English,The Trees,unchanged,NULL,NULL
+10,Geography,Agriculture,22,Geography,Agriculture,unchanged,NULL,NULL
+10,Geography,Forest and Wildlife Resources,12,Geography,Forest and Wildlife Resources,unchanged,NULL,NULL
+10,Geography,Lifelines of National Economy,30,Geography,Lifelines of National Economy,unchanged,NULL,NULL
+10,Geography,Manufacturing Industries,47,Geography,Manufacturing Industries,unchanged,NULL,NULL
+10,Geography,Minerals and Energy Resources,35,Geography,Minerals and Energy Resources,unchanged,NULL,NULL
+10,Geography,Resources and Development,22,Geography,Resources and Development,unchanged,NULL,NULL
+10,Geography,Water Resources,25,Geography,Water Resources,unchanged,NULL,NULL
+10,History,Nationalism in India,1394,History,Nationalism in India,unchanged,NULL,NULL
+10,History,"EVERYDAY LIFE, CULTURE AND POLITICS",43,History,Print Culture and the Modern World,explicit_rename,NULL,NULL
+10,History,The Age of Industrialisation,1405,History,The Age of Industrialisation,unchanged,NULL,NULL
+10,History,"LIVELIHOODS, ECONOMIES AND SOCIETIES",1382,History,The Making of a Global World,explicit_rename,NULL,NULL
+10,History,The Rise of Nationalism in Europe,1396,History,The Rise of Nationalism in Europe,unchanged,NULL,NULL
+10,Mathematics,Areas Related to Circles,676,Mathematics,Areas Related to Circles,unchanged,NULL,NULL
+10,Mathematics,Arithmetic Progressions,2068,Mathematics,Arithmetic Progressions,unchanged,NULL,NULL
+10,Mathematics,Circles,866,Mathematics,Circles,unchanged,NULL,NULL
+10,Mathematics,Coordinate Geometry,918,Mathematics,Coordinate Geometry,unchanged,NULL,NULL
+10,Mathematics,Introduction to Trigonometry,1381,Mathematics,Introduction to Trigonometry,unchanged,NULL,NULL
+10,Mathematics,Pair of Linear Equations in Two Variables,895,Mathematics,Pair of Linear Equations in Two Variables,unchanged,NULL,NULL
+10,Mathematics,Polynomials,271,Mathematics,Polynomials,unchanged,NULL,NULL
+10,Mathematics,Probability,733,Mathematics,Probability,unchanged,NULL,NULL
+10,Mathematics,Quadratic Equations,639,Mathematics,Quadratic Equations,unchanged,NULL,NULL
+10,Mathematics,Real Numbers,373,Mathematics,Real Numbers,unchanged,NULL,NULL
+10,Mathematics,Some Applications of Trigonometry,428,Mathematics,Some Applications of Trigonometry,unchanged,NULL,NULL
+10,Mathematics,Statistics,593,Mathematics,Statistics,unchanged,NULL,NULL
+10,Mathematics,Surface Areas and Volumes,359,Mathematics,Surface Areas and Volumes,unchanged,NULL,NULL
+10,Mathematics,Triangles,593,Mathematics,Triangles,unchanged,NULL,NULL
+10,Political Science,Federalism,523,Political Science,Federalism,unchanged,NULL,NULL
+10,Political Science,"Gender, Religion and Caste",389,Political Science,"Gender, Religion and Caste",unchanged,NULL,NULL
+10,Political Science,Outcomes of Democracy,464,Political Science,Outcomes of Democracy,unchanged,NULL,NULL
+10,Political Science,Political Parties,490,Political Science,Political Parties,unchanged,NULL,NULL
+10,Political Science,Power Sharing,279,Political Science,Power Sharing,unchanged,NULL,NULL
+10,Science,"Acids, Bases and Salts",795,Science,"Acids, Bases and Salts",unchanged,NULL,NULL
+10,Science,Chemical Reactions and Equations,572,Science,Chemical Reactions and Equations,unchanged,NULL,NULL
+10,Science,Control and Coordination,528,Science,Control and Coordination,unchanged,NULL,NULL
+10,Science,Electricity,758,Science,Electricity,unchanged,NULL,NULL
+10,Science,Heredity,194,Science,Heredity,unchanged,NULL,NULL
+10,Science,How do Organisms Reproduce,520,Science,How do Organisms Reproduce,unchanged,NULL,NULL
+10,Science,Life Processes,718,Science,Life Processes,unchanged,NULL,NULL
+10,Science,Light Reflection and Refraction,529,Science,Light Reflection and Refraction,unchanged,NULL,NULL
+10,Science,Magnetic Effects of Electric Current,355,Science,Magnetic Effects of Electric Current,unchanged,NULL,NULL
+10,Science,Metals and Non-metals,762,Science,Metals and Non-metals,unchanged,NULL,NULL
+10,Science,Our Environment,424,Science,Our Environment,unchanged,NULL,NULL
+10,Science,The Human Eye and Colorful World,260,Science,The Human Eye and Colorful World,unchanged,NULL,NULL
+11,Accountancy,Bank Reconciliation Statement (BRS),539,Accountancy,Bank Reconciliation Statement (BRS),unchanged,NULL,NULL
+11,Accountancy,Conceptual Framework of Accounting,260,Accountancy,Conceptual Framework of Accounting,unchanged,NULL,NULL
+11,Accountancy,"Depreciation, Provisions and Reserves",688,Accountancy,"Depreciation, Provisions and Reserves",unchanged,NULL,NULL
+11,Accountancy,Financial Statements - I (Covers Financial Statements of Sole Proprietorship without adjustments),349,Accountancy,Financial Statements - I (Covers Financial Statements of Sole Proprietorship without adjustments),unchanged,NULL,NULL
+11,Accountancy,Financial Statements - II (Covers Financial Statements with adjustments),373,Accountancy,Financial Statements - II (Covers Financial Statements with adjustments),unchanged,NULL,NULL
+11,Accountancy,Introduction to Accounting,442,Accountancy,Introduction to Accounting,unchanged,NULL,NULL
+11,Accountancy,"Recording of Transactions - I (Covers Accounting Equation, Journal, and Ledger)",622,Accountancy,"Recording of Transactions - I (Covers Accounting Equation, Journal, and Ledger)",unchanged,NULL,NULL
+11,Accountancy,Recording of Transactions - II (Covers Cash Book and other Special Purpose Subsidiary Books),528,Accountancy,Recording of Transactions - II (Covers Cash Book and other Special Purpose Subsidiary Books),unchanged,NULL,NULL
+11,Accountancy,Trial Balance and Rectification of Errors,487,Accountancy,Trial Balance and Rectification of Errors,unchanged,NULL,NULL
+11,Biology,Anatomy of Flowering Plants,62,Biology,Anatomy of Flowering Plants,unchanged,NULL,NULL
+11,Biology,Animal Kingdom,120,Biology,Animal Kingdom,unchanged,NULL,NULL
+11,Biology,Biological Classification,113,Biology,Biological Classification,unchanged,NULL,NULL
+11,Biology,Biomolecules,162,Biology,Biomolecules,unchanged,NULL,NULL
+11,Biology,Breathing and Exchange of Gases,120,Biology,Breathing and Exchange of Gases,unchanged,NULL,NULL
+11,Biology,Cell Cycle and Cell Division,204,Biology,Cell Cycle and Cell Division,unchanged,NULL,NULL
+11,Biology,Cell The Unit of Life,158,Biology,Cell The Unit of Life,unchanged,NULL,NULL
+11,Biology,Chemical Coordination and Integration,72,Biology,Chemical Coordination and Integration,unchanged,NULL,NULL
+11,Biology,Excretory Products and their Elimination,109,Biology,Excretory Products and their Elimination,unchanged,NULL,NULL
+11,Biology,Morphology of Flowering Plants,18,Biology,Morphology of Flowering Plants,unchanged,NULL,NULL
+11,Biology,Neural Control and Coordination,111,Biology,Neural Control and Coordination,unchanged,NULL,NULL
+11,Biology,Photosynthesis in Higher Plants,229,Biology,Photosynthesis in Higher Plants,unchanged,NULL,NULL
+11,Biology,Plant Growth and Development,226,Biology,Plant Growth and Development,unchanged,NULL,NULL
+11,Biology,Plant Kingdom,88,Biology,Plant Kingdom,unchanged,NULL,NULL
+11,Biology,Respiration in Plants,251,Biology,Respiration in Plants,unchanged,NULL,NULL
+11,Biology,Structural Organisation in Animals,4,Biology,Structural Organisation in Animals,unchanged,NULL,NULL
+11,Biology,The Living World,120,Biology,The Living World,unchanged,NULL,NULL
+11,Chemistry-I,Chemical Bonding and Molecular Structure,13,Chemistry,Chemical Bonding and Molecular Structure,subject_family,NULL,NULL
+11,Chemistry,Chemical Bonding and Molecular Structure,329,Chemistry,Chemical Bonding and Molecular Structure,unchanged,NULL,NULL
+11,Chemistry-I,Classification of Elements and Periodicity in Properties,49,Chemistry,Classification of Elements and Periodicity in Properties,subject_family,NULL,NULL
+11,Chemistry,Classification of Elements and Periodicity in Properties,380,Chemistry,Classification of Elements and Periodicity in Properties,unchanged,NULL,NULL
+11,Chemistry-I,Equilibrium,161,Chemistry,Equilibrium,subject_family,NULL,NULL
+11,Chemistry,Equilibrium,732,Chemistry,Equilibrium,unchanged,NULL,NULL
+11,Chemistry,Hydrocarbons,369,Chemistry,Hydrocarbons,unchanged,NULL,NULL
+11,Chemistry,Organic Chemistry – Some Basic Principles and Techniques,461,Chemistry,Organic Chemistry – Some Basic Principles and Techniques,unchanged,NULL,NULL
+11,Chemistry,Redox Reactions,283,Chemistry,Redox Reactions,unchanged,NULL,NULL
+11,Chemistry-I,Some Basic Concepts of Chemistry,26,Chemistry,Some Basic Concepts of Chemistry,subject_family,NULL,NULL
+11,Chemistry,Some Basic Concepts of Chemistry,353,Chemistry,Some Basic Concepts of Chemistry,unchanged,NULL,NULL
+11,Chemistry-I,Structure of Atom,52,Chemistry,Structure of Atom,subject_family,NULL,NULL
+11,Chemistry,Structure of Atom,636,Chemistry,Structure of Atom,unchanged,NULL,NULL
+11,Chemistry-I,Thermodynamics,52,Chemistry,Thermodynamics,subject_family,NULL,NULL
+11,Chemistry,Thermodynamics,291,Chemistry,Thermodynamics,unchanged,NULL,NULL
+11,Economics,Collection of Data,172,Economics,Collection of Data,unchanged,NULL,NULL
+11,Economics,Comparative Development Experiences of India and its Neighbours,213,Economics,Comparative Development Experiences of India and its Neighbours,unchanged,NULL,NULL
+11,Economics,Correlation,196,Economics,Correlation,unchanged,NULL,NULL
+11,Economics,"Employment Growth, Informalisation and Other Issues",366,Economics,"Employment Growth, Informalisation and Other Issues",unchanged,NULL,NULL
+11,Economics,Environment and Sustainable Development,220,Economics,Environment and Sustainable Development,unchanged,NULL,NULL
+11,Economics,Human Capital Formation in India,271,Economics,Human Capital Formation in India,unchanged,NULL,NULL
+11,Economics,Index Numbers,237,Economics,Index Numbers,unchanged,NULL,NULL
+11,Economics,Indian Economy (1950–1990),216,Economics,Indian Economy (1950–1990),unchanged,NULL,NULL
+11,Economics,Indian Economy on the Eve of Independence,182,Economics,Indian Economy on the Eve of Independence,unchanged,NULL,NULL
+11,Economics,Introduction,129,Economics,Introduction,unchanged,NULL,NULL
+11,Economics,"Liberalisation, Privatisation and Globalisation An Appraisal",253,Economics,"Liberalisation, Privatisation and Globalisation An Appraisal",unchanged,NULL,NULL
+11,Economics,Measures of Central Tendency,231,Economics,Measures of Central Tendency,unchanged,NULL,NULL
+11,Economics,Organisation of Data,203,Economics,Organisation of Data,unchanged,NULL,NULL
+11,Economics,Presentation of Data,182,Economics,Presentation of Data,unchanged,NULL,NULL
+11,Economics,Rural Development,271,Economics,Rural Development,unchanged,NULL,NULL
+11,Economics,Use of Statistical Tools,99,Economics,Use of Statistical Tools,unchanged,NULL,NULL
+11,History,An Empire Across Three Continents,170,History,An Empire Across Three Continents,unchanged,NULL,NULL
+11,History,Changing Cultural Traditions,75,History,Changing Cultural Traditions,unchanged,NULL,NULL
+11,History,Displacing Indigenous Peoples,92,History,Displacing Indigenous Peoples,unchanged,NULL,NULL
+11,History,Nomadic Empires,6,History,Nomadic Empires,unchanged,NULL,NULL
+11,History,Paths to Modernisation,76,History,Paths to Modernisation,unchanged,NULL,NULL
+11,History,The Three Orders,63,History,The Three Orders,unchanged,NULL,NULL
+11,History,Writing and City Life,102,History,Writing and City Life,unchanged,NULL,NULL
+11,Mathematics,BINOMIALTHEOREM,127,Mathematics,BINOMIALTHEOREM,unchanged,NULL,NULL
+11,Mathematics,COMPLEX NUMBERS AND QUADRATIC EQUATIONS,218,Mathematics,COMPLEX NUMBERS AND QUADRATIC EQUATIONS,unchanged,NULL,NULL
+11,Mathematics,CONIC SECTIONS,534,Mathematics,CONIC SECTIONS,unchanged,NULL,NULL
+11,Mathematics,INTRODUCTION TO THREE DIMENSIONAL GEOMETRY,167,Mathematics,INTRODUCTION TO THREE DIMENSIONAL GEOMETRY,unchanged,NULL,NULL
+11,Mathematics,LIMITS AND DERIVATIVES,607,Mathematics,LIMITS AND DERIVATIVES,unchanged,NULL,NULL
+11,Mathematics,LINEAR INEQUALITIES,324,Mathematics,LINEAR INEQUALITIES,unchanged,NULL,NULL
+11,Mathematics,PERMUTATIONS AND COMBINATIONS,415,Mathematics,PERMUTATIONS AND COMBINATIONS,unchanged,NULL,NULL
+11,Mathematics,PROBABILITY,306,Mathematics,PROBABILITY,unchanged,NULL,NULL
+11,Mathematics,RELATIONS AND FUNCTIONS,362,Mathematics,RELATIONS AND FUNCTIONS,unchanged,NULL,NULL
+11,Mathematics,SEQUENCES AND SERIES,492,Mathematics,SEQUENCES AND SERIES,unchanged,NULL,NULL
+11,Mathematics,SETS,531,Mathematics,SETS,unchanged,NULL,NULL
+11,Mathematics,STATISTICS,256,Mathematics,STATISTICS,unchanged,NULL,NULL
+11,Mathematics,STRAIGHT LINES,519,Mathematics,STRAIGHT LINES,unchanged,NULL,NULL
+11,Mathematics,TRIGONOMETRIC FUNCTIONS,468,Mathematics,TRIGONOMETRIC FUNCTIONS,unchanged,NULL,NULL
+11,Physics-I,Answers,215,Physics,Answers,back_matter_hidden,NULL,"textbook answer pages (exercise-answer stubs); quality_status=junk, hidden_reason=back_matter; kept, not deleted"
+11,Physics-II,ANSWERS,47,Physics,Answers,back_matter_hidden,NULL,"textbook answer pages (exercise-answer stubs); quality_status=junk, hidden_reason=back_matter; kept, not deleted"
+11,Physics-I,GRAVITATION,63,Physics,GRAVITATION,subject_family,NULL,NULL
+11,Physics,GRAVITATION,196,Physics,GRAVITATION,unchanged,NULL,NULL
+11,Physics-I,Index,30,Physics,Index,back_matter_hidden,NULL,"activity/in-text prompts extracted from the back pages; quality_status=junk, hidden_reason=back_matter; kept, not deleted"
+11,Physics-II,Index,11,Physics,Index,back_matter_hidden,NULL,"activity/in-text prompts extracted from the back pages; quality_status=junk, hidden_reason=back_matter; kept, not deleted"
+11,Physics-II,KINETIC THEORY,40,Physics,KINETIC THEORY,subject_family,NULL,NULL
+11,Physics,KINETIC THEORY,132,Physics,KINETIC THEORY,unchanged,NULL,NULL
+11,Physics-I,LAWS OF MOTION,45,Physics,LAWS OF MOTION,subject_family,NULL,NULL
+11,Physics,LAWS OF MOTION,244,Physics,LAWS OF MOTION,unchanged,NULL,NULL
+11,Physics-II,MECHANICAL PROPERTIES OF FLUIDS,51,Physics,MECHANICAL PROPERTIES OF FLUIDS,subject_family,NULL,NULL
+11,Physics,MECHANICAL PROPERTIES OF FLUIDS,213,Physics,MECHANICAL PROPERTIES OF FLUIDS,unchanged,NULL,NULL
+11,Physics-II,MECHANICAL PROPERTIES OF SOLIDS,49,Physics,MECHANICAL PROPERTIES OF SOLIDS,subject_family,NULL,NULL
+11,Physics,MECHANICAL PROPERTIES OF SOLIDS,170,Physics,MECHANICAL PROPERTIES OF SOLIDS,unchanged,NULL,NULL
+11,Physics-I,MOTION IN A PLANE,37,Physics,MOTION IN A PLANE,subject_family,NULL,NULL
+11,Physics,MOTION IN A PLANE,227,Physics,MOTION IN A PLANE,unchanged,NULL,NULL
+11,Physics-I,MOTION IN A STRAIGHT LINE,41,Physics,MOTION IN A STRAIGHT LINE,subject_family,NULL,NULL
+11,Physics,MOTION IN A STRAIGHT LINE,165,Physics,MOTION IN A STRAIGHT LINE,unchanged,NULL,NULL
+11,Physics-II,OSCILLATIONS,25,Physics,OSCILLATIONS,subject_family,NULL,NULL
+11,Physics,OSCILLATIONS,158,Physics,OSCILLATIONS,unchanged,NULL,NULL
+11,Physics-I,SYSTEMS OF PARTICLES AND ROTATIONAL MOTION,89,Physics,SYSTEMS OF PARTICLES AND ROTATIONAL MOTION,subject_family,NULL,NULL
+11,Physics,SYSTEMS OF PARTICLES AND ROTATIONAL MOTION,231,Physics,SYSTEMS OF PARTICLES AND ROTATIONAL MOTION,unchanged,NULL,NULL
+11,Physics-II,THERMAL PROPERTIES OF MATTER,73,Physics,THERMAL PROPERTIES OF MATTER,subject_family,NULL,NULL
+11,Physics,THERMAL PROPERTIES OF MATTER,210,Physics,THERMAL PROPERTIES OF MATTER,unchanged,NULL,NULL
+11,Physics-II,THERMODYNAMICS,31,Physics,THERMODYNAMICS,subject_family,NULL,NULL
+11,Physics,THERMODYNAMICS,92,Physics,THERMODYNAMICS,unchanged,NULL,NULL
+11,Physics-I,UNITS AND MEASUREMENT,34,Physics,UNITS AND MEASUREMENT,subject_family,NULL,NULL
+11,Physics,UNITS AND MEASUREMENT,132,Physics,UNITS AND MEASUREMENT,unchanged,NULL,NULL
+11,Physics-II,WAVES,14,Physics,WAVES,subject_family,NULL,NULL
+11,Physics,WAVES,171,Physics,WAVES,unchanged,NULL,NULL
+11,Physics-I,"WORK, ENERGY AND POWER",54,Physics,"WORK, ENERGY AND POWER",subject_family,NULL,NULL
+11,Physics,"WORK, ENERGY AND POWER",209,Physics,"WORK, ENERGY AND POWER",unchanged,NULL,NULL
+11,Political_Science,Citizenship,64,Political Science,Citizenship,subject_family,NULL,NULL
+11,Political Science,Citizenship,206,Political Science,Citizenship,unchanged,NULL,NULL
+11,Political_Science,Consitution As A Living Document,84,Political Science,Consitution As A Living Document,subject_family,NULL,NULL
+11,Political Science,Consitution As A Living Document,220,Political Science,Consitution As A Living Document,unchanged,NULL,NULL
+11,Political_Science,Constitution Why and How,104,Political Science,Constitution Why and How,subject_family,NULL,NULL
+11,Political Science,Constitution Why and How,381,Political Science,Constitution Why and How,unchanged,NULL,NULL
+11,Political_Science,Election and Representation,99,Political Science,Election and Representation,subject_family,NULL,NULL
+11,Political Science,Election and Representation,270,Political Science,Election and Representation,unchanged,NULL,NULL
+11,Political_Science,Equality,120,Political Science,Equality,subject_family,NULL,NULL
+11,Political Science,Equality,215,Political Science,Equality,unchanged,NULL,NULL
+11,Political_Science,Executive,33,Political Science,Executive,subject_family,NULL,NULL
+11,Political Science,Executive,207,Political Science,Executive,unchanged,NULL,NULL
+11,Political_Science,Federalism,31,Political Science,Federalism,subject_family,NULL,NULL
+11,Political Science,Federalism,157,Political Science,Federalism,unchanged,NULL,NULL
+11,Political_Science,Freedom,57,Political Science,Freedom,subject_family,NULL,NULL
+11,Political Science,Freedom,107,Political Science,Freedom,unchanged,NULL,NULL
+11,Political_Science,Judiciary,91,Political Science,Judiciary,subject_family,NULL,NULL
+11,Political Science,Judiciary,262,Political Science,Judiciary,unchanged,NULL,NULL
+11,Political_Science,Legislature,57,Political Science,Legislature,subject_family,NULL,NULL
+11,Political Science,Legislature,204,Political Science,Legislature,unchanged,NULL,NULL
+11,Political_Science,Local Governments,25,Political Science,Local Governments,subject_family,NULL,NULL
+11,Political Science,Local Governments,187,Political Science,Local Governments,unchanged,NULL,NULL
+11,Political_Science,Nationalism,52,Political Science,Nationalism,subject_family,NULL,NULL
+11,Political Science,Nationalism,131,Political Science,Nationalism,unchanged,NULL,NULL
+11,Political_Science,Political Theory An Introduction,29,Political Science,Political Theory An Introduction,subject_family,NULL,NULL
+11,Political Science,Political Theory An Introduction,178,Political Science,Political Theory An Introduction,unchanged,NULL,NULL
+11,Political_Science,Rights,56,Political Science,Rights,subject_family,NULL,NULL
+11,Political Science,Rights,100,Political Science,Rights,unchanged,NULL,NULL
+11,Political_Science,Rights in the Indian Constitution,63,Political Science,Rights in the Indian Constitution,subject_family,NULL,NULL
+11,Political Science,Rights in the Indian Constitution,189,Political Science,Rights in the Indian Constitution,unchanged,NULL,NULL
+11,Political_Science,Secularism,81,Political Science,Secularism,subject_family,NULL,NULL
+11,Political Science,Secularism,224,Political Science,Secularism,unchanged,NULL,NULL
+11,Political_Science,Social Justice,30,Political Science,Social Justice,subject_family,NULL,NULL
+11,Political Science,Social Justice,84,Political Science,Social Justice,unchanged,NULL,NULL
+11,Political_Science,The Philosophy Of The Constitution,64,Political Science,The Philosophy Of The Constitution,subject_family,NULL,NULL
+11,Political Science,The Philosophy Of The Constitution,271,Political Science,The Philosophy Of The Constitution,unchanged,NULL,NULL
+12,Accountancy,Accounting for Partnership Basic Concepts,460,Accountancy,Accounting for Partnership Basic Concepts,unchanged,NULL,NULL
+12,Accountancy,Accounting for Share Capital,516,Accountancy,Accounting for Share Capital,unchanged,NULL,NULL
+12,Accountancy,Accounting Ratios,451,Accountancy,Accounting Ratios,unchanged,NULL,NULL
+12,Accountancy,Analysis of Financial Statements,235,Accountancy,Analysis of Financial Statements,unchanged,NULL,NULL
+12,Accountancy,Cash Flow Statement,224,Accountancy,Cash Flow Statement,unchanged,NULL,NULL
+12,Accountancy,Dissolution of a Partnership Firm,341,Accountancy,Dissolution of a Partnership Firm,unchanged,NULL,NULL
+12,Accountancy,Financial Statements of a Company,140,Accountancy,Financial Statements of a Company,unchanged,NULL,NULL
+12,Accountancy,Issue and Redemption of Debentures,662,Accountancy,Issue and Redemption of Debentures,unchanged,NULL,NULL
+12,Accountancy,Reconstitution of a Partnership Firm – Admission of a Partner,490,Accountancy,Reconstitution of a Partnership Firm – Admission of a Partner,unchanged,NULL,NULL
+12,Accountancy,Reconstitution of a Partnership Firm – RetirementDeath of a Partner,304,Accountancy,Reconstitution of a Partnership Firm – RetirementDeath of a Partner,unchanged,NULL,NULL
+12,Biology,Biodiversity and Conservation,156,Biology,Biodiversity and Conservation,unchanged,NULL,NULL
+12,Biology,Biotechnology and its Applications,119,Biology,Biotechnology and its Applications,unchanged,NULL,NULL
+12,Biology,Biotechnology Principles and Processes,85,Biology,Biotechnology Principles and Processes,unchanged,NULL,NULL
+12,Biology,Evolution,89,Biology,Evolution,unchanged,NULL,NULL
+12,Biology,Human Health and Disease,119,Biology,Human Health and Disease,unchanged,NULL,NULL
+12,Biology,Microbes in Human Welfare,125,Biology,Microbes in Human Welfare,unchanged,NULL,NULL
+12,Biology,Molecular Basis of Inheritance,161,Biology,Molecular Basis of Inheritance,unchanged,NULL,NULL
+12,Biology,Organisms and Populations,133,Biology,Organisms and Populations,unchanged,NULL,NULL
+12,Biology,Principles of Inheritance and Variation,194,Biology,Principles of Inheritance and Variation,unchanged,NULL,NULL
+12,Biology,Reproductive Health,110,Biology,Reproductive Health,unchanged,NULL,NULL
+12,Biology,Sexual Reproduction in Flowering Plants,264,Biology,Sexual Reproduction in Flowering Plants,unchanged,NULL,NULL
+12,Chemistry-II,"Alcohols, Phenols and Ethers",79,Chemistry,"Alcohols, Phenols and Ethers",subject_family,NULL,NULL
+12,Chemistry,"Alcohols, Phenols and Ethers",262,Chemistry,"Alcohols, Phenols and Ethers",unchanged,NULL,NULL
+12,Chemistry-II,"Aldehydes, Ketones and Carboxylic acids",57,Chemistry,"Aldehydes, Ketones and Carboxylic Acids",spelling,NULL,NULL
+12,Chemistry,"Aldehydes, Ketones and Carboxylic Acids",165,Chemistry,"Aldehydes, Ketones and Carboxylic Acids",unchanged,NULL,NULL
+12,Chemistry-II,Amines,62,Chemistry,Amines,subject_family,NULL,NULL
+12,Chemistry,Amines,198,Chemistry,Amines,unchanged,NULL,NULL
+12,Chemistry-II,Biomolecules,3,Chemistry,Biomolecules,subject_family,NULL,NULL
+12,Chemistry,Biomolecules,166,Chemistry,Biomolecules,unchanged,NULL,NULL
+12,Chemistry-I,Chemical Kinetics,94,Chemistry,Chemical Kinetics,subject_family,NULL,NULL
+12,Chemistry,Chemical Kinetics,234,Chemistry,Chemical Kinetics,unchanged,NULL,NULL
+12,Chemistry-I,Chemical Coordination,46,Chemistry,Coordination Compounds,explicit_merge,NULL,"all 46 rows are coordination chemistry (Unit 5, sections 5.1-5.5): 25 of 36 texts also in Coordination Compounds, 0 in Class 11 Biology Chemical Coordination and Integration"
+12,Chemistry,Coordination Compounds,241,Chemistry,Coordination Compounds,unchanged,NULL,NULL
+12,Chemistry-I,Electrochemistry,59,Chemistry,Electrochemistry,subject_family,NULL,NULL
+12,Chemistry,Electrochemistry,199,Chemistry,Electrochemistry,unchanged,NULL,NULL
+12,Chemistry-II,Haloalkanes and Haloarenes,18,Chemistry,Haloalkanes and Haloarenes,subject_family,NULL,NULL
+12,Chemistry,Haloalkanes and Haloarenes,208,Chemistry,Haloalkanes and Haloarenes,unchanged,NULL,NULL
+12,Chemistry-I,Solutions,108,Chemistry,Solutions,subject_family,NULL,NULL
+12,Chemistry,Solutions,269,Chemistry,Solutions,unchanged,NULL,NULL
+12,Chemistry-I,The d and f block elements,78,Chemistry,The d- and f-Block Elements,spelling,NULL,NULL
+12,Chemistry,The d- and f-Block Elements,267,Chemistry,The d- and f-Block Elements,unchanged,NULL,NULL
+12,Economics,Determination of Income and Employment,30,Economics,Determination of Income and Employment,unchanged,NULL,NULL
+12,Economics,Government Budget and the Economy,57,Economics,Government Budget and the Economy,unchanged,NULL,NULL
+12,Economics,Introduction,60,Economics,Introduction,unchanged,NULL,NULL
+12,Economics,Introduction_2,33,Economics,Introduction_2,unchanged,NULL,NULL
+12,Economics,Market Equilibrium,95,Economics,Market Equilibrium,unchanged,NULL,NULL
+12,Economics,Money and Banking,51,Economics,Money and Banking,unchanged,NULL,NULL
+12,Economics,National Income Accounting,75,Economics,National Income Accounting,unchanged,NULL,NULL
+12,Economics,Open Economy Macroeconomics,40,Economics,Open Economy Macroeconomics,unchanged,NULL,NULL
+12,Economics,Production and Costs,69,Economics,Production and Costs,unchanged,NULL,NULL
+12,Economics,Theory of Consumer Behaviour,67,Economics,Theory of Consumer Behaviour,unchanged,NULL,NULL
+12,Economics,The Theory of the Firm under Perfect Competition,74,Economics,The Theory of the Firm under Perfect Competition,unchanged,NULL,NULL
+12,English,A Roadside Stand,28,English,A Roadside Stand,unchanged,NULL,NULL
+12,English,A Thing of Beauty,18,English,A Thing of Beauty,unchanged,NULL,NULL
+12,English,Aunt Jennifer’s Tigers,20,English,Aunt Jennifer’s Tigers,unchanged,NULL,NULL
+12,English,Deep Water,30,English,Deep Water,unchanged,NULL,NULL
+12,English,Going Places,39,English,Going Places,unchanged,NULL,NULL
+12,English,Indigo,43,English,Indigo,unchanged,NULL,NULL
+12,English,Journey to the end of the Earth,18,English,Journey to the end of the Earth,unchanged,NULL,NULL
+12,English,Keeping Quiet,12,English,Keeping Quiet,unchanged,NULL,NULL
+12,English,Lost Spring,39,English,Lost Spring,unchanged,NULL,NULL
+12,English,Memories of Childhood,6,English,Memories of Childhood,unchanged,NULL,NULL
+12,English,My Mother at Sixty-six,12,English,My Mother at Sixty-six,unchanged,NULL,NULL
+12,English,On The Face Of It,71,English,On The Face Of It,unchanged,NULL,NULL
+12,English,Poets and Pancakes,57,English,Poets and Pancakes,unchanged,NULL,NULL
+12,English,The Enemy,62,English,The Enemy,unchanged,NULL,NULL
+12,English,The Interview,32,English,The Interview,unchanged,NULL,NULL
+12,English,The Last Lesson,42,English,The Last Lesson,unchanged,NULL,NULL
+12,English,The Rattrap,62,English,The Rattrap,unchanged,NULL,NULL
+12,English,The Third Level,23,English,The Third Level,unchanged,NULL,NULL
+12,English,The Tiger King,30,English,The Tiger King,unchanged,NULL,NULL
+12,History,An Imperial Capital Vijayanagara,87,History,An Imperial Capital Vijayanagara,unchanged,NULL,NULL
+12,History,Bhakti-Sufi Traditions,64,History,Bhakti-Sufi Traditions,unchanged,NULL,NULL
+12,History,"Bricks, Beads and Bones",78,History,"Bricks, Beads and Bones",unchanged,NULL,NULL
+12,History,Colonialism and the Countryside,86,History,Colonialism and the Countryside,unchanged,NULL,NULL
+12,History,Framing the Constitution,68,History,Framing the Constitution,unchanged,NULL,NULL
+12,History,"Kings, Farmers and Towns",78,History,"Kings, Farmers and Towns",unchanged,NULL,NULL
+12,History,"Kinship, Caste and Class",74,History,"Kinship, Caste and Class",unchanged,NULL,NULL
+12,History,Mahatma Gandhi and the Nationalist Movement,55,History,Mahatma Gandhi and the Nationalist Movement,unchanged,NULL,NULL
+12,History,"Peasants, Zamindars and the State",66,History,"Peasants, Zamindars and the State",unchanged,NULL,NULL
+12,History,Rebels and the Raj,56,History,Rebels and the Raj,unchanged,NULL,NULL
+12,History,"Thinkers, Beliefs and Buildings",89,History,"Thinkers, Beliefs and Buildings",unchanged,NULL,NULL
+12,History,Through the Eyes of Travellers,72,History,Through the Eyes of Travellers,unchanged,NULL,NULL
+12,Mathematics,APPLICATION OF DERIVATIVES,383,Mathematics,APPLICATION OF DERIVATIVES,unchanged,NULL,NULL
+12,Mathematics,APPLICATION OF INTEGRALS,40,Mathematics,APPLICATION OF INTEGRALS,unchanged,NULL,NULL
+12,Mathematics,CONTINUITY AND DIFFERENTIBILITY,405,Mathematics,CONTINUITY AND DIFFERENTIBILITY,unchanged,NULL,NULL
+12,Mathematics,DETERMINANTS,223,Mathematics,DETERMINANTS,unchanged,NULL,NULL
+12,Mathematics,DIFFERENTIAL EQUATIONS,372,Mathematics,DIFFERENTIAL EQUATIONS,unchanged,NULL,NULL
+12,Mathematics,INTEGRALS,757,Mathematics,INTEGRALS,unchanged,NULL,NULL
+12,Mathematics,INVERSE TRIGONOMETRIC FUNCTIONS,146,Mathematics,INVERSE TRIGONOMETRIC FUNCTIONS,unchanged,NULL,NULL
+12,Mathematics,LINEAR PROGRAMMING,51,Mathematics,LINEAR PROGRAMMING,unchanged,NULL,NULL
+12,Mathematics,MATRICES,208,Mathematics,MATRICES,unchanged,NULL,NULL
+12,Mathematics,PROBABILITY,260,Mathematics,PROBABILITY,unchanged,NULL,NULL
+12,Mathematics,RELATIONS AND FUNCTIONS,153,Mathematics,RELATIONS AND FUNCTIONS,unchanged,NULL,NULL
+12,Mathematics,THREE DIMENSIONAL GEOMETRY,109,Mathematics,THREE DIMENSIONAL GEOMETRY,unchanged,NULL,NULL
+12,Mathematics,VECTOR ALGEBRA,265,Mathematics,VECTOR ALGEBRA,unchanged,NULL,NULL
+12,Physics-I,ALTERNATING CURRENT,24,Physics,Alternating Current (AC),explicit_merge,NULL,NULL
+12,Physics,Alternating Current (AC),57,Physics,Alternating Current (AC),unchanged,NULL,NULL
+12,Physics-II,ATOMS,22,Physics,Atoms,spelling,NULL,NULL
+12,Physics,Atoms,59,Physics,Atoms,unchanged,NULL,NULL
+12,Physics-I,CURRENT AND ELECTRICITY,17,Physics,Current Electricity,explicit_merge,NULL,NULL
+12,Physics,Current Electricity,48,Physics,Current Electricity,unchanged,NULL,NULL
+12,Physics-II,DUAL NATURE OF RADIATION AND MATTER,15,Physics,Dual Nature of Radiation and Matter,spelling,NULL,NULL
+12,Physics,Dual Nature of Radiation and Matter,47,Physics,Dual Nature of Radiation and Matter,unchanged,NULL,NULL
+12,Physics-I,ELECTRIC CHARGES AND FIELDS,34,Physics,Electric Charges and Fields,spelling,NULL,NULL
+12,Physics,Electric Charges and Fields,137,Physics,Electric Charges and Fields,unchanged,NULL,NULL
+12,Physics-I,ELECTROMAGNETIC INDUCTION,18,Physics,Electromagnetic Induction (EMI),explicit_merge,NULL,NULL
+12,Physics,Electromagnetic Induction (EMI),65,Physics,Electromagnetic Induction (EMI),unchanged,NULL,NULL
+12,Physics-I,ELECTROMAGNETIC WAVE,12,Physics,Electromagnetic Waves (EM Waves),explicit_merge,NULL,NULL
+12,Physics,Electromagnetic Waves (EM Waves),49,Physics,Electromagnetic Waves (EM Waves),unchanged,NULL,NULL
+12,Physics-I,ELECTROSTATIC POTENTIAL,17,Physics,Electrostatic Potential and Capacitance,explicit_merge,NULL,NULL
+12,Physics,Electrostatic Potential and Capacitance,74,Physics,Electrostatic Potential and Capacitance,unchanged,NULL,NULL
+12,Physics-I,MAGNETISM AND MATTER,7,Physics,Magnetism and Matter,spelling,NULL,NULL
+12,Physics,Magnetism and Matter,44,Physics,Magnetism and Matter,unchanged,NULL,NULL
+12,Physics-I,MOVING CHARGES AND MAGNETISM,9,Physics,Moving Charges and Magnetism,spelling,NULL,NULL
+12,Physics,Moving Charges and Magnetism,96,Physics,Moving Charges and Magnetism,unchanged,NULL,NULL
+12,Physics-II,NUCLEI,8,Physics,Nuclei,spelling,NULL,NULL
+12,Physics,Nuclei,52,Physics,Nuclei,unchanged,NULL,NULL
+12,Physics-II,RAY OPTICS,49,Physics,Ray Optics and Optical Instruments,explicit_merge,NULL,NULL
+12,Physics,Ray Optics and Optical Instruments,150,Physics,Ray Optics and Optical Instruments,unchanged,NULL,NULL
+12,Physics-II,SEMICONDUCTORS,3,Physics,"Semiconductor Electronics Materials, Devices and Simple Circuits",explicit_merge,NULL,NULL
+12,Physics,"Semiconductor Electronics Materials, Devices and Simple Circuits",33,Physics,"Semiconductor Electronics Materials, Devices and Simple Circuits",unchanged,NULL,NULL
+12,Physics-II,WAVE OPTICS,7,Physics,Wave Optics,spelling,NULL,NULL
+12,Physics,Wave Optics,24,Physics,Wave Optics,unchanged,NULL,NULL
+12,Political_Science,Challenges of Nation-Building,16,Political Science,Challenges of Nation-Building,subject_family,NULL,NULL
+12,Political Science,Challenges of Nation-Building,105,Political Science,Challenges of Nation-Building,unchanged,NULL,NULL
+12,Political_Science,Challenges to and Restoration of the Congress System,19,Political Science,Challenges to and Restoration of the Congress System,subject_family,NULL,NULL
+12,Political Science,Challenges to and Restoration of the Congress System,71,Political Science,Challenges to and Restoration of the Congress System,unchanged,NULL,NULL
+12,Political_Science,Contemporary Centres of Power,7,Political Science,Contemporary Centres of Power,subject_family,NULL,NULL
+12,Political Science,Contemporary Centres of Power,98,Political Science,Contemporary Centres of Power,unchanged,NULL,NULL
+12,Political_Science,Contemporary South Asia,7,Political Science,Contemporary South Asia,subject_family,NULL,NULL
+12,Political Science,Contemporary South Asia,97,Political Science,Contemporary South Asia,unchanged,NULL,NULL
+12,Political_Science,Environment and Natural Resources,26,Political Science,Environment and Natural Resources,subject_family,NULL,NULL
+12,Political Science,Environment and Natural Resources,87,Political Science,Environment and Natural Resources,unchanged,NULL,NULL
+12,Political_Science,Era of One-Party Dominance,21,Political Science,Era of One-Party Dominance,subject_family,NULL,NULL
+12,Political Science,Era of One-Party Dominance,69,Political Science,Era of One-Party Dominance,unchanged,NULL,NULL
+12,Political_Science,Globalisation,15,Political Science,Globalisation,subject_family,NULL,NULL
+12,Political Science,Globalisation,56,Political Science,Globalisation,unchanged,NULL,NULL
+12,Political_Science,India’s External Relations,31,Political Science,India’s External Relations,subject_family,NULL,NULL
+12,Political Science,India’s External Relations,81,Political Science,India’s External Relations,unchanged,NULL,NULL
+12,Political_Science,International Organisations,13,Political Science,International Organisations,subject_family,NULL,NULL
+12,Political Science,International Organisations,115,Political Science,International Organisations,unchanged,NULL,NULL
+12,Political_Science,Politics of Planned Development,17,Political Science,Politics of Planned Development,subject_family,NULL,NULL
+12,Political Science,Politics of Planned Development,78,Political Science,Politics of Planned Development,unchanged,NULL,NULL
+12,Political_Science,Recent Developments in Indian Politics,19,Political Science,Recent Developments in Indian Politics,subject_family,NULL,NULL
+12,Political Science,Recent Developments in Indian Politics,88,Political Science,Recent Developments in Indian Politics,unchanged,NULL,NULL
+12,Political_Science,Regional Aspirations,2,Political Science,Regional Aspirations,subject_family,NULL,NULL
+12,Political Science,Regional Aspirations,57,Political Science,Regional Aspirations,unchanged,NULL,NULL
+12,Political_Science,Security in the Contemporary World,21,Political Science,Security in the Contemporary World,subject_family,NULL,NULL
+12,Political Science,Security in the Contemporary World,123,Political Science,Security in the Contemporary World,unchanged,NULL,NULL
+12,Political_Science,The Crisis of Democratic Order,20,Political Science,The Crisis of Democratic Order,subject_family,NULL,NULL
+12,Political Science,The Crisis of Democratic Order,101,Political Science,The Crisis of Democratic Order,unchanged,NULL,NULL
+12,Political_Science,The End of Bipolarity,20,Political Science,The End of Bipolarity,subject_family,NULL,NULL
+12,Political Science,The End of Bipolarity,71,Political Science,The End of Bipolarity,unchanged,NULL,NULL
+6,Mathematics,DATA HANDLING AND PRESENTATION,240,Mathematics,DATA HANDLING AND PRESENTATION,unchanged,NULL,NULL
+6,Mathematics,Fractions,259,Mathematics,Fractions,unchanged,NULL,NULL
+6,Mathematics,Lines and angLes,270,Mathematics,Lines and angLes,unchanged,NULL,NULL
+6,Mathematics,NUMBER PLAY,288,Mathematics,NUMBER PLAY,unchanged,NULL,NULL
+6,Mathematics,PATTERNS IN MATHEMATICS,88,Mathematics,PATTERNS IN MATHEMATICS,unchanged,NULL,NULL
+6,Mathematics,PERIMETER AND AREA,249,Mathematics,PERIMETER AND AREA,unchanged,NULL,NULL
+6,Mathematics,PLAYING WITH CONSTRUCTIONS,153,Mathematics,PLAYING WITH CONSTRUCTIONS,unchanged,NULL,NULL
+6,Mathematics,PRIME TIME,429,Mathematics,PRIME TIME,unchanged,NULL,NULL
+6,Mathematics,SYMMETRY,166,Mathematics,SYMMETRY,unchanged,NULL,NULL
+6,Mathematics,THE OTHER SIDE OF ZERO,446,Mathematics,THE OTHER SIDE OF ZERO,unchanged,NULL,NULL
+6,Science,A Journey through States of Water,255,Science,A Journey through States of Water,unchanged,NULL,NULL
+6,Science,Beyond Earth,102,Science,Beyond Earth,unchanged,NULL,NULL
+6,Science,Diversity in the Living World,183,Science,Diversity in the Living World,unchanged,NULL,NULL
+6,Science,Exploring Magnets,147,Science,Exploring Magnets,unchanged,NULL,NULL
+6,Science,Living Creatures Exploring their Characteristics,258,Science,Living Creatures Exploring their Characteristics,unchanged,NULL,NULL
+6,Science,Materials Around Us,181,Science,Materials Around Us,unchanged,NULL,NULL
+6,Science,Measurement of Length and Motion,145,Science,Measurement of Length and Motion,unchanged,NULL,NULL
+6,Science,Methods of Separation in Everyday Life,134,Science,Methods of Separation in Everyday Life,unchanged,NULL,NULL
+6,Science,Mindful Eating A Path to a Healthy Body,238,Science,Mindful Eating A Path to a Healthy Body,unchanged,NULL,NULL
+6,Science,Nature’s Treasures,205,Science,Nature’s Treasures,unchanged,NULL,NULL
+6,Science,Temperature and its Measurement,150,Science,Temperature and its Measurement,unchanged,NULL,NULL
+6,Science,The Wonderful World of Science,93,Science,The Wonderful World of Science,unchanged,NULL,NULL
+7,Mathematics,ANOTHER PEEK BEYOND THE POINT,244,Mathematics,ANOTHER PEEK BEYOND THE POINT,unchanged,NULL,NULL
+7,Mathematics,A PEEK BEYOND THE POINT,449,Mathematics,A PEEK BEYOND THE POINT,unchanged,NULL,NULL
+7,Mathematics,ARITHMETIC EXPRESSIONS,262,Mathematics,ARITHMETIC EXPRESSIONS,unchanged,NULL,NULL
+7,Mathematics,A TALE OF THREE INTERSECTING LINES,262,Mathematics,A TALE OF THREE INTERSECTING LINES,unchanged,NULL,NULL
+7,Mathematics,CONNECTING THE DOTS...,291,Mathematics,CONNECTING THE DOTS...,unchanged,NULL,NULL
+7,Mathematics,CONSTRUCTIONS AND TILINGS,174,Mathematics,CONSTRUCTIONS AND TILINGS,unchanged,NULL,NULL
+7,Mathematics,EXPRESSIONS USING LETTER NUMBERS,325,Mathematics,EXPRESSIONS USING LETTER NUMBERS,unchanged,NULL,NULL
+7,Mathematics,FINDING COMMON GROUND,262,Mathematics,FINDING COMMON GROUND,unchanged,NULL,NULL
+7,Mathematics,FINDING THE UNKNOWN,241,Mathematics,FINDING THE UNKNOWN,unchanged,NULL,NULL
+7,Mathematics,GEOMETRIC TWINS,148,Mathematics,GEOMETRIC TWINS,unchanged,NULL,NULL
+7,Mathematics,LARGE NUMBERS AROUND US,372,Mathematics,LARGE NUMBERS AROUND US,unchanged,NULL,NULL
+7,Mathematics,NUMBER PLAY,184,Mathematics,NUMBER PLAY,unchanged,NULL,NULL
+7,Mathematics,OPERATIONS WITH INTEGERS,243,Mathematics,OPERATIONS WITH INTEGERS,unchanged,NULL,NULL
+7,Mathematics,PARALLEL AND INTERSECTING LINES,129,Mathematics,PARALLEL AND INTERSECTING LINES,unchanged,NULL,NULL
+7,Mathematics,WORKING WITH FRACTIONS,238,Mathematics,WORKING WITH FRACTIONS,unchanged,NULL,NULL
+9,Economics,Food Security in India,148,Economics,Food Security in India,unchanged,NULL,NULL
+9,Economics,People as Resource,140,Economics,People as Resource,unchanged,NULL,NULL
+9,Economics,Poverty as a Challenge,88,Economics,Poverty as a Challenge,unchanged,NULL,NULL
+9,Economics,The Story of Village Palampur,158,Economics,The Story of Village Palampur,unchanged,NULL,NULL
+9,English,A House Is Not a Home,28,English,A House Is Not a Home,unchanged,NULL,NULL
+9,English,A TRULY BEAUTIFUL MIND,87,English,A TRULY BEAUTIFUL MIND,unchanged,NULL,NULL
+9,English,Carrier of Words,236,English,Carrier of Words,unchanged,NULL,NULL
+9,English,Follow That Dream,340,English,Follow That Dream,unchanged,NULL,NULL
+9,English,How I Taught My Grandmother to Read,283,English,How I Taught My Grandmother to Read,unchanged,NULL,NULL
+9,English,If I Were You,75,English,If I Were You,unchanged,NULL,NULL
+9,English,In the Kingdom of Fools,24,English,In the Kingdom of Fools,unchanged,NULL,NULL
+9,English,Iswaran the Storyteller,27,English,Iswaran the Storyteller,unchanged,NULL,NULL
+9,English,Kathmandu,101,English,Kathmandu,unchanged,NULL,NULL
+9,English,My Childhood,115,English,My Childhood,unchanged,NULL,NULL
+9,English,REACH FOR THE TOP,126,English,REACH FOR THE TOP,unchanged,NULL,NULL
+9,English,The Adventures of Toto,21,English,The Adventures of Toto,unchanged,NULL,NULL
+9,English,The Beggar,39,English,The Beggar,unchanged,NULL,NULL
+9,English,The Fun They Had,141,English,The Fun They Had,unchanged,NULL,NULL
+9,English,The Happy Prince,36,English,The Happy Prince,unchanged,NULL,NULL
+9,English,The Last Leaf,26,English,The Last Leaf,unchanged,NULL,NULL
+9,English,The Little Girl,115,English,The Little Girl,unchanged,NULL,NULL
+9,English,The Lost Child,18,English,The Lost Child,unchanged,NULL,NULL
+9,English,The Pot Maker,284,English,The Pot Maker,unchanged,NULL,NULL
+9,English,The Snake and the Mirror,135,English,The Snake and the Mirror,unchanged,NULL,NULL
+9,English,The Sound of Music,147,English,The Sound of Music,unchanged,NULL,NULL
+9,English,The World of Limitless Possibilities,293,English,The World of Limitless Possibilities,unchanged,NULL,NULL
+9,English,Twin Melodies,335,English,Twin Melodies,unchanged,NULL,NULL
+9,English,Vitamin-M,319,English,Vitamin-M,unchanged,NULL,NULL
+9,English,Weathering the Storm in Ersama,22,English,Weathering the Storm in Ersama,unchanged,NULL,NULL
+9,English,Winds of Change,225,English,Winds of Change,unchanged,NULL,NULL
+9,Geography,CLIMATE,165,Geography,CLIMATE,unchanged,NULL,NULL
+9,Geography,DRAINAGE,140,Geography,DRAINAGE,unchanged,NULL,NULL
+9,Geography,INDIA – SIZE AND LOCATION,89,Geography,INDIA – SIZE AND LOCATION,unchanged,NULL,NULL
+9,Geography,NATURAL VEGETATION AND WILDLIFE,99,Geography,NATURAL VEGETATION AND WILDLIFE,unchanged,NULL,NULL
+9,Geography,PHYSICAL FEATURES OF INDIA,84,Geography,PHYSICAL FEATURES OF INDIA,unchanged,NULL,NULL
+9,Geography,POPULATION,72,Geography,POPULATION,unchanged,NULL,NULL
+9,History,Forest Society and Colonialism,40,History,Forest Society and Colonialism,unchanged,NULL,NULL
+9,History,Nazism and the Rise of Hitler,69,History,Nazism and the Rise of Hitler,unchanged,NULL,NULL
+9,History,Pastoralists in the Modern World,46,History,Pastoralists in the Modern World,unchanged,NULL,NULL
+9,History,Socialism in Europe and the Russian Revolution,61,History,Socialism in Europe and the Russian Revolution,unchanged,NULL,NULL
+9,History,The French Revolution,118,History,The French Revolution,unchanged,NULL,NULL
+9,Mathematics,Circles,116,Mathematics,Circles,unchanged,NULL,NULL
+9,Mathematics,Coodinate Geometry,60,Mathematics,Coodinate Geometry,unchanged,NULL,NULL
+9,Mathematics,Exploring Algebraic Identities,337,Mathematics,Exploring Algebraic Identities,unchanged,NULL,NULL
+9,Mathematics,Heron's Formula,37,Mathematics,Heron's Formula,unchanged,NULL,NULL
+9,Mathematics,"I’m Up and Down, and Round and Round",204,Mathematics,"I’m Up and Down, and Round and Round",unchanged,NULL,NULL
+9,Mathematics,Introduction to Euclid's Geometry,42,Mathematics,Introduction to Euclid's Geometry,unchanged,NULL,NULL
+9,Mathematics,Introduction to Polynomials,214,Mathematics,Introduction to Polynomials,unchanged,NULL,NULL
+9,Mathematics,Linear Equations in Two Variables,53,Mathematics,Linear Equations in Two Variables,unchanged,NULL,NULL
+9,Mathematics,Lines and Angles,77,Mathematics,Lines and Angles,unchanged,NULL,NULL
+9,Mathematics,Measuring Space Perimeter and Area,321,Mathematics,Measuring Space Perimeter and Area,unchanged,NULL,NULL
+9,Mathematics,Number Systems,201,Mathematics,Number Systems,unchanged,NULL,NULL
+9,Mathematics,Orienting Yourself The Use of Coordinates,124,Mathematics,Orienting Yourself The Use of Coordinates,unchanged,NULL,NULL
+9,Mathematics,Polynomials,192,Mathematics,Polynomials,unchanged,NULL,NULL
+9,Mathematics,Predicting What Comes Next Exploring Sequences and Progressions,221,Mathematics,Predicting What Comes Next Exploring Sequences and Progressions,unchanged,NULL,NULL
+9,Mathematics,Quadilaterals,84,Mathematics,Quadilaterals,unchanged,NULL,NULL
+9,Mathematics,Statistics,57,Mathematics,Statistics,unchanged,NULL,NULL
+9,Mathematics,Surface Areas and Volumes,162,Mathematics,Surface Areas and Volumes,unchanged,NULL,NULL
+9,Mathematics,The Mathematics of Maybe Introduction to Probability,106,Mathematics,The Mathematics of Maybe Introduction to Probability,unchanged,NULL,NULL
+9,Mathematics,The World of Numbers,192,Mathematics,The World of Numbers,unchanged,NULL,NULL
+9,Mathematics,Triangles,137,Mathematics,Triangles,unchanged,NULL,NULL
+9,Political Science,CONSTITUTIONAL DESIGN,126,Political Science,CONSTITUTIONAL DESIGN,unchanged,NULL,NULL
+9,Political Science,DEMOCRATIC RIGHTS,132,Political Science,DEMOCRATIC RIGHTS,unchanged,NULL,NULL
+9,Political Science,ELECTORAL POLITICS,192,Political Science,ELECTORAL POLITICS,unchanged,NULL,NULL
+9,Political Science,What is Democracy Why Democracy,188,Political Science,What is Democracy Why Democracy,unchanged,NULL,NULL
+9,Political Science,Working of Institutions,166,Political Science,Working of Institutions,unchanged,NULL,NULL
+9,Science,Atomic Foundations of Matter,192,Science,Atomic Foundations of Matter,unchanged,NULL,NULL
+9,Science,Atoms and Molecules,94,Science,Atoms and Molecules,unchanged,NULL,NULL
+9,Science,Cell The Building Block of Life,183,Science,Cell The Building Block of Life,unchanged,NULL,NULL
+9,Science,Describing Motion Around Us,185,Science,Describing Motion Around Us,unchanged,NULL,NULL
+9,Science,Earth as a System,120,Science,Earth as a System,unchanged,NULL,NULL
+9,Science,Exploration Entering the World of Science,42,Science,Exploration Entering the World of Science,unchanged,NULL,NULL
+9,Science,Exploring Mixtures and their Separation,267,Science,Exploring Mixtures and their Separation,unchanged,NULL,NULL
+9,Science,Force and Laws of Motion,107,Science,Force and Laws of Motion,unchanged,NULL,NULL
+9,Science,Gravitation,134,Science,Gravitation,unchanged,NULL,NULL
+9,Science,How Forces Affect Motion,178,Science,How Forces Affect Motion,unchanged,NULL,NULL
+9,Science,Improvement In Food Resources,95,Science,Improvement In Food Resources,unchanged,NULL,NULL
+9,Science,Is Matter Around Us Pure,102,Science,Is Matter Around Us Pure,unchanged,NULL,NULL
+9,Science,Journey Inside the Atom,185,Science,Journey Inside the Atom,unchanged,NULL,NULL
+9,Science,Matter In Our Surroundings,164,Science,Matter In Our Surroundings,unchanged,NULL,NULL
+9,Science,Motion,173,Science,Motion,unchanged,NULL,NULL
+9,Science,Patterns in Life Diversity and Classification,212,Science,Patterns in Life Diversity and Classification,unchanged,NULL,NULL
+9,Science,Reproduction How Life Continues,185,Science,Reproduction How Life Continues,unchanged,NULL,NULL
+9,Science,Sound,136,Science,Sound,unchanged,NULL,NULL
+9,Science,Sound Waves,191,Science,Sound Waves,unchanged,NULL,NULL
+9,Science,Structure Of The Atom,120,Science,Structure Of The Atom,unchanged,NULL,NULL
+9,Science,The Fundamental Unit Of Life,112,Science,The Fundamental Unit Of Life,unchanged,NULL,NULL
+9,Science,Tissues,145,Science,Tissues,unchanged,NULL,NULL
+9,Science,Tissues in Action,221,Science,Tissues in Action,unchanged,NULL,NULL
+9,Science,Work Energy and Power,199,Science,Work Energy and Power,unchanged,NULL,NULL
+9,Science,"Work, Energy, and Simple Machines",158,Science,"Work, Energy, and Simple Machines",unchanged,NULL,NULL

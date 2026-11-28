@@ -80,9 +80,14 @@ begin
     raise exception 'the delete cascaded into ncert_practice_marks';
   end if;
   if exists (select 1 from public.ncert_questions
+             where (quality_flags->>'hidden_reason') is distinct from 'back_matter'   -- same predicate as step 4
              group by class_grade, subject, chapter, md5(lower(btrim(regexp_replace(question_text, '\s+', ' ', 'g'))))
              having count(*) > 1) then
     raise exception 'exact duplicates remain';
+  end if;
+  if (select count(*) from public.ncert_questions q join a4_backup_ncert_dedupe.back_matter b on b.id = q.id
+      where q.quality_status = 'junk') <> (select count(*) from a4_backup_ncert_dedupe.back_matter) then
+    raise exception 'a back-matter row was deleted or un-hidden';
   end if;
 end $$;
 

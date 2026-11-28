@@ -1,7 +1,8 @@
 -- Read-only: reconcile the audit's "431 real chapters" with the plan's "425 chapters after step 1b".
 --   431 = distinct (class, subject family, case/punctuation-normalised chapter), Answers/Index/Appendices EXCLUDED
---   425 = distinct (class, subject family, new chapter name after 01b), Answers/Index INCLUDED (01b keeps them)
--- so 425 = 431 - (explicit merges of differently-named chapters) + (non-chapter groups kept by 01b).
+--   425 = distinct (class, subject family, new chapter name after 01b), Answers/Index INCLUDED as strings
+--   423 = chapters teachers can pick after 01c hides the Answers/Index back-matter
+-- so 425 = 431 - (explicit merges of differently-named chapters) + (non-chapter strings 01b keeps), and 423 = 431 - merges.
 with ov(cls, fam, from_norm, to_norm) as (values
   ('12', 'Physics', 'alternatingcurrent', 'alternatingcurrentac'), ('12', 'Physics', 'currentandelectricity', 'currentelectricity'),
   ('12', 'Physics', 'electromagneticinduction', 'electromagneticinductionemi'), ('12', 'Physics', 'electromagneticwave', 'electromagneticwavesemwaves'),
@@ -23,8 +24,10 @@ union all select 2, 'B  explicit merges into an EXISTING differently-named chapt
 union all select 3, 'C  explicit renames with no existing target (count unchanged)',
        count(distinct (class_grade, fam, norm)) filter (where explicit and not target_exists)::text || ': ' ||
        string_agg(distinct class_grade || ' ' || fam || ': ' || chapter, ' | ') filter (where explicit and not target_exists) from c2
-union all select 4, 'D  non-chapter groups that 01b keeps (each adds 1)',
+union all select 4, 'D  non-chapter strings that 01b keeps and 01c hides (each adds 1 string, 0 pickable chapters)',
        count(distinct (class_grade, fam, norm)) filter (where norm ~ '^(answers|index)$')::text || ': ' ||
        string_agg(distinct class_grade || ' ' || fam || ': ' || chapter, ' | ') filter (where norm ~ '^(answers|index)$') from c2
-union all select 5, 'E  chapters after 01b (A - B + D)', count(distinct (class_grade, fam, norm2))::text from c2
+union all select 5, 'E  chapter strings after 01b (A - B + D)', count(distinct (class_grade, fam, norm2))::text from c2
+union all select 6, 'F  chapters teachers can pick after 01c (A - B)',
+       count(distinct (class_grade, fam, norm2)) filter (where not (class_grade = '11' and fam = 'Physics' and norm ~ '^(answers|index)$'))::text from c2
 order by ord;
