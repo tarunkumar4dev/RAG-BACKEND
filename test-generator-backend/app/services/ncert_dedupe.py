@@ -34,10 +34,12 @@ def _content(row: dict) -> str:
 
 def _group_key(row: dict) -> tuple:
     chapter = (row.get("chapter") or "").strip().lower()
+    # a PYQ never merges with a textbook row, nor its English version with its Hindi one (migration 37)
+    origin = (row.get("source") or "ncert", row.get("language") or "en")
     m = _NUMBERED.match(row.get("question_number") or "")
     if m:
-        return ("numbered", chapter, m.group(1).lower(), re.sub(r"\s+", "", m.group(2).lower()))
-    return ("text", chapter, _content(row))
+        return ("numbered", origin, chapter, m.group(1).lower(), re.sub(r"\s+", "", m.group(2).lower()))
+    return ("text", origin, chapter, _content(row))
 
 
 def dedupe_ncert_rows(rows: list) -> list:

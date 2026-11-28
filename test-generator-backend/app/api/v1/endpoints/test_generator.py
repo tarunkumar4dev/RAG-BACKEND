@@ -38,6 +38,7 @@ from app.api.v1.endpoints.chat import _SlidingWindow
 from starlette.concurrency import run_in_threadpool
 from app.services.rag_service import retrieve_context
 from app.services.ncert_dedupe import dedupe_ncert_rows
+from app.services import ncert_library
 from app.services.ncert_options import decode_options, strip_option_labels
 from app.core.auth import AuthUser, require_user
 from app.core.database import get_supabase, get_supabase_admin
@@ -1066,6 +1067,28 @@ _NCERT_INTERNAL_FIELDS = ("quality_status", "quality_flags", "duplicate_of", "ha
 _NCERT_DEDUPE_MAX_ROWS = 20_000  # list read cap (a whole subject without a chapter filter)
 _SECTION_CHAPTER_NO = re.compile(r"(\d{1,2})\.\d+")
 
+# Migration 37 adds source / language / pyq_* columns. Until it is applied, the library must behave exactly as
+# before instead of failing on unknown columns: probe once, keep a "ready" answer for good, re-probe a "not
+# ready" one after a minute (the migration can be applied while the backend runs).
+_PYQ_COLUMNS_STATE = {"ready": False, "checked_at": None}
+_PYQ_COLUMNS_RETRY_S = 60
+
+
+def _pyq_columns_ready() -> bool:
+    state = _PYQ_COLUMNS_STATE
+    if state["ready"]:
+        return True
+    now = time.monotonic()
+    if state["checked_at"] is not None and now - state["checked_at"] < _PYQ_COLUMNS_RETRY_S:
+        return False
+    state["checked_at"] = now
+    try:
+        get_supabase().table("ncert_questions").select(",".join(ncert_library.PYQ_COLUMNS)).limit(1).execute()
+        state["ready"] = True
+    except Exception as e:
+        logger.warning(f"PYQ columns not available yet (migration 37?): {type(e).__name__}")
+    return state["ready"]
+
 
 def _prepare_ncert_rows(questions: list) -> None:
     """Options cleaned, figure_missing set, audit fields dropped — the same for the list and by-ids."""
@@ -1118,7 +1141,9 @@ async def _ncert_questions_impl(
     limit: int = 50,
     offset: int = 0,
     figure: Optional[str] = None,
+    filters: Optional[ncert_library.LibraryFilters] = None,
 ):
+    filters = filters or ncert_library.LibraryFilters()
     # SECURITY: Sanitize ALL inputs + cap limit/offset
     subject = sanitize_like(_resolve_subject(subject), max_length=50)
     class_grade = sanitize_like(class_grade, max_length=5)
@@ -1130,6 +1155,12 @@ async def _ncert_questions_impl(
         query = supabase.table("ncert_questions").select("*").eq("class_grade", class_grade)
         query = _apply_ncert_subject_filter(query, subject)
         query = query.or_(_NCERT_VISIBLE_OR)
+        query = ncert_library.apply_query_filters(query, filters, _pyq_columns_ready())
+        if query is None:  # only PYQ / Hindi rows could match and migration 37 is not applied yet
+            return {
+                "ok": True, "subject": subject, "classGrade": class_grade, "chapter": chapter,
+                "questions": [], "total": 0, "limit": limit, "offset": offset, "hasMore": False,
+            }
         if figure == "missing":
             query = query.is_("image_url", "null").or_(_NCERT_FIGURE_MISSING_OR)
         elif figure == "hide":
@@ -1164,7 +1195,7 @@ async def _ncert_questions_impl(
             rows.extend(batch)
             if len(batch) < 1000:
                 break
-        rows = dedupe_ncert_rows(rows)
+        rows = ncert_library.sort_rows(dedupe_ncert_rows(rows), filters.sort)
         questions = rows[offset:offset + limit]
         total_count = len(rows)
 
@@ -1184,11 +1215,27 @@ async def _ncert_questions_impl(
 # ENDPOINT: NCERT Question Stats (hardened & ultra-fast)
 # ═══════════════════════════════════════════════════════════════════════
 
-async def _ncert_question_stats_impl(subject: str = "Science", class_grade: str = "10"):
+async def _ncert_question_stats_impl(subject: str = "Science", class_grade: str = "10",
+                                     filters: Optional[ncert_library.LibraryFilters] = None):
+    """Chapter counts for the builder sidebar, plus PYQ facets once migration 37 is applied.
+
+    Reads every visible row of the class + subject (all sources and languages), dedupes it like the question
+    list, then ncert_library.build_stats slices it by the source + language filter. difficulty / marks / year
+    do not narrow the sidebar counts."""
+    filters = filters or ncert_library.LibraryFilters()
     subject = sanitize_like(_resolve_subject(subject), max_length=50)
     class_grade = sanitize_like(class_grade, max_length=5)
+    pyq_ready = _pyq_columns_ready()
+    columns = ["id", "chapter", "section", "question_type", "question_number", "question_text", "options",
+               "quality_rank", "difficulty", "marks"]
+    if pyq_ready:
+        columns += ["source", "language", "pyq_year"]
 
-    # 1. Fast direct SQL aggregation (accurate, no row cutoffs, <50ms)
+    def respond(rows: list) -> dict:
+        stats = ncert_library.build_stats(dedupe_ncert_rows(rows), filters, _chapter_number, with_facets=pyq_ready)
+        return {"ok": True, "subject": subject, "classGrade": class_grade, **stats}
+
+    # 1. Fast direct SQL read (accurate, no row cutoffs)
     try:
         from app.core.db_pool import get_db_connection
         conn = get_db_connection()
@@ -1197,7 +1244,7 @@ async def _ncert_question_stats_impl(subject: str = "Science", class_grade: str 
                 where_sub, sub_params = _get_subject_sql_clause(subject)
                 cur = conn.cursor()
                 cur.execute(f"""
-                    SELECT id, chapter, section, question_type, question_number, question_text, options, quality_rank
+                    SELECT {", ".join(columns)}
                     FROM ncert_questions
                     WHERE class_grade = %s AND {where_sub} AND {_NCERT_VISIBLE_SQL};
                 """, [class_grade] + sub_params)
@@ -1205,30 +1252,8 @@ async def _ncert_question_stats_impl(subject: str = "Science", class_grade: str 
                 rows = [dict(zip(cols, r)) for r in cur.fetchall()]
                 cur.close()
                 conn.close()
-
-                chapter_stats = {}
                 # same rows as the question list: one per question
-                for row in dedupe_ncert_rows(sorted(rows, key=lambda r: r["id"])):
-                    ch, cnt = row["chapter"], 1
-                    sec = row.get("section") or "Uncategorized"
-                    qtype = row.get("question_type") or "exercise"
-                    if ch not in chapter_stats:
-                        chapter_stats[ch] = {"chapter": ch, "total": 0, "sections": {}, "types": {}}
-                    chapter_stats[ch]["total"] += cnt
-                    chapter_stats[ch]["sections"][sec] = chapter_stats[ch]["sections"].get(sec, 0) + cnt
-                    chapter_stats[ch]["types"][qtype] = chapter_stats[ch]["types"].get(qtype, 0) + cnt
-
-                stats_list = sorted(chapter_stats.values(), key=lambda x: x["chapter"])
-                for stat in stats_list:
-                    stat["chapter_no"] = _chapter_number(stat["sections"])
-                    stat["sections"] = [{"name": k, "count": v} for k, v in sorted(stat["sections"].items())]
-                    stat["types"] = [{"name": k, "count": v} for k, v in sorted(stat["types"].items())]
-
-                total_questions = sum(s["total"] for s in stats_list)
-                return {
-                    "ok": True, "subject": subject, "classGrade": class_grade,
-                    "chapters": stats_list, "totalQuestions": total_questions, "totalChapters": len(stats_list),
-                }
+                return respond(sorted(rows, key=lambda r: r["id"]))
             except Exception as pool_err:
                 logger.warning(f"SQL aggregation error: {pool_err}, falling back to Supabase client")
                 try:
@@ -1246,37 +1271,13 @@ async def _ncert_question_stats_impl(subject: str = "Science", class_grade: str 
         rows = []
         page_size = 1000
         while True:
-            base_query = supabase.table("ncert_questions") \
-                .select("id, chapter, section, question_type, question_number, question_text, options, quality_rank") \
-                .eq("class_grade", class_grade)
+            base_query = supabase.table("ncert_questions").select(", ".join(columns)).eq("class_grade", class_grade)
             base_query = _apply_ncert_subject_filter(base_query, subject).or_(_NCERT_VISIBLE_OR)
             page = base_query.order("id").range(len(rows), len(rows) + page_size - 1).execute().data or []
             rows.extend(page)
             if len(page) < page_size or len(rows) >= 200_000:
                 break
-
-        chapter_stats = {}
-        for row in dedupe_ncert_rows(rows):
-            ch = row["chapter"]
-            sec = row.get("section") or "Uncategorized"
-            qtype = row.get("question_type") or "exercise"
-            if ch not in chapter_stats:
-                chapter_stats[ch] = {"chapter": ch, "total": 0, "sections": {}, "types": {}}
-            chapter_stats[ch]["total"] += 1
-            chapter_stats[ch]["sections"][sec] = chapter_stats[ch]["sections"].get(sec, 0) + 1
-            chapter_stats[ch]["types"][qtype] = chapter_stats[ch]["types"].get(qtype, 0) + 1
-
-        stats_list = sorted(chapter_stats.values(), key=lambda x: x["chapter"])
-        for stat in stats_list:
-            stat["chapter_no"] = _chapter_number(stat["sections"])
-            stat["sections"] = [{"name": k, "count": v} for k, v in sorted(stat["sections"].items())]
-            stat["types"] = [{"name": k, "count": v} for k, v in sorted(stat["types"].items())]
-
-        total_questions = sum(s["total"] for s in stats_list)
-        return {
-            "ok": True, "subject": subject, "classGrade": class_grade,
-            "chapters": stats_list, "totalQuestions": total_questions, "totalChapters": len(stats_list),
-        }
+        return respond(rows)
     except Exception as e:
         logger.error(f"NCERT question stats error: {e}", exc_info=True)
         return {"ok": False, "chapters": [], "totalQuestions": 0}
@@ -1658,13 +1659,22 @@ async def get_ncert_questions(
     limit: int = 50,
     offset: int = 0,
     figure: Optional[str] = None,  # "missing" = only questions whose figure is missing, "hide" = without them
+    # PYQ library (migration 37) — see app/services/ncert_library.py; the defaults give the old list
+    source: Optional[str] = None,      # all | ncert | pyq
+    language: Optional[str] = None,    # en (default) | hi | all
+    year: Optional[str] = None,        # PYQ year, e.g. 2026
+    difficulty: Optional[str] = None,  # easy | medium | hard
+    marks: Optional[str] = None,
+    sort: Optional[str] = None,        # default | chapter | marks_asc | marks_desc | difficulty_asc | difficulty_desc | year_desc
 ):
     figure = figure if figure in ("missing", "hide") else None
-    key = "ncertq:" + json.dumps([subject, class_grade, chapter, question_type, section, search, limit, offset, figure])
+    filters = ncert_library.normalize_filters(source, language, year, difficulty, marks, sort)
+    key = "ncertq:" + json.dumps([subject, class_grade, chapter, question_type, section, search, limit, offset, figure]
+                                 + filters.cache_key())
     data = api_cache.get(key)
     if data is None:
         data = await _ncert_questions_impl(subject, class_grade, chapter, question_type, section, search, limit, offset,
-                                           figure)
+                                           figure, filters)
         if data.get("ok"):
             api_cache.set(key, data, ttl=600)
     if data.get("ok"):
@@ -1694,11 +1704,14 @@ async def get_ncert_questions_by_ids(response: Response, ids: str = ""):
 
 
 @router.get("/ncert-question-stats")
-async def get_ncert_question_stats(response: Response, subject: str = "Science", class_grade: str = "10"):
-    key = "ncertstats:" + json.dumps([subject, class_grade])
+async def get_ncert_question_stats(response: Response, subject: str = "Science", class_grade: str = "10",
+                                   source: Optional[str] = None, language: Optional[str] = None):
+    # only source + language shape the sidebar; the other list filters do not
+    filters = ncert_library.normalize_filters(source=source, language=language)
+    key = "ncertstats:" + json.dumps([subject, class_grade, filters.source, filters.language])
     data = api_cache.get(key)
     if data is None:
-        data = await _ncert_question_stats_impl(subject, class_grade)
+        data = await _ncert_question_stats_impl(subject, class_grade, filters)
         if data.get("ok"):
             api_cache.set(key, data, ttl=1800)
     if data.get("ok"):

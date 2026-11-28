@@ -1,0 +1,1309 @@
+{
+ "exam": "CBSE",
+ "year": 2026,
+ "subject": "Accountancy",
+ "class_grade": "12",
+ "paper": "67/3/1",
+ "source_pdf": "67_3_1_Accountancy_cl12.pdf",
+ "questions": [
+  {
+   "question_number": "1",
+   "part": "A",
+   "chapter": "Reconstitution of a Partnership Firm – Admission of a Partner",
+   "question_type": "mcq",
+   "marks": 1,
+   "difficulty": "medium",
+   "en": {
+    "text": "Dharam and Karan were partners in a firm sharing profits and losses in the ratio of 7 : 3. On 1st April, 2025, they admitted Vinod as a new partner in the firm. Dharam surrendered 1/3rd of his share in favour of Vinod and Karan surrendered 1/4th of his share in favour of Vinod. The new profit sharing ratio will be :",
+    "options": [
+     "7 : 3 : 1",
+     "56 : 27 : 10",
+     "27 : 56 : 10",
+     "56 : 27 : 37"
+    ]
+   },
+   "hi": {
+    "text": "धरम तथा करन एक फर्म के साझेदार थे तथा 7 : 3 के अनुपात में लाभ-हानि बाँटते थे । 1 अप्रैल, 2025 को, उन्होंने विनोद को एक नए साझेदार के रूप में फर्म में प्रवेश दिया । धरम ने विनोद के पक्ष में अपने भाग के 1/3 भाग का तथा करन ने अपने भाग के 1/4 भाग का त्याग विनोद के पक्ष में किया । नया लाभ विभाजन अनुपात होगा :",
+    "options": [
+     "7 : 3 : 1",
+     "56 : 27 : 10",
+     "27 : 56 : 10",
+     "56 : 27 : 37"
+    ]
+   },
+   "answer": "D: Dharam's share sacrificed = 7/10 × 1/3 = 7/30; Karan's share sacrificed = 3/10 × 1/4 = 3/40. Dharam's new share = 7/10 - 7/30 = 56/120; Karan's new share = 3/10 - 3/40 = 27/120; Vinod's share = 7/30 + 3/40 = 37/120. Ratio = 56 : 27 : 37."
+  },
+  {
+   "question_number": "2",
+   "part": "A",
+   "chapter": "Reconstitution of a Partnership Firm – Admission of a Partner",
+   "question_type": "mcq",
+   "marks": 1,
+   "difficulty": "easy",
+   "en": {
+    "text": "Assertion (A) : In case of admission of a new partner in the partnership firm, there is a need to ascertain the new profit sharing ratio among all the partners.\nReason (R) : On admission of a new partner, the profit sharing ratio among the old partners will change, keeping in view their respective contribution to the profit sharing ratio of the incoming partner.\nChoose the correct option from the following :",
+    "options": [
+     "Both Assertion (A) and Reason (R) are correct and Reason (R) is the correct explanation of Assertion (A).",
+     "Both Assertion (A) and Reason (R) are correct, but Reason (R) is not the correct explanation of Assertion (A).",
+     "Assertion (A) is correct, but Reason (R) is incorrect.",
+     "Assertion (A) is incorrect, but Reason (R) is correct."
+    ]
+   },
+   "hi": {
+    "text": "अभिकथन (A) : साझेदारी फर्म में एक नए साझेदार के प्रवेश की स्थिति में, सभी साझेदारों के बीच नए लाभ विभाजन अनुपात को सुनिश्चित करने की आवश्यकता होती है ।\nकारण (R) : एक नए साझेदार के प्रवेश पर, पुराने साझेदारों के बीच लाभ विभाजन अनुपात, आने वाले साझेदार के लाभ विभाजन अनुपात में उसके सम्बन्धित योगदान को ध्यान में रखते हुए बदल जाएगा ।\nनिम्नलिखित में से सही विकल्प का चयन कीजिए :",
+    "options": [
+     "अभिकथन (A) तथा कारण (R) दोनों सही हैं तथा कारण (R), अभिकथन (A) की सही व्याख्या है ।",
+     "अभिकथन (A) तथा कारण (R) दोनों सही हैं, परंतु कारण (R), अभिकथन (A) की सही व्याख्या नहीं है ।",
+     "अभिकथन (A) सही है, परंतु कारण (R) गलत है ।",
+     "अभिकथन (A) ग़लत है, परंतु कारण (R) सही है ।"
+    ]
+   },
+   "answer": "A: Both Assertion (A) and Reason (R) are correct and Reason (R) is the correct explanation of Assertion (A)."
+  },
+  {
+   "question_number": "3(a)",
+   "part": "A",
+   "chapter": "Accounting for Partnership Basic Concepts",
+   "question_type": "mcq",
+   "marks": 1,
+   "difficulty": "medium",
+   "en": {
+    "text": "Atul, Bajaj and Madan were partners in a firm sharing profits and losses in the ratio of 1 : 2 : 5. The partnership deed provides that interest on a partner’s drawings shall be charged @ 18% per annum. During the year ended 31st March, 2025, Bajaj withdrew ₹ 7,000 at the end of each quarter. Interest on Bajaj’s drawings will be :",
+    "options": [
+     "₹ 1,890",
+     "₹ 3,150",
+     "₹ 420",
+     "₹ 5,040"
+    ]
+   },
+   "hi": {
+    "text": "अतुल, बजाज तथा मदन एक फर्म के साझेदार थे तथा 1 : 2 : 5 के अनुपात में लाभ-हानि बाँटते थे । साझेदारी संलेख में प्रावधान था कि साझेदार के आहरण पर 18% वार्षिक दर से ब्याज प्रभारित किया जाएगा । 31 मार्च, 2025 को समाप्त हुए वर्ष के दौरान, बजाज ने प्रत्येक तिमाही के अन्त में ₹ 7,000 का आहरण किया । बजाज के आहरण पर ब्याज होगा :",
+    "options": [
+     "₹ 1,890",
+     "₹ 3,150",
+     "₹ 420",
+     "₹ 5,040"
+    ]
+   },
+   "answer": "A: Total drawings = ₹ 7,000 × 4 = ₹ 28,000; Interest = ₹ 28,000 × 18% × 4.5/12 = ₹ 1,890."
+  },
+  {
+   "question_number": "3(b)",
+   "part": "A",
+   "chapter": "Accounting for Partnership Basic Concepts",
+   "question_type": "mcq",
+   "marks": 1,
+   "difficulty": "medium",
+   "en": {
+    "text": "Damodar, Rao and Shridharan were partners in a firm sharing profits and losses in the ratio of 3 : 1 : 1. Their fixed capitals were ₹ 4,00,000; ₹ 3,00,000 and ₹ 2,00,000 respectively. Interest on capital is allowed at the rate of 6% per annum. Journal entry for allowing interest on Rao’s capital will be :",
+    "options": [
+     "Profit & Loss Appropriation A/c Dr. ₹ 18,000\nTo Rao’s Capital A/c ₹ 18,000",
+     "Profit & Loss Appropriation A/c Dr. ₹ 18,000\nTo Rao’s Current A/c ₹ 18,000",
+     "Interest on Capital A/c Dr. ₹ 18,000\nTo Rao’s Current A/c ₹ 18,000",
+     "Interest on Capital A/c Dr. ₹ 18,000\nTo Rao’s Capital A/c ₹ 18,000"
+    ]
+   },
+   "hi": {
+    "text": "दामोदर, राव तथा श्रीधरन एक फर्म के साझेदार थे तथा 3 : 1 : 1 के अनुपात में लाभ-हानि बाँटते थे । उनकी स्थायी पूँजी क्रमशः ₹ 4,00,000; ₹ 3,00,000 तथा ₹ 2,00,000 थीं । पूँजी पर 6% वार्षिक दर से ब्याज देय था । राव की पूँजी पर ब्याज देने की रोज़नामचा प्रविष्टि होगी :",
+    "options": [
+     "लाभ-हानि विनियोजन खाता नाम ₹ 18,000\nराव का पूँजी खाता ₹ 18,000",
+     "लाभ-हानि विनियोजन खाता नाम ₹ 18,000\nराव का चालू खाता ₹ 18,000",
+     "पूँजी खाते पर ब्याज नाम ₹ 18,000\nराव का चालू खाता ₹ 18,000",
+     "पूँजी खाते पर ब्याज नाम ₹ 18,000\nराव का पूँजी खाता ₹ 18,000"
+    ]
+   },
+   "answer": "C: When capitals are fixed, allowing interest on capital is debited to Interest on Capital A/c and credited to Partner's Current A/c (₹ 3,00,000 × 6% = ₹ 18,000)."
+  },
+  {
+   "question_number": "4(a)",
+   "part": "A",
+   "chapter": "Accounting for Share Capital",
+   "question_type": "mcq",
+   "marks": 1,
+   "difficulty": "easy",
+   "en": {
+    "text": "Paramount Ltd. forfeited 2,000 equity shares of ₹ 100 each, ₹ 80 called up, issued at a premium of 10%, for non-payment of first call of ₹ 20 per share. On forfeiture of these shares, Equity Share Capital Account will be ________ by ________.",
+    "options": [
+     "debited, ₹ 1,60,000",
+     "credited, ₹ 1,60,000",
+     "debited, ₹ 2,00,000",
+     "credited, ₹ 2,00,000"
+    ]
+   },
+   "hi": {
+    "text": "पैरामाउन्ट लिमिटेड ने 10% प्रीमियम पर निर्गमित किए गए ₹ 100 प्रत्येक के 2,000 समता अंश, जिन पर ₹ 80 याचित थे, ₹ 20 प्रति अंश की प्रथम याचना का भुगतान न करने पर हरण कर लिया । इन अंशों के हरण पर, समता अंश पूँजी खाता ________ होगा ________ से ।",
+    "options": [
+     "डेबिट, ₹ 1,60,000",
+     "क्रेडिट, ₹ 1,60,000",
+     "डेबिट, ₹ 2,00,000",
+     "क्रेडिट, ₹ 2,00,000"
+    ]
+   },
+   "answer": "A: Equity Share Capital Account is debited with the called-up amount = 2,000 × ₹ 80 = ₹ 1,60,000."
+  },
+  {
+   "question_number": "4(b)",
+   "part": "A",
+   "chapter": "Accounting for Share Capital",
+   "question_type": "mcq",
+   "marks": 1,
+   "difficulty": "medium",
+   "en": {
+    "text": "Rudali Ltd. invited applications for issuing 2,00,000 equity shares of ₹ 10 each at a premium of ₹ 2 per share. ₹ 5 per share (including premium) was payable on application. Applications for 2,60,000 shares were received. An applicant for 5,000 shares paid his entire share money along with application. The amount received on application was :",
+    "options": [
+     "₹ 10,00,000",
+     "₹ 12,00,000",
+     "₹ 12,35,000",
+     "₹ 13,35,000"
+    ]
+   },
+   "hi": {
+    "text": "रुदाली लिमिटेड ने ₹ 10 प्रत्येक के 2,00,000 समता अंशों को ₹ 2 प्रति अंश के प्रीमियम पर निर्गमित करने के लिए आवेदन आमंत्रित किए । आवेदन पर ₹ 5 प्रति अंश (प्रीमियम सहित) देय था । 2,60,000 अंशों के लिए आवेदन प्राप्त हुए । 5,000 अंशों के एक आवेदक ने अपनी संपूर्ण अंश राशि का भुगतान आवेदन के साथ कर दिया । आवेदन पर प्राप्त राशि थी :",
+    "options": [
+     "₹ 10,00,000",
+     "₹ 12,00,000",
+     "₹ 12,35,000",
+     "₹ 13,35,000"
+    ]
+   },
+   "answer": "D: Application money on 2,60,000 shares = 2,60,000 × ₹ 5 = ₹ 13,00,000; Advance call money on 5,000 shares = 5,00,00 × (₹ 12 - ₹ 5) = ₹ 35,000; Total = ₹ 13,35,000."
+  },
+  {
+   "question_number": "5",
+   "part": "A",
+   "chapter": "Reconstitution of a Partnership Firm – Admission of a Partner",
+   "question_type": "mcq",
+   "marks": 1,
+   "difficulty": "medium",
+   "en": {
+    "text": "Chaman, Raman and Suman were partners in a firm sharing profits and losses in the ratio of 5 : 3 : 2. With effect from 1st April, 2025, they decided to share the future profits in the ratio of 2 : 3 : 5. For this purpose, it was agreed that the goodwill of the firm be valued at ₹ 1,00,000. The treatment of goodwill without opening goodwill account will be :",
+    "options": [
+     "Debit Chaman’s Capital A/c by ₹ 30,000 and Credit Suman’s Capital A/c by ₹ 30,000",
+     "Debit Suman’s Capital A/c by ₹ 30,000 and Credit Chaman’s Capital A/c by ₹ 30,000",
+     "Debit Chaman’s Capital A/c and Suman’s Capital A/c by ₹ 15,000 each and credit Raman’s Capital A/c by ₹ 30,000",
+     "Debit Raman’s Capital A/c by ₹ 30,000 and Credit Chaman’s Capital A/c and Suman’s Capital A/c by ₹ 15,000 each"
+    ]
+   },
+   "hi": {
+    "text": "चमन, रमन तथा सुमन एक फर्म के साझेदार थे तथा 5 : 3 : 2 के अनुपात में लाभ-हानि बाँटते थे । 1 अप्रैल, 2025 से, उन्होंने भविष्य में लाभों को 2 : 3 : 5 के अनुपात में बाँटने का निर्णय लिया । इस उद्देश्य के लिए, यह सहमति हुई कि फर्म की ख्याति का मूल्यांकन ₹ 1,00,000 किया जाएगा । ख्याति खाता खोले बिना ख्याति का लेखांकन होगा :",
+    "options": [
+     "चमन के पूँजी खाते को ₹ 30,000 से डेबिट तथा सुमन के पूँजी खाते को ₹ 30,000 से क्रेडिट",
+     "सुमन के पूँजी खाते को ₹ 30,000 से डेबिट तथा चमन के पूँजी खाते को ₹ 30,000 से क्रेडिट",
+     "चमन तथा सुमन प्रत्येक के पूँजी खाते को ₹ 15,000 से डेबिट तथा रमन के पूँजी खाते को ₹ 30,000 से क्रेडिट",
+     "रमन के पूँजी खाते को ₹ 30,000 से डेबिट तथा चमन एवं सुमन प्रत्येक के पूँजी खाते को ₹ 15,000 से क्रेडिट"
+    ]
+   },
+   "answer": "B: Suman's gain = 5/10 - 2/10 = 3/10 (debited with ₹ 30,000) and Chaman's sacrifice = 5/10 - 2/10 = 3/10 (credited with ₹ 30,000)."
+  },
+  {
+   "question_number": "6(a)",
+   "part": "A",
+   "chapter": "Issue and Redemption of Debentures",
+   "question_type": "mcq",
+   "marks": 1,
+   "difficulty": "easy",
+   "en": {
+    "text": "On 1st April, 2024, Mobi Ltd. issued 3,000, 9% Debentures of ₹ 1,000 each at a premium of 5%. The total amount of interest due on debentures for the year ended 31st March, 2025 will be :",
+    "options": [
+     "₹ 2,70,000",
+     "₹ 1,50,000",
+     "₹ 27,000",
+     "₹ 15,000"
+    ]
+   },
+   "hi": {
+    "text": "1 अप्रैल, 2024 को, मोबी लिमिटेड ने ₹ 1,000 प्रत्येक के 3,000, 9% ऋणपत्रों को 5% प्रीमियम पर निर्गमित किया । 31 मार्च, 2025 को समाप्त हुए वर्ष के लिए ऋणपत्रों पर देय कुल ब्याज की राशि होगी :",
+    "options": [
+     "₹ 2,70,000",
+     "₹ 1,50,000",
+     "₹ 27,000",
+     "₹ 15,000"
+    ]
+   },
+   "answer": "A: Interest is calculated on nominal value: 3,000 × ₹ 1,000 × 9% = ₹ 2,70,000."
+  },
+  {
+   "question_number": "6(b)",
+   "part": "A",
+   "chapter": "Accounting for Share Capital",
+   "question_type": "mcq",
+   "marks": 1,
+   "difficulty": "easy",
+   "en": {
+    "text": "A company may reserve a portion of its uncalled capital to be called only in the event of winding up of the company. Such uncalled amount is called :",
+    "options": [
+     "Uncalled capital",
+     "Paid-up capital",
+     "Called-up capital",
+     "Reserve capital"
+    ]
+   },
+   "hi": {
+    "text": "कम्पनी अपनी अयाचित पूँजी का एक भाग सुरक्षित रख सकती है जो केवल कम्पनी के समापन की दशा में ही माँगा जा सकता है । यह अयाचित भाग कहलाता है :",
+    "options": [
+     "अयाचित पूँजी",
+     "प्रदत्त पूँजी",
+     "याचित पूँजी",
+     "आरक्षित पूँजी"
+    ]
+   },
+   "answer": "D: Reserve capital is the uncalled capital reserved to be called only in the event of winding up."
+  },
+  {
+   "question_number": "7(a)",
+   "part": "A",
+   "chapter": "Reconstitution of a Partnership Firm – Admission of a Partner",
+   "question_type": "mcq",
+   "marks": 1,
+   "difficulty": "easy",
+   "en": {
+    "text": "Anup, Bharti and Manoj were partners in a firm sharing profits and losses in the ratio of 11 : 8 : 1. From 1st April, 2025, they decided to share the future profits in the ratio of 2 : 2 : 1. The gain or sacrifice of each partner due to change in profit sharing ratio will be :",
+    "options": [
+     "Anup’s gain 3/20, Manoj’s sacrifice 3/20",
+     "Anup’s sacrifice 3/20, Manoj’s gain 3/20",
+     "Anup’s gain 3/20, Manoj’s gain 3/20",
+     "Anup’s sacrifice 3/20, Manoj’s sacrifice 3/20"
+    ]
+   },
+   "hi": {
+    "text": "अनूप, भारती तथा मनोज एक फर्म के साझेदार थे तथा 11 : 8 : 1 के अनुपात में लाभ-हानि बाँटते थे । 1 अप्रैल, 2025 से, उन्होंने भविष्य में लाभों को 2 : 2 : 1 के अनुपात में बाँटने का निर्णय किया । लाभ विभाजन अनुपात में परिवर्तन के कारण प्रत्येक साझेदार का अभिलाभ अथवा त्याग होगा :",
+    "options": [
+     "अनूप का अभिलाभ 3/20, मनोज का त्याग 3/20",
+     "अनूप का त्याग 3/20, मनोज का अभिलाभ 3/20",
+     "अनूप का अभिलाभ 3/20, मनोज का अभिलाभ 3/20",
+     "अनूप का त्याग 3/20, मनोज का त्याग 3/20"
+    ]
+   },
+   "answer": "B: Anup's sacrifice = 11/20 - 2/5 = 3/20; Bharti = 8/20 - 2/5 = 0; Manoj's gain = 1/5 - 1/20 = 3/20."
+  },
+  {
+   "question_number": "7(b)",
+   "part": "A",
+   "chapter": "Reconstitution of a Partnership Firm – RetirementDeath of a Partner",
+   "question_type": "mcq",
+   "marks": 1,
+   "difficulty": "easy",
+   "en": {
+    "text": "Arun, Varun and Tarun were partners in a firm sharing profits and losses in the ratio of 5 : 3 : 2. On 31st March, 2025, Arun died. Varun and Tarun decided to share future profits equally. The gaining ratio of Varun and Tarun will be :",
+    "options": [
+     "1 : 1",
+     "3 : 2",
+     "2 : 3",
+     "5 : 2"
+    ]
+   },
+   "hi": {
+    "text": "अरुण, वरुण तथा तरुण एक फर्म के साझेदार थे तथा 5 : 3 : 2 के अनुपात में लाभ-हानि बाँटते थे । 31 मार्च, 2025 को, अरुण की मृत्यु हो गई । वरुण तथा तरुण ने भविष्य में लाभों को बराबर-बराबर बाँटने का निर्णय किया । वरुण तथा तरुण का अभिलाभ अनुपात होगा :",
+    "options": [
+     "1 : 1",
+     "3 : 2",
+     "2 : 3",
+     "5 : 2"
+    ]
+   },
+   "answer": "C: Varun's gain = 1/2 - 3/10 = 2/10; Tarun's gain = 1/2 - 2/10 = 3/10; Gaining ratio = 2 : 3."
+  },
+  {
+   "question_number": "8",
+   "part": "A",
+   "chapter": "Accounting for Partnership Basic Concepts",
+   "question_type": "mcq",
+   "marks": 1,
+   "difficulty": "easy",
+   "en": {
+    "text": "Divya and Bholi were partners in a firm sharing profits and losses in the ratio of 3 : 1. On 1st April, 2024, their fixed capitals were ₹ 8,00,000 and ₹ 6,00,000 respectively. On 30th September, 2024, Bholi introduced ₹ 50,000 as additional capital. Partnership deed provided that interest on capital will be allowed @ 12% p.a. Interest on Bholi’s capital for the year ended 31st March, 2025 was :",
+    "options": [
+     "₹ 78,000",
+     "₹ 75,000",
+     "₹ 72,000",
+     "₹ 3,000"
+    ]
+   },
+   "hi": {
+    "text": "दिव्या तथा भोली एक फर्म की साझेदार थीं तथा 3 : 1 के अनुपात में लाभ-हानि बाँटती थीं । 1 अप्रैल, 2024 को, उनकी स्थायी पूँजी क्रमशः ₹ 8,00,000 तथा ₹ 6,00,000 थीं । 30 सितम्बर, 2024 को, भोली ने ₹ 50,000 की अतिरिक्त पूँजी लगाई । साझेदारी संलेख में पूँजी पर 12% वार्षिक दर से ब्याज देने का प्रावधान था । 31 मार्च, 2025 को समाप्त हुए वर्ष के लिए भोली की पूँजी पर ब्याज की राशि थी :",
+    "options": [
+     "₹ 78,000",
+     "₹ 75,000",
+     "₹ 72,000",
+     "₹ 3,000"
+    ]
+   },
+   "answer": "B: Interest on Bholi's capital = (₹ 6,00,000 × 12%) + (₹ 50,000 × 12% × 6/12) = ₹ 72,000 + ₹ 3,000 = ₹ 75,000."
+  },
+  {
+   "question_number": "9(a)",
+   "part": "A",
+   "chapter": "Accounting for Partnership Basic Concepts",
+   "question_type": "mcq",
+   "marks": 1,
+   "difficulty": "easy",
+   "en": {
+    "text": "Persons who have entered into partnership with one another are collectively called :",
+    "options": [
+     "Firm",
+     "Partnership",
+     "Partners",
+     "Partners’ firm"
+    ]
+   },
+   "hi": {
+    "text": "वे व्यक्ति जिन्होंने एक दूसरे के साथ साझेदारी में प्रवेश किया है, समग्र रूप से कहलाते हैं :",
+    "options": [
+     "फर्म",
+     "साझेदारी",
+     "साझेदार",
+     "साझेदारों की फर्म"
+    ]
+   },
+   "answer": "A: Persons who have entered into partnership with one another are collectively called a firm."
+  },
+  {
+   "question_number": "9(b)",
+   "part": "A",
+   "chapter": "Accounting for Partnership Basic Concepts",
+   "question_type": "mcq",
+   "marks": 1,
+   "difficulty": "easy",
+   "en": {
+    "text": "In the absence of partnership deed, partners are entitled to :",
+    "options": [
+     "Interest on Capital",
+     "Share of profits/losses in the ratio of their capitals",
+     "Interest @ 6% p.a. on loans/advances by them to the firm",
+     "Remuneration for the firm’s work"
+    ]
+   },
+   "hi": {
+    "text": "साझेदारी संलेख की अनुपस्थिति में साझेदार अधिकारी हैं :",
+    "options": [
+     "पूँजी पर ब्याज के",
+     "उनके पूँजी अनुपात में लाभों/हानियों में भाग के",
+     "उनके द्वारा फर्म को दिए गए ऋण/अग्रिम पर 6% की दर से ब्याज के",
+     "फर्म के कार्य के लिए वेतन के"
+    ]
+   },
+   "answer": "C: In the absence of a partnership deed, partners are entitled to interest @ 6% p.a. on loans/advances."
+  },
+  {
+   "question_number": "10",
+   "part": "A",
+   "chapter": "Accounting for Partnership Basic Concepts",
+   "question_type": "mcq",
+   "marks": 1,
+   "difficulty": "easy",
+   "en": {
+    "text": "When capitals of the partners are fluctuating, then the adjustments for drawings, interest on drawings, interest on capital, partners’ salary, etc. are shown in the _________.",
+    "options": [
+     "Current Account of partners",
+     "Capital Account of partners",
+     "Drawings Account",
+     "Profit and Loss Appropriation Account"
+    ]
+   },
+   "hi": {
+    "text": "जब साझेदारों की पूँजी परिवर्तनशील होती हैं, तब आहरण, आहरण पर ब्याज, पूँजी पर ब्याज, साझेदारों के वेतन, आदि के समायोजन ________ दर्शाए जाते हैं ।",
+    "options": [
+     "साझेदारों के चालू खाते में",
+     "साझेदारों के पूँजी खाते में",
+     "आहरण खाते में",
+     "लाभ-हानि विनियोजन खाते में"
+    ]
+   },
+   "answer": "B: In fluctuating capital method, all partner adjustments are recorded directly in the Capital Account of partners."
+  },
+  {
+   "question_number": "11",
+   "part": "A",
+   "chapter": "Issue and Redemption of Debentures",
+   "question_type": "mcq",
+   "marks": 1,
+   "difficulty": "medium",
+   "en": {
+    "text": "Nigam Ltd. issued 40,000, 11% Debentures of ₹ 100 each at a certain rate of discount. The debentures were to be redeemed at 20% premium. Existing balance of Securities Premium before issue of these debentures was ₹ 13,00,000.\nAfter writing off ‘Loss on issue of debentures’, the balance in Securities Premium was ₹ 3,00,000.\nThe above debentures were issued at a discount of :",
+    "options": [
+     "20%",
+     "15%",
+     "10%",
+     "5%"
+    ]
+   },
+   "hi": {
+    "text": "निगम लिमिटेड ने ₹ 100 प्रत्येक के 40,000, 11% ऋणपत्रों का निर्गमन एक निश्चित बट्टे की दर पर किया । ऋणपत्रों का शोधन 20% प्रीमियम पर किया जाना था । इन ऋणपत्रों के निर्गमन से पूर्व प्रतिभूति प्रीमियम का विद्यमान शेष ₹ 13,00,000 था ।\n‘ऋणपत्रों के निर्गमन पर हानि’ को अपलिखित करने के पश्चात्, प्रतिभूति प्रीमियम का शेष ₹ 3,00,000 था ।\nउपर्युक्त ऋणपत्रों का निर्गमन किया गया था :",
+    "options": [
+     "20% बट्टे पर",
+     "15% बट्टे पर",
+     "10% बट्टे पर",
+     "5% बट्टे पर"
+    ]
+   },
+   "answer": "D: Total Loss = ₹ 13,00,000 - ₹ 3,00,000 = ₹ 10,00,000; Premium on redemption = 20% of ₹ 40,00,000 = ₹ 8,00,000; Discount on issue = ₹ 10,00,000 - ₹ 8,00,000 = ₹ 2,00,000; Discount % = (₹ 2,00,000 / ₹ 40,00,000) × 100 = 5%."
+  },
+  {
+   "question_number": "12",
+   "part": "A",
+   "chapter": "Issue and Redemption of Debentures",
+   "question_type": "mcq",
+   "marks": 1,
+   "difficulty": "easy",
+   "en": {
+    "text": "Deep Ltd. issued 6,000, 9% Debentures of ₹ 500 each at ₹ 490 per debenture. 9% Debentures Account will be credited by :",
+    "options": [
+     "₹ 2,70,000",
+     "₹ 6,00,000",
+     "₹ 29,40,000",
+     "₹ 30,00,000"
+    ]
+   },
+   "hi": {
+    "text": "दीप लिमिटेड ने ₹ 500 प्रत्येक के 6,000, 9% ऋणपत्रों का निर्गमन ₹ 490 प्रति ऋणपत्र पर किया । 9% ऋणपत्र खाते को क्रेडिट किया जाएगा :",
+    "options": [
+     "₹ 2,70,000 से",
+     "₹ 6,00,000 से",
+     "₹ 29,40,000 से",
+     "₹ 30,00,000 से"
+    ]
+   },
+   "answer": "D: Debentures Account is always credited at face value = 6,000 × ₹ 500 = ₹ 30,00,000."
+  },
+  {
+   "question_number": "13",
+   "part": "A",
+   "chapter": "Issue and Redemption of Debentures",
+   "question_type": "mcq",
+   "marks": 1,
+   "difficulty": "easy",
+   "en": {
+    "text": "Mogra Ltd. purchased assets of ₹ 14,40,000 from DK Ltd. It issued 9% Debentures of ₹ 100 each at a discount of 4% in full satisfaction of the purchase consideration. The number of debentures issued to DK Ltd. were :",
+    "options": [
+     "14,400",
+     "15,000",
+     "3,60,000",
+     "1,500"
+    ]
+   },
+   "hi": {
+    "text": "मोगरा लिमिटेड ने ₹ 14,40,000 की परिसम्पत्तियों को डीके लिमिटेड से क्रय किया । क्रय प्रतिफल के पूर्ण निपटान में 4% छूट पर इसने ₹ 100 प्रत्येक के 9% ऋणपत्रों का निर्गमन किया । डीके लिमिटेड को निर्गमित किए गए ऋणपत्रों की संख्या थीं :",
+    "options": [
+     "14,400",
+     "15,000",
+     "3,60,000",
+     "1,500"
+    ]
+   },
+   "answer": "B: Number of debentures = ₹ 14,40,000 / (₹ 100 - 4% of ₹ 100) = ₹ 14,40,000 / ₹ 96 = 15,000."
+  },
+  {
+   "question_number": "14",
+   "part": "A",
+   "chapter": "Dissolution of a Partnership Firm",
+   "question_type": "mcq",
+   "marks": 1,
+   "difficulty": "medium",
+   "en": {
+    "text": "On 31st March, 2025, the partnership between Hari and Om was dissolved. Hari was appointed to look after dissolution work for which he was allowed a commission of ₹ 9,700. He agreed to bear the dissolution expenses. The actual expenses of dissolution amounted to ₹ 8,900 which were paid by Hari’s friend, Bhanu on his behalf. The amount debited to Realisation Account will be :",
+    "options": [
+     "₹ 9,700",
+     "₹ 8,900",
+     "₹ 10,000",
+     "Nil"
+    ]
+   },
+   "hi": {
+    "text": "31 मार्च, 2025 को, हरी तथा ओम के बीच साझेदारी का विघटन हो गया । हरी को विघटन कार्य की देखरेख के लिए नियुक्त किया गया जिसके लिए उसे ₹ 9,700 कमीशन दिया जाना था । वह विघटन व्ययों को वहन करने के लिए सहमत हो गया । विघटन के वास्तविक व्यय ₹ 8,900 थे जिनका भुगतान हरी के मित्र भानु ने उसकी तरफ से किया । वसूली खाते में डेबिट की गई राशि होगी :",
+    "options": [
+     "₹ 9,700",
+     "₹ 8,900",
+     "₹ 10,000",
+     "शून्य"
+    ]
+   },
+   "answer": "A: Only the agreed commission of ₹ 9,700 is an expense of the firm debited to Realisation Account."
+  },
+  {
+   "question_number": "15",
+   "part": "A",
+   "chapter": "Reconstitution of a Partnership Firm – Admission of a Partner",
+   "question_type": "mcq",
+   "marks": 1,
+   "difficulty": "medium",
+   "en": {
+    "text": "Atul and Nisha were partners in a firm sharing profits and losses in the ratio of 4 : 1. Their capitals were ₹ 1,20,000 and ₹ 90,000 respectively. On 1st April, 2025, they admitted Mona as a new partner in the firm for 1/4th share in the future profits. Mona brought ₹ 1,00,000 as her capital. The value of goodwill of the firm was :",
+    "options": [
+     "₹ 22,500",
+     "₹ 4,00,000",
+     "₹ 90,000",
+     "₹ 1,00,000"
+    ]
+   },
+   "hi": {
+    "text": "अतुल और निशा एक फर्म के साझेदार थे तथा 4 : 1 के अनुपात में लाभ-हानि बाँटते थे । उनकी पूँजी क्रमशः ₹ 1,20,000 तथा ₹ 90,000 थीं । 1 अप्रैल, 2025 को, भविष्य के लाभों में 1/4 भाग के लिए उन्होंने मोना को एक नए साझेदार के रूप में फर्म में प्रवेश दिया । मोना अपनी पूँजी के रूप में ₹ 1,00,000 लाई । फर्म की ख्याति का मूल्य था :",
+    "options": [
+     "₹ 22,500",
+     "₹ 4,00,000",
+     "₹ 90,000",
+     "₹ 1,00,000"
+    ]
+   },
+   "answer": "C: Total capitalized value = ₹ 1,00,000 × 4 = ₹ 4,00,000; Total existing capitals = ₹ 1,20,000 + ₹ 90,000 + ₹ 1,00,000 = ₹ 3,10,000; Goodwill = ₹ 4,00,000 - ₹ 3,10,000 = ₹ 90,000."
+  },
+  {
+   "question_number": "16",
+   "part": "A",
+   "chapter": "Reconstitution of a Partnership Firm – Admission of a Partner",
+   "question_type": "mcq",
+   "marks": 1,
+   "difficulty": "medium",
+   "en": {
+    "text": "Yashoda and Devi were partners in a firm sharing profits and losses in the ratio of 3 : 2. On 31st March, 2025, their balance sheet showed land and building at ₹ 20,00,000 and furniture at ₹ 6,00,000. On that date they admitted Poonam as a new partner for 1/4th share in the future profits of the firm. On Poonam’s admission, it was found that land and building is undervalued by 20%. On Poonam’s admission, Revaluation Account will be :",
+    "options": [
+     "debited by ₹ 5,00,000",
+     "debited by ₹ 25,00,000",
+     "credited by ₹ 25,00,000",
+     "credited by ₹ 5,00,000"
+    ]
+   },
+   "hi": {
+    "text": "यशोदा तथा देवी एक फर्म की साझेदार थीं तथा 3 : 2 के अनुपात में लाभ-हानि बाँटती थीं । 31 मार्च, 2025 को, उनका स्थिति विवरण ₹ 20,00,000 का भूमि एवं भवन तथा ₹ 6,00,000 का फर्नीचर दर्शा रहा था । इस तिथि को भविष्य के लाभों में 1/4 भाग के लिए उन्होंने पूनम को एक नए साझेदार के रूप में फर्म में प्रवेश दिया । पूनम के प्रवेश पर, यह पाया गया कि भूमि एवं भवन का मूल्यांकन 20% कम है । पूनम के प्रवेश पर, पुनर्मूल्यांकन खाते को :",
+    "options": [
+     "₹ 5,00,000 से डेबिट किया जाएगा",
+     "₹ 25,00,000 से डेबिट किया जाएगा",
+     "₹ 25,00,000 से क्रेडिट किया जाएगा",
+     "₹ 5,00,000 से क्रेडिट किया जाएगा"
+    ]
+   },
+   "answer": "D: Actual value of land & building = ₹ 20,00,000 / (1 - 0.20) = ₹ 25,00,000; Increase = ₹ 5,00,000; Revaluation Account is credited by ₹ 5,00,000."
+  },
+  {
+   "question_number": "17",
+   "part": "A",
+   "chapter": "Reconstitution of a Partnership Firm – RetirementDeath of a Partner",
+   "question_type": "short_answer",
+   "marks": 3,
+   "difficulty": "medium",
+   "en": {
+    "text": "Tara, Meera and Neera were partners in a firm sharing profits and losses equally. Their capitals on 1st April, 2025 were ₹ 4,00,000; ₹ 3,00,000 and ₹ 2,00,000 respectively. The firm closes its books on 31st March every year. Tara died on 30th June, 2025. The partnership deed provides that in the event of death of a partner, her legal representatives will be entitled to the following :\n(i) Interest on capital @ 6% p.a.\n(ii) Her share in the profits of the firm till the date of her death.\nTara had withdrawn ₹ 8,000 for her treatment till 30th June, 2025 and interest on drawings @ 12% p.a. is to be charged. Her share in the profits of the firm was to be calculated on the basis of last year's profit. Last year's profit amounted to ₹ 1,80,000.\nPrepare Tara's Capital Account to be presented to her legal representatives on her death.",
+    "options": []
+   },
+   "hi": {
+    "text": "तारा, मीरा तथा नीरा एक फर्म की साझेदार थीं तथा लाभ-हानि बराबर-बराबर बाँटती थीं । 1 अप्रैल, 2025 को उनकी पूँजी क्रमशः ₹ 4,00,000; ₹ 3,00,000 तथा ₹ 2,00,000 थीं । फर्म अपनी पुस्तकें प्रति वर्ष 31 मार्च को बंद करती है । 30 जून, 2025 को तारा की मृत्यु हो गई । साझेदारी संलेख में प्रावधान है कि एक साझेदार की मृत्यु पर उसके कानूनी प्रतिनिधियों को निम्नलिखित का अधिकार होगा :\n(i) पूँजी पर 6% वार्षिक दर से ब्याज\n(ii) उसकी मृत्यु की तिथि तक फर्म के लाभों में उसका भाग\n30 जून, 2025 तक तारा ने अपने उपचार के लिए ₹ 8,000 का आहरण किया और 12% वार्षिक दर से आहरण पर ब्याज प्रभारित किया जाएगा । फर्म के लाभों में उसके भाग की गणना पिछले वर्ष के लाभ के आधार पर की जाएगी । पिछले वर्ष का लाभ ₹ 1,80,000 था ।\nतारा की मृत्यु पर उसके कानूनी प्रतिनिधियों को प्रस्तुत करने के लिए उसका पूँजी खाता तैयार कीजिए ।",
+    "options": []
+   },
+   "answer": "Amount due to Tara's Executors/Legal Representatives = ₹ 4,12,760 (or ₹ 4,12,880 if interest on drawings is charged for an average of 1.5 months = ₹ 120, or for 3 months = ₹ 240, Interest on Capital = ₹ 6,000, Share of Profit = ₹ 15,000, Drawings = ₹ 8,000)."
+  },
+  {
+   "question_number": "18(a)",
+   "part": "A",
+   "chapter": "Accounting for Partnership Basic Concepts",
+   "question_type": "short_answer",
+   "marks": 3,
+   "difficulty": "medium",
+   "en": {
+    "text": "Laxmi, Rani and Priya were partners in a firm sharing profits and losses in the ratio of 5 : 7 : 8. Their fixed capitals were ₹ 8,00,000; ₹ 7,00,000 and ₹ 5,00,000 respectively. The partnership deed provided interest on capital @ 9% per annum. For the year ending 31st March, 2025, interest on capital was provided @ 12% per annum.\nShowing your workings clearly, pass a single adjustment entry to rectify the error.",
+    "options": []
+   },
+   "hi": {
+    "text": "लक्ष्मी, रानी तथा प्रिया एक फर्म की साझेदार थीं तथा 5 : 7 : 8 के अनुपात में लाभ-हानि बाँटती थीं । उनकी स्थायी पूँजी क्रमशः ₹ 8,00,000; ₹ 7,00,000 तथा ₹ 5,00,000 थीं । साझेदारी संलेख में पूँजी पर 9% वार्षिक दर से ब्याज का प्रावधान था । 31 मार्च, 2025 को समाप्त हुए वर्ष के लिए पूँजी पर 12% वार्षिक दर से ब्याज लगाया गया ।\nअपने कार्य को स्पष्टता से दर्शाते हुए, त्रुटि के समाधान हेतु एक समायोजन प्रविष्टि कीजिए ।",
+    "options": []
+   },
+   "answer": "Adjustment Entry: Laxmi's Current A/c Dr. ₹ 9,000, To Priya's Current A/c ₹ 9,000 (Excess IOC of 3%: Laxmi ₹ 24,000, Rani ₹ 21,000, Priya ₹ 15,000; Correct profit credit in 5:7:8: Laxmi ₹ 15,000, Rani ₹ 21,000, Priya ₹ 24,000)."
+  },
+  {
+   "question_number": "18(b)",
+   "part": "A",
+   "chapter": "Accounting for Partnership Basic Concepts",
+   "question_type": "short_answer",
+   "marks": 3,
+   "difficulty": "medium",
+   "en": {
+    "text": "Sukesh and Surbhi were partners in a firm sharing profits and losses in the ratio of 5 : 3. On 1st April, 2024, they admitted Suman, as a new partner for 1/5th share in the profits of the firm with a minimum guaranteed profit of ₹ 1,20,000. Any deficiency arising on that account will be borne by Sukesh. The net profit of the firm for the year ended 31st March, 2025 was ₹ 5,50,000.\nPrepare Profit and Loss Appropriation Account of the firm for the year ended 31st March, 2025.",
+    "options": []
+   },
+   "hi": {
+    "text": "सुकेश तथा सुरभि एक फर्म के साझेदार थे तथा 5 : 3 के अनुपात में लाभ-हानि बाँटते थे । 1 अप्रैल, 2024 को, उन्होंने फर्म के लाभों में 1/5 भाग के लिए सुमन को, एक नए साझेदार के रूप में न्यूनतम ₹ 1,20,000 के लाभ की गारंटी के साथ, फर्म में प्रवेश दिया । इस गारंटी के कारण हुई किसी भी कमी को सुकेश वहन करेगा । 31 मार्च, 2025 को समाप्त हुए वर्ष के लिए फर्म का शुद्ध लाभ ₹ 5,50,000 था ।\n31 मार्च, 2025 को समाप्त हुए वर्ष के लिए फर्म का लाभ-हानि विनियोजन खाता तैयार कीजिए ।",
+    "options": []
+   },
+   "answer": "Net Profit ₹ 5,50,000. Suman's share = 1/5 of ₹ 5,50,000 = ₹ 1,10,000. Deficiency = ₹ 10,000 borne entirely by Sukesh. Profit distribution: Sukesh = ₹ 2,75,000 - ₹ 10,000 = ₹ 2,65,000; Surbhi = ₹ 1,65,000; Suman = ₹ 1,20,000."
+  },
+  {
+   "question_number": "19(a)",
+   "part": "A",
+   "chapter": "Issue and Redemption of Debentures",
+   "question_type": "short_answer",
+   "marks": 3,
+   "difficulty": "medium",
+   "en": {
+    "text": "Oasis Ltd. purchased building worth ₹ 12,00,000, machinery worth ₹ 1,90,000 and furniture worth ₹ 3,00,000 from Nitara Ltd. and took over its liabilities of ₹ 90,000 for a purchase consideration of ₹ 15,30,000. Oasis Ltd. paid the purchase consideration by issuing 11% Debentures of ₹ 100 each at a discount of 10%.\nPass necessary journal entries in the books of Oasis Ltd. for the above transactions.",
+    "options": []
+   },
+   "hi": {
+    "text": "ओएसिस लिमिटेड ने ₹ 15,30,000 के क्रय प्रतिफल के बदले नितारा लिमिटेड से ₹ 12,00,000 मूल्य का भवन, ₹ 1,90,000 मूल्य की मशीनरी तथा ₹ 3,00,000 मूल्य का फर्नीचर क्रय किया तथा इसकी ₹ 90,000 की देयताओं को लिया । ओएसिस लिमिटेड ने क्रय प्रतिफल का भुगतान ₹ 100 प्रत्येक के 11% ऋणपत्रों को 10% बट्टे पर निर्गमित करके किया ।\nउपर्युक्त लेनदेनों के लिए ओएसिस लिमिटेड की पुस्तकों में आवश्यक रोज़नामचा प्रविष्टियाँ कीजिए ।",
+    "options": []
+   },
+   "answer": "Net Assets = ₹ 16,00,000; Capital Reserve = ₹ 70,000; Issue price per debenture = ₹ 90; Number of debentures = 15,30,000 / 90 = 17,000 debentures; Discount on issue = ₹ 1,70,000; 11% Debentures credited = ₹ 17,00,000."
+  },
+  {
+   "question_number": "19(b)",
+   "part": "A",
+   "chapter": "Issue and Redemption of Debentures",
+   "question_type": "short_answer",
+   "marks": 3,
+   "difficulty": "medium",
+   "en": {
+    "text": "On 1st April, 2025, Bharat Heavy Industries Ltd. purchased the running business of Mac Ltd. consisting of sundry assets of the book value of ₹ 20,00,000 and sundry liabilities of ₹ 8,00,000 for a purchase consideration of ₹ 15,00,000. The purchase consideration was paid by issuing 8,000, 9% Debentures of ₹ 100 each at a premium of 25% and the balance was paid by a bank draft in favour of Mac Ltd.\nPass necessary journal entries for the above transactions in the books of Bharat Heavy Industries Ltd.",
+    "options": []
+   },
+   "hi": {
+    "text": "1 अप्रैल, 2025 को, भारत हैवी इंडस्ट्रीज़ लिमिटेड ने ₹ 15,00,000 के क्रय प्रतिफल के बदले मैक लिमिटेड के चालू व्यवसाय का क्रय किया जिसमें ₹ 20,00,000 पुस्तक मूल्य की विविध परिसम्पत्तियाँ तथा ₹ 8,00,000 की विविध देयताएँ सम्मिलित थीं । क्रय प्रतिफल का भुगतान ₹ 100 प्रत्येक के 8,000, 9% ऋणपत्रों का निर्गमन 25% प्रीमियम पर करके तथा शेष को मैक लिमिटेड के पक्ष में बैंक ड्राफ्ट द्वारा भुगतान करके किया ।\nभारत हैवी इंडस्ट्रीज़ लिमिटेड की पुस्तकों में उपर्युक्त लेनदेनों के लिए आवश्यक रोज़नामचा प्रविष्टियाँ कीजिए ।",
+    "options": []
+   },
+   "answer": "Goodwill = ₹ 3,00,000; Debentures nominal value = ₹ 8,00,000, Securities Premium = ₹ 2,00,000; Bank draft paid = ₹ 5,00,000."
+  },
+  {
+   "question_number": "20",
+   "part": "A",
+   "chapter": "Reconstitution of a Partnership Firm – Admission of a Partner",
+   "question_type": "short_answer",
+   "marks": 3,
+   "difficulty": "medium",
+   "en": {
+    "text": "Dhruv and Seema were partners in a firm sharing profits and losses in the ratio of 2 : 3. Their capitals were ₹ 18,00,000 and ₹ 12,00,000 respectively. The normal rate of return was 15%.\nThe profits of the last four years were :\n\n| | (₹) |\n|---|---|\n| 2021 – 22 | 7,75,000 |\n| 2022 – 23 | 5,00,000 |\n| 2023 – 24 | (75,000) |\n| 2024 – 25 | 7,00,000 |\n\nThe closing stock for the year 2024 – 25 was undervalued by ₹ 1,00,000. Goodwill of the firm is to be valued at three years’ purchase of last four years’ average super-profits.\nCalculate the value of goodwill of the firm.",
+    "options": []
+   },
+   "hi": {
+    "text": "ध्रुव तथा सीमा एक फर्म के साझेदार थे तथा 2 : 3 के अनुपात में लाभ-हानि बाँटते थे । उनकी पूँजी क्रमशः ₹ 18,00,000 तथा ₹ 12,00,000 थीं । प्रत्याय की सामान्य दर 15% थी ।\nपिछले चार वर्षों के लाभ थे :\n\n| | (₹) |\n|---|---|\n| 2021 – 22 | 7,75,000 |\n| 2022 – 23 | 5,00,000 |\n| 2023 – 24 | (75,000) |\n| 2024 – 25 | 7,00,000 |\n\nवर्ष 2024 – 25 के अंतिम स्टॉक का मूल्यांकन ₹ 1,00,000 से कम किया गया । फर्म की ख्याति का मूल्यांकन पिछले चार वर्षों के औसत अधिलाभों के तीन वर्षों के क्रय के आधार पर किया जाएगा ।\nफर्म की ख्याति के मूल्य की गणना कीजिए ।",
+    "options": []
+   },
+   "answer": "Adjusted profit for 2024–25 = ₹ 8,00,000; Total profit = ₹ 20,00,000; Average profit = ₹ 5,00,000; Normal profit = 15% of ₹ 30,00,000 = ₹ 4,50,000; Super profit = ₹ 50,000; Goodwill = ₹ 50,000 × 3 = ₹ 1,50,000."
+  },
+  {
+   "question_number": "21",
+   "part": "A",
+   "chapter": "Issue and Redemption of Debentures",
+   "question_type": "long_answer",
+   "marks": 4,
+   "difficulty": "medium",
+   "en": {
+    "text": "Pass necessary journal entries for issue of debentures for the following transactions :\n(i) AB Ltd. issued 30,000, 10% Debentures of ₹ 100 each at a premium of 5%, redeemable at a premium of 10%.\n(ii) CD Ltd. issued 40,000, 8% Debentures of ₹ 100 each at par, redeemable at a premium of 10%.",
+    "options": []
+   },
+   "hi": {
+    "text": "निम्नलिखित लेनदेनों के लिए ऋणपत्रों के निर्गमन पर आवश्यक रोज़नामचा प्रविष्टियाँ कीजिए :\n(i) एबी लिमिटेड ने ₹ 100 प्रत्येक के 30,000, 10% ऋणपत्रों का निर्गमन 5% प्रीमियम पर किया, जिनका शोधन 10% प्रीमियम पर किया जाएगा ।\n(ii) सीडी लिमिटेड ने ₹ 100 प्रत्येक के 40,000, 8% ऋणपत्रों का निर्गमन सममूल्य पर किया, जिनका शोधन 10% प्रीमियम पर किया जाएगा ।",
+    "options": []
+   },
+   "answer": "(i) Bank Dr. ₹ 31,50,000, Loss on Issue Dr. ₹ 3,00,000; To 10% Debentures ₹ 30,00,000, To Securities Premium ₹ 1,50,000, To Premium on Redemption ₹ 3,00,000. (ii) Bank Dr. ₹ 40,00,000, Loss on Issue Dr. ₹ 4,00,000; To 8% Debentures ₹ 40,00,000, To Premium on Redemption ₹ 4,00,000."
+  },
+  {
+   "question_number": "22",
+   "part": "A",
+   "chapter": "Reconstitution of a Partnership Firm – Admission of a Partner",
+   "question_type": "long_answer",
+   "marks": 4,
+   "difficulty": "medium",
+   "en": {
+    "text": "Raman, Daman and Vikram were partners in a firm sharing profits and losses in the ratio of 5 : 4 : 1. On 31st March, 2025, their capitals were ₹ 6,00,000; ₹ 3,00,000 and ₹ 2,00,000 respectively. With effect from 1st April, 2025, they decided to share the future profits equally. Due to change in profit sharing ratio, it was agreed that :\n(i) Goodwill of the firm will be valued at ₹ 3,00,000.\n(ii) Revaluation of assets and liabilities will be carried out. The revaluation of assets and liabilities resulted in a loss of ₹ 12,000.\n(iii) Total capital of the reconstituted firm will be ₹ 12,00,000 and will be in the new profit sharing ratio of the partners. For this purpose, necessary cash will be brought in by the partners or paid off to the partners, as the case may be.\nPrepare Partners’ Capital Accounts on the reconstitution of the firm.",
+    "options": []
+   },
+   "hi": {
+    "text": "रमन, दमन तथा विक्रम एक फर्म के साझेदार थे तथा 5 : 4 : 1 के अनुपात में लाभ-हानि बाँटते थे । 31 मार्च, 2025 को उनकी पूँजी क्रमशः ₹ 6,00,000; ₹ 3,00,000 तथा ₹ 2,00,000 थीं । 1 अप्रैल, 2025 से, उन्होंने भविष्य में लाभों को बराबर-बराबर बाँटने का निर्णय लिया । लाभ विभाजन अनुपात में परिवर्तन के कारण, यह सहमति हुई कि :\n(i) फर्म की ख्याति का मूल्यांकन ₹ 3,00,000 किया जाएगा ।\n(ii) परिसम्पत्तियों तथा देयताओं का पुनर्मूल्यांकन किया जाएगा । परिसम्पत्तियों तथा देयताओं के पुनर्मूल्यांकन के परिणामस्वरूप ₹ 12,000 की हानि हुई ।\n(iii) पुनर्गठित फर्म की कुल पूँजी ₹ 12,00,000 होगी तथा यह साझेदारों के नए लाभ विभाजन अनुपात में होगी । इस उद्देश्य के लिए, जैसी भी स्थिति होगी, साझेदार आवश्यकतानुसार नकद लाएँगे अथवा उन्हें नकद भुगतान कर दिया जाएगा ।\nफर्म के पुनर्गठन पर साझेदारों के पूँजी खाते तैयार कीजिए ।",
+    "options": []
+   },
+   "answer": "Sacrifice/Gain: Raman sacrifices 5/30, Daman gains 2/30, Vikram gains 7/30; Goodwill adjustment: Daman Dr. ₹ 20,000, Vikram Dr. ₹ 70,000, To Raman ₹ 90,000; Revaluation loss: Raman ₹ 6,000, Daman ₹ 4,800, Vikram ₹ 1,200; Final capital required: ₹ 4,00,000 each; Cash adjustment: Raman paid ₹ 2,84,000; Daman brings in ₹ 1,24,800; Vikram brings in ₹ 2,71,200."
+  },
+  {
+   "question_number": "23(a)",
+   "part": "A",
+   "chapter": "Accounting for Share Capital",
+   "question_type": "long_answer",
+   "marks": 6,
+   "difficulty": "hard",
+   "en": {
+    "text": "Madhav Ltd. invited applications for issuing 4,00,000 equity shares of ₹ 10 each at a premium of ₹ 4 per share. The amount was payable as follows :\nOn Application and Allotment — ₹ 6 per share (including premium ₹ 2)\nOn First and Final Call — Balance\nApplications for 6,00,000 shares were received. Applications for 1,00,000 shares were rejected and the application money was refunded. Shares were allotted on pro-rata basis to the remaining applicants. Excess money received on application and allotment was adjusted towards sums due on first and final call. A shareholder, who had applied for 500 shares, failed to pay the first and final call. His shares were forfeited.\nPass necessary journal entries in the books of Madhav Ltd. for the above transactions.",
+    "options": []
+   },
+   "hi": {
+    "text": "माधव लिमिटेड ने ₹ 10 प्रत्येक के 4,00,000 समता अंशों को ₹ 4 प्रति अंश प्रीमियम पर निर्गमित करने के लिए आवेदन आमंत्रित किए । राशि का भुगतान निम्न प्रकार से देय था :\nआवेदन तथा आबंटन पर — ₹ 6 प्रति अंश (₹ 2 प्रीमियम सहित)\nप्रथम तथा अंतिम याचना पर — शेष\n6,00,000 अंशों के लिए आवेदन प्राप्त हुए । 1,00,000 अंशों के आवेदनों को रद्द कर दिया गया तथा आवेदन राशि वापस कर दी गई । शेष आवेदकों को आनुपातिक आधार पर अंशों का आबंटन किया गया । आवेदन एवं आबंटन पर प्राप्त अतिरिक्त राशि का समायोजन प्रथम एवं अंतिम याचना में कर लिया गया । एक अंशधारक, जिसने 500 अंशों के लिए आवेदन किया था, प्रथम एवं अंतिम याचना राशि का भुगतान करने में असफल रहा । उसके अंशों का हरण कर लिया गया ।\nउपर्युक्त लेनदेनों के लिए माधव लिमिटेड की पुस्तकों में आवश्यक रोजनामचा प्रविष्टियाँ कीजिए ।",
+    "options": []
+   },
+   "answer": "Key figures: Bank A/c (Application) ₹ 36,00,000; Share Forfeiture A/c ₹ 3,200; Calls in Arrears ₹ 2,400. Working: Pro-rata ratio 5:4. Applied 500, Allotted 400. Excess application money adjusted: 100 shares * ₹ 6 = ₹ 600. Call due on 400 shares = 400 * ₹ 8 = ₹ 3,200. Arrears = 3,200 - 600 = ₹ 2,600 (Wait, call is ₹ 8 including ₹ 2 premium. Arrears = ₹ 2,600)."
+  },
+  {
+   "question_number": "23(b)",
+   "part": "A",
+   "chapter": "Accounting for Share Capital",
+   "question_type": "long_answer",
+   "marks": 6,
+   "difficulty": "medium",
+   "en": {
+    "text": "(i) NN Ltd. forfeited 800 equity shares of ₹ 100 each for non-payment of the first call of ₹ 20 per share. The second and final call of ₹ 30 per share was not yet made. Out of the forfeited shares, 600 shares were re-issued for ₹ 54,000 as fully paid-up.\nPass necessary journal entries for the above transactions in the books of NN Ltd.\n(ii) KG Ltd. forfeited 7,000 equity shares of ₹ 100 each, issued at a premium of ₹ 20 per share, for non-payment of second and final call of ₹ 20 per share. The forfeited shares were re-issued at ₹ 80 per share, fully paid-up.\nPass necessary journal entries for the above transactions in the books of KG Ltd.",
+    "options": []
+   },
+   "hi": {
+    "text": "(i) एनएन लिमिटेड ने ₹ 100 प्रत्येक के 800 समता अंशों का हरण, ₹ 20 प्रति अंश की प्रथम याचना का भुगतान न करने पर कर लिया । ₹ 30 प्रति अंश की दूसरी तथा अंतिम याचना अभी माँगी नहीं गई थी । हरण किए गए अंशों में से, 600 अंशों को ₹ 54,000 पूर्ण प्रदत्त पुनःनिर्गमित कर दिया गया ।\nएनएन लिमिटेड की पुस्तकों में उपर्युक्त लेनदेनों के लिए आवश्यक रोजनामचा प्रविष्टियाँ कीजिए ।\n(ii) केजी लिमिटेड ने ₹ 100 प्रत्येक के 7,000 समता अंशों को, जिनका निर्गमन ₹ 20 प्रति अंश प्रीमियम पर किया था, ₹ 20 प्रति अंश की दूसरी तथा अंतिम याचना का भुगतान न करने पर हरण कर लिया । हरण किए गए अंशों को ₹ 80 प्रति अंश पूर्ण प्रदत्त पुनःनिर्गमित कर दिया गया ।\nकेजी लिमिटेड की पुस्तकों में उपर्युक्त लेनदेनों के लिए आवश्यक रोजनामचा प्रविष्टियाँ कीजिए ।",
+    "options": []
+   },
+   "answer": "(i) Capital Reserve = ₹ 24,000. (Forfeited amount per share = ₹ 50. Reissue loss = ₹ 10 per share. Gain = ₹ 40 * 600). (ii) Capital Reserve = ₹ 4,20,000. (Forfeited amount per share = ₹ 80. Reissue loss = ₹ 20 per share. Gain = ₹ 60 * 7,000)."
+  },
+  {
+   "question_number": "24",
+   "part": "A",
+   "chapter": "Accounting for Share Capital",
+   "question_type": "case_study",
+   "marks": 6,
+   "difficulty": "medium",
+   "en": {
+    "text": "Diksha Ltd. was registered with an authorised capital of ₹ 40,00,000 divided into shares of ₹ 10 each. On 1st April, 2025, the company offered to the public for subscription, 1,20,000 shares. Applications for 1,10,000 shares were received and allotment was made in full to all the applicants. A shareholder holding 10,000 shares failed to pay the second and final call of ₹ 2 per share.\nAnswer the following questions on the basis of the above information :\n(i) The amount of ‘calls in arrears’ will be :\n(A) ₹ 10,000\n(B) ₹ 20,000\n(C) ₹ 80,000\n(D) ₹ 1,00,000\n(ii) The ‘subscribed and fully paid-up capital’ of Diksha Ltd. will be :\n(A) ₹ 9,80,000\n(B) ₹ 10,80,000\n(C) ₹ 11,00,000\n(D) ₹ 10,00,000\n(iii) ‘Subscribed but not fully paid-up capital’ of Diksha Ltd. will be :\n(A) ₹ 80,000\n(B) ₹ 20,000\n(C) ₹ 10,000\n(D) Nil\n(iv) The amount of ‘share capital’ to be shown in the balance sheet of Diksha Ltd. will be :\n(A) ₹ 11,00,000\n(B) ₹ 10,80,000\n(C) ₹ 10,00,000\n(D) ₹ 9,80,000\n(v) If all the shares on which second and final call was not received, are forfeited, ‘Share Forfeiture Account’ will appear in the ‘Notes to Accounts’ at :\n(A) ₹ 20,000\n(B) ₹ 80,000\n(C) ₹ 1,00,000\n(D) ₹ 1,80,000\n(vi) The minimum price at which the forfeited shares can be reissued is :\n(A) ₹ 20,000\n(B) ₹ 80,000\n(C) ₹ 1,00,000\n(D) ₹ 1,10,000",
+    "options": []
+   },
+   "hi": {
+    "text": "दीक्षा लिमिटेड ₹ 10 प्रत्येक के अंशों में विभाजित ₹ 40,00,000 की अधिकृत पूँजी के साथ पंजीकृत थी । 1 अप्रैल, 2025 को कम्पनी ने जनता को अभिदान के लिए 1,20,000 अंशों को प्रस्तुत किया । 1,10,000 अंशों के लिए आवेदन प्राप्त हुए और सभी आवेदकों को पूर्ण आबंटन कर दिया गया । एक अंशधारी, जो 10,000 अंशों का धारक था, ₹ 2 प्रति अंश की दूसरी और अंतिम याचना देने में असफल रहा ।\nउपर्युक्त जानकारी के आधार पर निम्नलिखित प्रश्नों के उत्तर दीजिए :\n(i) ‘अदत्त याचना’ राशि होगी :\n(A) ₹ 10,000\n(B) ₹ 20,000\n(C) ₹ 80,000\n(D) ₹ 1,00,000\n(ii) दीक्षा लिमिटेड की ‘अभिदत्त एवं पूर्ण प्रदत्त पूँजी’ होगी :\n(A) ₹ 9,80,000\n(B) ₹ 10,80,000\n(C) ₹ 11,00,000\n(D) ₹ 10,00,000\n(iii) दीक्षा लिमिटेड की ‘अभिदत्त लेकिन पूर्ण प्रदत्त नहीं पूँजी’ होगी :\n(A) ₹ 80,000\n(B) ₹ 20,000\n(C) ₹ 10,00,000\n(D) शून्य\n(iv) दीक्षा लिमिटेड के स्थिति विवरण में दर्शाई जाने वाली ‘अंश पूँजी’ की राशि होगी :\n(A) ₹ 11,00,000\n(B) ₹ 10,80,000\n(C) ₹ 10,00,000\n(D) ₹ 9,80,000\n(v) यदि सभी अंशों का जिन पर दूसरी एवं अंतिम याचना प्राप्त नहीं हुई, हरण कर लिया जाए, तो ‘खातों के नोट्स’ में ‘अंश हरण खाता’ दर्शाया जाएगा :\n(A) ₹ 20,000 से\n(B) ₹ 80,000 से\n(C) ₹ 1,00,000 से\n(D) ₹ 1,80,000 से\n(vi) न्यूनतम मूल्य जिस पर हरण किए गए अंशों को पुनःनिर्गमित किया जा सकता है, वह है :\n(A) ₹ 20,000\n(B) ₹ 80,000\n(C) ₹ 1,00,000\n(D) ₹ 1,10,000",
+    "options": []
+   },
+   "answer": "(i) B: 10,000 * 2 = 20,000; (ii) D: 1,00,000 * 10 = 10,00,000; (iii) A: (10,000 * 10) - 20,000 = 80,000; (iv) B: 10,00,000 + 80,000 = 10,80,000; (v) B: 10,000 * 8 = 80,000; (vi) A: 10,000 * 2 = 20,000."
+  },
+  {
+   "question_number": "25",
+   "part": "A",
+   "chapter": "Dissolution of a Partnership Firm",
+   "question_type": "long_answer",
+   "marks": 6,
+   "difficulty": "medium",
+   "en": {
+    "text": "Sophia and Lalit were partners in a firm sharing profits and losses equally. Their firm was dissolved on 31st March, 2025. After transferring sundry assets (other than cash in hand and cash at bank) and the third party liabilities to the Realisation Account, the following transactions took place :\n(i) The firm had stock of the book value of ₹ 80,000. 50% of the stock was taken over by Sophia at 10% less than its book value and the remaining stock was sold at a gain of 15%.\n(ii) There was an unrecorded investment which was sold for ₹ 25,000.\n(iii) There were debtors of ₹ 1,20,000. Debtors realised 90% only and ₹ 5,000 were recovered for bad debts written off last year.\n(iv) Sophia had given a loan to the firm of ₹ 52,000. She was paid ₹ 41,000 in full settlement of her claim.\n(v) Creditors of ₹ 60,000 were paid at a discount of 5%.\n(vi) Expenses of realisation amounting to ₹ 7,000 were paid by Lalit.\nPass necessary journal entries for the above transactions in the books of the firm.",
+    "options": []
+   },
+   "hi": {
+    "text": "सोफिया तथा ललित एक फर्म के साझेदार थे तथा लाभ-हानि बराबर-बराबर बाँटते थे । 31 मार्च, 2025 को उनकी फर्म का विघटन हो गया । विविध परिसम्पत्तियों (रोकड़ हस्ते तथा बैंक में नगद को छोड़कर) तथा तृतीय पक्ष देयताओं को वसूली खाते में हस्तांतरित करने के पश्चात् निम्नलिखित लेनदेन हुए :\n(i) फर्म के पास ₹ 80,000 पुस्तक मूल्य का स्टॉक था । 50% स्टॉक को सोफिया ने पुस्तक मूल्य से 10% कम पर ले लिया तथा शेष स्टॉक पुस्तक मूल्य के 15% लाभ पर बेचा गया ।\n(ii) एक अलिखित निवेश था, जिसे ₹ 25,000 में बेचा गया ।\n(iii) ₹ 1,20,000 के देनदार थे । उनसे केवल 90% प्राप्त हुआ तथा पिछले वर्ष अपलिखित डूबत ऋणों से ₹ 5,000 की वसूली हुई ।\n(iv) सोफिया ने फर्म को ₹ 52,000 का ऋण दिया था । अपने दावे के पूर्ण निपटान में उसे ₹ 41,000 का भुगतान किया गया ।\n(v) ₹ 60,000 के लेनदारों को 5% बट्टे पर भुगतान किया गया ।\n(vi) ₹ 7,000 के वसूली व्ययों का भुगतान ललित द्वारा किया गया ।\nफर्म की पुस्तकों में उपर्युक्त लेनदेनों के लिए आवश्यक रोजनामचा प्रविष्टियाँ कीजिए ।",
+    "options": []
+   },
+   "answer": "Key figures: (i) Sophia's Capital Dr. ₹ 36,000, Bank Cr. ₹ 46,000; (ii) Bank Dr. ₹ 25,000; (iii) Bank Dr. ₹ 1,13,000; (iv) Sophia's Loan Dr. ₹ 52,000, Bank Cr. ₹ 41,000, Realisation Cr. ₹ 11,000; (v) Realisation Dr. ₹ 57,000; (vi) Realisation Dr. ₹ 7,000, Lalit's Capital Cr. ₹ 7,000."
+  },
+  {
+   "question_number": "26(a)",
+   "part": "A",
+   "chapter": "Reconstitution of a Partnership Firm – Admission of a Partner",
+   "question_type": "long_answer",
+   "marks": 6,
+   "difficulty": "medium",
+   "en": {
+    "text": "Anand and Bir were partners in a firm sharing profits and losses in the ratio of 3 : 2. On 31st March, 2025, their Balance Sheet was as follows :\nBalance Sheet of Anand and Bir as on 31st March, 2025\n| Liabilities | Amount (₹) | Assets | Amount (₹) |\n|---|---|---|---|\n| Creditors | 45,000 | Cash | 9,000 |\n| Workmen Compensation Fund | 15,000 | Debtors | 36,000 |\n| Capitals : | | Stock | 45,000 |\n| Anand 90,000 | | Furniture | 30,000 |\n| Bir 60,000 | 1,50,000 | Plant and Machinery | 90,000 |\n| | 2,10,000 | | 2,10,000 |\nOn 1st April, 2025, they admitted Vishal as a new partner for 1/6th share in the profits of the firm. It was agreed that :\n(i) Vishal will bring ₹ 45,000 as his capital and ₹ 15,000 for his share of goodwill premium.\n(ii) Stock was to be reduced by 10% and machinery was to be appreciated by 10%.\n(iii) Furniture was revalued at ₹ 27,000.\n(iv) 5% provision for bad debts was to be created and ₹ 600 were to be provided for outstanding repair bill.\n(v) There were unrecorded investments of ₹ 3,000 which were to be recorded.\n(vi) A creditor of ₹ 900 was not likely to claim his money and hence was to be written off.\nPass necessary journal entries for the above transactions in the books of the firm on Vishal’s admission.",
+    "options": []
+   },
+   "hi": {
+    "text": "आनंद तथा बीर एक फर्म के साझेदार थे तथा 3 : 2 के अनुपात में लाभ-हानि बाँटते थे । 31 मार्च, 2025 को, उनका स्थिति विवरण निम्न प्रकार था :\n31 मार्च, 2025 को आनंद तथा बीर का स्थिति विवरण\n| देयताएँ | राशि (₹) | परिसम्पत्तियाँ | राशि (₹) |\n|---|---|---|---|\n| लेनदार | 45,000 | नगद | 9,000 |\n| कामगार क्षतिपूर्ति कोष | 15,000 | देनदार | 36,000 |\n| पूँजी : | | स्टॉक | 45,000 |\n| आनंद 90,000 | | फर्नीचर | 30,000 |\n| बीर 60,000 | 1,50,000 | संयंत्र तथा मशीनरी | 90,000 |\n| | 2,10,000 | | 2,10,000 |\n1 अप्रैल, 2025 को, उन्होंने फर्म के लाभों में 1/6 भाग के लिए विशाल को एक नए साझेदार के रूप में प्रवेश दिया । इस पर सहमति हुई कि :\n(i) विशाल अपनी पूँजी के रूप में ₹ 45,000 तथा ख्याति प्रीमियम के अपने भाग के लिए ₹ 15,000 लाएगा ।\n(ii) स्टॉक का मूल्य 10% से घटाया जाएगा तथा मशीनरी का मूल्य 10% से बढ़ाया जाएगा ।\n(iii) फर्नीचर का पुनर्मूल्यांकन ₹ 27,000 किया गया ।\n(iv) डूबत ऋणों के लिए 5% प्रावधान बनाया जाएगा तथा अदत्त मरम्मत बिल के लिए ₹ 600 का प्रावधान किया जाएगा ।\n(v) ₹ 3,000 के अलिखित निवेश थे जिनका लेखा किया जाएगा ।\n(vi) ₹ 900 का एक लेनदार अपने धन का दावा नहीं करेगा, अतः उसे अपलिखित किया जाएगा ।\nविशाल के प्रवेश पर फर्म की पुस्तकों में उपर्युक्त लेनदेनों के लिए आवश्यक रोजनामचा प्रविष्टियाँ कीजिए ।",
+    "options": []
+   },
+   "answer": "Key figures: Revaluation Profit ₹ 3,000 (Anand ₹ 1,800, Bir ₹ 1,200); Premium for Goodwill distributed (Anand ₹ 9,000, Bir ₹ 6,000); New Capital Balances: Anand ₹ 1,09,800, Bir ₹ 73,200, Vishal ₹ 45,000."
+  },
+  {
+   "question_number": "26(b)",
+   "part": "A",
+   "chapter": "Reconstitution of a Partnership Firm – RetirementDeath of a Partner",
+   "question_type": "long_answer",
+   "marks": 6,
+   "difficulty": "medium",
+   "en": {
+    "text": "Radha, Shyam and Meera were partners in a firm sharing profits and losses equally. Their Balance Sheet as at 31st March, 2025 was as follows :\nBalance Sheet of Radha, Shyam and Meera as at 31st March, 2025\n| Liabilities | Amount (₹) | Assets | Amount (₹) |\n|---|---|---|---|\n| Capitals : | | Patents | 1,80,000 |\n| Radha 4,00,000 | | Building | 6,90,000 |\n| Shyam 4,00,000 | | Debtors | 2,70,000 |\n| Meera 4,00,000 | 12,00,000 | Stock | 3,60,000 |\n| General Reserve | 3,00,000 | Bank | 1,80,000 |\n| Creditors | 1,80,000 | | |\n| | 16,80,000 | | 16,80,000 |\nShyam retired from the firm on the above date on the following terms :\n(i) The new profit sharing ratio between the remaining partners was agreed at 3 : 2.\n(ii) The value of stock was to be reduced by ₹ 1,20,000.\n(iii) Patents were considered as valueless and hence were to be written off.\n(iv) Goodwill of the firm was valued at ₹ 6,00,000 on Shyam’s retirement.\n(v) Shyam was paid ₹ 1,00,000 immediately on his retirement and the balance was transferred to his loan account.\nPrepare Revaluation Account and Partners’ Capital Accounts.",
+    "options": []
+   },
+   "hi": {
+    "text": "राधा, श्याम तथा मीरा एक फर्म के साझेदार थे तथा लाभ-हानि बराबर-बराबर बाँटते थे । 31 मार्च, 2025 को उनका स्थिति विवरण निम्न प्रकार था :\n31 मार्च, 2025 को राधा, श्याम तथा मीरा का स्थिति विवरण\n| देयताएँ | राशि (₹) | परिसम्पत्तियाँ | राशि (₹) |\n|---|---|---|---|\n| पूँजी : | | एकस्व | 1,80,000 |\n| राधा 4,00,000 | | भवन | 6,90,000 |\n| श्याम 4,00,000 | | देनदार | 2,70,000 |\n| मीरा 4,00,000 | 12,00,000 | स्टॉक | 3,60,000 |\n| सामान्य संचय | 3,00,000 | बैंक | 1,80,000 |\n| लेनदार | 1,80,000 | | |\n| | 16,80,000 | | 16,80,000 |\nउपर्युक्त तिथि को निम्नलिखित शर्तों पर श्याम फर्म से सेवानिवृत्त हो गया :\n(i) शेष साझेदारों के बीच 3 : 2 के नए लाभ विभाजन अनुपात पर सहमति हुई ।\n(ii) स्टॉक के मूल्य को ₹ 1,20,000 से कम करना था ।\n(iii) एकस्व मूल्यहीन माने गए इसलिए अपलिखित किए जाने थे ।\n(iv) श्याम की सेवानिवृत्ति पर फर्म की ख्याति का मूल्यांकन ₹ 6,00,000 था ।\n(v) श्याम को उसकी सेवानिवृत्ति पर ₹ 1,00,000 का भुगतान तुरंत कर दिया गया और शेष उसके ऋण खाते में हस्तांतरित कर दिया गया ।\nपुनर्मूल्यांकन खाता एवं साझेदारों के पूँजी खाते तैयार कीजिए ।",
+    "options": []
+   },
+   "answer": "Key figures: Revaluation Loss ₹ 3,00,000 (₹ 1,00,000 each); Shyam's share of Goodwill ₹ 2,00,000 (Radha pays ₹ 1,60,000, Meera pays ₹ 40,000 in gaining ratio 4:1); Shyam's Loan A/c ₹ 5,00,000; Final Capitals: Radha ₹ 2,40,000, Meera ₹ 3,60,000."
+  },
+  {
+   "question_number": "27(a)",
+   "part": "B-I",
+   "chapter": "Financial Statements of a Company",
+   "question_type": "mcq",
+   "marks": 1,
+   "difficulty": "easy",
+   "en": {
+    "text": "Which of the following is a financial statement of a company ?",
+    "options": [
+     "Common Size Statement of Profit and Loss",
+     "Statement of Profit and Loss",
+     "Comparative Balance Sheet",
+     "Comparative Statement of Profit and Loss"
+    ]
+   },
+   "hi": {
+    "text": "निम्नलिखित में से कौन-सा एक कम्पनी का वित्तीय विवरण है ?",
+    "options": [
+     "सामान्य आकार/समरूप लाभ-हानि विवरण",
+     "लाभ-हानि विवरण",
+     "तुलनात्मक तुलन-पत्र/स्थिति विवरण",
+     "तुलनात्मक लाभ-हानि विवरण"
+    ]
+   },
+   "answer": "B: Statement of Profit and Loss"
+  },
+  {
+   "question_number": "27(b)",
+   "part": "B-I",
+   "chapter": "Accounting Ratios",
+   "question_type": "mcq",
+   "marks": 1,
+   "difficulty": "easy",
+   "en": {
+    "text": "Which of the following is not a Solvency Ratio ?",
+    "options": [
+     "Debt-Equity Ratio",
+     "Return on Investment",
+     "Interest Coverage Ratio",
+     "Proprietary Ratio"
+    ]
+   },
+   "hi": {
+    "text": "निम्नलिखित में से कौन-सा ऋण शोधन-क्षमता अनुपात नहीं है ?",
+    "options": [
+     "ऋण-समता अनुपात",
+     "निवेश पर प्रत्याय",
+     "ब्याज आवरण व्याप्ति अनुपात",
+     "स्वामित्व अनुपात"
+    ]
+   },
+   "answer": "B: Return on Investment"
+  },
+  {
+   "question_number": "28",
+   "part": "B-I",
+   "chapter": "Accounting Ratios",
+   "question_type": "mcq",
+   "marks": 1,
+   "difficulty": "medium",
+   "en": {
+    "text": "The Current Ratio of Megh Raj Ltd. is 1.5 : 1. Which of the following transactions will reduce the ratio ?",
+    "options": [
+     "Sale of furniture of ₹ 18,000 at a loss of ₹ 2,000",
+     "Goods purchased on credit ₹ 75,000",
+     "Sale of goods costing ₹ 60,000 for ₹ 80,000",
+     "Payment of trade payables ₹ 40,000"
+    ]
+   },
+   "hi": {
+    "text": "मेघ राज लिमिटेड का चालू अनुपात 1.5 : 1 है । निम्नलिखित में से कौन-सा लेनदेन अनुपात को कम करेगा ?",
+    "options": [
+     "₹ 18,000 के फर्नीचर का ₹ 2,000 की हानि पर विक्रय",
+     "₹ 75,000 के माल का उधार क्रय",
+     "₹ 60,000 लागत के माल का ₹ 80,000 में विक्रय",
+     "₹ 40,000 के व्यापारिक देयों का भुगतान"
+    ]
+   },
+   "answer": "B: Purchase of goods on credit increases both Current Assets and Current Liabilities by the same amount. Since the ratio is > 1, this reduces the ratio."
+  },
+  {
+   "question_number": "29(a)",
+   "part": "B-I",
+   "chapter": "Cash Flow Statement",
+   "question_type": "mcq",
+   "marks": 1,
+   "difficulty": "easy",
+   "en": {
+    "text": "Which of the following are 'investing activities' for preparation of Cash Flow Statement ?\n(i) Payment of taxes\n(ii) Payment of dividend and interest\n(iii) Receipt of interest and dividend\nChoose the correct option from the following :",
+    "options": [
+     "(i), (ii) and (iii)",
+     "(i) and (ii)",
+     "(ii) and (iii)",
+     "(iii) only"
+    ]
+   },
+   "hi": {
+    "text": "रोकड़ प्रवाह विवरण तैयार करने के लिए निम्नलिखित में से कौन-सी 'निवेश गतिविधियाँ' मानी जाएँगी ?\n(i) कर भुगतान\n(ii) लाभांश तथा ब्याज का भुगतान\n(iii) ब्याज तथा लाभांश की प्राप्ति\nनिम्नलिखित में से सही विकल्प का चयन कीजिए :",
+    "options": [
+     "(i), (ii) तथा (iii)",
+     "(i) तथा (ii)",
+     "(ii) तथा (iii)",
+     "केवल (iii)"
+    ]
+   },
+   "answer": "D: (iii) only"
+  },
+  {
+   "question_number": "29(b)",
+   "part": "B-I",
+   "chapter": "Cash Flow Statement",
+   "question_type": "mcq",
+   "marks": 1,
+   "difficulty": "easy",
+   "en": {
+    "text": "Which of the following statements is correct ?",
+    "options": [
+     "Sale of property is a financing activity.",
+     "Cash deposited into bank will result in outflow of cash.",
+     "Receipt of royalties is an operating activity.",
+     "Buy-back of own equity shares is an investing activity."
+    ]
+   },
+   "hi": {
+    "text": "निम्नलिखित में से कौन-सा कथन सही है ?\n(A) सम्पत्ति का विक्रय एक वित्तीयन गतिविधि है ।\n(B) बैंक में नगद जमा करने का परिणाम रोकड़ का बहिर्वाह होगा ।\n(C) रॉयल्टी की प्राप्ति एक प्रचालन गतिविधि है ।\n(D) स्वयं के समता अंशों का पुनःक्रय एक निवेश गतिविधि है ।",
+    "options": [
+     "सम्पत्ति का विक्रय एक वित्तीयन गतिविधि है ।",
+     "बैंक में नगद जमा करने का परिणाम रोकड़ का बहिर्वाह होगा ।",
+     "रॉयल्टी की प्राप्ति एक प्रचालन गतिविधि है ।",
+     "स्वयं के समता अंशों का पुनःक्रय एक निवेश गतिविधि है ।"
+    ]
+   },
+   "answer": "C: Receipt of royalties is an operating activity."
+  },
+  {
+   "question_number": "30",
+   "part": "B-I",
+   "chapter": "Cash Flow Statement",
+   "question_type": "mcq",
+   "marks": 1,
+   "difficulty": "easy",
+   "en": {
+    "text": "Statement I : Operating activities are the activities that constitute the primary or main activities of an enterprise.\nStatement II : Cash advances and loans made by financial enterprises are usually classified as operating activities.\nChoose the correct option from the following :",
+    "options": [
+     "Both the Statements are false.",
+     "Statement I is true and Statement II is false.",
+     "Statement I is false and Statement II is true.",
+     "Both the Statements are true."
+    ]
+   },
+   "hi": {
+    "text": "कथन I : प्रचालन गतिविधियाँ वे गतिविधियाँ होती हैं जो एक उद्यम की प्राथमिक या मुख्य गतिविधियों का संघटन करती हैं ।\nकथन II : वित्तीय उद्यमों द्वारा दिए गए रोकड़ अग्रिम एवं ऋणों को अधिकांशतः प्रचालन गतिविधियों में वर्गीकृत किया जाता है ।\nनिम्नलिखित में से सही विकल्प का चयन कीजिए :",
+    "options": [
+     "दोनों कथन असत्य हैं ।",
+     "कथन I सत्य है तथा कथन II असत्य है ।",
+     "कथन I असत्य है तथा कथन II सत्य है ।",
+     "दोनों कथन सत्य हैं ।"
+    ]
+   },
+   "answer": "D: Both the Statements are true."
+  },
+  {
+   "question_number": "31",
+   "part": "B-I",
+   "chapter": "Financial Statements of a Company",
+   "question_type": "short_answer",
+   "marks": 3,
+   "difficulty": "easy",
+   "en": {
+    "text": "Classify the following items under major heads and sub-heads (if any) in the Balance Sheet of a company as per Schedule-III, Part-I of the Companies Act, 2013 :\n(i) Prepaid insurance\n(ii) Securities Premium\n(iii) Design",
+    "options": []
+   },
+   "hi": {
+    "text": "निम्नलिखित मदों को कम्पनी अधिनियम, 2013 की अनुसूची-III, भाग-I के अनुसार कम्पनी के स्थिति विवरण के मुख्य शीर्षकों तथा उप-शीर्षकों (यदि कोई है) के अंतर्गत वर्गीकृत कीजिए :\n(i) पूर्वदत्त बीमा\n(ii) प्रतिभूति प्रीमियम\n(iii) डिजाइन",
+    "options": []
+   },
+   "answer": "(i) Current Assets / Other Current Assets; (ii) Shareholders' Funds / Reserves and Surplus; (iii) Non-current Assets / Property, Plant and Equipment and Intangible Assets - Intangible Assets."
+  },
+  {
+   "question_number": "32",
+   "part": "B-I",
+   "chapter": "Analysis of Financial Statements",
+   "question_type": "short_answer",
+   "marks": 3,
+   "difficulty": "medium",
+   "en": {
+    "text": "From the following information of Dholakia Ltd., prepare a Comparative Statement of Profit and Loss for the year ended 31st March, 2024 and 2025 :\n| Particulars | Note No. | 2024 - 25 | 2023 - 24 |\n|---|---|---|---|\n| Revenue from operations | | ₹ 30,00,000 | ₹ 15,00,000 |\n| Cost of revenue from operations | | 80% of revenue from operations | 80% of revenue from operations |\n| Other Expenses | | ₹ 2,40,000 | ₹ 1,20,000 |\n| Tax Rate | | 50% | 50% |",
+    "options": []
+   },
+   "hi": {
+    "text": "ढोलकिया लिमिटेड की निम्नलिखित सूचना से 31 मार्च, 2024 तथा 2025 को समाप्त हुए वर्ष के लिए तुलनात्मक लाभ-हानि विवरण तैयार कीजिए :\n| विवरण | नोट सं. | 2024 - 25 | 2023 - 24 |\n|---|---|---|---|\n| प्रचालनों से आगम | | ₹ 30,00,000 | ₹ 15,00,000 |\n| प्रचालनों से आगम की लागत | | प्रचालनों से आगम का 80% | प्रचालनों से आगम का 80% |\n| अन्य व्यय | | ₹ 2,40,000 | ₹ 1,20,000 |\n| कर दर | | 50% | 50% |",
+    "options": []
+   },
+   "answer": "Net Profit after tax (2023-24) = ₹ 90,000; Net Profit after tax (2024-25) = ₹ 1,80,000; Absolute Change = ₹ 90,000; Percentage Change = 100%."
+  },
+  {
+   "question_number": "33(a)",
+   "part": "B-I",
+   "chapter": "Accounting Ratios",
+   "question_type": "long_answer",
+   "marks": 4,
+   "difficulty": "medium",
+   "en": {
+    "text": "From the following information, calculate 'Interest Coverage Ratio' :\nShareholders' funds ₹ 30,00,000\n8% Long-term debt ₹ 10,00,000\nNet profit after tax ₹ 2,40,000\nTax Rate 40%",
+    "options": []
+   },
+   "hi": {
+    "text": "निम्नलिखित सूचना से, 'ब्याज आवरण अनुपात' की गणना कीजिए :\nअंशधारक निधियाँ ₹ 30,00,000\n8% दीर्घकालीन ऋण ₹ 10,00,000\nकर पश्चात् शुद्ध लाभ ₹ 2,40,000\nकर दर 40%",
+    "options": []
+   },
+   "answer": "Interest = ₹ 80,000; PBT = ₹ 4,00,000; EBIT = ₹ 4,80,000; Interest Coverage Ratio = 6 times."
+  },
+  {
+   "question_number": "33(b)",
+   "part": "B-I",
+   "chapter": "Accounting Ratios",
+   "question_type": "long_answer",
+   "marks": 4,
+   "difficulty": "medium",
+   "en": {
+    "text": "From the following information, calculate 'Inventory Turnover Ratio' :\nRevenue from operations ₹ 15,00,000\nOpening inventory ₹ 2,00,000\nGross profit is 25% of cost of revenue from operations.\nClosing inventory was 2 times the opening inventory.",
+    "options": []
+   },
+   "hi": {
+    "text": "निम्नलिखित सूचना से, 'इन्वेंट्री (स्टॉक) आवर्त अनुपात' की गणना कीजिए :\nप्रचालनों से आगम ₹ 15,00,000\nआरंभिक इन्वेंट्री (स्टॉक) ₹ 2,00,000\nसकल लाभ प्रचालनों से आगम की लागत का 25% है ।\nअंतिम इन्वेंट्री (स्टॉक) आरंभिक इन्वेंट्री (स्टॉक) की 2 गुनी है ।",
+    "options": []
+   },
+   "answer": "Cost of Revenue from Operations = ₹ 12,00,000; Average Inventory = ₹ 3,00,000; Inventory Turnover Ratio = 4 times."
+  },
+  {
+   "question_number": "34",
+   "part": "B-I",
+   "chapter": "Cash Flow Statement",
+   "question_type": "long_answer",
+   "marks": 6,
+   "difficulty": "medium",
+   "en": {
+    "text": "JC Ltd. earned a net profit of ₹ 50,000 after providing depreciation of ₹ 20,000 on fixed assets and a transfer of ₹ 15,000 to general reserve. The position of its Current Assets and Current Liabilities was as follows :\n| Particulars | 31.03.2025 (₹) | 31.03.2024 (₹) |\n|---|---|---|\n| Trade Receivables | 75,000 | 70,000 |\n| Trade Payables | 75,000 | 65,000 |\n| Inventories | 40,000 | 25,000 |\n| Expenses Payable | 7,500 | 5,000 |\n| Prepaid Expenses | 5,000 | 10,000 |\n| Accrued Incomes | 20,000 | 15,000 |\n| Income Received in Advance | 5,000 | 10,000 |\nCalculate cash flows from operating activities.",
+    "options": []
+   },
+   "hi": {
+    "text": "स्थायी परिसम्पत्तियों पर ₹ 20,000 का मूल्यह्रास लगाने तथा सामान्य संचय में ₹ 15,000 स्थानान्तरित करने के पश्चात् जेसी लिमिटेड ने ₹ 50,000 का शुद्ध लाभ अर्जित किया । उसकी चालू परिसम्पत्तियों तथा चालू देयताओं की स्थिति निम्न प्रकार थी :\n| विवरण | 31.03.2025 (₹) | 31.03.2024 (₹) |\n|---|---|---|\n| व्यापारिक प्राप्य | 75,000 | 70,000 |\n| व्यापारिक देय | 75,000 | 65,000 |\n| इन्वेंट्री (मालसूची) | 40,000 | 25,000 |\n| देय व्यय | 7,500 | 5,000 |\n| पूर्वदत्त व्यय | 5,000 | 10,000 |\n| उपार्जित आय | 20,000 | 15,000 |\n| अग्रिम प्राप्त आय | 5,000 | 10,000 |\nप्रचालन गतिविधियों से रोकड़ प्रवाह की गणना कीजिए ।",
+    "options": []
+   },
+   "answer": "Operating Profit before Working Capital changes = ₹ 85,000; Net Cash from Operating Activities = ₹ 72,500."
+  },
+  {
+   "question_number": "27(a)",
+   "part": "B-II",
+   "chapter": "Computerised Accounting",
+   "question_type": "mcq",
+   "marks": 1,
+   "difficulty": "easy",
+   "en": {
+    "text": "Which of the following is not a feature of 'Generic' Computerised Accounting Software ?",
+    "options": [
+     "Increased data security",
+     "Suitable for business with low accounting operations",
+     "Requires minimal system support",
+     "Cheaper"
+    ]
+   },
+   "hi": {
+    "text": "निम्नलिखित में से कौन-सा 'जेनेरिक' अभिकालित्र लेखांकन सॉफ्टवेयर की विशेषता नहीं है ?",
+    "options": [
+     "बढ़ी हुई डेटा सुरक्षा",
+     "कम लेखांकन प्रचालनों वाले व्यवसाय के लिए उपयुक्त",
+     "न्यूनतम प्रणाली समर्थन की आवश्यकता",
+     "सस्ता"
+    ]
+   },
+   "answer": "A: Increased data security"
+  },
+  {
+   "question_number": "27(b)",
+   "part": "B-II",
+   "chapter": "Computerised Accounting",
+   "question_type": "mcq",
+   "marks": 1,
+   "difficulty": "easy",
+   "en": {
+    "text": "Identify what will be displayed on the screen when we specify an intersection of two areas that do not intersect.",
+    "options": [
+     "Correct a ##### Error",
+     "Correct a #NULL! Error",
+     "Correct a #Name Error",
+     "Correct a #REF! Error"
+    ]
+   },
+   "hi": {
+    "text": "जब हम दो ऐसे क्षेत्रों के प्रतिच्छेदन को निर्दिष्ट करते हैं जो आपस में प्रतिच्छेद नहीं करते हैं, तो स्क्रीन पर क्या प्रदर्शित होगा ।",
+    "options": [
+     "Correct a ##### Error",
+     "Correct a #NULL! Error",
+     "Correct a #Name Error",
+     "Correct a #REF! Error"
+    ]
+   },
+   "answer": "B: Correct a #NULL! Error"
+  },
+  {
+   "question_number": "28",
+   "part": "B-II",
+   "chapter": "Computerised Accounting",
+   "question_type": "mcq",
+   "marks": 1,
+   "difficulty": "easy",
+   "en": {
+    "text": "Which financial function calculates the lump-sum amount for series of future payments ?",
+    "options": [
+     "NPER",
+     "FV",
+     "PV",
+     "PMT"
+    ]
+   },
+   "hi": {
+    "text": "कौन-सा वित्तीय कार्य (फंक्शन) भविष्य में होने वाले भुगतानों की श्रृंखला के लिए एकमुश्त राशि की गणना करता है ?",
+    "options": [
+     "एनपीईआर (NPER)",
+     "एफवी (FV)",
+     "पीवी (PV)",
+     "पीएमटी (PMT)"
+    ]
+   },
+   "answer": "C: PV"
+  },
+  {
+   "question_number": "29",
+   "part": "B-II",
+   "chapter": "Computerised Accounting",
+   "question_type": "mcq",
+   "marks": 1,
+   "difficulty": "easy",
+   "en": {
+    "text": "________ provides additional information about a data marker to identify the details of data point in a data series.",
+    "options": [
+     "Source data",
+     "Secondary data",
+     "Data series",
+     "Data label"
+    ]
+   },
+   "hi": {
+    "text": "________ डेटा श्रृंखला में डेटा बिंदु के विवरण की पहचान करने के लिए डेटा मार्कर के बारे में अतिरिक्त जानकारी प्रदान करता है ।",
+    "options": [
+     "स्रोत डेटा",
+     "द्वितीयक डेटा",
+     "डेटा",
+     "डेटा लेबल"
+    ]
+   },
+   "answer": "D: Data label"
+  },
+  {
+   "question_number": "30(a)",
+   "part": "B-II",
+   "chapter": "Computerised Accounting",
+   "question_type": "mcq",
+   "marks": 1,
+   "difficulty": "easy",
+   "en": {
+    "text": "‘Computerised Accounting System enables changing the volume of data processing in accordance with the size and growth of the business.’ Identify the feature of Computerised Accounting System being highlighted in the statement :",
+    "options": [
+     "Reliability",
+     "Scalability",
+     "Transparency",
+     "Simple and integrated"
+    ]
+   },
+   "hi": {
+    "text": "‘अभिकालित्र लेखांकन तंत्र व्यवसाय के आकार और वृद्धि के अनुसार डेटा प्रोसेसिंग की मात्रा को बदलने में सक्षम बनाता है ।’ इस कथन में अभिकालित्र लेखांकन तंत्र की उस विशेषता को पहचानिए जिस पर प्रकाश डाला गया है :",
+    "options": [
+     "विश्वसनीयता",
+     "सोपानीयता",
+     "पारदर्शिता",
+     "सरल और एकीकृत"
+    ]
+   },
+   "answer": "B: Scalability"
+  },
+  {
+   "question_number": "30(b)",
+   "part": "B-II",
+   "chapter": "Computerised Accounting",
+   "question_type": "mcq",
+   "marks": 1,
+   "difficulty": "easy",
+   "en": {
+    "text": "The process of comparing input data with some known data is known as :",
+    "options": [
+     "Data Validation",
+     "Storage data",
+     "Data entry",
+     "Redundant data"
+    ]
+   },
+   "hi": {
+    "text": "इनपुट डेटा की तुलना कुछ ज्ञात डेटा से करने की प्रक्रिया को ___________ कहा जाता है ।",
+    "options": [
+     "डेटा सत्यापन",
+     "संग्रहण डेटा",
+     "डेटा प्रविष्टि",
+     "अनावश्यक डेटा"
+    ]
+   },
+   "answer": "A: Data Validation"
+  },
+  {
+   "question_number": "31",
+   "part": "B-II",
+   "chapter": "Computerised Accounting",
+   "question_type": "short_answer",
+   "marks": 3,
+   "difficulty": "easy",
+   "en": {
+    "text": "Explain Sequential codes and Block codes with the help of example.",
+    "options": []
+   },
+   "hi": {
+    "text": "उदाहरण की सहायता से अनुक्रमिक कोड और ब्लॉक कोड को समझाइए ।",
+    "options": []
+   },
+   "answer": "Sequential codes: Numbers in order (e.g., 001, 002). Block codes: Ranges for categories (e.g., 100-199 for Assets, 200-299 for Liabilities)."
+  },
+  {
+   "question_number": "32",
+   "part": "B-II",
+   "chapter": "Computerised Accounting",
+   "question_type": "short_answer",
+   "marks": 3,
+   "difficulty": "easy",
+   "en": {
+    "text": "What are the three categories in which accounting entries can be classified while entering them in vouchers ?",
+    "options": []
+   },
+   "hi": {
+    "text": "ऐसी कौन-सी तीन श्रेणियाँ हैं जिनमें वाउचर में प्रविष्टियाँ दर्ज करते समय लेखांकन प्रविष्टियों को वर्गीकृत किया जा सकता है ?",
+    "options": []
+   },
+   "answer": "Payment, Receipt, and Contra (or Journal)."
+  },
+  {
+   "question_number": "33(a)",
+   "part": "B-II",
+   "chapter": "Computerised Accounting",
+   "question_type": "long_answer",
+   "marks": 4,
+   "difficulty": "easy",
+   "en": {
+    "text": "List the necessary information to be filled by a user on company creation screen.",
+    "options": []
+   },
+   "hi": {
+    "text": "कम्पनी निर्माण स्क्रीन पर उपयोगकर्ता द्वारा भरी जाने वाली आवश्यक जानकारी की सूची बनाइए ।",
+    "options": []
+   },
+   "answer": "Company Name, Mailing Address, Financial Year, Books beginning from, and Security Control/Password."
+  },
+  {
+   "question_number": "33(b)",
+   "part": "B-II",
+   "chapter": "Computerised Accounting",
+   "question_type": "long_answer",
+   "marks": 4,
+   "difficulty": "easy",
+   "en": {
+    "text": "What is a Chart/Graph ? Explain its advantages.",
+    "options": []
+   },
+   "hi": {
+    "text": "एक चार्ट/ग्राफ क्या है ? इसके लाभों को समझाइए ।",
+    "options": []
+   },
+   "answer": "A chart is a visual representation of data. Advantages: Easy to understand, quick comparison, and trend analysis."
+  },
+  {
+   "question_number": "34",
+   "part": "B-II",
+   "chapter": "Computerised Accounting",
+   "question_type": "long_answer",
+   "marks": 6,
+   "difficulty": "medium",
+   "en": {
+    "text": "A user wishes to change a ‘Text Option’ as an element of chart. State how can this be done.",
+    "options": []
+   },
+   "hi": {
+    "text": "यदि कोई उपयोगकर्ता चार्ट के किसी अवयव में 'पाठ विकल्प' को बदलना चाहता है, तो उल्लेख कीजिए कि यह कैसे किया जा सकता है ।",
+    "options": []
+   },
+   "answer": "Select the chart element -> Right-click -> Format -> Text Options. Or use Chart Tools -> Layout/Design tab to modify text properties."
+  }
+ ]
+}
